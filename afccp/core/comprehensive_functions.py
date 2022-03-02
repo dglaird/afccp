@@ -10,7 +10,7 @@ if use_pyomo:
 
 
 # Sensitivity Analysis Functions
-def Least_Squares_Procedure(parameters, value_parameters, solution_1, solution_2, delta=0, printing=False):
+def least_squares_procedure(parameters, value_parameters, solution_1, solution_2, delta=0, printing=False):
     """
     Takes the parameters, value parameters, and solutions and then conducts the Least Squares Procedure as presented
     in the paper
@@ -59,7 +59,7 @@ def Least_Squares_Procedure(parameters, value_parameters, solution_1, solution_2
     return value_parameters_2
 
 
-def Plot_Solution_Similarity(similarity_matrix, solution_names=None, instance_name=None, display_title=True,
+def plot_solution_similarity(similarity_matrix, solution_names=None, instance_name=None, display_title=True,
                              save=False, printing=True):
     """
     This procedure plots the solution similarity matrix in 2 dimensional space
@@ -94,7 +94,7 @@ def Plot_Solution_Similarity(similarity_matrix, solution_names=None, instance_na
 
 
 # Value Function Visualizations
-def Exponential_Value_Function_Example(rho=-0.3, target=0.5):
+def exponential_value_function_example(rho=-0.3, target=0.5):
     """
     Very simple procedure that generates x and y points for some exponential value function with domain and range
     between 0 and 1
@@ -113,7 +113,7 @@ def Exponential_Value_Function_Example(rho=-0.3, target=0.5):
     return x_arr, y
 
 
-def Piecewise_Sanity_Check(a=None, f_a=None, x=None, graph=True, printing=True):
+def piecewise_sanity_check(a=None, f_a=None, x=None, graph=True, printing=True):
     """
     Takes the value function parameters, and an optional x value and computes the f_x value using the linear
     piecewise methodology. If x is None, we find the optimal value. If x is specified, we find the f_x for that
@@ -193,13 +193,13 @@ def Piecewise_Sanity_Check(a=None, f_a=None, x=None, graph=True, printing=True):
         f_x_point = obj
 
         if graph:
-            x, y = Value_Function_Points(a, f_a)
+            x, y = value_function_points(a, f_a)
 
             chart = value_function_graph(x, y, x_point, f_x_point, breakpoints=[a, f_a])
             chart.show()
 
 
-def Value_Function_Points(F_bp, F_v):
+def value_function_points(F_bp, F_v):
     """
     Takes the linear function parameters and returns the approximately non-linear coordinates
     :param F_bp: function breakpoints
@@ -215,7 +215,7 @@ def Value_Function_Points(F_bp, F_v):
     return x, y
 
 
-def Plot_Value_Function(afsc, objective, parameters, value_parameters, title=None, printing=False,
+def plot_value_function(afsc, objective, parameters, value_parameters, title=None, printing=False,
                         label_size=25, yaxis_tick_size=25, xaxis_tick_size=25, figsize=(12, 10),
                         facecolor='white', display_title=True, save=False):
     """
@@ -272,7 +272,7 @@ def Plot_Value_Function(afsc, objective, parameters, value_parameters, title=Non
 
     F_bp = value_parameters['F_bp'][j][k]
     F_v = value_parameters['F_v'][j][k]
-    x, y = Value_Function_Points(F_bp, F_v)
+    x, y = value_function_points(F_bp, F_v)
     chart = value_function_graph(x, y, title=title, label_size=label_size, yaxis_tick_size=yaxis_tick_size,
                                  xaxis_tick_size=xaxis_tick_size, figsize=figsize, facecolor=facecolor,
                                  display_title=display_title, save=save, x_label=x_label)
@@ -280,7 +280,7 @@ def Plot_Value_Function(afsc, objective, parameters, value_parameters, title=Non
 
 
 # Value Parameter Generator
-def Value_Parameter_Realistic_Generator(parameters, default_value_parameters, constraint_options=None,
+def value_parameter_realistic_generator(parameters, default_value_parameters, constraint_options=None,
                                         num_breakpoints=20, deterministic=False, constrain_merit=False,
                                         printing=False, data_type="B"):
     """

@@ -1,1 +1,1 @@
-print('hello world')
+from afccp.core.data_handling import *

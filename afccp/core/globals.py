@@ -1,22 +1,22 @@
-# ____INPUT DIRECTORY PATH____
+# Import libraries
+import os
+import pandas as pd
+import openpyxl
+
+# Get directory path
 global dir_path
-dir_path = "C:/Users/Griffen Laird/Desktop/AFIT/THESIS/Main Directory/"
+dir_path = os.getcwd() + '\\'
 
 # Additional folders in Directory
 global paths
+resource_path = 'afccp\\resources\\'
 paths = {}
-for folder in ['Analysis & Results', 'Charts & Figures', 'Data Cleaning', 'Data Processing Support',
-               'Problem Instances', 'Tables', 'Solvers']:
-    paths[folder] = dir_path + folder + '/'
+for folder in ['figures', 'instances', 'results', 'solvers', 'support', 'tables']:
+    paths[folder] = dir_path + resource_path + folder + '\\'
 
 # This determines how we import data from excel!
 global specify_engine
-specify_engine = True  # ____INPUT HERE____
-
-# Import libraries
-import pandas as pd
-if specify_engine:
-    import openpyxl
+specify_engine = True
 
 # Only use pyomo script if we have pyomo
 global use_pyomo
@@ -56,7 +56,8 @@ except:
 def import_data(filepath, sheet_name=None):
     """
     This function is to alleviate issues with importing pandas dataframes since some versions can just
-    import .xlsx files normally but some have to add ", engine= 'openpyxl'"
+    import .xlsx files normally but some have to add ", engine= 'openpyxl'". Pandas versions > 1.2.1 must
+    specify openpyxl as the engine
     :param filepath: excel file path
     :param sheet_name: name of the sheet to import
     :return: pandas dataframe

@@ -387,7 +387,7 @@ class CadetCareerProblem:
                     paths['Data Processing Support'] + 'Value_Parameter_Sets_Options_Scrubbed.xlsx',
                     sheet_name=data_type + ' Constraint Options')
 
-        value_parameters = Value_Parameter_Realistic_Generator(self.parameters, default_value_parameters,
+        value_parameters = value_parameter_realistic_generator(self.parameters, default_value_parameters,
                                                                constraints_df, deterministic=deterministic,
                                                                constrain_merit=constrain_merit,
                                                                data_type=data_type)
@@ -507,7 +507,7 @@ class CadetCareerProblem:
             yaxis_tick_size = 30
             title = 'Value_Function_' + afsc + '_' + objective
 
-        value_function_chart = Plot_Value_Function(afsc, objective, self.parameters, self.value_parameters,
+        value_function_chart = plot_value_function(afsc, objective, self.parameters, self.value_parameters,
                                                    printing=printing, label_size=label_size,
                                                    yaxis_tick_size=yaxis_tick_size, facecolor=facecolor,
                                                    xaxis_tick_size=xaxis_tick_size, figsize=figsize, save=save,
@@ -1369,7 +1369,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         if use_pyomo:
-            value_parameters = Least_Squares_Procedure(self.parameters, self.value_parameters, self.solution,
+            value_parameters = least_squares_procedure(self.parameters, self.value_parameters, self.solution,
                                                        t_solution, delta=delta, printing=printing)
         else:
             value_parameters = self.value_parameters
