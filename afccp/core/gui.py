@@ -7,7 +7,7 @@ from tkinter import *
 from PIL import ImageTk, Image
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
-from problem_class import *
+from afccp.core.problem_class import *
 
 # The GUI global object
 global root

@@ -1,7 +1,6 @@
-import pandas as pd
 import datetime
-from problem_class import *
-from research_graphs import *
+from afccp.core.problem_class import *
+from afccp.research.research_graphs import *
 
 
 # Thesis Comparison Against Real Solutions
@@ -53,12 +52,12 @@ def solve_class_year_real_instances(years=None, instances=None, solve_ga_from_ex
 
             # Load instance
             data_name = str(year) + '_VP_' + str(i)
-            instance = CadetCareerProblem(data_name, filepath=paths['Problem Instances'] +
+            instance = CadetCareerProblem(data_name, filepath=paths['instances'] +
                                                                    'Class Year VP Instances\\' + data_name + '.xlsx')
             instance.import_value_parameters()
 
             # Load AFPC Solution
-            instance.import_solution(filepath=paths['Problem Instances'] + str(year) + '_Original.xlsx')
+            instance.import_solution(filepath=paths['instances'] + str(year) + '_Original.xlsx')
             z_original = instance.measure_solution()
             original_fail = str(instance.metrics['total_failed_constraints'])
 
@@ -145,7 +144,7 @@ def generate_solve_class_year_instances(years=None, instances=None, solve_ga=Tru
     year_solutions = {}
     for year in years:
         year_options[year] = import_data(options_filename, sheet_name=str(year) + ' Constraint Options')
-        filepath = paths['Problem Instances'] + str(year) + '_Original.xlsx'
+        filepath = paths['instances'] + str(year) + '_Original.xlsx'
         year_instances[year] = CadetCareerProblem(str(year), filepath=filepath)
         year_instances[year].import_value_parameters()
         year_instances[year].import_solution()
@@ -215,7 +214,7 @@ def generate_solve_class_year_instances(years=None, instances=None, solve_ga=Tru
             VFT_fail = str(instance.metrics['total_failed_constraints'])
 
             # Export to Excel
-            year_filepath = paths['Problem Instances'] + 'Class Year VP Instances\\' + data_name + '.xlsx'
+            year_filepath = paths['instances'] + 'Class Year VP Instances\\' + data_name + '.xlsx'
             instance.export_to_excel(year_filepath)
 
             # Compare to AFPC
@@ -269,7 +268,7 @@ def compile_real_results(years=None, instances=None, printing=True):
             print(print_str)
             print('')
 
-        original_filepath = paths['Problem Instances'] + str(year) + '_Original.xlsx'
+        original_filepath = paths['instances'] + str(year) + '_Original.xlsx'
         original_solution = import_solution_from_excel(original_filepath)
         solutions = {}
         data_names = []
@@ -286,7 +285,7 @@ def compile_real_results(years=None, instances=None, printing=True):
             data_name = str(year) + '_VP_' + str(i)
             data_names.append(data_name)
             data_dict['Instance'][row] = data_name
-            filepath = paths['Problem Instances'] + 'Class Year VP Instances\\' + data_name + '.xlsx'
+            filepath = paths['instances'] + 'Class Year VP Instances\\' + data_name + '.xlsx'
             instance = CadetCareerProblem(data_name, filepath)
             instance.import_value_parameters()
             instance.import_solution()

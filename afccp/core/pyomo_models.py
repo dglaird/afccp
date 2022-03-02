@@ -3,7 +3,7 @@ import time
 import numpy as np
 import logging
 import warnings
-from globals import *
+from afccp.core.globals import *
 
 # Ignore warnings
 logging.getLogger('pyomo.core').setLevel(logging.ERROR)
@@ -478,9 +478,11 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
 
 def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", approximate=True, report=False,
-                    max_time=None, timing=False, printing=False):
+                    max_time=None, executable=None, provide_executable=False, timing=False, printing=False):
     """
     Solve VFT Model
+    :param provide_executable: whether or not to supply the solver with an executable path
+    :param executable: path to solver executable (optional- defaults to solver folder)
     :param timing: If we want to time the model
     :param max_time: max time in seconds the solver is allowed to solve
     :param approximate: if the model is convex or not
@@ -492,17 +494,6 @@ def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", appro
     :param printing: if we should print something
     :return: solution
     """
-
-    # Get right solver
-    if solve_name == "baron":
-        solver = SolverFactory(solve_name, executable=paths['Solvers'] + 'baron\\baron.exe')
-    elif solve_name in ['cplex', 'mindtpy']:
-        solver = SolverFactory(solve_name)
-    elif solve_name == 'gurobi':
-        solver = SolverFactory(solve_name, solver_io='python')
-    else:
-        # solver = SolverFactory(solve_name, executable=paths['Solvers'] + solve_name + '.exe')
-        solver = SolverFactory(solve_name)
 
     # Print what we're solving
     if printing:
@@ -516,29 +507,9 @@ def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", appro
     if timing:
         start_time = time.perf_counter()
 
-    # Solve Model
-    if max_time is not None:
-        if solve_name == 'mindtpy':
-            solver.solve(model, time_limit=max_time,
-                         mip_solver='cplex_persistent', nlp_solver='ipopt')
-        elif solve_name == 'gurobi':
-            solver.solve(model, options={'TimeLimit': max_time, 'IntFeasTol': 0.05})
-        elif solve_name == 'ipopt':
-            solver.options['max_cpu_time'] = max_time
-            solver.solve(model)
-        elif solve_name == 'cbc':
-            solver.options['seconds'] = max_time
-            solver.solve(model)
-        elif solve_name == 'baron':
-            # solver.options['maxTimeLimit'] = max_time
-            solver.solve(model, options={'MaxTime': max_time})
-        else:
-            solver.solve(model)
-    else:
-        if solve_name == 'mindtpy':
-            solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
-        else:
-            solver.solve(model)
+    # Solve the model
+    model = solve_pyomo_model(model, solver_name, executable=executable, provide_executable=provide_executable,
+                              max_time=max_time)
 
     # Stop Time
     if timing:
@@ -625,6 +596,62 @@ def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", appro
             return solution, solve_time
         else:
             return solution
+
+
+def solve_pyomo_model(model, solver_name, executable=None, provide_executable=False, max_time=None):
+    """
+    Simple function that calls the pyomo solver using the specified model and max_time
+    :param provide_executable: if we want to use the "solver" folder for an executable
+    :param model: model (or instance) to solve
+    :param solver_name: name of solver
+    :param executable: optional executable path
+    :param max_time: max time parameter
+    :return:
+    """
+
+    # Determine how the solver is called
+    if executable is None:
+        if provide_executable:
+            executable = paths['solvers'] + solver_name + '.exe'
+    else:
+        provide_executable = True
+
+    # Get correct solver
+    if provide_executable:
+        if solver_name == 'gurobi':
+            solver = SolverFactory(solver_name, solver_io='python', executable=executable)
+        else:
+            solver = SolverFactory(solver_name, executable=executable)
+    else:
+        if solver_name == 'gurobi':
+            solver = SolverFactory(solver_name, solver_io='python')
+        else:
+            solver = SolverFactory(solver_name)
+
+    # Solve Model
+    if max_time is not None:
+        if solver_name == 'mindtpy':
+            solver.solve(model, time_limit=max_time,
+                         mip_solver='cplex_persistent', nlp_solver='ipopt')
+        elif solver_name == 'gurobi':
+            solver.solve(model, options={'TimeLimit': max_time, 'IntFeasTol': 0.05})
+        elif solver_name == 'ipopt':
+            solver.options['max_cpu_time'] = max_time
+            solver.solve(model)
+        elif solver_name == 'cbc':
+            solver.options['seconds'] = max_time
+            solver.solve(model)
+        elif solver_name == 'baron':
+            solver.solve(model, options={'MaxTime': max_time})
+        else:
+            solver.solve(model)
+    else:
+        if solve_name == 'mindtpy':
+            solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
+        else:
+            solver.solve(model)
+
+    return model
 
 
 def gp_model_build(gp, printing=False):
@@ -732,35 +759,25 @@ def gp_model_build(gp, printing=False):
     return m
 
 
-def gp_model_solve(model, gp, solve_name="gurobi", max_time=None, printing=False):
+def gp_model_solve(model, gp, solver_name="gurobi", executable=None, provide_executable=False, max_time=None,
+                   printing=False):
     """
     This procedure solves Rebecca's model.
     :param gp: goal programming model parameters
     :param max_time: maximum time to solve
+    :param executable: optional executable path
+    :param provide_executable: if we want to use the "solver" folder for an executable
     :param model: the instantiated model
-    :param solve_name: solver name
+    :param solver_name: solver name
     :param printing: Whether or not to print something
     :return: solution vector
     """
     if printing:
         print('Solving R Model...')
 
-    if solve_name == 'gurobi':
-        solver = SolverFactory(solve_name, solver_io='python')
-    else:  # assume cbc
-        # solver = SolverFactory(solve_name, executable=paths['Solvers'] + solve_name + '.exe')
-        solver = SolverFactory(solve_name)
-
-    if max_time is not None:
-        if solve_name == 'gurobi':
-            # solver.solve(model, options={'TimeLimit': max_time, 'IntFeasTol': 0.05})
-            solver.solve(model, options={'TimeLimit': max_time})
-        else:  # assume cbc
-            solver.options['seconds'] = max_time
-            solver.solve(model)
-
-    else:
-        solver.solve(model)
+    # Solve the model
+    model = solve_pyomo_model(model, solver_name, executable=executable, provide_executable=provide_executable,
+                              max_time=max_time)
 
     # Get solution
     N, M = len(gp['C']), len(gp['A'])
@@ -976,7 +993,4 @@ def x_to_solution_initialization(parameters, value_parameters, measures, values)
                 lam[j, k, l] = model.lam[j, k, l].value
                 if l < r[j][k] - 1:
                     y[j, k, l] = round(model.y[j, k, l].value)
-                    # if y[j, k, l] != 1 and y[j, k, l] != 0:
-                    #     print(y[j, k, l])
-
     return lam, y

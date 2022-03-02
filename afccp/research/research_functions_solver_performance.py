@@ -1,5 +1,5 @@
-from problem_class import *
-from research_graphs import *
+from afccp.core.problem_class import *
+from afccp.research.research_graphs import *
 
 
 # Thesis: Section 4.2 (Solution Methodology: Random Data Solution Size Solver Checks)

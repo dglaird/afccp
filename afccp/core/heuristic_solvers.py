@@ -1,7 +1,6 @@
 # Import Libraries
 import time
-from data_handling import *
-from globals import *
+from afccp.core.globals import *
 
 
 def stable_marriage_model_solve(parameters, value_parameters, printing=False):

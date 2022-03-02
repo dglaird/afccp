@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import random
 from math import *
-from globals import *
+from afccp.core.globals import *
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl

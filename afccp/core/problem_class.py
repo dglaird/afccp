@@ -1,5 +1,5 @@
 # Import libraries
-from comprehensive_functions import *
+from afccp.core.comprehensive_functions import *
 import datetime
 import glob
 import os
@@ -21,7 +21,7 @@ class CadetCareerProblem:
         """
 
         # We need to get a list of the current data types in case we decide to generate more data
-        dir_folder = "Problem Instances"
+        dir_folder = "instances"
         directory = paths[dir_folder]
         self.data_files = {'Generated': {'Random': [], 'Perfect': [], 'Realistic': []},
                            'Real': {'Scrubbed': [], 'Year': []}}
@@ -90,9 +90,9 @@ class CadetCareerProblem:
 
             # Since all fixed data are the same here, just import the cadet/AFSC parameters for one of the versions
             if len(self.instance_files) > 0:
-                self.filepath = paths['Problem Instances'] + self.instance_files[0] + '.xlsx'
+                self.filepath = paths['instances'] + self.instance_files[0] + '.xlsx'
             else:
-                self.filepath = paths['Problem Instances'] + self.full_name + '.xlsx'
+                self.filepath = paths['instances'] + self.full_name + '.xlsx'
         else:
             self.filepath = filepath
 
@@ -280,11 +280,11 @@ class CadetCareerProblem:
             full_name = self.data_type + " " + self.data_name + " " + vp_name
             if filepath is None:
                 full_name = [file_name for file_name in self.instance_files if full_name in file_name][0]
-                filepath = paths['Problem Instances'] + full_name + '.xlsx'
+                filepath = paths['instances'] + full_name + '.xlsx'
         else:
             if filepath is None:
                 full_name = self.instance_files[0]
-                filepath = paths['Problem Instances'] + full_name + '.xlsx'
+                filepath = paths['instances'] + full_name + '.xlsx'
             vp_name = full_name.split(' ')[2]
 
         if printing is None:
@@ -608,7 +608,7 @@ class CadetCareerProblem:
             if data_name is None:
                 filepath, data_name = self.filepath, self.data_name
             else:
-                filepath = paths['Problem Instances'] + data_name + '.xlsx'
+                filepath = paths['instances'] + data_name + '.xlsx'
         else:
             data_name = filepath.split('/')
             data_name = data_name[len(data_name) - 1]
@@ -1463,7 +1463,7 @@ class CadetCareerProblem:
 
         if filepath is None:
             if self.filepath is None:
-                self.filepath = paths['Problem Instances'] + "New_Matching_Instance.xlsx"
+                self.filepath = paths['instances'] + "New_Matching_Instance.xlsx"
             else:
                 filepath = self.filepath
 
