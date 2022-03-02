@@ -2,10 +2,15 @@
 import os
 import pandas as pd
 import openpyxl
+from packaging import version
 
 # Get directory path
 global dir_path
 dir_path = os.getcwd() + '\\'
+
+# Check if the directory is actually in the afccp sub-folder, not the main folder
+if dir_path.count('afccp') != 1:
+    dir_path = dir_path[:-6]
 
 # Additional folders in Directory
 global paths
@@ -16,7 +21,10 @@ for folder in ['figures', 'instances', 'results', 'solvers', 'support', 'tables'
 
 # This determines how we import data from excel!
 global specify_engine
-specify_engine = True
+if version.parse(pd.__version__) > version.parse("1.2.1"):
+    specify_engine = True
+else:
+    specify_engine = False
 
 # Only use pyomo script if we have pyomo
 global use_pyomo

@@ -39,16 +39,16 @@ class CadetCareerProblem:
                     self.data_files['Real']['Scrubbed'].append(full_name)
                 else:
                     self.data_files['Real']['Year'].append(full_name)
-
-        # If we don't specify a data name or a filepath, we generate random data
         if data_name is None:
+
+            # If we don't specify a data name or a filepath, we generate random data
             if filepath is None:
                 self.data_name = "Random_" + str(len(self.data_files['Generated']["Random"]) + 1)
                 self.data_type = "Generated"
                 self.data_variant = "Random"
                 generate = True
             else:
-                full_name = filepath.split('/')
+                full_name = filepath.split('\\')
                 full_name = full_name[len(full_name) - 1]
                 self.data_name = full_name.split(' ')[1]
                 self.data_type = full_name.split(' ')[0]
