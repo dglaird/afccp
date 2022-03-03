@@ -58,7 +58,7 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
                                                              'Value Functions'])
         value_parameters["afsc_weight"][j] = afsc_weights.loc[j * O, "AFSC Weight"]
         value_parameters["afsc_value_min"][j] = afsc_weights.loc[j * O, "Min Value"]
-        cadets = parameters['I_E'][j]
+        cadets = parameters['I^E'][j]
 
         # Loop through each objective for this AFSC
         for k, objective in enumerate(value_parameters['objectives']):
@@ -115,29 +115,30 @@ def model_value_parameters_set_additions(value_parameters, printing=False):
     # Grab number of AFSCs and objectives
     M = value_parameters['M']
     O = value_parameters['O']
+    value_parameters['K'] = np.arange(O)
 
     # Set of objectives for each AFSC
-    value_parameters['K_A'] = {}  # objectives
-    value_parameters['K_C'] = {}  # constrained objectives
+    value_parameters['K^A'] = {}  # objectives
+    value_parameters['K^C'] = {}  # constrained objectives
     for j in range(M):
-        value_parameters['K_A'][j] = np.where(
+        value_parameters['K^A'][j] = np.where(
             value_parameters['objective_weight'][j, :] > 0)[0].astype(int)
-        value_parameters['K_C'][j] = np.where(
+        value_parameters['K^C'][j] = np.where(
             value_parameters['constraint_type'][j, :] > 0)[0].astype(int)
 
     # Set of objectives that seek to balance some cadet demographic
-    value_parameters['K_D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority']
+    value_parameters['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority']
 
     # Set of AFSCs for each objective:
-    value_parameters['J_A'] = {}
+    value_parameters['J^A'] = {}
     for k in range(O):
-        value_parameters['J_A'][k] = np.where(value_parameters['objective_weight'][:, k] > 0)[0].astype(int)
+        value_parameters['J^A'][k] = np.where(value_parameters['objective_weight'][:, k] > 0)[0].astype(int)
 
     # Cadet Value Constraint Set
-    value_parameters['I_C'] = np.where(value_parameters['cadet_value_min'] > 0)[0]
+    value_parameters['I^C'] = np.where(value_parameters['cadet_value_min'] > 0)[0]
 
     # AFSC Value Constraint Set
-    value_parameters['J_C'] = np.where(value_parameters['afsc_value_min'] > 0)[0]
+    value_parameters['J^C'] = np.where(value_parameters['afsc_value_min'] > 0)[0]
 
     # number of breakpoints
     value_parameters['r'] = np.array([[len(value_parameters['F_bp'][j][k]) for k in range(O)] for j in range(M)])
@@ -374,7 +375,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
             actual = None
             if objective == 'Merit' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['sum_merit'] / parameters['N']
-                actual = np.mean(parameters['merit'][parameters['I_E'][j]])
+                actual = np.mean(parameters['merit'][parameters['I^E'][j]])
 
             elif objective == 'USAFA Proportion' and value_parameters['objective_weight'][j, k] != 0:
                 if parameters['usafa_quota'][j] == 0:
@@ -384,7 +385,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                     value_parameters['objective_target'][j, k] = 1
                 else:
                     value_parameters['objective_target'][j, k] = parameters['usafa_proportion']
-                actual = len(parameters['I_D'][objective][j]) / len(parameters['I_E'][j])
+                actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
 
             elif objective == 'Combined Quota' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['quota'][j]
@@ -401,11 +402,11 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
             elif objective == 'Male' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['male_proportion']
-                actual = len(parameters['I_D'][objective][j]) / len(parameters['I_E'][j])
+                actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
 
             elif objective == 'Minority' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['minority_proportion']
-                actual = len(parameters['I_D'][objective][j]) / len(parameters['I_E'][j])
+                actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
 
             # If we care about this objective, we load in its value function breakpoints
             if value_parameters['objective_weight'][j, k] != 0:
@@ -714,7 +715,7 @@ def condense_value_functions(parameters, value_parameters):
     :return: value parameters with cleaned value functions
     """
     for j in parameters['J']:
-        for k in value_parameters['K_A'][j]:
+        for k in value_parameters['K^A'][j]:
             F_bp = np.array(value_parameters["F_bp"][j][k])
             F_v = np.array(value_parameters["F_v"][j][k])
 
@@ -753,17 +754,13 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
                       'addl_overclass': import_data(filepath=filepath, sheet_name='Additional Overclass'),
                       'indv_targets': import_data(filepath=filepath, sheet_name='Individual Targets')}
 
-    # Grab some useful parameters
-    N = parameters['N']  # Number of Cadets
-    M = parameters['M']  # Number of AFSCs
-    K_A = value_parameters['K_A']  # set of objective indices for each AFSC
-    C_E = parameters['I_E']  # set of eligible cadets for each AFSC
-    A_E = parameters['J_E']  # set of afscs for which each cadet is eligible
-    I_D = parameters['I_D']  # set of cadets that contain the demographic for certain objectives
-    objectives = value_parameters['objectives']
-    value_functions = value_parameters['value_functions']
-    quota = parameters['quota']  # AFSC quota
-    large_afscs = np.where(quota >= 40)[0]  # set of large AFSCs
+    # Shorthand
+    p = parameters
+    vp = value_parameters
+    objectives = vp['objectives']
+
+    # Other parameters
+    large_afscs = np.where(p['quota'] >= 40)[0]  # set of large AFSCs
     mand_k = np.where(objectives == 'Mandatory')[0][0]  # mandatory objective index
     des_k = np.where(objectives == 'Desired')[0][0]  # desired objective index
     perm_k = np.where(objectives == 'Permitted')[0][0]  # permitted objective index
@@ -794,10 +791,10 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
     # Subsets of AFSCs that pertain to each constraint (1 dimensional arrays)
     gp['A^'] = {'T': A,  # Subset of AFSCs with a minimum target quota: assumed all AFSCs
                 'F': A,  # Subset of AFSCs with over-classification limits: assumed all AFSCs
-                'M': np.array([a for a in A if 'Mandatory' in objectives[K_A[a]]]),  # Mandatory constrained AFSCs
-                'D_under': np.array([a for a in A if 'Increasing' in value_functions[a, des_k]]),  # Desired AFSCs
-                'D_over': np.array([a for a in A if 'Decreasing' in value_functions[a, des_k]]),  # Desired AFSCs
-                'P': np.array([a for a in A if 'Permitted' in objectives[K_A[a]]]),  # Permitted AFSCs
+                'M': np.array([a for a in A if 'Mandatory' in objectives[vp['K^A'][a]]]),  # Mandatory AFSCs
+                'D_under': np.array([a for a in A if 'Increasing' in vp['value_functions'][a, des_k]]),  # Desired AFSCs
+                'D_over': np.array([a for a in A if 'Decreasing' in vp['value_functions'][a, des_k]]),  # Desired AFSCs
+                'P': np.array([a for a in A if 'Permitted' in objectives[vp['K^A'][a]]]),  # Permitted AFSCs
                 'U_under': large_afscs,  # USAFA Proportion constrained AFSCs
                 'U_over': large_afscs,  # USAFA Proportion constrained AFSCs
                 'R_under': large_afscs,  # Percentile constrained AFSCs
@@ -805,59 +802,59 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
                 'W': A}  # Subset of AFSCs with a cadet preference constraint: assumed all AFSCs
 
     # Subset of AFSCs for which each cadet is eligible (Replaced A | A^I)
-    gp['A^']['E'] = A_E
+    gp['A^']['E'] = p['J^E']
 
     # Subset of AFSCs that each cadet has placed a preference for
-    A_Utility = [np.where(parameters['utility'][c, :] > 0)[0] for c in C]
+    A_Utility = [np.where(p['utility'][c, :] > 0)[0] for c in C]
 
     # Subset of AFSCs that each cadet has placed a preference for and is also eligible for
     gp['A^']['W^E'] = [np.intersect1d(A_Utility[c], gp['A^']['E'][c]) for c in C]
 
     # Subset of AFSCs which have an upper bound on the number of USAFA cadets
-    gp['A^']['U_lim'] = np.array([a for a in A if ',' in value_parameters['objective_value_min'][a, usafa_k]])
+    gp['A^']['U_lim'] = np.array([a for a in A if ',' in vp['objective_value_min'][a, usafa_k]])
 
     # Set of cadets that have placed preferences on each of the AFSCs
-    C_Utility = [np.where(parameters['utility'][:, a] > 0)[0] for a in A]
+    C_Utility = [np.where(p['utility'][:, a] > 0)[0] for a in A]
 
     # Subsets of Cadets that pertain to each constraint  (2 dimensional arrays)
-    gp['C^'] = {'T': C_E,  # Eligible Cadets for each AFSC
-                'F': C_E,  # Eligible Cadets for each AFSC
-                'M': I_D['Mandatory'],  # Cadets that have mandatory degrees for each AFSC
-                'D_under': I_D['Desired'],  # Cadets that have desired degrees for each AFSC
-                'D_over': I_D['Desired'],  # Cadets that have desired degrees for each AFSC
-                'P': I_D['Permitted'],  # Cadets that have permitted degrees for each AFSC
-                'U_under': I_D['USAFA Proportion'],  # Eligible USAFA Cadets for each AFSC
-                'U_over': I_D['USAFA Proportion'],  # Eligible USAFA Cadets for each AFSC
-                'R_under': C_E,  # Eligible Cadets for each AFSC
-                'R_over': C_E,  # Eligible Cadets for each AFSC
+    gp['C^'] = {'T': p['I^E'],  # Eligible Cadets for each AFSC
+                'F': p['I^E'],  # Eligible Cadets for each AFSC
+                'M': p['I^D']['Mandatory'],  # Cadets that have mandatory degrees for each AFSC
+                'D_under': p['I^D']['Desired'],  # Cadets that have desired degrees for each AFSC
+                'D_over': p['I^D']['Desired'],  # Cadets that have desired degrees for each AFSC
+                'P': p['I^D']['Permitted'],  # Cadets that have permitted degrees for each AFSC
+                'U_under': p['I^D']['USAFA Proportion'],  # Eligible USAFA Cadets for each AFSC
+                'U_over': p['I^D']['USAFA Proportion'],  # Eligible USAFA Cadets for each AFSC
+                'R_under': p['I^E'],  # Eligible Cadets for each AFSC
+                'R_over': p['I^E'],  # Eligible Cadets for each AFSC
 
                 # Eligible Cadets that have placed preferences for each AFSC
-                'W': [np.intersect1d(C_Utility[a], C_E[a]) for a in A]}
+                'W': [np.intersect1d(C_Utility[a], p['I^E'][a]) for a in A]}
 
     # Subset of eligible cadets for each AFSC
-    gp['C^']['E'] = C_E
+    gp['C^']['E'] = p['I^E']
 
     # Subset of eligible usafa cadets for each AFSC
-    gp['C^']['U'] = I_D['USAFA Proportion']
+    gp['C^']['U'] = p['I^D']['USAFA Proportion']
 
     # Parameters for each of the constraints (1 dimensional arrays)
-    gp['param'] = {'T': quota,  # Target quotas
-                   'F': parameters['quota_max'],  # Over-classification amounts
-                   'M': value_parameters['objective_target'][:, mand_k],  # Mandatory targets
-                   'D_under': value_parameters['objective_target'][:, des_k],  # Desired targets
-                   'D_over': value_parameters['objective_target'][:, des_k],  # Desired targets
-                   'P': value_parameters['objective_target'][:, perm_k],  # Permitted targets
-                   'U_under': np.repeat(0.2, M),  # USAFA Proportion lower bound
-                   'U_over': np.repeat(0.4, M),  # USAFA Proportion upper bound
-                   'R_under': np.repeat(0.35, M),  # Percentile lower bound
-                   'R_over': np.repeat(0.65, M),  # Percentile upper bound
-                   'W': np.repeat(0.5, M)}  # Cadet preference lower bound
+    gp['param'] = {'T': p['quota'],  # Target quotas
+                   'F': p['quota_max'],  # Over-classification amounts
+                   'M': vp['objective_target'][:, mand_k],  # Mandatory targets
+                   'D_under': vp['objective_target'][:, des_k],  # Desired targets
+                   'D_over': vp['objective_target'][:, des_k],  # Desired targets
+                   'P': vp['objective_target'][:, perm_k],  # Permitted targets
+                   'U_under': np.repeat(0.2, p['M']),  # USAFA Proportion lower bound
+                   'U_over': np.repeat(0.4, p['M']),  # USAFA Proportion upper bound
+                   'R_under': np.repeat(0.35, p['M']),  # Percentile lower bound
+                   'R_over': np.repeat(0.65, p['M']),  # Percentile upper bound
+                   'W': np.repeat(0.5, p['M'])}  # Cadet preference lower bound
 
     # Other parameters
-    gp['utility'] = parameters['utility']  # utility matrix
+    gp['utility'] = p['utility']  # utility matrix
     gp['Big_M'] = 2000  # sufficiently large number
     gp['u_limit'] = 0.05  # limit on number of USAFA cadets for certain AFSCs
-    gp['merit'] = parameters['merit']  # cadet percentiles
+    gp['merit'] = p['merit']  # cadet percentiles
 
     # Penalty and Reward parameters
     weights_scaling = gp_df_dict['weights_scaling']
@@ -882,14 +879,3 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
 
     return gp
 
-
-# Value Function Slide Examples
-def value_function_examples(slides=None):
-    """
-    This procedure generates value function examples for the slides
-    :param slides: which slides to show
-    :return: None
-    """
-
-    if slides is None:
-        slides = np.arange(1, 2).astype(int)

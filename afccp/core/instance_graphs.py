@@ -53,11 +53,9 @@ def data_graph(parameters, save=False, figsize=(19, 7), facecolor='white', eligi
     # Load the data
     N = parameters['N']
     M = parameters['M']
-    I_E = parameters['I_E']
-    I_D = parameters['I_D']
     if num is None:
         num = N
-    eligible_count = np.array([len(I_E[j]) for j in range(M)])
+    eligible_count = np.array([len(parameters['I^E'][j]) for j in range(M)])
 
     # Get applicable afscs
     indices = np.where(eligible_count <= num)[0]
@@ -76,14 +74,14 @@ def data_graph(parameters, save=False, figsize=(19, 7), facecolor='white', eligi
 
         # Get correct metric
         if graph == 'Average Merit':
-            metric = np.array([np.mean(parameters['merit'][I_E[j]]) for j in indices])
+            metric = np.array([np.mean(parameters['merit'][parameters['I^E'][j]]) for j in indices])
             target = 0.5
         elif graph == 'USAFA Proportion':
-            metric = np.array([len(I_D[graph][j]) / len(I_E[j]) for j in indices])
+            metric = np.array([len(parameters['I^D'][graph][j]) / len(parameters['I^E'][j]) for j in indices])
             target = parameters['usafa_proportion']
         else:
             if eligibility:
-                metric = np.array([np.mean(parameters['utility'][I_E[j], j]) for j in indices])
+                metric = np.array([np.mean(parameters['utility'][parameters['I^E'][j], j]) for j in indices])
             else:
                 metric = np.array([np.mean(parameters['utility'][:, j]) for j in indices])
             target = None
@@ -135,7 +133,7 @@ def data_graph(parameters, save=False, figsize=(19, 7), facecolor='white', eligi
                            Patch(facecolor='black', alpha=0.5, label='AFSC Quota', edgecolor='black')]
 
         # Get metrics
-        eligible_count = np.array([len(I_E[j]) for j in indices])
+        eligible_count = np.array([len(parameters['I^E'][j]) for j in indices])
         quota = parameters['quota'][indices]
 
         # Bar Chart
@@ -188,7 +186,7 @@ def data_graph(parameters, save=False, figsize=(19, 7), facecolor='white', eligi
             fig.suptitle(title, fontsize=label_size, color='white')
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -269,7 +267,7 @@ def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display
     plt.ylim(0, 1.05)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png')
+        fig.savefig(paths['figures'] + title + '.png')
     return fig
 
 
@@ -398,7 +396,7 @@ def individual_weight_graph(parameters, value_parameters, cadets=True, save=Fals
         ax.set_title(title, fontsize=label_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -585,7 +583,7 @@ def afsc_value_results_graph(parameters, value_parameters, metrics=None, metrics
             ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -631,8 +629,7 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
 
     # Get chart specs
     j = np.where(parameters['afsc_vector'] == afsc)[0][0]
-    K_A = value_parameters['K_A'][j].astype(int)
-    objectives = value_parameters['objectives'][K_A]
+    objectives = value_parameters['objectives'][value_parameters['K^A']]
     for k, objective in enumerate(objectives):
         if objective == 'USAFA Proportion':
             objectives[k] = 'USAFA\nProportion'
@@ -642,7 +639,7 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
     if metrics_dict is None:
 
         # Plot values
-        values = metrics['objective_value'][j, K_A]
+        values = metrics['objective_value'][j, value_parameters['K^A']]
         ax.bar(objectives, values, edgecolor='black', color=bar_color, alpha=alpha)
 
     else:
@@ -670,7 +667,7 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
         for s, solution in enumerate(list(metrics_dict.keys())):
 
             # Plot points
-            value = metrics_dict[solution]['objective_value'][j, K_A]
+            value = metrics_dict[solution]['objective_value'][j, value_parameters['K^A']]
             ax.scatter(objectives, value, color=colors[s], marker=markers[s], edgecolor='black', s=dot_size, zorder=2)
 
             max_value = np.array([max(max_value[k], value[k]) for k in range(O)])
@@ -722,7 +719,7 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
             ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png')
+        fig.savefig(paths['figures'] + title + '.png')
 
     return fig
 
@@ -869,7 +866,7 @@ def average_merit_results_graph(parameters, value_parameters, metrics=None, metr
         ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1079,7 +1076,7 @@ def quota_fill_results_graph(parameters, value_parameters, metrics=None, metrics
     ax.set(ylim=(0, y_top * y_max))
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1263,7 +1260,7 @@ def usafa_proportion_results_graph(parameters, value_parameters, metrics=None, m
         ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1486,7 +1483,7 @@ def afocd_degree_proportions_results_graph(parameters, value_parameters, metrics
     ax.xaxis.label.set_size(label_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1612,7 +1609,7 @@ def average_utility_results_graph(parameters, value_parameters, metrics=None, me
         ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1705,7 +1702,7 @@ def cadet_utility_histogram(metrics=None, metrics_dict=None, save=False, figsize
             ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1773,7 +1770,7 @@ def holistic_color_graph(parameters, value_parameters, metrics, figsize=(11, 10)
         y += height
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1847,7 +1844,7 @@ def pareto_graph(pareto_df, dimensions=None, save=False, title=None, figsize=(10
     ax.tick_params(axis='x', labelsize=xaxis_tick_size)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png')
+        fig.savefig(paths['figures'] + title + '.png')
 
     return fig
 
@@ -1886,7 +1883,7 @@ def afsc_objective_weights_graph(parameters, value_parameters_dict, afsc, colors
     num_weights = len(value_parameters_dict)
     j = np.where(parameters['afsc_vector'] == afsc)[0][0]
     first_key = list(value_parameters_dict.keys())[0]
-    K_A = value_parameters_dict[first_key]['K_A'][j].astype(int)
+    K_A = value_parameters_dict[first_key]['K^A'][j].astype(int)
     objectives = value_parameters_dict[first_key]['objectives'][K_A]
     for k, objective in enumerate(objectives):
         if objective == 'USAFA Proportion':
@@ -1941,7 +1938,7 @@ def afsc_objective_weights_graph(parameters, value_parameters_dict, afsc, colors
                   ncol=num_weights, columnspacing=0.8, handletextpad=0.25, borderaxespad=0.5, borderpad=0.4)
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png')
+        fig.savefig(paths['figures'] + title + '.png')
 
     return fig
 
@@ -1993,7 +1990,7 @@ def solution_parameter_comparison_graph(z_dict, colors=None, save=False, figsize
     ax.legend(handles=legend_elements, edgecolor='black', loc='upper right', columnspacing=0.8, handletextpad=0.25,
               borderaxespad=0.5, borderpad=0.4)
     if save:
-        fig.savefig(paths['Charts & Figures'] + title + '.png')
+        fig.savefig(paths['figures'] + title + '.png')
 
     return fig
 
@@ -2015,7 +2012,7 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
     """
 
     # Load the data
-    indices = value_parameters['J_E'][k]
+    indices = value_parameters['J^E'][k]
     afscs = parameters['afsc_vector'][indices]
     minimums = np.zeros(len(indices))
     maximums = np.zeros(len(indices))
@@ -2097,7 +2094,7 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
     ax.set_ylabel(objective + ' Measure')
 
     if save:
-        fig.savefig(paths['Charts & Figures'] + 'Solution_Results.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + 'Solution_Results.png', bbox_inches='tight')
 
     return fig
 
@@ -2206,7 +2203,7 @@ def solution_similarity_graph(coords, solution_names, title=None, colors=None, f
         ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
         if save:
-            fig.savefig(paths['Charts & Figures'] + title + '.png')
+            fig.savefig(paths['figures'] + title + '.png')
 
         return fig
     if use_models:
@@ -2291,6 +2288,6 @@ def solution_similarity_graph(coords, solution_names, title=None, colors=None, f
             ax.set_title(title)
 
         if save:
-            fig.savefig(paths['Charts & Figures'] + title + '.png')
+            fig.savefig(paths['figures'] + title + '.png')
 
         return fig

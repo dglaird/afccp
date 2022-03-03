@@ -102,32 +102,32 @@ def model_fixed_parameters_set_additions(parameters, printing=False):
     # Cadet Indexed Sets
     parameters['I'] = np.arange(parameters['N'])
     parameters['J'] = np.arange(parameters['M'])
-    parameters['J_E'] = [np.where(
+    parameters['J^E'] = [np.where(
         parameters['ineligible'][i, :] == 0)[0] for i in parameters['I']]  # set of AFSCs that cadet i is eligible for
 
     # AFSC Indexed Sets
-    parameters['I_E'] = [np.where(
+    parameters['I^E'] = [np.where(
         parameters['ineligible'][:, j] == 0)[0] for j in parameters['J']]  # set of cadets that are eligible for AFSC j
 
     # Add demographic sets if they're included
-    parameters['I_D'] = {}
+    parameters['I^D'] = {}
     if 'usafa' in parameters:
         usafa = np.where(parameters['usafa'] == 1)[0]  # set of usafa cadets
         parameters['usafa_proportion'] = np.mean(parameters['usafa'])
-        parameters['I_D']['USAFA Proportion'] = [np.intersect1d(parameters['I_E'][j], usafa) for j in parameters['J']]
+        parameters['I^D']['USAFA Proportion'] = [np.intersect1d(parameters['I^E'][j], usafa) for j in parameters['J']]
     if 'mandatory' in parameters:
-        parameters['I_D']['Mandatory'] = [np.where(parameters['mandatory'][:, j] == 1)[0] for j in parameters['J']]
-        parameters['I_D']['Desired'] = [np.where(parameters['desired'][:, j] == 1)[0] for j in parameters['J']]
-        parameters['I_D']['Permitted'] = [np.where(parameters['permitted'][:, j] == 1)[0] for j in parameters['J']]
+        parameters['I^D']['Mandatory'] = [np.where(parameters['mandatory'][:, j] == 1)[0] for j in parameters['J']]
+        parameters['I^D']['Desired'] = [np.where(parameters['desired'][:, j] == 1)[0] for j in parameters['J']]
+        parameters['I^D']['Permitted'] = [np.where(parameters['permitted'][:, j] == 1)[0] for j in parameters['J']]
 
     if 'male' in parameters:
         male = np.where(parameters['male'] == 1)[0]  # set of male cadets
-        parameters['I_D']['Male'] = [np.intersect1d(parameters['I_E'][j], male) for j in parameters['J']]
+        parameters['I^D']['Male'] = [np.intersect1d(parameters['I^E'][j], male) for j in parameters['J']]
         parameters['male_proportion'] = np.mean(parameters['male'])
 
     if 'minority' in parameters:
         minority = np.where(parameters['minority'] == 1)[0]  # set of minority cadets
-        parameters['I_D']['Minority'] = [np.intersect1d(parameters['I_E'][j], minority) for j in parameters['J']]
+        parameters['I^D']['Minority'] = [np.intersect1d(parameters['I^E'][j], minority) for j in parameters['J']]
         parameters['minority_proportion'] = np.mean(parameters['minority'])
 
     # Merit
@@ -266,73 +266,61 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
     :return: solution metrics
     """
 
-    # Load in parameters from dictionaries
-    N = parameters['N']
-    M = parameters['M']
-    I = parameters['I']
-    J = parameters['J']
-    J_E = parameters['J_E']
-    I_E = parameters['I_E']
-    I_D = parameters['I_D']
-    O = value_parameters['O']
-    K_A = value_parameters['K_A']
-    K_C = value_parameters['K_C']
-    objectives = value_parameters['objectives']
+    # Shorthand notation
+    p = parameters
+    vp = value_parameters
 
-    # Construct X matrix
+    # Construct X matrix from vector
     if len(np.shape(solution)) == 1:
         x_matrix = False
-        X = np.zeros([N, M])
-        for i in I:
-            for j in J:
-                if solution[i] == j:
-                    X[i, j] = 1
+        x = np.array([[1 if solution[i] == j else 0 for j in p['J']] for i in p['I']])
     else:
         x_matrix = True
-        X = solution
+        x = solution
 
     # Create metrics dictionary
-    metrics = {'objective_measure': np.zeros([M, O]), 'objective_value': np.zeros([M, O]),
-               'afsc_value': np.zeros(M), 'cadet_value': np.zeros(N), 'cadet_constraint_fail': np.zeros(N),
-               'afsc_constraint_fail': np.zeros(M), 'objective_score': np.zeros(O),
-               'objective_constraint_fail': np.array([[" " * 30 for _ in range(O)] for _ in range(M)]),
-               'total_failed_constraints': 0, 'X': X}
+    metrics = {'objective_measure': np.zeros([p['M'], vp['O']]), 'objective_value': np.zeros([p['M'], vp['O']]),
+               'afsc_value': np.zeros(p['M']), 'cadet_value': np.zeros(p['N']),
+               'cadet_constraint_fail': np.zeros(p['N']), 'afsc_constraint_fail': np.zeros(p['M']),
+               'objective_score': np.zeros(vp['O']), 'total_failed_constraints': 0, 'x': x,
+               'objective_constraint_fail': np.array([[" " * 30 for _ in range(vp['O'])] for _ in range(p['M'])])}
 
     # Get certain objective indices
-    quota_k = np.where(objectives == 'Combined Quota')[0][0]
-    if 'merit' in parameters:
-        merit_k = np.where(objectives == 'Merit')[0][0]
+    if 'merit' in p:
+        merit_k = np.where(vp['objectives'] == 'Merit')[0][0]
 
-    if 'usafa' in parameters:
-        usafa_k = np.where(objectives == 'USAFA Proportion')[0][0]
+    if 'usafa' in p:
+        usafa_k = np.where(vp['objectives'] == 'USAFA Proportion')[0][0]
 
     # Loop through all AFSCs to assign their individual values
-    for j in J:
+    for j in p['J']:
 
-        count = sum(X[i, j] for i in I_E[j])  # number of assigned cadets
+        # Number of assigned cadets
+        count = np.sum(x[i, j] for i in p['I^E'][j])
+
+        # Only calculate value if we assigned at least one cadet (otherwise AFSC has a value of 0)
         if count != 0:
 
-            # Get variables for this AFSC
-            if 'usafa' in parameters:
-                usafa_count = np.sum(X[i, j] for i in I_D['USAFA Proportion'][j])
-            target_quota = value_parameters['objective_target'][j, quota_k]
+            # Get more variables for this AFSC
+            if 'usafa' in p:
+                usafa_count = np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j])
 
             # Are we using approximate measures or not
             if approximate:
-                num_cadets = target_quota
+                num_cadets = p['quota'][j]
             else:
                 num_cadets = count
 
             # Loop through all objectives that this AFSC cares about
-            for k in K_A[j]:
+            for k in vp['K^A'][j]:
 
                 # Get the correct measure for this objective
-                objective = objectives[k]
+                objective = vp['objectives'][k]
                 if objective == 'Merit':
-                    numerator = np.sum(parameters['merit'][i] * X[i, j] for i in I_E[j])
+                    numerator = np.sum(p['merit'][i] * x[i, j] for i in p['I^E'][j])
                     metrics['objective_measure'][j, k] = numerator / num_cadets
                 elif objective == 'Utility':
-                    numerator = np.sum(parameters['utility'][i, j] * X[i, j] for i in I_E[j])
+                    numerator = np.sum(p['utility'][i, j] * x[i, j] for i in p['I^E'][j])
                     metrics['objective_measure'][j, k] = numerator / num_cadets
                 elif objective == 'Combined Quota':
                     metrics['objective_measure'][j, k] = count
@@ -340,49 +328,48 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                     metrics['objective_measure'][j, k] = usafa_count
                 elif objective == 'ROTC Quota':
                     metrics['objective_measure'][j, k] = count - usafa_count
-                elif objective in I_D:
-                    numerator = np.sum(X[i, j] for i in I_D[objective][j])
+                elif objective in vp['K^D']:
+                    numerator = np.sum(x[i, j] for i in p['I^D'][objective][j])
                     metrics['objective_measure'][j, k] = numerator / num_cadets
 
                 # Get the correct value for this objective
-                metrics['objective_value'][j, k] = value_function(a=value_parameters['F_bp'][j][k],
-                                                                  f_a=value_parameters['F_v'][j][k],
-                                                                  r=value_parameters['r'][j][k],
+                metrics['objective_value'][j, k] = value_function(a=vp['F_bp'][j][k],
+                                                                  f_a=vp['F_v'][j][k],
+                                                                  r=vp['r'][j][k],
                                                                   x=metrics['objective_measure'][j, k])
 
                 # AFSC Objective Constraints
-                if k in K_C[j]:
+                if k in vp['K^C'][j]:
 
-                    # Constrained Value (no way for exact value constraint)
-                    if value_parameters['constraint_type'][j, k] == 1 or \
-                            value_parameters['constraint_type'][j, k] == 2:
+                    # Constrained Value (this isn't used though)
+                    if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
 
-                        if metrics['objective_value'][j, k] < \
-                                float(value_parameters['objective_value_min'][j, k]):
+                        # If the objective value is less than the lower bound on value, constraint is failed
+                        if metrics['objective_value'][j, k] < float(vp['objective_value_min'][j, k]):
                             metrics['objective_constraint_fail'][j, k] = str(
                                 round(metrics['objective_value'][j, k], 3)) + ' < ' + str(
-                                float(value_parameters['objective_value_min'][j, k]))
+                                float(vp['objective_value_min'][j, k]))
                             metrics['total_failed_constraints'] += 1
 
                     # Constrained Approximate Measure
-                    elif value_parameters['constraint_type'][j, k] == 3:
-                        value_list = value_parameters['objective_value_min'][j, k].split(",")
+                    elif vp['constraint_type'][j, k] == 3:
+                        value_list = vp['objective_value_min'][j, k].split(",")
                         min_measure = float(value_list[0].strip())
                         max_measure = float(value_list[1].strip())
 
                         # Get correct measure constraint
                         if objective not in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                            if numerator / target_quota < min_measure:
+                            if numerator / p['quota'][j] < min_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
-                                    round(numerator / target_quota, 3)) + ' < ' + str(
-                                    min_measure) + '. ' + str(round(100 * (numerator / target_quota) /
+                                    round(numerator / p['quota'][j], 3)) + ' < ' + str(
+                                    min_measure) + '. ' + str(round(100 * (numerator / p['quota'][j]) /
                                                                     min_measure, 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
-                            elif numerator / target_quota > max_measure:
+                            elif numerator / p['quota'][j] > max_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
-                                    round(numerator / target_quota, 3)) + ' > ' + str(
+                                    round(numerator / p['quota'][j], 3)) + ' > ' + str(
                                     max_measure) + '. ' + str(round(100 * max_measure /
-                                                                    (numerator / target_quota), 2)) + '% Met.'
+                                                                    (numerator / p['quota'][j]), 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
                         else:
                             if metrics['objective_measure'][j, k] < min_measure:
@@ -399,9 +386,9 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                                 metrics['total_failed_constraints'] += 1
 
                     # Constrained Exact Measure
-                    elif value_parameters['constraint_type'][j, k] == 4:
+                    elif vp['constraint_type'][j, k] == 4:
 
-                        value_list = value_parameters['objective_value_min'][j, k].split(",")
+                        value_list = vp['objective_value_min'][j, k].split(",")
                         min_measure = float(value_list[0].strip())
                         max_measure = float(value_list[1].strip())
 
@@ -432,52 +419,51 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                                 metrics['total_failed_constraints'] += 1
 
             # AFSC individual value
-            metrics['afsc_value'][j] = np.dot(value_parameters['objective_weight'][j, :],
-                                              metrics['objective_value'][j, :])
-            if metrics['afsc_value'][j] < value_parameters['afsc_value_min'][j]:
+            metrics['afsc_value'][j] = np.dot(vp['objective_weight'][j, :], metrics['objective_value'][j, :])
+            if metrics['afsc_value'][j] < vp['afsc_value_min'][j]:
                 metrics['afsc_constraint_fail'][j] = 1
                 metrics['total_failed_constraints'] += 1
 
             # Also calculate Average Merit and USAFA proportion even if not in the AFSC's objectives
-            if 'merit' in parameters:
-                if merit_k not in K_A[j]:
-                    numerator = np.sum(parameters['merit'][i] * X[i, j] for i in I_E[j])
+            if 'merit' in p:
+                if merit_k not in vp['K^A'][j]:
+                    numerator = np.sum(p['merit'][i] * x[i, j] for i in p['I^E'][j])
                     metrics['objective_measure'][j, merit_k] = numerator / num_cadets
-            if 'usafa' in parameters:
-                if usafa_k not in K_A[j]:
-                    numerator = np.sum(X[i, j] for i in I_D['USAFA Proportion'][j])
+            if 'usafa' in p:
+                if usafa_k not in vp['K^A'][j]:
+                    numerator = np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j])
                     metrics['objective_measure'][j, usafa_k] = numerator / num_cadets
 
     # Loop through all cadets to assign their values
-    for i in I:
-        metrics['cadet_value'][i] = np.sum(X[i, j] * parameters['utility'][i, j] for j in J_E[i])
-        if metrics['cadet_value'][i] < value_parameters['cadet_value_min'][i]:
+    for i in p['I']:
+        metrics['cadet_value'][i] = np.sum(x[i, j] * p['utility'][i, j] for j in p['J^E'][i])
+        if metrics['cadet_value'][i] < vp['cadet_value_min'][i]:
             metrics['cadet_constraint_fail'][i] = 1
             metrics['total_failed_constraints'] += 1
 
     # Generate objective scores for each objective
-    for k in range(O):
-        new_weights = value_parameters['afsc_weight'] * value_parameters['objective_weight'][:, k]
+    for k in vp['K']:
+        new_weights = vp['afsc_weight'] * vp['objective_weight'][:, k]
         new_weights = new_weights / sum(new_weights)
         metrics['objective_score'][k] = np.dot(new_weights, metrics['objective_value'][:, k])
 
     # Solution Matched Vector
-    metrics['afsc_solution'] = np.array([" " * 10 for _ in range(parameters['N'])])
+    metrics['afsc_solution'] = np.array([" " * 10 for _ in p['I']])
 
-    # turns the X matrix back into a vector of AFSC indices
-    solution = np.where(X)[1]
+    # turns the x matrix back into a vector of AFSC indices
+    solution = np.where(x)[1]
 
     # Translate AFSC indices into the AFSCs themselves
-    for i in I:
-        metrics['afsc_solution'][i] = parameters['afsc_vector'][int(solution[i])]
+    for i in p['I']:
+        metrics['afsc_solution'][i] = p['afsc_vector'][int(solution[i])]
 
     # Define overall metrics
-    metrics['cadets_overall_value'] = np.dot(value_parameters['cadet_weight'], metrics['cadet_value'])
-    metrics['afscs_overall_value'] = np.dot(value_parameters['afsc_weight'], metrics['afsc_value'])
-    metrics['z'] = value_parameters['cadets_overall_weight'] * metrics['cadets_overall_value'] + \
-                   value_parameters['afscs_overall_weight'] * metrics['afscs_overall_value']
-    metrics['num_ineligible'] = np.sum(X[i, j] * parameters['ineligible'][i, j] for j in
-                                    J for i in I)
+    metrics['cadets_overall_value'] = np.dot(vp['cadet_weight'], metrics['cadet_value'])
+    metrics['afscs_overall_value'] = np.dot(vp['afsc_weight'], metrics['afsc_value'])
+    metrics['z'] = vp['cadets_overall_weight'] * metrics['cadets_overall_value'] + \
+                   vp['afscs_overall_weight'] * metrics['afscs_overall_value']
+    metrics['num_ineligible'] = np.sum(x[i, j] * p['ineligible'][i, j] for j in
+                                    p['J'] for i in p['I'])
     if printing:
 
         if approximate:
@@ -509,57 +495,35 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
     :param chromosome: solution vector
     :return: fitness score
     """
-    # Parameter Sets
-    N = parameters['N']  # Number of Cadets
-    M = parameters['M']  # Number of AFSCs
-    I = parameters['I']  # Set of Cadets
-    J = parameters['J']  # Set of AFSCs
-    I_D = parameters['I_D']  # Set of cadets with some demographic for AFSC j
 
-    # Value Parameter Sets
-    O = value_parameters['O']  # Number of objectives
-    K_A = value_parameters['K_A']  # Set of objectives for AFSC j
-    K_C = value_parameters['K_C']  # Set of objectives with constraints for AFSC j
-    I_C = value_parameters['I_C']  # Set of cadets with constrained minimum values
-    J_C = value_parameters['J_C']  # Set of AFSCs with constrained minimum values
-    r = value_parameters['r']  # Number of breakpoints for value function on objective k for AFSC j
-    a = value_parameters['F_bp']  # Set of breakpoint measures for value function on objective k for AFSC j
-    f_a = value_parameters['F_v']  # Set of breakpoint values for value function on objective k for AFSC j
+    # Shorthand
+    p = parameters
+    vp = value_parameters
 
-    # More Parameters
-    merit = parameters['merit']
-    utility = parameters['utility']
-    quota = parameters['quota']
-    afsc_vector = parameters['afsc_vector']
-    objectives = value_parameters['objectives']
-    objective_weight = value_parameters['objective_weight']
-    objective_constraint_type = value_parameters['constraint_type']
-    afsc_weight = value_parameters['afsc_weight']
-    afscs_overall_weight = value_parameters['afscs_overall_weight']
-    cadet_weight = value_parameters['cadet_weight']
-    cadets_overall_weight = value_parameters['cadets_overall_weight']
-    afsc_value_min = value_parameters['afsc_value_min']
-    cadet_value_min = value_parameters['cadet_value_min']
-    objective_min = np.zeros([M, O])
-    objective_max = np.zeros([M, O])
-    soc_counts = np.zeros(M)
+    # Initialize metrics
+    metrics = {'objective_measure': np.zeros([p['M'], vp['O']]), 'objective_value': np.zeros([p['M'], vp['O']]),
+               'afsc_value': np.zeros(p['M']), 'cadet_value': np.zeros(p['N']),
+               'afsc_constraint_fail': np.zeros(p['M']), 'objective_constraint_fail': np.zeros([p['M'], vp['O']]),
+               'total_failed_constraints': 0, 'cadet_constraint_fail': np.zeros(p['N'])}
 
-    metrics = {'objective_measure': np.zeros([M, O]), 'objective_value': np.zeros([M, O]),
-               'afsc_value': np.zeros(M), 'cadet_value': np.zeros(N), 'cadet_constraint_fail': np.zeros(N),
-               'afsc_constraint_fail': np.zeros(M), 'objective_constraint_fail': np.zeros([M, O]),
-               'total_failed_constraints': 0}
-
-    for j in J:
+    # Determine if we should calculate usafa count
+    soc_counts = np.zeros(p['M'])
+    for j in p['J']:
 
         # If we care about USAFA Count and ROTC Count
-        if 'USAFA Count' in objectives[K_A[j]]:
+        if 'USAFA Count' in vp['objectives'][vp['K^A'][j]]:
             soc_counts[j] = 1
 
-        for k in K_C[j]:
-            if objective_constraint_type[j, k] == 1 or objective_constraint_type[j, k] == 2:
-                objective_min[j, k] = float(value_parameters['objective_value_min'][j, k])
-            elif objective_constraint_type[j, k] == 3 or objective_constraint_type[j, k] == 4:
-                value_list = value_parameters['objective_value_min'][j, k].split(",")
+        # Get minimum/maximum values for constraints
+        for k in vp['K^C'][j]:
+
+            # Approximate or Exact Value Constraint
+            if vp['objective_constraint_type'][j, k] == 1 or vp['objective_constraint_type'][j, k] == 2:
+                objective_min[j, k] = float(vp['objective_value_min'][j, k])
+
+            # Approximate or Exact Measure Constraint
+            elif vp['objective_constraint_type'][j, k] == 3 or vp['objective_constraint_type'][j, k] == 4:
+                value_list = vp['objective_value_min'][j, k].split(",")
                 objective_min[j, k] = float(value_list[0].strip())
                 objective_max[j, k] = float(value_list[1].strip())
 
@@ -569,13 +533,12 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
     else:
         ignore_uc = False
 
+    # Constraint penalty variables
     failed = False
     penalty = 0
-    for j in J:
 
-        # Initialize objective measures and values
-        metrics['objective_measure'][j, :] = np.zeros(O)
-        metrics['objective_value'][j, :] = np.ones(O)
+    # Loop through all AFSCs to assign their values
+    for j in p['J']:
 
         # list of indices of assigned cadets
         cadets = np.where(chromosome == j)[0]
@@ -584,42 +547,46 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
         count = len(cadets)
         usafa_count = count
 
+        # If there's at least one cadet assigned to the AFSC, we can calculate a non-zero value
         if count > 0:
             if not ignore_uc:
-                usafa_cadets = np.intersect1d(I_D['USAFA Proportion'][j], cadets)
+                usafa_cadets = np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets)
                 usafa_count = len(usafa_cadets)
 
-            # Loop through all AFSC objectives
-            for k in K_A[j]:
-                objective = objectives[k]
+            # Loop through all AFSC objectives that apply to this AFSC
+            for k in vp['K^A'][j]:
+                objective = vp['objectives'][k]
                 if objective == 'Merit':
-                    metrics['objective_measure'][j, k] = np.mean(merit[cadets])
+                    metrics['objective_measure'][j, k] = np.mean(p['merit'][cadets])
                 elif objective == 'Utility':
-                    metrics['objective_measure'][j, k] = np.mean(utility[cadets, j])
+                    metrics['objective_measure'][j, k] = np.mean(p['utility'][cadets, j])
                 elif objective == 'Combined Quota':
                     metrics['objective_measure'][j, k] = count
                 elif objective == 'USAFA Quota':
                     metrics['objective_measure'][j, k] = usafa_count
                 elif objective == 'ROTC Quota':
                     metrics['objective_measure'][j, k] = count - usafa_count
-                elif objective in I_D:
-                    metrics['objective_measure'][j, k] = len(np.intersect1d(I_D[objective][j], cadets)) / count
+                elif objective in vp['K^D']:
+                    metrics['objective_measure'][j, k] = len(np.intersect1d(p['I^D'][objective][j], cadets)) / count
 
-                # Assign AFSC objective value
-                metrics['objective_value'][j, k] = value_function(a[j][k], f_a[j][k], r[j][k],
+                # Calculate AFSC objective value
+                metrics['objective_value'][j, k] = value_function(vp['a'][j][k], vp['f_a'][j][k], vp['r'][j][k],
                                                                   metrics['objective_measure'][j, k])
 
                 # AFSC Objective Constraints
-                if k in K_C[j]:
+                if k in vp['K^C'][j]:
 
-                    # We're really only ever going to constrain the approximate measure for Mandatory
+                    # We're really only ever going to constrain the approximate measure for Mandatory Tier
                     if objective == 'Mandatory':
-                        constrained_measure = (metrics['objective_measure'][j, k] * count) / quota[j]
+                        constrained_measure = (metrics['objective_measure'][j, k] * count) / p['quota'][j]
                     else:
                         constrained_measure = metrics['objective_measure'][j, k]
 
                     # Use the real constraint (potentially different as a result of approximate model)
                     constrained_min, constrained_max = objective_min[j, k], objective_max[j, k]
+
+                    # This constraint fail dictionary keeps track of the constraints that are failed by the
+                    # optimization model by maybe 1 constraint
                     if con_fail_dict is not None:
                         if (j, k) in con_fail_dict:
                             split_list = con_fail_dict[(j, k)].split(' ')
@@ -648,14 +615,14 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
                                 adj_con_tolerance = min((constrained_min - 1) / constrained_min,
                                                         constrained_max / (constrained_max + 1))
                             elif objective == 'Mandatory':
-                                adj_con_tolerance = min((constrained_min - (1 / quota[j])) / constrained_min,
-                                                        constrained_max / (constrained_max + (1 / quota[j])))
+                                adj_con_tolerance = min((constrained_min - (1 / p['quota'][j])) / constrained_min,
+                                                        constrained_max / (constrained_max + (1 / p['quota'][j])))
                             else:
                                 adj_con_tolerance = 0.95
 
                             # Either we reduce z by some penalty or z is set to 0
                             if constraints == 'Penalty' and p_con_met < adj_con_tolerance:
-                                penalty += afscs_overall_weight * afsc_weight[j]
+                                penalty += vp['afscs_overall_weight'] * vp['afsc_weight'][j]
                             elif constraints == 'Fail' and p_con_met < adj_con_tolerance:
                                 failed = True
                                 break
@@ -664,15 +631,15 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
             else:
 
                 # Calculate AFSC value
-                metrics['afsc_value'][j] = np.dot(objective_weight[j, :], metrics['objective_value'][j, :])
+                metrics['afsc_value'][j] = np.dot(vp['objective_weight'][j, :], metrics['objective_value'][j, :])
                 if j in J_C:
-                    if metrics['afsc_value'][j] < afsc_value_min[j]:
+                    if metrics['afsc_value'][j] < vp['afsc_value_min'][j]:
 
                         # Either we reduce z by some penalty or z is set to 0
                         metrics['afsc_constraint_fail'][j] = 1
                         metrics['total_failed_constraints'] += 1
                         if constraints == 'Penalty':
-                            penalty += afscs_overall_weight * afsc_weight[j]
+                            penalty += vp['afscs_overall_weight'] * vp['afsc_weight'][j]
                         elif constraints == 'Fail':
                             failed = True
                             break
@@ -683,30 +650,30 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
             metrics['afsc_constraint_fail'][j] = 1
             metrics['total_failed_constraints'] += 1
             if constraints == 'Penalty':
-                penalty += afscs_overall_weight * afsc_weight[j]
+                penalty += vp['afscs_overall_weight'] * vp['afsc_weight'][j]
             elif constraints == 'Fail':
                 failed = True
                 break
 
     if not failed:
-        metrics['cadet_value'] = np.array([utility[i, int(chromosome[i])] for i in I])
+        metrics['cadet_value'] = np.array([p['utility'][i, int(chromosome[i])] for i in p['I']])
         for i in I_C:
-            if metrics['cadet_value'][i] < cadet_value_min[i]:
+            if metrics['cadet_value'][i] < vp['cadet_value_min'][i]:
 
                 # Either we reduce z by some penalty or z is set to 0
                 metrics['cadet_constraint_fail'][i] = 1
                 metrics['total_failed_constraints'] += 1
                 if constraints == 'Penalty':
-                    penalty += cadets_overall_weight * cadet_weight[i]
+                    penalty += vp['cadets_overall_weight'] * vp['cadet_weight'][i]
 
     # Solution Matched Vector
-    metrics['afsc_solution'] = np.array([afsc_vector[int(chromosome[i])] for i in I])
+    metrics['afsc_solution'] = np.array([p['afsc_vector'][int(chromosome[i])] for i in p['I']])
 
     # Calculate Overall Values
-    metrics['cadets_overall_value'] = np.dot(cadet_weight, metrics['cadet_value'])
-    metrics['afscs_overall_value'] = np.dot(afsc_weight, metrics['afsc_value'])
-    metrics['z'] = cadets_overall_weight * metrics['cadets_overall_value'] + \
-                   afscs_overall_weight * metrics['afscs_overall_value']
+    metrics['cadets_overall_value'] = np.dot(vp['cadet_weight'], metrics['cadet_value'])
+    metrics['afscs_overall_value'] = np.dot(vp['afsc_weight'], metrics['afsc_value'])
+    metrics['z'] = vp['cadets_overall_weight'] * metrics['cadets_overall_value'] + \
+                   vp['afscs_overall_weight'] * metrics['afscs_overall_value']
     metrics['num_ineligible'] = 0
 
     if failed:
@@ -738,7 +705,7 @@ def find_original_solution_ineligibility(parameters, solution=None, printing=Tru
 
     for i in parameters['I']:
         afsc_index = int(solution[i])
-        if afsc_index not in parameters['J_E'][i]:
+        if afsc_index not in parameters['J^E'][i]:
             if printing:
                 print('cadet', i, '->', parameters['afsc_vector'][afsc_index])
 
@@ -766,7 +733,7 @@ def solution_similarity_coordinates(similarity_matrix):
 
 
 # Export Procedures
-def pyomo_measures_to_excel(X, measures, values, parameters, value_parameters, filepath=None, printing=False):
+def pyomo_measures_to_excel(x, measures, values, parameters, value_parameters, filepath=None, printing=False):
     """
     Exports x matrix to excel along with objective values and measures
     :param values: objective values
@@ -781,9 +748,9 @@ def pyomo_measures_to_excel(X, measures, values, parameters, value_parameters, f
     if printing:
         print('Exporting Pyomo measures to excel...')
 
-    X_df = pd.DataFrame({'Encrypt_PII': parameters['SS_encrypt']})
+    x_df = pd.DataFrame({'Encrypt_PII': parameters['SS_encrypt']})
     for j, afsc in enumerate(parameters['afsc_vector']):
-        X_df[afsc] = X[:, j]
+        x_df[afsc] = x[:, j]
 
     measures_df = pd.DataFrame({'AFSC': parameters['afsc_vector']})
     values_df = pd.DataFrame({'AFSC': parameters['afsc_vector']})
@@ -795,7 +762,7 @@ def pyomo_measures_to_excel(X, measures, values, parameters, value_parameters, f
         filepath = paths['Data Processing Support'] + 'X_Matrix.xlsx'
 
     with pd.ExcelWriter(filepath) as writer:  # Export to excel
-        X_df.to_excel(writer, sheet_name="X", index=False)
+        x_df.to_excel(writer, sheet_name="X", index=False)
         measures_df.to_excel(writer, sheet_name="Measures", index=False)
         values_df.to_excel(writer, sheet_name="Values", index=False)
 
@@ -852,15 +819,15 @@ def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, pri
     afscs_fixed['Combined Target'] = parameters['quota']
     afscs_fixed['Min'] = parameters['quota_min']
     afscs_fixed['Max'] = parameters['quota_max']
-    afscs_fixed['Eligible Cadets'] = [len(parameters['I_E'][j]) for j in range(M)]
+    afscs_fixed['Eligible Cadets'] = [len(parameters['I^E'][j]) for j in range(M)]
 
     if 'usafa' in parameters:
-        afscs_fixed['USAFA Cadets'] = [len(parameters['I_D']['USAFA Proportion'][j]) for j in range(M)]
+        afscs_fixed['USAFA Cadets'] = [len(parameters['I^D']['USAFA Proportion'][j]) for j in range(M)]
 
     if 'mandatory' in parameters:
-        afscs_fixed['Mandatory Cadets'] = [len(parameters['I_D']['Mandatory'][j]) for j in range(M)]
-        afscs_fixed['Desired Cadets'] = [len(parameters['I_D']['Desired'][j]) for j in range(M)]
-        afscs_fixed['Permitted Cadets'] = [len(parameters['I_D']['Permitted'][j]) for j in range(M)]
+        afscs_fixed['Mandatory Cadets'] = [len(parameters['I^D']['Mandatory'][j]) for j in range(M)]
+        afscs_fixed['Desired Cadets'] = [len(parameters['I^D']['Desired'][j]) for j in range(M)]
+        afscs_fixed['Permitted Cadets'] = [len(parameters['I^D']['Permitted'][j]) for j in range(M)]
 
     # Build value parameters dataframes if need be
     if value_parameters is not None:

@@ -1,5 +1,6 @@
 # Import Libraries
 import time
+import numpy as np
 from afccp.core.globals import *
 
 
@@ -209,18 +210,19 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
     # Function Definitions
     def fitness_function(chromosome, first=False):
         """
-        This function takes in a chromosome (solution vector) and evaluates it.
+        This function takes in a chromosome (solution vector) and evaluates it. I tried to make it as efficient
+        as possible, since it is a very time-consuming function (relatively speaking)
         :param chromosome: solution vector
         :return: fitness score
         """
         failed = False
         penalty = 0
-        afsc_value = np.zeros(M)
-        for j in J:
+        afsc_value = np.zeros(p['M'])
+        for j in p['J']:
 
             # Initialize objective measures and values
-            measure = np.zeros(O)
-            value = np.zeros(O)
+            measure = np.zeros(vp['O'])
+            value = np.zeros(vp['O'])
 
             # list of indices of assigned cadets
             cadets = np.where(chromosome == j)[0]
@@ -230,34 +232,34 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
             usafa_count = count
             if count > 0:
                 if not ignore_uc:
-                    usafa_cadets = np.intersect1d(I_D['USAFA Proportion'][j], cadets)
+                    usafa_cadets = np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets)
                     usafa_count = len(usafa_cadets)
 
                 # Loop through all AFSC objectives
-                for k in K_A[j]:
-                    objective = objectives[k]
+                for k in vp['K^A'][j]:
+                    objective = vp['objectives'][k]
                     if objective == 'Merit':
-                        measure[k] = np.mean(merit[cadets])
+                        measure[k] = np.mean(p['merit'][cadets])
                     elif objective == 'Utility':
-                        measure[k] = np.mean(utility[cadets, j])
+                        measure[k] = np.mean(p['utility'][cadets, j])
                     elif objective == 'Combined Quota':
                         measure[k] = count
                     elif objective == 'USAFA Quota':
                         measure[k] = usafa_count
                     elif objective == 'ROTC Quota':
                         measure[k] = count - usafa_count
-                    elif objective in I_D:
-                        measure[k] = len(np.intersect1d(I_D[objective][j], cadets)) / count
+                    elif objective in p['K^D']:
+                        measure[k] = len(np.intersect1d(p['I^D'][objective][j], cadets)) / count
 
                     # Assign AFSC objective value
-                    value[k] = value_function(a[j][k], f_a[j][k], r[j][k], measure[k])
+                    value[k] = value_function(vp['a'][j][k], vp['f_a'][j][k], vp['r'][j][k], measure[k])
 
                     # AFSC Objective Constraints
-                    if k in K_C[j]:
+                    if k in vp['K^C'][j]:
 
                         # We're really only ever going to constrain the approximate measure for Mandatory
                         if objective == 'Mandatory':
-                            constrained_measure = (measure[k] * count) / quota[j]
+                            constrained_measure = (measure[k] * count) / p['quota'][j]
                         else:
                             constrained_measure = measure[k]
 
@@ -292,14 +294,14 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
                                     adj_con_tolerance = min((constrained_min - 1) / constrained_min,
                                                             constrained_max / (constrained_max + 1))
                                 elif objective == 'Mandatory':
-                                    adj_con_tolerance = min((constrained_min - (1 / quota[j])) / constrained_min,
-                                                            constrained_max / (constrained_max + (1 / quota[j])))
+                                    adj_con_tolerance = min((constrained_min - (1 / p['quota'][j])) / constrained_min,
+                                                            constrained_max / (constrained_max + (1 / p['quota'][j])))
                                 else:
                                     adj_con_tolerance = con_tolerance
 
                                 # Either we reduce z by some penalty or z is set to 0
                                 if constraints == 'Penalty' and p_con_met < adj_con_tolerance:
-                                    penalty += afscs_overall_weight * afsc_weight[j]
+                                    penalty += vp['afscs_overall_weight'] * vp['afsc_weight'][j]
                                 elif constraints == 'Fail' and p_con_met < adj_con_tolerance:
                                     failed = True
                                     break
@@ -309,13 +311,13 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
                 else:
 
                     # Calculate AFSC value
-                    afsc_value[j] = np.dot(objective_weight[j, :], value)
-                    if j in J_C:
-                        if afsc_value[j] < afsc_value_min[j]:
+                    afsc_value[j] = np.dot(vp['objective_weight'][j, :], value)
+                    if j in vp['J^C']:
+                        if afsc_value[j] < vp['afsc_value_min'][j]:
 
                             # Either we reduce z by some penalty or z is set to 0
                             if constraints == 'Penalty':
-                                penalty += afscs_overall_weight * afsc_weight[j]
+                                penalty += vp['afscs_overall_weight'] * vp['afsc_weight'][j]
                             elif constraints == 'Fail':
                                 failed = True
                                 break
@@ -324,26 +326,26 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
 
                 # Either we reduce z by some penalty or z is set to 0
                 if constraints == 'Penalty':
-                    penalty += afscs_overall_weight * afsc_weight[j]
+                    penalty += vp['afscs_overall_weight'] * vp['afsc_weight'][j]
                 elif constraints == 'Fail':
                     failed = True
                     break
 
         if not failed:
-            cadet_value = np.array([utility[i, chromosome[i]] for i in I])
-            for i in I_C:
-                if cadet_value[i] < cadet_value_min[i]:
+            cadet_value = np.array([p['utility'][i, chromosome[i]] for i in p['I']])
+            for i in vp['I^C']:
+                if cadet_value[i] < vp['cadet_value_min'][i]:
 
                     # Either we reduce z by some penalty or z is set to 0
                     if constraints == 'Penalty':
-                        penalty += cadets_overall_weight * cadet_weight[i]
+                        penalty += vp['cadets_overall_weight'] * vp['cadet_weight'][i]
                     elif constraints == 'Fail':
                         failed = True
                         break
 
         if not failed:
-            z = cadets_overall_weight * np.dot(cadet_weight, cadet_value) + \
-                afscs_overall_weight * np.dot(afsc_weight, afsc_value)
+            z = vp['cadets_overall_weight'] * np.dot(vp['cadet_weight'], cadet_value) + \
+                vp['afscs_overall_weight'] * np.dot(vp['afsc_weight'], afsc_value)
         else:
             z = 0
 
@@ -362,9 +364,9 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
         """
         points = np.sort(np.random.choice(crossover_positions, size=num_crossover_points, replace=False))
         start_points = np.append(0, points)
-        stop_points = np.append(points, N - 1)
-        child1 = np.zeros(N).astype(int)
-        child2 = np.zeros(N).astype(int)
+        stop_points = np.append(points, p['N'] - 1)
+        child1 = np.zeros(p['N']).astype(int)
+        child2 = np.zeros(p['N']).astype(int)
         flip = 1
         for i in range(len(start_points)):
             if flip == 1:
@@ -386,8 +388,8 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
         :return: mutated genome
         """
         for _ in range(num_mutations):
-            i = np.random.randint(low=0, high=N)
-            new_j = np.random.choice(J_E[i])
+            i = np.random.randint(low=0, high=p['N'])
+            new_j = np.random.choice(p['J^E'][i])
             genome[i] = new_j if (np.random.uniform() < mutation_rate) else genome[i]
 
         return genome
@@ -395,50 +397,24 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
     if printing:
         print("Running Genetic Algorithm...")
 
-    # Parameter Sets
-    N = parameters['N']  # Number of Cadets
-    M = parameters['M']  # Number of AFSCs
-    I = parameters['I']  # Set of Cadets
-    J = parameters['J']  # Set of AFSCs
-    J_E = parameters['J_E']  # Set of AFSCs for which cadet i is eligible
-    I_D = parameters['I_D']  # Set of cadets with some demographic for AFSC j
+    # Shorthand
+    p = parameters
+    vp = value_parameters
 
-    # Value Parameter Sets
-    O = value_parameters['O']  # Number of objectives
-    K_A = value_parameters['K_A']  # Set of objectives for AFSC j
-    K_C = value_parameters['K_C']  # Set of objectives with constraints for AFSC j
-    I_C = value_parameters['I_C']  # Set of cadets with constrained minimum values
-    J_C = value_parameters['J_C']  # Set of AFSCs with constrained minimum values
-    r = value_parameters['r']  # Number of breakpoints for value function on objective k for AFSC j
-    a = value_parameters['F_bp']  # Set of breakpoint measures for value function on objective k for AFSC j
-    f_a = value_parameters['F_v']  # Set of breakpoint values for value function on objective k for AFSC j
-
-    # More Parameters
-    merit = parameters['merit']
-    utility = parameters['utility']
-    quota = parameters['quota']
-    objectives = value_parameters['objectives']
-    objective_weight = value_parameters['objective_weight']
-    afsc_weight = value_parameters['afsc_weight']
-    afscs_overall_weight = value_parameters['afscs_overall_weight']
-    cadet_weight = value_parameters['cadet_weight']
-    cadets_overall_weight = value_parameters['cadets_overall_weight']
-    afsc_value_min = value_parameters['afsc_value_min']
-    cadet_value_min = value_parameters['cadet_value_min']
-    objective_constraint_type = value_parameters['constraint_type']
-    objective_min = np.zeros([M, O])
-    objective_max = np.zeros([M, O])
-    soc_counts = np.zeros(M)
-    for j in J:
+    # Obtain objective minimums and maximums
+    objective_min = np.zeros([p['M'], p['O']])
+    objective_max = np.zeros([p['M'], p['O']])
+    soc_counts = np.zeros(p['M'])
+    for j in p['J']:
 
         # If we care about USAFA Count and ROTC Count
-        if 'USAFA Count' in objectives[K_A[j]]:
+        if 'USAFA Count' in vp['objectives'][vp['K^A'][j]]:
             soc_counts[j] = 1
 
-        for k in K_C[j]:
-            if objective_constraint_type[j, k] == 1 or objective_constraint_type[j, k] == 2:
+        for k in vp['K^C'][j]:
+            if vp['objective_constraint_type'][j, k] == 1 or vp['objective_constraint_type'][j, k] == 2:
                 objective_min[j, k] = float(value_parameters['objective_value_min'][j, k])
-            elif objective_constraint_type[j, k] == 3 or objective_constraint_type[j, k] == 4:
+            elif vp['objective_constraint_type'][j, k] == 3 or vp['objective_constraint_type'][j, k] == 4:
                 value_list = value_parameters['objective_value_min'][j, k].split(",")
                 objective_min[j, k] = float(value_list[0].strip())
                 objective_max[j, k] = float(value_list[1].strip())
@@ -451,7 +427,7 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
 
     # Number of Mutations
     if num_mutations is None:
-        num_mutations = int(np.ceil(N / 75))
+        num_mutations = int(np.ceil(p['N'] / 75))
 
     # Printing updates
     if printing:
@@ -465,10 +441,10 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
     rank_choices = np.arange(pop_size)
 
     # Multi-Point Crossover Parameters
-    crossover_positions = np.arange(1, N - 1)
+    crossover_positions = np.arange(1, p['N'] - 1)
 
     # Initialize Population
-    population = np.array([[np.random.choice(J_E[i]) for i in I] for _ in range(pop_size)]).astype(int)
+    population = np.array([[np.random.choice(p['J^E'][i]) for i in p['I']] for _ in range(pop_size)]).astype(int)
     if initial_solutions is not None:
         for i, solution in enumerate(initial_solutions):
             population[i] = solution

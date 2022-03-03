@@ -8,10 +8,10 @@ from afccp.core.globals import *
 # Value Parameter Generator
 def value_parameter_realistic_generator(parameters, default_value_parameters, constraint_options=None,
                                         num_breakpoints=20, deterministic=False, constrain_merit=False,
-                                        printing=False, data_type="B"):
+                                        printing=False, data_name="B"):
     """
     Generates realistic value parameters based on cadet data
-    :param data_type: type of data instance
+    :param data_name: name of data instance
     :param constrain_merit: if we want to constrain average merit
     :param deterministic: if we're generating random parameters or not
     :param num_breakpoints: number of breakpoints to use on value functions
@@ -318,15 +318,15 @@ def value_parameter_realistic_generator(parameters, default_value_parameters, co
                         if constrain_merit:
                             value_parameters['constraint_type'][j, k] = 4
                             value_parameters['objective_value_min'][j][k] = "0.35, 2"
-                            if data_type in ['E'] and afsc in ['E31', 'E32']:
+                            if data_name in ['E'] and afsc in ['E31', 'E32']:
                                 value_parameters['objective_value_min'][j][k] = "0.16, 2"
-                            elif data_type in ['F'] and afsc in ["F31"]:
+                            elif data_name in ['F'] and afsc in ["F31"]:
                                 value_parameters['objective_value_min'][j][k] = "0.29, 2"
-                            elif data_type in ['F'] and afsc in ["F13"]:
+                            elif data_name in ['F'] and afsc in ["F13"]:
                                 value_parameters['objective_value_min'][j][k] = "0.34, 2"
 
                     elif objective == 'USAFA Proportion':
-                        if parameters['usafa_quota'][j] == 0 and data_type not in ["D", "F"]:
+                        if parameters['usafa_quota'][j] == 0 and data_name not in ["D", "F"]:
                             value_parameters['objective_target'][j, k] = 0
 
                         elif parameters['usafa_quota'][j] == parameters['quota'][j]:
@@ -596,7 +596,7 @@ def value_parameter_realistic_generator(parameters, default_value_parameters, co
                                 value_parameters['constraint_type'][j, k] = 3
                                 value_parameters['objective_value_min'][j][k] = str(lower) + ", " + str(upper)
 
-                                if data_type in ["D", "E", "F"] and \
+                                if data_name in ["D", "E", "F"] and \
                                         afsc in ["D18", "E18", "F19"]:
                                     value_parameters['constraint_type'][j, k] = 0
 

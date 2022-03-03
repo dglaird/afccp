@@ -188,17 +188,32 @@ class CadetCareerProblem:
         :return: chart
         """
 
+        # Find number of AFSCs to show
+        if num is not None:
+            num_afscs = sum([1 if len(self.parameters['I^E'][j]) < num else 0 for j in self.parameters['J']])
+        else:
+            num_afscs = self.parameters['M']
+
         if afsc_rotation is None:
-            if self.data_type == "Real":
-                afsc_rotation = 45
+            if self.data_variant == "Real":
+                if num_afscs > 18:
+                    afsc_rotation = 45
+                else:
+                    afsc_rotation = 0
             else:
-                afsc_rotation = 0
+                if num_afscs < 25:
+                    afsc_rotation = 0
+                else:
+                    afsc_rotation = 45
 
         if skip_afscs is None:
-            if self.data_type == "Real":
+            if self.data_variant == "Real":
                 skip_afscs = False
             else:
-                skip_afscs = True
+                if num_afscs < self.parameters['M']:
+                    skip_afscs = True
+                else:
+                    skip_afscs = False
 
         if thesis_chart:
             figsize = (16, 10)
@@ -207,7 +222,6 @@ class CadetCareerProblem:
             label_size = 35
             afsc_tick_size = 30
             yaxis_tick_size = 30
-            afsc_rotation = 0
 
         chart = data_graph(self.parameters, save=save, figsize=figsize, facecolor=facecolor, eligibility=eligibility,
                            title=title, display_title=display_title, num=num, label_size=label_size,
@@ -283,9 +297,12 @@ class CadetCareerProblem:
                 filepath = paths['instances'] + full_name + '.xlsx'
         else:
             if filepath is None:
-                full_name = self.instance_files[0]
-                filepath = paths['instances'] + full_name + '.xlsx'
-            vp_name = full_name.split(' ')[2]
+                filepath = paths['instances'] + self.instance_files[0] + '.xlsx'
+            vp_name = self.instance_files[0].split(' ')[2]
+
+        # Set correct names
+        self.vp_name = vp_name
+        self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
 
         if printing is None:
             printing = self.printing
