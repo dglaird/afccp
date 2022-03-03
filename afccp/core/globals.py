@@ -6,7 +6,7 @@ from packaging import version
 
 # Get directory path
 global dir_path
-dir_path = os.getcwd() + '\\'
+dir_path = os.getcwd() + '/'
 
 # Check if the directory is actually in the afccp sub-folder, not the main folder
 if dir_path.count('afccp') != 1:
@@ -14,10 +14,10 @@ if dir_path.count('afccp') != 1:
 
 # Additional folders in Directory
 global paths
-resource_path = 'afccp\\resources\\'
+resource_path = 'afccp/resources/'
 paths = {}
 for folder in ['figures', 'instances', 'results', 'solvers', 'support', 'tables']:
-    paths[folder] = dir_path + resource_path + folder + '\\'
+    paths[folder] = dir_path + resource_path + folder + '/'
 
 # This determines how we import data from excel!
 global specify_engine

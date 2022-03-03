@@ -2,6 +2,7 @@
 from afccp.core.data_handling import *
 from afccp.core.value_parameter_handling import *
 from afccp.core.simulation_functions import *
+from afccp.core.value_parameter_generator import *
 from afccp.core.instance_graphs import *
 from afccp.core.heuristic_solvers import *
 import copy

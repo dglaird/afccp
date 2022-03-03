@@ -48,7 +48,7 @@ class CadetCareerProblem:
                 self.data_variant = "Random"
                 generate = True
             else:
-                full_name = filepath.split('\\')
+                full_name = filepath.split('/')
                 full_name = full_name[len(full_name) - 1]
                 self.data_name = full_name.split(' ')[1]
                 self.data_type = full_name.split(' ')[0]
@@ -384,7 +384,7 @@ class CadetCareerProblem:
 
         if default_value_parameters is None:
             filepath = paths['Data Processing Support'] + 'Value_Parameters_Defaults_' + self.data_type + '.xlsx'
-            if self.perfect:
+            if self.data_variant == 'Perfect':
                 filepath = paths['Data Processing Support'] + 'Value_Parameters_Defaults_Perfect.xlsx'
             default_value_parameters = default_value_parameters_from_excel(filepath)
             self.default_value_parameters = default_value_parameters
