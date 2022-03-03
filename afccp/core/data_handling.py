@@ -632,7 +632,7 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
 
                 # Calculate AFSC value
                 metrics['afsc_value'][j] = np.dot(vp['objective_weight'][j, :], metrics['objective_value'][j, :])
-                if j in J_C:
+                if j in vp['J^C']:
                     if metrics['afsc_value'][j] < vp['afsc_value_min'][j]:
 
                         # Either we reduce z by some penalty or z is set to 0
@@ -657,7 +657,7 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
 
     if not failed:
         metrics['cadet_value'] = np.array([p['utility'][i, int(chromosome[i])] for i in p['I']])
-        for i in I_C:
+        for i in vp['I^C']:
             if metrics['cadet_value'][i] < vp['cadet_value_min'][i]:
 
                 # Either we reduce z by some penalty or z is set to 0

@@ -253,11 +253,11 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
                 r[j][k] += 1  # add a breakpoint to the number of breakpoints
 
             # Retrieve minimum values based on constraint type (approximate/exact and value/measure)
-            if vp['objective_constraint_type'][j, k] == 1 or vp['objective_constraint_type'][j, k] == 2:
+            if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
 
                 # These are "value" constraints and so only a minimum is needed
                 objective_min_value[j, k] = float(vp['objective_value_min'][j, k])
-            elif vp['objective_constraint_type'][j, k] == 3 or vp['objective_constraint_type'][j, k] == 4:
+            elif vp['constraint_type'][j, k] == 3 or vp['constraint_type'][j, k] == 4:
 
                 # These are "measure" constraints and so a range is needed
                 value_list = vp['objective_value_min'][j, k].split(",")
@@ -278,12 +278,12 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
         # If we don't use a warm-start, we don't initialize starting values for the variables
         model.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
-        model.f_value = Var(((j, k) for j in p['J'] for k in p['K^A'][j]), within=NonNegativeReals)  # objective value
+        model.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)  # objective value
 
         # Lambda and y variables for value functions
-        model.lam = Var(((j, k, l) for j in p['J'] for k in p['K^A'][j] for l in L[j, k]),
+        model.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in L[j, k]),
                         within=NonNegativeReals, bounds=(0, 1))
-        model.y = Var(((j, k, l) for j in p['J'] for k in p['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
+        model.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
 
     # If we do want to initialize the variables. Probably initializing the exact model using the approximate solution
     else:
@@ -423,13 +423,13 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
             if k in vp['K^C'][j]:  # (1/2 constrain value, 3 constrains approximate measure, 4 constrains exact measure)
 
                 # Constrained Value (I decided against this for AFSC objectives and just went with measure constraints)
-                if vp['objective_constraint_type'][j, k] == 1 or vp['objective_constraint_type'][j, k] == 2:
+                if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
 
                     # The formulation only lists "objective_min, objective_max" since I no longer want value constraints
                     model.value_constraints.add(expr=model.f_value[j, k] >= objective_min_value[j, k])
 
                 # Constrained Approximate Measure
-                elif vp['objective_constraint_type'][j, k] == 3:
+                elif vp['constraint_type'][j, k] == 3:
                     if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
                         model.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
                         model.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
@@ -452,7 +452,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
                 vp['objective_weight'][j, k] * model.f_value[j, k] for k in vp['K^A'][j]) >= vp['afsc_value_min'][j])
 
     # Cadet value constraint
-    for i in I:
+    for i in p['I']:
         if vp['cadet_value_min'][i] != 0:
             model.min_cadet_value_constraints.add(expr=np.sum(
                 parameters['utility'][i, j] * model.x[i, j] for j in p['J^E'][i]) >= vp['cadet_value_min'][i])
@@ -507,7 +507,7 @@ def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", appro
         start_time = time.perf_counter()
 
     # Solve the model
-    model = solve_pyomo_model(model, solver_name, executable=executable, provide_executable=provide_executable,
+    model = solve_pyomo_model(model, solve_name, executable=executable, provide_executable=provide_executable,
                               max_time=max_time)
 
     # Stop Time
@@ -519,7 +519,7 @@ def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", appro
     vp = value_parameters
 
     # Initialize solution
-    solution = np.zeros(N)
+    solution = np.zeros(p['N'])
 
     # Create solution X Matrix
     x = np.zeros([p['N'], p['M']])
@@ -559,7 +559,7 @@ def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", appro
                 objective = vp['objectives'][k]
 
                 # Get the right measure calculation
-                if objective in p['I^D']:
+                if objective in vp['K^D']:
                     numerator = np.sum(x[i, j] for i in p['I^D'][objective][j])
                     measure[j, k] = numerator / num_cadets
                 elif objective == "Merit":
@@ -977,7 +977,7 @@ def x_to_solution_initialization(parameters, value_parameters, measures, values)
     # Load model variables
     lam = np.zeros([M, O, max_L + 1])
     y = np.zeros([M, O, max_L + 1]).astype(int)
-    for j in J:
+    for j in p['J']:
         for k in vp['K^A'][j]:
             for l in L[j][k]:
                 lam[j, k, l] = model.lam[j, k, l].value
