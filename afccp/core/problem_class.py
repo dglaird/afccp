@@ -321,6 +321,8 @@ class CadetCareerProblem:
         if printing:
             print('Imported.')
 
+        return value_parameters
+
     def import_default_value_parameters(self, filepath=None, no_constraints=False, num_breakpoints=24,
                                         generate_afsc_weights=True, printing=None):
         """
@@ -1088,9 +1090,10 @@ class CadetCareerProblem:
         return con_fail_dict
 
     def measure_solution(self, solution=None, value_parameters=None, approximate=False, matrix=False,
-                         printing=None, set_solution=True):
+                         printing=None, set_solution=True, return_z=True):
         """
         Measure a solution
+        :param return_z: if we want to return z or the full metrics
         :param set_solution: if we we want to set the solution metrics as the object's attribute of metrics
         :param matrix: if we want to measure a solution matrix (x) or the vector of AFSC indices (solution)
         :param approximate: whether we measure the approximate value or not (using target quota instead of count)
@@ -1117,9 +1120,11 @@ class CadetCareerProblem:
         if set_solution:
             self.metrics = metrics
             self.solution = solution
-            self.value_parameters = value_parameters
 
-        return round(metrics['z'], 4)
+        if return_z:
+            return round(metrics['z'], 4)
+        else:
+            return metrics
 
     def measure_fitness(self, solution=None, constraints='Fail', penalty_scale=1, printing=None, con_fail_dict=None,
                         first=True):
@@ -1449,6 +1454,49 @@ class CadetCareerProblem:
             chart.show()
 
         return chart
+
+    def create_aggregate_file(self, from_files=True, printing=None):
+        """
+        Create the "data_type data_name" main aggregate file with solutions, metrics, and vps
+        :param printing: whether to print status updates
+        :param from_files: if we want to import the data from the self.instance_files or use the instance attributes
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print('Creating aggregate problem instance excel file...')
+
+        if from_files:
+            solution_dict = {}
+            vp_dict = {}
+            for full_name in self.instance_files:
+                vp_name = full_name.split(' ')[2]
+                solution_name = full_name.split(' ')[3]
+                filepath = paths['instances'] + full_name + '.xlsx'
+                if vp_name not in vp_dict:
+                    vp_dict[vp_name] = self.import_value_parameters(filepath=filepath, set_value_parameters=False,
+                                                                    printing=False)
+                if solution_name not in solution_dict:
+                    solution_dict[solution_name] = self.import_solution(filepath=filepath, set_solution=False,
+                                                                        printing=False)
+            metrics_dict = {}
+            for vp_name in vp_dict:
+                value_parameters = vp_dict[vp_name]
+                vp_dict[vp_name]['vp_weight'] = 1 / len(list(vp_dict.keys()))
+                metrics_dict[vp_name] = {}
+                for solution_name in solution_dict:
+                    solution = solution_dict[solution_name]
+                    metrics = self.measure_solution(solution, value_parameters, set_solution=False, return_z=False,
+                                                    printing=False)
+                    metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
+        else:
+            metrics_dict = self.metrics_dict
+            solution_dict = self.solution_dict
+            vp_dict = self.vp_dict
+
+        full_name = self.data_type + " " + self.data_name
+        create_aggregate_instance_file(full_name, self.parameters, solution_dict, vp_dict, metrics_dict)
 
     # Other
     def find_solution_parameter_ineligibility(self, solution=None, filepath=None):

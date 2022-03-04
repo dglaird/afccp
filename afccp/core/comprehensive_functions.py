@@ -1,4 +1,6 @@
 # Import libraries
+import pandas as pd
+
 from afccp.core.data_handling import *
 from afccp.core.value_parameter_handling import *
 from afccp.core.simulation_functions import *
@@ -280,8 +282,166 @@ def plot_value_function(afsc, objective, parameters, value_parameters, title=Non
     return chart
 
 
+# Export instance data functions
+def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, printing=False):
+    """
+    This procedures takes in an output filepath, as well as an array of parameters, then exports the parameters as a
+    dataframe to that excel filepath
+    :param printing: whether or not the procedure should print out something
+    :param metrics: optional solution metrics
+    :param value_parameters: optional user defined parameters, for if we want to print out those too
+    :param filepath: The filepath we wish to write the dataframe to
+    :param parameters: The array of fixed cadet/AFSC parameters we wish to write to excel (see above for structure of
+    parameters)
+    :return: None.
+    """
+
+    if printing:
+        print("Exporting to excel...")
+
+    # Construct fixed parameter dataframes
+    cadets_fixed, afscs_fixed = model_data_frame_from_fixed_parameters(parameters)
+
+    # Build value parameters dataframes if need be
+    if value_parameters is not None:
+        overall_weights_df, cadet_weights_df, afsc_weights_df = model_value_parameter_data_frame_from_parameters(
+            parameters, value_parameters)
+
+    # Build the solution metrics dataframes if need be
+    if metrics is not None:
+
+        cadet_solution_df = pd.DataFrame({'Cadet': parameters['SS_encrypt'], 'Matched': metrics['afsc_solution'],
+                                          'Value': metrics['cadet_value'],
+                                          'Weight': value_parameters['cadet_weight'],
+                                          'Value Fail': metrics['cadet_constraint_fail']})
+
+        objective_measures = pd.DataFrame({'AFSC': parameters['afsc_vector']})
+        objective_values = pd.DataFrame({'AFSC': parameters['afsc_vector']})
+        afsc_constraints_df = pd.DataFrame({'AFSC': parameters['afsc_vector']})
+        for k in range(value_parameters['O']):
+            objective_measures[value_parameters['objectives'][k]] = metrics['objective_measure'][:, k]
+            objective_values[value_parameters['objectives'][k]] = metrics['objective_value'][:, k]
+            afsc_constraints_df[value_parameters['objectives'][k]] = metrics['objective_constraint_fail'][:, k]
+
+        objective_values['AFSC Value'] = metrics['afsc_value']
+        afsc_constraints_df['AFSC Value Fail'] = metrics['afsc_constraint_fail']
+
+        metric_names = ['Z', 'Cadet Value', 'AFSC Value', 'Num Ineligible', 'Failed Constraints']
+        metric_results = [metrics['z'], metrics['cadets_overall_value'], metrics['afscs_overall_value'],
+                          metrics['num_ineligible'], metrics['total_failed_constraints']]
+        for k, objective in enumerate(value_parameters['objectives']):
+            metric_names.append(objective + ' Score')
+            metric_results.append(metrics['objective_score'][k])
+
+        overall_solution = pd.DataFrame({'Solution Metric': metric_names, 'Result': metric_results})
+
+    with pd.ExcelWriter(filepath) as writer:  # Export to excel
+        cadets_fixed.to_excel(writer, sheet_name="Cadets Fixed", index=False)
+        afscs_fixed.to_excel(writer, sheet_name="AFSCs Fixed", index=False)
+        if value_parameters is not None:
+            overall_weights_df.to_excel(writer, sheet_name="Overall Weights", index=False)
+            cadet_weights_df.to_excel(writer, sheet_name="Cadet Weights", index=False)
+            afsc_weights_df.to_excel(writer, sheet_name="AFSC Weights", index=False)
+        if metrics is not None:
+            cadet_solution_df.to_excel(writer, sheet_name="Cadet Solution Quality", index=False)
+            objective_measures.to_excel(writer, sheet_name="AFSC Objective Measures", index=False)
+            objective_values.to_excel(writer, sheet_name="AFSC Solution Quality", index=False)
+            afsc_constraints_df.to_excel(writer, sheet_name="AFSC Constraint Fails", index=False)
+            overall_solution.to_excel(writer, sheet_name="Overall Solution Quality", index=False)
 
 
+def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict, metrics_dict, printing=False):
+    """
+    This file takes all of the relevant data for a particular fixed instance and exports it to excel
+    :param full_name: name of the instance
+    :param parameters: fixed cadet/afsc parameters
+    :param solution_dict: dictionary of solutions
+    :param vp_dict: dictionary of value parameters
+    :param metrics_dict: dictionary of solution metrics
+    :param printing: whether to print status updates or not
+    """
+    if printing:
+        print('Creating aggregate problem instance excel file...')
+
+    # Get fixed dataframes
+    cadets_fixed, afscs_fixed = model_data_frame_from_fixed_parameters(parameters)
+
+    # Get other information
+    afscs = parameters['afsc_vector']
+    vp_names = list(vp_dict.keys)
+    solution_names = list(solution_dict.keys)
+    metric_names = {'Z': 'z', 'Cadet Value': 'cadets_overall_value', 'AFSC Value': 'afscs_overall_value'}
+    for k, objective in enumerate(vp_dict[vp_names[0]]['objectives']):
+        metric_names[objective + ' Score'] = k
+    num_solutions = len(solution_names)
+    num_vps = len(vp_names)
+    num_metrics = len(metric_names)
+
+    # Create solutions dataframe
+    solutions_df = pd.DataFrame({})
+    for solution_name in solution_names:
+
+        # Translate AFSC indices into the AFSCs themselves
+        solution = solution_dict[solution_name]
+        solutions_df[solution_name] = [afscs[int(solution[i])] for i in parameters['I']]
+
+    # Number of rows of metrics dataframe
+    num_rows = num_solutions * num_metrics
+
+    # Initialize columns
+    column_dict = {'Solution': np.array([" " * 10 for _ in range(num_rows)]),
+                   'Metric': np.array([" " * 10 for _ in range(num_rows)])}
+    for vp_name in vp_names:
+        column_dict[vp_name] = np.zeros(num_rows)
+    for column_name in ['Avg.', 'WgtAvg.']:
+        column_dict[column_name] = np.zeros(num_rows)
+
+    # Input column data
+    row = 0
+    for metric_name in metric_names:
+        for solution_name in solution_names:
+            column_dict['Solution'][row] = solution_name
+            column_dict['Metric'][row] = metric_name
+            avg = 0
+            w_avg = 0
+            for vp_name in vp_names:
+                if metric_name in ['Z', 'Cadet Value', 'AFSC Value']:
+                    m = round(metrics_dict[vp_name][solution_name][metric_names[metric_name]], 4)
+                else:
+                    m = round(
+                        metrics_dict[vp_name][solution_name]['objective_score'][metric_names[metric_name]], 4)
+                column_dict[vp_name][row] = m
+                avg += m / num_vps
+                w_avg += m * vp_dict[vp_name]['vp_weight']
+            column_dict['Avg.'][row] = avg
+            column_dict['WgtAvg.'][row] = w_avg
+            row += 1
+
+    # Construct metrics_df
+    metrics_df = pd.DataFrame({})
+    for column_name in column_dict:
+        metrics_df[column_name] = column_dict[column_name]
+
+    # Construct value parameter dataframes
+    vp_afscs_df_dict = {}
+    for v, vp_name in enumerate(vp_names):
+        overall_weights_df, cadet_weights_df, afsc_weights_df = model_value_parameter_data_frame_from_parameters(
+            parameters, vp_dict[vp_name])
+        if v == 0:
+            vp_overall_df = overall_weights_df
+        else:
+            pd.concat([vp_overall_df, overall_weights_df], ignore_index=True)
+        vp_afscs_df_dict[vp_name] = afsc_weights_df
+    vp_overall_df.insert(loc=0, column='VP Name', value=vp_names)
+
+    # Export to excel
+    filepath = paths['instances'] + full_name + '.xlsx'
+    with pd.ExcelWriter(filepath) as writer:  # Export to excel
+        cadets_fixed.to_excel(writer, sheet_name="Cadets Fixed", index=False)
+        afscs_fixed.to_excel(writer, sheet_name="AFSCs Fixed", index=False)
+        solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
+        metrics_df.to_excel(writer, sheet_name="Results", index=False)
+        vp_overall_df.to_excel(writer, sheet_name="VP Overall", index=False)
 
 
 

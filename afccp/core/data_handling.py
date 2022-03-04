@@ -89,6 +89,63 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
     return parameters
 
 
+def model_data_frame_from_fixed_parameters(parameters):
+    """
+    This procedure takes a set of parameters and constructs the two fixed dataframes: cadets and AFSCs
+    :param parameters: fixed model parameters
+    :return: dataframes
+    """
+
+    # Convert utility matrix to utility columns
+    preferences, utilities_array = get_utility_preferences(parameters)
+
+    # Build Cadets Fixed data frame
+    cadets_fixed = pd.DataFrame(
+        {'Encrypt_PII': parameters['SS_encrypt']})
+
+    # Load Instance Parameters (may or may not be included)
+    cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'USAFA': 'usafa', 'ASC1': 'asc1',
+                                  'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit'}
+    for col_name in cadet_parameter_dictionary:
+        if cadet_parameter_dictionary[col_name] in parameters:
+            cadets_fixed[col_name] = parameters[cadet_parameter_dictionary[col_name]]
+
+    # Loop through all the choices
+    for i in range(parameters['P']):
+        cadets_fixed['NrWgt' + str(i + 1)] = utilities_array[:, i]
+    for i in range(parameters['P']):
+        cadets_fixed['NRat' + str(i + 1)] = preferences[:, i]
+
+    # Number of AFSCs
+    M = parameters['M']
+
+    # Loop through all the AFSCs
+    for j, afsc in enumerate(parameters['afsc_vector']):
+        cadets_fixed['qual_' + afsc] = parameters['qual'][:, j]
+
+    # Build AFSCs Fixed data frame
+    afscs_fixed = pd.DataFrame({'AFSC': parameters['afsc_vector']})
+
+    if 'usafa' in parameters:
+        afscs_fixed['USAFA Target'] = parameters['usafa_quota']
+        afscs_fixed['ROTC Target'] = parameters['rotc_quota']
+
+    afscs_fixed['Combined Target'] = parameters['quota']
+    afscs_fixed['Min'] = parameters['quota_min']
+    afscs_fixed['Max'] = parameters['quota_max']
+    afscs_fixed['Eligible Cadets'] = [len(parameters['I^E'][j]) for j in range(M)]
+
+    if 'usafa' in parameters:
+        afscs_fixed['USAFA Cadets'] = [len(parameters['I^D']['USAFA Proportion'][j]) for j in range(M)]
+
+    if 'mandatory' in parameters:
+        afscs_fixed['Mandatory Cadets'] = [len(parameters['I^D']['Mandatory'][j]) for j in range(M)]
+        afscs_fixed['Desired Cadets'] = [len(parameters['I^D']['Desired'][j]) for j in range(M)]
+        afscs_fixed['Permitted Cadets'] = [len(parameters['I^D']['Permitted'][j]) for j in range(M)]
+
+    return cadets_fixed, afscs_fixed
+
+
 def model_fixed_parameters_set_additions(parameters, printing=False):
     """
     Creates subsets for AFSCs and cadets
@@ -732,7 +789,7 @@ def solution_similarity_coordinates(similarity_matrix):
     return coords
 
 
-# Export Procedures
+# Export solution metrics
 def pyomo_measures_to_excel(x, measures, values, parameters, value_parameters, filepath=None, printing=False):
     """
     Exports x matrix to excel along with objective values and measures
@@ -767,154 +824,5 @@ def pyomo_measures_to_excel(x, measures, values, parameters, value_parameters, f
         values_df.to_excel(writer, sheet_name="Values", index=False)
 
 
-def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, printing=False):
-    """
-    This procedures takes in an output filepath, as well as an array of parameters, then exports the parameters as a
-    dataframe to that excel filepath
-    :param printing: whether or not the procedure should print out something
-    :param metrics: optional solution metrics
-    :param value_parameters: optional user defined parameters, for if we want to print out those too
-    :param filepath: The filepath we wish to write the dataframe to
-    :param parameters: The array of fixed cadet/AFSC parameters we wish to write to excel (see above for structure of
-    parameters)
-    :return: None.
-    """
 
-    if printing:
-        print("Exporting to excel...")
-
-    # Convert utility matrix to utility columns
-    preferences, utilities_array = get_utility_preferences(parameters)
-
-    # Build Cadets Fixed data frame
-    cadets_fixed = pd.DataFrame(
-        {'Encrypt_PII': parameters['SS_encrypt']})
-
-    # Load Instance Parameters (may or may not be included)
-    cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'USAFA': 'usafa', 'ASC1': 'asc1',
-                                  'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit'}
-    for col_name in list(cadet_parameter_dictionary.keys()):
-        if cadet_parameter_dictionary[col_name] in parameters:
-            cadets_fixed[col_name] = parameters[cadet_parameter_dictionary[col_name]]
-
-    # Loop through all the choices
-    for i in range(parameters['P']):
-        cadets_fixed['NrWgt' + str(i + 1)] = utilities_array[:, i]
-    for i in range(parameters['P']):
-        cadets_fixed['NRat' + str(i + 1)] = preferences[:, i]
-
-    M = parameters['M']
-
-    # Loop through all the AFSCs
-    for j, afsc in enumerate(parameters['afsc_vector']):
-        cadets_fixed['qual_' + afsc] = parameters['qual'][:, j]
-
-    # Build AFSCs Fixed data frame
-    afscs_fixed = pd.DataFrame({'AFSC': parameters['afsc_vector']})
-
-    if 'usafa' in parameters:
-        afscs_fixed['USAFA Target'] = parameters['usafa_quota']
-        afscs_fixed['ROTC Target'] = parameters['rotc_quota']
-
-    afscs_fixed['Combined Target'] = parameters['quota']
-    afscs_fixed['Min'] = parameters['quota_min']
-    afscs_fixed['Max'] = parameters['quota_max']
-    afscs_fixed['Eligible Cadets'] = [len(parameters['I^E'][j]) for j in range(M)]
-
-    if 'usafa' in parameters:
-        afscs_fixed['USAFA Cadets'] = [len(parameters['I^D']['USAFA Proportion'][j]) for j in range(M)]
-
-    if 'mandatory' in parameters:
-        afscs_fixed['Mandatory Cadets'] = [len(parameters['I^D']['Mandatory'][j]) for j in range(M)]
-        afscs_fixed['Desired Cadets'] = [len(parameters['I^D']['Desired'][j]) for j in range(M)]
-        afscs_fixed['Permitted Cadets'] = [len(parameters['I^D']['Permitted'][j]) for j in range(M)]
-
-    # Build value parameters dataframes if need be
-    if value_parameters is not None:
-        O = len(value_parameters['objectives'])
-        F_bp_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
-        F_v_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
-        for j, afsc in enumerate(parameters['afsc_vector']):
-            for k, objective in enumerate(value_parameters['objectives']):
-                string_list = [str(x) for x in value_parameters['F_bp'][j][k]]
-                F_bp_strings[j, k] = ",".join(string_list)
-                string_list = [str(x) for x in value_parameters['F_v'][j][k]]
-                F_v_strings[j, k] = ",".join(string_list)
-
-        F_bps = np.ndarray.flatten(F_bp_strings)
-        F_vs = np.ndarray.flatten(F_v_strings)
-        afsc_objective_min_values = np.ndarray.flatten(value_parameters['objective_value_min'])
-        afsc_objective_convex_constraints = np.ndarray.flatten(value_parameters['constraint_type'])
-        afsc_objective_targets = np.ndarray.flatten(value_parameters['objective_target'])
-        afsc_objectives = np.tile(value_parameters['objectives'], parameters['M'])
-        afsc_objective_weights = np.ndarray.flatten(value_parameters['objective_weight'])
-        afsc_value_functions = np.ndarray.flatten(value_parameters['value_functions'])
-        afscs = np.ndarray.flatten(np.array(list(np.repeat(parameters['afsc_vector'][j],
-                                                           value_parameters['O']) for j in range(parameters['M']))))
-        afsc_weights = np.ndarray.flatten(np.array(list(np.repeat(value_parameters['afsc_weight'][j],
-                                                                  value_parameters['O']) for j in
-                                                        range(parameters['M']))))
-        afsc_min_values = np.ndarray.flatten(np.array(list(np.repeat(value_parameters['afsc_value_min'][j],
-                                                                     value_parameters['O']) for j in
-                                                           range(parameters['M']))))
-        afsc_weights_df = pd.DataFrame({'AFSC': afscs, 'Objective': afsc_objectives,
-                                        'Objective Weight': afsc_objective_weights,
-                                        'Objective Target': afsc_objective_targets, 'AFSC Weight': afsc_weights,
-                                        'Min Value': afsc_min_values, 'Min Objective Value': afsc_objective_min_values,
-                                        'Constraint Type': afsc_objective_convex_constraints,
-                                        'Function Breakpoints': F_bps, 'Function Breakpoint Values': F_vs,
-                                        'Value Functions': afsc_value_functions})
-
-        cadet_weights_df = pd.DataFrame({'Cadet': parameters['SS_encrypt'],
-                                         'Weight': value_parameters['cadet_weight'],
-                                         'Min Value': value_parameters['cadet_value_min']})
-
-        overall_weights_df = pd.DataFrame({'Cadets Weight': [value_parameters['cadets_overall_weight']],
-                                           'AFSCs Weight': [value_parameters['afscs_overall_weight']],
-                                           'Cadets Min Value': [value_parameters['cadets_overall_value_min']],
-                                           'AFSCs Min Value': [value_parameters['afscs_overall_value_min']],
-                                           'AFSC Weight Function': [value_parameters['afsc_weight_function']],
-                                           'Cadet Weight Function': [value_parameters['cadet_weight_function']]})
-
-    # Build the solution metrics dataframes if need be
-    if metrics is not None:
-
-        cadet_solution_df = pd.DataFrame({'Cadet': parameters['SS_encrypt'], 'Matched': metrics['afsc_solution'],
-                                          'Value': metrics['cadet_value'],
-                                          'Weight': value_parameters['cadet_weight'],
-                                          'Value Fail': metrics['cadet_constraint_fail']})
-
-        objective_measures = pd.DataFrame({'AFSC': parameters['afsc_vector']})
-        objective_values = pd.DataFrame({'AFSC': parameters['afsc_vector']})
-        afsc_constraints_df = pd.DataFrame({'AFSC': parameters['afsc_vector']})
-        for k in range(value_parameters['O']):
-            objective_measures[value_parameters['objectives'][k]] = metrics['objective_measure'][:, k]
-            objective_values[value_parameters['objectives'][k]] = metrics['objective_value'][:, k]
-            afsc_constraints_df[value_parameters['objectives'][k]] = metrics['objective_constraint_fail'][:, k]
-
-        objective_values['AFSC Value'] = metrics['afsc_value']
-        afsc_constraints_df['AFSC Value Fail'] = metrics['afsc_constraint_fail']
-
-        metric_names = ['Z', 'Cadet Value', 'AFSC Value', 'Num Ineligible', 'Failed Constraints']
-        metric_results = [metrics['z'], metrics['cadets_overall_value'], metrics['afscs_overall_value'],
-                          metrics['num_ineligible'], metrics['total_failed_constraints']]
-        for k, objective in enumerate(value_parameters['objectives']):
-            metric_names.append(objective + ' Score')
-            metric_results.append(metrics['objective_score'][k])
-
-        overall_solution = pd.DataFrame({'Solution Metric': metric_names, 'Result': metric_results})
-
-    with pd.ExcelWriter(filepath) as writer:  # Export to excel
-        cadets_fixed.to_excel(writer, sheet_name="Cadets Fixed", index=False)
-        afscs_fixed.to_excel(writer, sheet_name="AFSCs Fixed", index=False)
-        if value_parameters is not None:
-            overall_weights_df.to_excel(writer, sheet_name="Overall Weights", index=False)
-            cadet_weights_df.to_excel(writer, sheet_name="Cadet Weights", index=False)
-            afsc_weights_df.to_excel(writer, sheet_name="AFSC Weights", index=False)
-        if metrics is not None:
-            cadet_solution_df.to_excel(writer, sheet_name="Cadet Solution Quality", index=False)
-            objective_measures.to_excel(writer, sheet_name="AFSC Objective Measures", index=False)
-            objective_values.to_excel(writer, sheet_name="AFSC Solution Quality", index=False)
-            afsc_constraints_df.to_excel(writer, sheet_name="AFSC Constraint Fails", index=False)
-            overall_solution.to_excel(writer, sheet_name="Overall Solution Quality", index=False)
 

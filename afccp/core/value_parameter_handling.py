@@ -101,6 +101,61 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
     return value_parameters
 
 
+def model_value_parameter_data_frame_from_parameters(parameters, value_parameters):
+    """
+    This procedure takes a set of parameters and value_parameters and constructs the value parameter data frames
+    :param parameters: fixed model parameters
+    :param value_parameters: weight and value parameters
+    :return: dataframes
+    """
+    O = len(value_parameters['objectives'])
+    F_bp_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
+    F_v_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
+    for j, afsc in enumerate(parameters['afsc_vector']):
+        for k, objective in enumerate(value_parameters['objectives']):
+            string_list = [str(x) for x in value_parameters['F_bp'][j][k]]
+            F_bp_strings[j, k] = ",".join(string_list)
+            string_list = [str(x) for x in value_parameters['F_v'][j][k]]
+            F_v_strings[j, k] = ",".join(string_list)
+
+    F_bps = np.ndarray.flatten(F_bp_strings)
+    F_vs = np.ndarray.flatten(F_v_strings)
+    afsc_objective_min_values = np.ndarray.flatten(value_parameters['objective_value_min'])
+    afsc_objective_convex_constraints = np.ndarray.flatten(value_parameters['constraint_type'])
+    afsc_objective_targets = np.ndarray.flatten(value_parameters['objective_target'])
+    afsc_objectives = np.tile(value_parameters['objectives'], parameters['M'])
+    afsc_objective_weights = np.ndarray.flatten(value_parameters['objective_weight'])
+    afsc_value_functions = np.ndarray.flatten(value_parameters['value_functions'])
+    afscs = np.ndarray.flatten(np.array(list(np.repeat(parameters['afsc_vector'][j],
+                                                       value_parameters['O']) for j in range(parameters['M']))))
+    afsc_weights = np.ndarray.flatten(np.array(list(np.repeat(value_parameters['afsc_weight'][j],
+                                                              value_parameters['O']) for j in
+                                                    range(parameters['M']))))
+    afsc_min_values = np.ndarray.flatten(np.array(list(np.repeat(value_parameters['afsc_value_min'][j],
+                                                                 value_parameters['O']) for j in
+                                                       range(parameters['M']))))
+    afsc_weights_df = pd.DataFrame({'AFSC': afscs, 'Objective': afsc_objectives,
+                                    'Objective Weight': afsc_objective_weights,
+                                    'Objective Target': afsc_objective_targets, 'AFSC Weight': afsc_weights,
+                                    'Min Value': afsc_min_values, 'Min Objective Value': afsc_objective_min_values,
+                                    'Constraint Type': afsc_objective_convex_constraints,
+                                    'Function Breakpoints': F_bps, 'Function Breakpoint Values': F_vs,
+                                    'Value Functions': afsc_value_functions})
+
+    cadet_weights_df = pd.DataFrame({'Cadet': parameters['SS_encrypt'],
+                                     'Weight': value_parameters['cadet_weight'],
+                                     'Min Value': value_parameters['cadet_value_min']})
+
+    overall_weights_df = pd.DataFrame({'Cadets Weight': [value_parameters['cadets_overall_weight']],
+                                       'AFSCs Weight': [value_parameters['afscs_overall_weight']],
+                                       'Cadets Min Value': [value_parameters['cadets_overall_value_min']],
+                                       'AFSCs Min Value': [value_parameters['afscs_overall_value_min']],
+                                       'AFSC Weight Function': [value_parameters['afsc_weight_function']],
+                                       'Cadet Weight Function': [value_parameters['cadet_weight_function']]})
+
+    return overall_weights_df, cadet_weights_df, afsc_weights_df
+
+
 def model_value_parameters_set_additions(value_parameters, printing=False):
     """
     Creates subsets for AFSCs and objectives to distinguish which AFSCs care about which objectives so that we don't
