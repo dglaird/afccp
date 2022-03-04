@@ -20,7 +20,7 @@ for folder in ['figures', 'instances', 'results', 'solvers', 'support', 'tables'
     paths[folder] = dir_path + resource_path + folder + '/'
 
 # sensitive information
-sensitive_path = 'afccp/sensitive/resources'
+sensitive_path = 'afccp/sensitive/resources/'
 for folder in ['instances', 'results', 'support']:
     paths['s_' + folder] = dir_path + sensitive_path + folder + '/'
 

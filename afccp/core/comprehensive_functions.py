@@ -412,7 +412,7 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
                         metrics_dict[vp_name][solution_name]['objective_score'][metric_names[metric_name]], 4)
                 column_dict[vp_name][row] = m
                 avg += m / num_vps
-                w_avg += m * vp_dict[vp_name]['vp_weight']
+                w_avg += m * vp_dict[vp_name]['vp_local_weight']
             column_dict['Avg.'][row] = avg
             column_dict['WgtAvg.'][row] = w_avg
             row += 1
@@ -424,6 +424,7 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
 
     # Construct value parameter dataframes
     vp_afscs_df_dict = {}
+    vp_weights = []
     for v, vp_name in enumerate(vp_names):
         overall_weights_df, cadet_weights_df, afsc_weights_df = model_value_parameter_data_frame_from_parameters(
             parameters, vp_dict[vp_name])
@@ -432,7 +433,11 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
         else:
             vp_overall_df = pd.concat([vp_overall_df, overall_weights_df], ignore_index=True)
         vp_afscs_df_dict[vp_name] = afsc_weights_df
+        vp_weights.append(vp_dict[vp_name]['vp_weight'])
+
+    # Add columns
     vp_overall_df.insert(loc=0, column='VP Name', value=vp_names)
+    vp_overall_df['VP Weight'] = vp_weights
 
     # Export to excel
     filepath = paths['instances'] + full_name + '.xlsx'
@@ -446,5 +451,140 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
             vp_afscs_df_dict[vp_name].to_excel(writer, sheet_name=vp_name, index=False)
 
 
+def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=False):
+    """
+    This procedure imports all available information on a particular problem instance
+    :param num_breakpoints: number of breakpoints to use with value functions
+    :param filepath: filepath of the problem instance excel aggregate file
+    :param printing: if we should print status updates or not
+    :return: parameters, solution_dict, vp_dict, metrics_dict
+    """
+    if printing:
+        print('Importing problem instance data...')
+
+    # Import fixed parameters
+    cadets_fixed, afscs_fixed = import_fixed_cadet_afsc_data_from_excel(filepath)
+    parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
+    parameters = model_fixed_parameters_set_additions(parameters)
+
+    # Try to import aggregate information (may not exist)
+    # try:
+
+    # Solution dictionary
+    solutions_df = import_data(filepath, sheet_name="Solutions")
+    solution_names = solutions_df.columns
+    solution_dict = {}
+    for solution_name in solution_names:
+        afsc_solution = np.array(solutions_df[solution_name])
+        solution = np.array([np.where(parameters['afsc_vector'] == afsc)[0][0] for afsc in afsc_solution])
+        solution_dict[solution_name] = solution
+
+    # Value Parameter Dictionary
+    overall_weights = import_data(filepath, sheet_name="VP Overall")
+    vp_names = np.array(overall_weights['VP Name'])
+    vp_weights = np.array(overall_weights['VP Weight'])
+    vp_dict = {}
+    for v, vp_name in enumerate(vp_names):
+
+        # Load AFSC weight information
+        afsc_weights = import_data(filepath, sheet_name=vp_name)
+
+        # Load into the value_parameters dictionary
+        M = parameters['M']
+        O = int(len(afsc_weights) / M)
+
+        value_parameters = {'O': O, "afscs_overall_weight": np.array(overall_weights['AFSCs Weight'])[v],
+                            "cadets_overall_weight": np.array(overall_weights['Cadets Weight'])[v],
+                            "cadet_weight_function": np.array(overall_weights['Cadet Weight Function'])[v],
+                            "afsc_weight_function": np.array(overall_weights['AFSC Weight Function'])[v],
+                            "cadets_overall_value_min": np.array(overall_weights['Cadets Min Value'])[v],
+                            "afscs_overall_value_min": np.array(overall_weights['AFSCs Min Value'])[v], "M": M,
+                            "afsc_value_min": np.zeros(M), 'cadet_value_min': np.zeros(parameters['N']),
+                            "objective_value_min": np.array([[" " * 20 for _ in range(O)] for _ in range(M)]),
+                            "value_functions": np.array([[" " * 200 for _ in range(O)] for _ in range(M)]),
+                            "constraint_type": np.zeros([M, O]), "F_bp": [[[] for _ in range(O)] for _ in range(M)],
+                            "objective_target": np.zeros([M, O]), "F_v": [[[] for _ in range(O)] for _ in range(M)],
+                            "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
+                            'objectives': np.array(afsc_weights.loc[:int(len(afsc_weights) / M - 1), 'Objective'])}
+
+        # Set Cadet Weights
+        if value_parameters['cadet_weight_function'] == 'Linear':
+            value_parameters['cadet_weight'] = parameters['merit'] / np.sum(parameters['merit'])
+        else:
+            value_parameters['cadet_weight'] = np.repeat(1 / parameters['N'], parameters['N'])
+
+        # Load in value parameter data for each AFSC
+        for j in range(M):  # These are Os (Ohs) not 0s (zeros)
+            value_parameters["objective_target"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
+                                                                  'Objective Target'])
+            value_parameters["objective_weight"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
+                                                                  'Objective Weight'])
+            value_parameters["objective_value_min"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
+                                                                     'Min Objective Value'])
+            value_parameters["constraint_type"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
+                                                                 'Constraint Type'])
+            value_parameters["value_functions"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
+                                                                 'Value Functions'])
+            value_parameters["afsc_weight"][j] = afsc_weights.loc[j * O, "AFSC Weight"]
+            value_parameters["afsc_value_min"][j] = afsc_weights.loc[j * O, "Min Value"]
+            cadets = parameters['I^E'][j]
+
+            # Loop through each objective for this AFSC
+            for k, objective in enumerate(value_parameters['objectives']):
+
+                # We import the functions directly from the breakpoints
+                if num_breakpoints is None:
+                    string = afsc_weights.loc[j * O + k, 'Function Breakpoints']
+                    if type(string) == str:
+                        value_parameters['F_bp'][j][k] = [float(x) for x in string.split(",")]
+                    string = afsc_weights.loc[j * O + k, 'Function Breakpoint Values']
+                    if type(string) == str:
+                        value_parameters['F_v'][j][k] = [float(x) for x in string.split(",")]
+
+                # We recreate the functions from the vf strings
+                else:
+                    vf_string = value_parameters["value_functions"][j, k]
+                    if vf_string != 'None':
+                        target = value_parameters['objective_target'][j, k]
+                        actual = None
+                        maximum = None
+
+                        if use_actual:
+                            if objective == 'Merit':
+                                actual = np.mean(parameters['merit'][cadets])
+                            elif objective == 'USAFA Proportion':
+                                actual = np.mean(parameters['usafa'][cadets])
+
+                        if objective == 'Combined Quota':
+
+                            # Get bounds
+                            split_str = value_parameters["objective_value_min"][j, k].split(',')
+
+                            # Get constraint upper bound
+                            maximum = float(split_str[1])
+
+                        segment_dict = create_segment_dict_from_string(vf_string, target, actual=actual,
+                                                                       maximum=maximum)
+                        value_parameters['F_bp'][j][k], value_parameters['F_v'][j][k] = value_function_builder(
+                            segment_dict, num_breakpoints=num_breakpoints)
+
+        # Load value_parameter dictionary
+        value_parameters = model_value_parameters_set_additions(value_parameters)
+        vp_dict[vp_name] = copy.deepcopy(value_parameters)
+        vp_dict[vp_name]['vp_weight'] = vp_weights[v]
+        vp_dict[vp_name]['vp_local_weight'] = vp_weights[v] / sum(vp_weights)
+
+    # Metrics Dictionary
+    metrics_dict = {}
+    for vp_name in vp_names:
+        metrics_dict[vp_name] = {}
+        for solution_name in solution_names:
+            solution = solution_dict[solution_name]
+            value_parameters = copy.deepcopy(vp_dict[vp_name])
+            metrics_dict[vp_name][solution_name] = measure_solution_quality(solution, parameters, value_parameters)
+
+    return parameters, solution_dict, vp_dict, metrics_dict
+    # except:
+    #     return parameters, None, None, None
 
 

@@ -236,6 +236,7 @@ def import_solution_from_excel(filepath, standard=True, printing=False):
         sheet_name = "Cadet Solution Quality"
     else:
         sheet_name = "Original Solution"
+
     solutions_df = import_data(filepath, sheet_name=sheet_name)
     afsc_solution = np.array(solutions_df['Matched'])
 

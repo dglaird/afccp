@@ -8,61 +8,60 @@ import os
 
 
 class CadetCareerProblem:
-    def __init__(self, data_name=None, filepath=None, N=1600, M=32, P=6, printing=False):
+    def __init__(self, data_name=None, N=1600, M=32, P=6, printing=False):
         """
-        This is the initialization function for the AFSC/Cadet problem. We can import data directly by specifying
-        a filepath (or the filepath can be determined by the data_name). We can also generate data by providing a
-        data_name that contains "Random", "Realistic", or "Perfect" in the name.
+        This is the initialization function for the AFSC/Cadet problem. We can import data using the data_name.
+        We can also generate data by providing a data_name that contains "Random", "Realistic",
+        or "Perfect" in the name.
         :param data_name: name of the data set. If we want to import data using the data_name, this needs to be
         the name of the excel file without the .xlsx extension
-        :param filepath: we can specify the filepath directly if need be
         :param N: Number of cadets to generate
         :param M: Number of AFSCs to generate
         :param P: Number of AFSC preferences to generate for each cadet
         :param printing: Whether we should print status updates or not
         """
 
-        # Get a list of full instance files in the directory
-        dir_folder = "instances"
+        # Find out if we're dealing with sensitive information or not
+        if data_name is None:  # we're going to generate random data
+            self.sensitive = False
+        else:
+            if len(data_name) == 4:  # class year
+                self.sensitive = True
+            else:
+                self.sensitive = False
+
+        # Get right directory folder
+        if self.sensitive:
+            dir_folder = 's_instances'
+        else:
+            dir_folder = "instances"
+
+        # Get list of specific data_name generated data instances
         directory = paths[dir_folder]
-        self.data_files = {'Generated': {'Random': [], 'Perfect': [], 'Realistic': []},
-                           'Real': {'Scrubbed': [], 'Year': []}}
+        self.generated_data_names = {'Random': [], 'Perfect': [], 'Realistic': []}
         for file_name in glob.iglob(directory + '*.xlsx', recursive=True):
             start_index = file_name.find(dir_folder) + len(dir_folder) + 1
             end_index = len(file_name) - 5
             full_name = file_name[start_index:end_index]
             sections = full_name.split(' ')
-            if len(sections) != 2:
-                if 'Generated' == sections[0]:
-                    for data_variant in self.data_files['Generated']:
-                        if data_variant in sections[1]:
-                            self.data_files['Generated'][data_variant].append(full_name)
-                elif "Real" == sections[0]:
-                    if len(sections[1]) == 1:
-                        self.data_files['Real']['Scrubbed'].append(full_name)
-                    else:
-                        self.data_files['Real']['Year'].append(full_name)
-        if data_name is None:
+            d_name = sections[1]
+            for variant in self.generated_data_names:
+                if variant in d_name and d_name not in self.generated_data_names[variant]:
+                    self.generated_data_names[variant].append(d_name)
 
-            # If we don't specify a data name or a filepath, we generate random data
-            if filepath is None:
-                self.data_name = "Random_" + str(len(self.data_files['Generated']["Random"]) + 1)
-                self.data_type = "Generated"
-                self.data_variant = "Random"
-                generate = True
-            else:
-                full_name = filepath.split('/')
-                full_name = full_name[len(full_name) - 1]
-                self.data_name = full_name.split(' ')[1]
-                self.data_type = full_name.split(' ')[0]
-                generate = False
+        # Get correct data attributes
+        if data_name is None:
+            self.data_name = "Random_" + str(len(self.generated_data_names["Random"]) + 1)
+            self.data_type = "Generated"
+            self.data_variant = "Random"
+            generate = True
         else:
             self.data_name = data_name
             self.data_type = "Real"
             generate = False
-            for data_variant in self.data_files['Generated']:
+            for data_variant in self.generated_data_names:
                 if data_variant == self.data_name:
-                    self.data_name = data_variant + "_" + str(len(self.data_files['Generated'][data_variant]) + 1)
+                    self.data_name = data_variant + "_" + str(len(self.generated_data_names[data_variant]) + 1)
                     self.data_type = "Generated"
                     generate = True
                     break
@@ -78,26 +77,16 @@ class CadetCareerProblem:
             else:
                 self.data_variant = "Year"
         else:
-            for data_variant in self.data_files['Generated']:
+            for data_variant in self.generated_data_names:
                 if data_variant in self.data_name:
                     self.data_variant = data_variant
 
         # Create the "full name" which we piece together all the current available information
         self.full_name = self.data_type + ' ' + self.data_name
+        self.data_instance_name = copy.deepcopy(self.full_name)
 
-        # List of instance variants for this particular problem instance (same data, different solutions/vps)
-        self.instance_files = np.array([full_name for full_name in self.data_files[
-            self.data_type][self.data_variant] if self.full_name in full_name])
-
-        if filepath is None:
-
-            # Since all fixed data are the same here, just import the cadet/AFSC parameters for one of the versions
-            if len(self.instance_files) > 0:
-                self.filepath = paths['instances'] + self.instance_files[0] + '.xlsx'
-            else:
-                self.filepath = paths['instances'] + self.full_name + '.xlsx'
-        else:
-            self.filepath = filepath
+        # Get correct filepath
+        self.filepath = paths[dir_folder] + self.data_instance_name + '.xlsx'
 
         # initialize more instance attributes
         self.printing = printing
@@ -149,9 +138,8 @@ class CadetCareerProblem:
 
             if printing:
                 print('Importing ' + self.data_name + ' problem instance...')
-            cadets_fixed, afscs_fixed = import_fixed_cadet_afsc_data_from_excel(self.filepath)
-            parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
-            self.parameters = model_fixed_parameters_set_additions(parameters)
+            self.parameters, self.solution_dict, self.vp_dict, self.metrics_dict = import_aggregate_instance_file(
+                self.filepath)
 
         if printing:
             if generate:
@@ -704,7 +692,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         real_solution = import_solution_from_excel(filepath=filepath)
-        year_afsc_table = import_data(filepath=paths['support'] + "Year_AFSCs_Table.xlsx",
+        year_afsc_table = import_data(filepath=paths['s_support'] + "Year_AFSCs_Table.xlsx",
                                       sheet_name=str(year))
         real_afscs = np.array(year_afsc_table['AFSC'])
         old_afscs = np.sort(real_afscs)
@@ -1458,7 +1446,7 @@ class CadetCareerProblem:
 
         return chart
 
-    def create_aggregate_file(self, from_files=True, printing=None):
+    def create_aggregate_file(self, from_files=False, printing=None):
         """
         Create the "data_type data_name" main aggregate file with solutions, metrics, and vps
         :param printing: whether to print status updates

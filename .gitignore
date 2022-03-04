@@ -150,6 +150,7 @@ dmypy.json
 cython_debug/
 
 # Sensitive
+sensitive/
 afccp/sensitive/
 
 # PyCharm
