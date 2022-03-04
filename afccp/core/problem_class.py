@@ -704,7 +704,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         real_solution = import_solution_from_excel(filepath=filepath)
-        year_afsc_table = import_data(filepath=paths['Data Processing Support'] + "Year_AFSCs_Table.xlsx",
+        year_afsc_table = import_data(filepath=paths['support'] + "Year_AFSCs_Table.xlsx",
                                       sheet_name=str(year))
         real_afscs = np.array(year_afsc_table['AFSC'])
         old_afscs = np.sort(real_afscs)

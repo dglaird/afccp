@@ -22,6 +22,10 @@ for j, afsc in enumerate(instance.parameters['afsc_vector']):
             swing_weights[k] = 0.05
     vp_2['objective_weight'][j, :] = swing_weights / sum(swing_weights)
 
-instance.vp_dict = {'VP': vp_1, 'VP_2': vp_2}
-instance.create_aggregate_file()
+instance.value_parameters = vp_2
+instance.scrub_afsc_solution(filepath=paths['instances'] + "Real 2021 VP_2 VFT_2.xlsx", year=2021)
+filepath = paths['instances'] + "Real C VP_2 VFT_2.xlsx"
+instance.export_to_excel(filepath=filepath)
+# instance.vp_dict = {'VP': vp_1, 'VP_2': vp_2}
+# instance.create_aggregate_file()
 # instance.solve_vft_pyomo_model(max_time=10)

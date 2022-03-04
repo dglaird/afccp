@@ -19,6 +19,11 @@ paths = {}
 for folder in ['figures', 'instances', 'results', 'solvers', 'support', 'tables']:
     paths[folder] = dir_path + resource_path + folder + '/'
 
+# sensitive information
+sensitive_path = 'afccp/sensitive/resources'
+for folder in ['instances', 'results', 'support']:
+    paths['s_' + folder] = dir_path + sensitive_path + folder + '/'
+
 # This determines how we import data from excel!
 global specify_engine
 if version.parse(pd.__version__) > version.parse("1.2.1"):
