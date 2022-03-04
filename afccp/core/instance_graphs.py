@@ -728,9 +728,10 @@ def average_merit_results_graph(parameters, value_parameters, metrics=None, metr
                                 figsize=(19, 7), facecolor='white', title=None, display_title=True, label_size=25,
                                 afsc_tick_size=15, yaxis_tick_size=25, afsc_rotation=80, skip_afscs=False,
                                 legend_size=None, title_size=None, y_max=1.1, alpha=0.5,
-                                dot_size=100):
+                                dot_size=100, colors=None):
     """
     Builds the Average Merit Results Bar Chart
+    :param colors: solution colors
     :param skip_afscs: Whether we should label every other AFSC
     :param legend_size: font size of the legend
     :param title_size: font size of the title
@@ -822,7 +823,8 @@ def average_merit_results_graph(parameters, value_parameters, metrics=None, metr
         legend_elements = []
         for s, solution in enumerate(list(metrics_dict.keys())):
             merit = metrics_dict[solution]['objective_measure'][:, merit_k]
-            ax.scatter(indices, merit, color=colors[s], marker=markers[s], edgecolor='black', s=dot_size, zorder=2)
+            ax.scatter(indices, merit, color=colors[solution], marker=markers[solution], edgecolor='black',
+                       s=dot_size, zorder=2)
 
             max_merit = np.array([max(max_merit[j], merit[j]) for j in range(M)])
             element = mlines.Line2D([], [], color=colors[solution], marker=markers[solution], linestyle='None',
@@ -873,10 +875,11 @@ def average_merit_results_graph(parameters, value_parameters, metrics=None, metr
 
 def quota_fill_results_graph(parameters, value_parameters, metrics=None, metrics_dict=None, save=False,
                              figsize=(19, 7), facecolor='white', title=None, display_title=True, label_size=25,
-                             afsc_tick_size=15, yaxis_tick_size=25, afsc_rotation=80, skip_afscs=False,
+                             afsc_tick_size=15, yaxis_tick_size=25, afsc_rotation=80, skip_afscs=False, colors=None,
                              xaxis_tick_size=15, legend_size=None, title_size=None, y_max=1.1, dot_size=100):
     """
     Builds the Combined Quota Results Bar Chart
+    :param colors: colors of the solutions
     :param skip_afscs: Whether we should label every other AFSC
     :param legend_size: font size of the legend
     :param title_size: font size of the title
@@ -1492,9 +1495,10 @@ def average_utility_results_graph(parameters, value_parameters, metrics=None, me
                                   figsize=(19, 7), facecolor='white', title=None, display_title=True, label_size=25,
                                   afsc_tick_size=15, yaxis_tick_size=25, afsc_rotation=80, skip_afscs=False,
                                   legend_size=None, title_size=None, y_max=1.1, alpha=0.5, bar_color='black',
-                                  dot_size=100):
+                                  dot_size=100, colors=None):
     """
     Builds the Average Utility Results Chart
+    :param colors: colors of the solutions
     :param alpha: alpha parameter for the bars of the figure
     :param bar_color: color of bars for figure (for certain kinds of graphs)
     :param skip_afscs: Whether we should label every other AFSC
@@ -1506,8 +1510,8 @@ def average_utility_results_graph(parameters, value_parameters, metrics=None, me
     :param yaxis_tick_size: y axis tick sizes
     :param afsc_tick_size: x axis tick sizes for AFSCs
     :param label_size: size of labels
-    :param title:
-    :param display_title:
+    :param title: title of the chart
+    :param display_title: if we should display the title
     :param metrics_dict: dictionary of solution metrics
     :param facecolor: color of the background of the graph
     :param figsize: size of the figure

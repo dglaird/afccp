@@ -32,15 +32,15 @@ class CadetCareerProblem:
 
         # Get right directory folder
         if self.sensitive:
-            dir_folder = 's_instances'
+            self.inst_folder = 's_instances'
         else:
-            dir_folder = "instances"
+            self.inst_folder = "instances"
 
         # Get list of specific data_name generated data instances
-        directory = paths[dir_folder]
+        directory = paths[self.inst_folder]
         self.generated_data_names = {'Random': [], 'Perfect': [], 'Realistic': []}
         for file_name in glob.iglob(directory + '*.xlsx', recursive=True):
-            start_index = file_name.find(dir_folder) + len(dir_folder) + 1
+            start_index = file_name.find(paths[self.inst_folder]) + len(paths[self.inst_folder]) + 1
             end_index = len(file_name) - 5
             full_name = file_name[start_index:end_index]
             sections = full_name.split(' ')
@@ -86,7 +86,22 @@ class CadetCareerProblem:
         self.data_instance_name = copy.deepcopy(self.full_name)
 
         # Get correct filepath
-        self.filepath = paths[dir_folder] + self.data_instance_name + '.xlsx'
+        self.filepath = paths[self.inst_folder] + self.data_instance_name + '.xlsx'
+
+        # Get list of instance filenames
+        directory = paths[self.inst_folder]
+        main_file = False  # if there is a "data_type data_name.xlsx" file
+        self.instance_files = []
+        for file_name in glob.iglob(directory + '*.xlsx', recursive=True):
+            start_index = file_name.find(paths[self.inst_folder]) + len(paths[self.inst_folder]) + 1
+            end_index = len(file_name) - 5
+            full_name = file_name[start_index:end_index]
+            sections = full_name.split(' ')
+            d_name = sections[1]
+            if d_name == self.data_name and len(sections) != 2:
+                self.instance_files.append(file_name)
+            if len(sections) == 2:
+                main_file = True
 
         # initialize more instance attributes
         self.printing = printing
@@ -138,8 +153,14 @@ class CadetCareerProblem:
 
             if printing:
                 print('Importing ' + self.data_name + ' problem instance...')
+
+            if main_file:
+                filepath = self.filepath
+            else:
+                filepath = self.instance_files[0]
+
             self.parameters, self.solution_dict, self.vp_dict, self.metrics_dict = import_aggregate_instance_file(
-                self.filepath)
+                filepath)
 
         if printing:
             if generate:
@@ -202,9 +223,9 @@ class CadetCareerProblem:
                 skip_afscs = False
             else:
                 if num_afscs < self.parameters['M']:
-                    skip_afscs = True
-                else:
                     skip_afscs = False
+                else:
+                    skip_afscs = True
 
         if thesis_chart:
             figsize = (16, 10)
@@ -1464,10 +1485,12 @@ class CadetCareerProblem:
                 vp_dict = {}
             else:
                 vp_dict = self.vp_dict
-            for full_name in self.instance_files:
+            for filepath in self.instance_files:
+                start_index = filepath.find(paths[self.inst_folder]) + len(paths[self.inst_folder]) + 1
+                end_index = len(filepath) - 5
+                full_name = filepath[start_index:end_index]
                 vp_name = full_name.split(' ')[2]
                 solution_name = full_name.split(' ')[3]
-                filepath = paths['instances'] + full_name + '.xlsx'
                 if vp_name not in vp_dict:
                     value_parameters = self.import_value_parameters(filepath=filepath, set_value_parameters=False,
                                                                     printing=False)
@@ -1478,7 +1501,8 @@ class CadetCareerProblem:
             metrics_dict = {}
             for vp_name in vp_dict:
                 value_parameters = vp_dict[vp_name]
-                vp_dict[vp_name]['vp_weight'] = 1 / len(list(vp_dict.keys()))
+                vp_dict[vp_name]['vp_weight'] = 100
+                vp_dict[vp_name]['vp_local_weight'] = 1 / len(list(vp_dict.keys()))
                 metrics_dict[vp_name] = {}
                 for solution_name in solution_dict:
                     solution = solution_dict[solution_name]
@@ -1490,8 +1514,8 @@ class CadetCareerProblem:
             solution_dict = self.solution_dict
             vp_dict = self.vp_dict
 
-        full_name = self.data_type + " " + self.data_name
-        create_aggregate_instance_file(full_name, self.parameters, solution_dict, vp_dict, metrics_dict)
+        create_aggregate_instance_file(self.data_instance_name, self.parameters, solution_dict, vp_dict, metrics_dict,
+                                       sensitive=self.sensitive)
 
     # Other
     def find_solution_parameter_ineligibility(self, solution=None, filepath=None):
