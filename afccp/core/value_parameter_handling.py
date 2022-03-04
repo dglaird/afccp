@@ -108,6 +108,7 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
     :param value_parameters: weight and value parameters
     :return: dataframes
     """
+    N, M = parameters['N'], parameters['M']
     O = len(value_parameters['objectives'])
     F_bp_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
     F_v_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
@@ -825,8 +826,8 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
     gp = {}
 
     # Main sets
-    A = np.arange(M)
-    C = np.arange(N)
+    A = np.arange(p['M'])
+    C = np.arange(p['N'])
     gp['A'] = A  # AFSCs
     gp['C'] = C  # Cadets
 

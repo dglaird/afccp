@@ -368,8 +368,8 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
 
     # Get other information
     afscs = parameters['afsc_vector']
-    vp_names = list(vp_dict.keys)
-    solution_names = list(solution_dict.keys)
+    vp_names = list(vp_dict.keys())
+    solution_names = list(solution_dict.keys())
     metric_names = {'Z': 'z', 'Cadet Value': 'cadets_overall_value', 'AFSC Value': 'afscs_overall_value'}
     for k, objective in enumerate(vp_dict[vp_names[0]]['objectives']):
         metric_names[objective + ' Score'] = k
@@ -430,7 +430,7 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
         if v == 0:
             vp_overall_df = overall_weights_df
         else:
-            pd.concat([vp_overall_df, overall_weights_df], ignore_index=True)
+            vp_overall_df = pd.concat([vp_overall_df, overall_weights_df], ignore_index=True)
         vp_afscs_df_dict[vp_name] = afsc_weights_df
     vp_overall_df.insert(loc=0, column='VP Name', value=vp_names)
 
@@ -442,6 +442,8 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
         solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
         metrics_df.to_excel(writer, sheet_name="Results", index=False)
         vp_overall_df.to_excel(writer, sheet_name="VP Overall", index=False)
+        for vp_name in vp_names:
+            vp_afscs_df_dict[vp_name].to_excel(writer, sheet_name=vp_name, index=False)
 
 
 

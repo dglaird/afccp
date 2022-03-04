@@ -1,4 +1,6 @@
 # Import libraries
+import copy
+
 from afccp.core.comprehensive_functions import *
 import datetime
 import glob
@@ -20,7 +22,7 @@ class CadetCareerProblem:
         :param printing: Whether we should print status updates or not
         """
 
-        # We need to get a list of the current data types in case we decide to generate more data
+        # Get a list of full instance files in the directory
         dir_folder = "instances"
         directory = paths[dir_folder]
         self.data_files = {'Generated': {'Random': [], 'Perfect': [], 'Realistic': []},
@@ -30,15 +32,16 @@ class CadetCareerProblem:
             end_index = len(file_name) - 5
             full_name = file_name[start_index:end_index]
             sections = full_name.split(' ')
-            if 'Generated' == sections[0]:
-                for data_variant in self.data_files['Generated']:
-                    if data_variant in sections[1]:
-                        self.data_files['Generated'][data_variant].append(full_name)
-            elif "Real" == sections[0]:
-                if len(sections[1]) == 1:
-                    self.data_files['Real']['Scrubbed'].append(full_name)
-                else:
-                    self.data_files['Real']['Year'].append(full_name)
+            if len(sections) != 2:
+                if 'Generated' == sections[0]:
+                    for data_variant in self.data_files['Generated']:
+                        if data_variant in sections[1]:
+                            self.data_files['Generated'][data_variant].append(full_name)
+                elif "Real" == sections[0]:
+                    if len(sections[1]) == 1:
+                        self.data_files['Real']['Scrubbed'].append(full_name)
+                    else:
+                        self.data_files['Real']['Year'].append(full_name)
         if data_name is None:
 
             # If we don't specify a data name or a filepath, we generate random data
@@ -1469,17 +1472,21 @@ class CadetCareerProblem:
 
         if from_files:
             solution_dict = {}
-            vp_dict = {}
+            if self.vp_dict is None:
+                vp_dict = {}
+            else:
+                vp_dict = self.vp_dict
             for full_name in self.instance_files:
                 vp_name = full_name.split(' ')[2]
                 solution_name = full_name.split(' ')[3]
                 filepath = paths['instances'] + full_name + '.xlsx'
                 if vp_name not in vp_dict:
-                    vp_dict[vp_name] = self.import_value_parameters(filepath=filepath, set_value_parameters=False,
+                    value_parameters = self.import_value_parameters(filepath=filepath, set_value_parameters=False,
                                                                     printing=False)
+                    vp_dict[vp_name] = copy.deepcopy(value_parameters)
                 if solution_name not in solution_dict:
-                    solution_dict[solution_name] = self.import_solution(filepath=filepath, set_solution=False,
-                                                                        printing=False)
+                    solution = self.import_solution(filepath=filepath, set_solution=False, printing=False)
+                    solution_dict[solution_name] = copy.deepcopy(solution)
             metrics_dict = {}
             for vp_name in vp_dict:
                 value_parameters = vp_dict[vp_name]
