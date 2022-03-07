@@ -8,7 +8,7 @@ import os
 
 
 class CadetCareerProblem:
-    def __init__(self, data_name=None, N=1600, M=32, P=6, printing=False):
+    def __init__(self, data_name=None, N=1600, M=32, P=6, num_breakpoints=None, printing=False):
         """
         This is the initialization function for the AFSC/Cadet problem. We can import data using the data_name.
         We can also generate data by providing a data_name that contains "Random", "Realistic",
@@ -18,6 +18,7 @@ class CadetCareerProblem:
         :param N: Number of cadets to generate
         :param M: Number of AFSCs to generate
         :param P: Number of AFSC preferences to generate for each cadet
+        :param num_breakpoints: Number of breakpoints to use for AFSC value functions
         :param printing: Whether we should print status updates or not
         """
 
@@ -160,7 +161,7 @@ class CadetCareerProblem:
                 filepath = self.instance_files[0]
 
             self.parameters, self.solution_dict, self.vp_dict, self.metrics_dict = import_aggregate_instance_file(
-                filepath)
+                filepath, num_breakpoints=num_breakpoints)
 
         if printing:
             if generate:
@@ -312,10 +313,6 @@ class CadetCareerProblem:
                 filepath = paths['instances'] + self.instance_files[0] + '.xlsx'
             vp_name = self.instance_files[0].split(' ')[2]
 
-        # Set correct names
-        self.vp_name = vp_name
-        self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
-
         if printing is None:
             printing = self.printing
 
@@ -328,12 +325,70 @@ class CadetCareerProblem:
 
         if set_value_parameters:
             self.value_parameters = value_parameters
+
+            # Set correct names
             self.vp_name = vp_name
+            self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
 
         if printing:
             print('Imported.')
 
         return value_parameters
+
+    def set_instance_value_parameters(self, vp_name=None):
+        """
+        Sets the current instance value parameters to a specified set based on the vp_name. This vp_name must be
+        in the value parameter dictionary
+        :param vp_name: name of set of value parameters
+        """
+        if self.vp_dict is None:
+            print('Value parameter dictionary is still empty')
+        else:
+            if vp_name is None:
+                print('Setting initial set of value parameters')
+                vp_name = list(self.vp_dict.keys())[0]
+                self.value_parameters = copy.deepcopy(self.vp_dict[vp_name])
+            else:
+                if vp_name not in self.vp_dict:
+                    print(vp_name + ' set not in value parameter dictionary')
+                else:
+                    self.value_parameters = copy.deepcopy(self.vp_dict[vp_name])
+
+    def save_value_parameters_to_dict(self, vp_name=None):
+        """
+        Adds the current set of value parameters to a dictionary as a new set
+        :param vp_name: name of the new set of value parameters (defaults to adding 1 to the last set in the dict)
+        """
+        if self.value_parameters is not None:
+            if self.vp_dict is None:
+                self.vp_dict = {}
+                if vp_name is None:
+                    vp_name = "VP"
+            else:
+                if vp_name is None:
+                    high = 1
+                    for vp_name in self.vp_dict:
+                        if '_' in vp_name:
+                            num = int(vp_name.split('_')[1])
+                            if num > high:
+                                high = num
+                    vp_name = "VP_" + str(high + 1)
+
+            # Set attributes
+            self.vp_dict[vp_name] = copy.deepcopy(self.value_parameters)
+            self.vp_name = vp_name
+        else:
+            print('No instance value parameters detected')
+
+    # TODO: Write this function that takes a new set of value parameters and sees if it is identical to another set
+    #  within the dictionary
+    def check_unique_value_parameters(self, value_parameters=None):
+        """
+        Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the
+        the set of parameters is unique, false otherwise
+        :param value_parameters: set of value parameters (presumably the instance attributes)
+        """
+        pass
 
     def import_default_value_parameters(self, filepath=None, no_constraints=False, num_breakpoints=24,
                                         generate_afsc_weights=True, printing=None):
@@ -352,10 +407,12 @@ class CadetCareerProblem:
             printing = self.printing
 
         if filepath is None:
-            filepath = paths['Data Processing Support'] + 'Value_Parameters_Defaults_' + self.data_type + '.xlsx'
-
-        if self.perfect:
-            filepath = paths['Data Processing Support'] + 'Value_Parameters_Defaults_Perfect.xlsx'
+            if self.data_variant == "Scrubbed":
+                filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
+            elif self.data_variant == 'Year':
+                filepath = paths['s_support'] + 'Value_Parameters_Defaults_' + self.data_type + '.xlsx'
+            else:
+                filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_type + '.xlsx'
 
         self.default_value_parameters = default_value_parameters_from_excel(filepath, num_breakpoints=num_breakpoints,
                                                                             printing=printing)
@@ -421,7 +478,7 @@ class CadetCareerProblem:
         value_parameters = value_parameter_realistic_generator(self.parameters, default_value_parameters,
                                                                constraints_df, deterministic=deterministic,
                                                                constrain_merit=constrain_merit,
-                                                               data_type=data_type)
+                                                               data_name=data_name)
         value_parameters = model_value_parameters_set_additions(value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
         self.value_parameters = model_value_parameters_set_additions(value_parameters)
@@ -482,9 +539,6 @@ class CadetCareerProblem:
 
                 # Update Local Weights
                 self.value_parameters['afsc_weight'] = swing_weights / sum(swing_weights)
-
-    def update_value_parameter_dictionary(self, value_parameters, vp_name=None):
-        pass
 
     # Translate Parameters
     def vft_to_gp_parameters(self, gp_df_dict=None, printing=None):
@@ -1006,7 +1060,7 @@ class CadetCareerProblem:
             self.vft_to_gp_parameters(gp_df_dict=gp_df_dict)
 
         r_model = gp_model_build(self.gp_parameters, printing=printing)
-        self.solution, self.X = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solve_name=solve_name,
+        self.solution, self.X = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solve_name,
                                                printing=printing)
         self.measure_solution()
 

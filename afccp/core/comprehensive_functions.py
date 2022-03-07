@@ -577,6 +577,8 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=Fals
 
             # Load value_parameter dictionary
             value_parameters = model_value_parameters_set_additions(value_parameters)
+            value_parameters = condense_value_functions(parameters, value_parameters)
+            value_parameters = model_value_parameters_set_additions(value_parameters)
             vp_dict[vp_name] = copy.deepcopy(value_parameters)
             vp_dict[vp_name]['vp_weight'] = vp_weights[v]
             vp_dict[vp_name]['vp_local_weight'] = vp_weights[v] / sum(vp_weights)

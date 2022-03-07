@@ -1087,7 +1087,7 @@ def quota_fill_results_graph(parameters, value_parameters, metrics=None, metrics
 def usafa_proportion_results_graph(parameters, value_parameters, metrics=None, metrics_dict=None, save=False,
                                    figsize=(19, 7), facecolor='white', title=None, display_title=True, label_size=25,
                                    afsc_tick_size=15, yaxis_tick_size=25, afsc_rotation=80, skip_afscs=False,
-                                   legend_size=None, title_size=None, y_max=1.1, dot_size=100):
+                                   legend_size=None, title_size=None, y_max=1.1, dot_size=100, colors=None):
     """
     Builds the USAFA Proportion Results Bar Chart
     :param skip_afscs: Whether we should label every other AFSC
