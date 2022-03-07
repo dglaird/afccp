@@ -508,17 +508,17 @@ class CadetCareerProblem:
         if constraints_df is None:
             if self.data_type == "Real":
                 constraints_df = import_data(
-                    paths['Data Processing Support'] + 'Value_Parameter_Sets_Options_Real.xlsx',
+                    paths['s_support'] + 'Value_Parameter_Sets_Options_Real.xlsx',
                     sheet_name=data_type + ' Constraint Options')
             else:
                 constraints_df = import_data(
-                    paths['Data Processing Support'] + 'Value_Parameter_Sets_Options_Scrubbed.xlsx',
+                    paths['support'] + 'Value_Parameter_Sets_Options_Scrubbed.xlsx',
                     sheet_name=data_type + ' Constraint Options')
 
         value_parameters = value_parameter_realistic_generator(self.parameters, default_value_parameters,
                                                                constraints_df, deterministic=deterministic,
                                                                constrain_merit=constrain_merit,
-                                                               data_name=data_name)
+                                                               data_name=data_type)
         value_parameters = model_value_parameters_set_additions(value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
         self.value_parameters = model_value_parameters_set_additions(value_parameters)
@@ -728,7 +728,7 @@ class CadetCareerProblem:
         solution = import_solution_from_excel(filepath=filepath, standard=True, printing=printing)
 
         # Add solution to solution dictionary
-        self.add_solution_to_dictionary(solution, data_name, solution_name=solution_name, solution_method="Import")
+        self.add_solution_to_dictionary(solution, solution_method="Import")
 
         # Set the solution attribute
         if set_solution:
