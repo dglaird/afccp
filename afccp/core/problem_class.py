@@ -734,9 +734,11 @@ class CadetCareerProblem:
         return chart
 
     # Import Solutions
-    def import_original_solution(self, filepath, set_to_instance=True, add_to_dict=True, printing=None):
+    def import_solution(self, filepath, excel_format="Specific", set_to_instance=True, add_to_dict=True,
+                         printing=None):
         """
-        This method only works for importing an "original" solution from the original excel files
+        This method imports a solution from excel
+        :param excel_format: kind of excel sheet we're importing from
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
         :param add_to_dict: if we want to add this solution to the solution dictionary
         :param filepath: filepath to import the solution from
@@ -748,7 +750,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Import solution
-        solution = import_solution_from_excel(filepath=filepath, excel_format='Original', printing=printing)
+        solution = import_solution_from_excel(filepath=filepath, excel_format=excel_format, printing=printing)
 
         # Set the solution attribute
         if set_to_instance:
@@ -952,8 +954,8 @@ class CadetCareerProblem:
 
     def genetic_algorithm(self, initialize=True, pop_size=10, stopping_time=60, num_crossover_points=3,
                           initial_solutions=None, mutation_rate=0.05, num_time_points=100, constraints="None",
-                          penalty_scale=10, time_eval=False, num_mutations=None, percent_step=10,
-                          con_tolerance=0.95, printing=None, con_fail_dict=None, set_to_instance=True, add_to_dict=True):
+                          penalty_scale=10, time_eval=False, num_mutations=None, percent_step=10, add_to_dict=True,
+                          con_tolerance=0.95, printing=None, con_fail_dict=None, set_to_instance=True):
         """
         This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
         solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve
