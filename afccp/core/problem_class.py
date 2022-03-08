@@ -1,9 +1,8 @@
 # Import libraries
-import copy
-
 from afccp.core.comprehensive_functions import *
 import datetime
 import glob
+import copy
 
 
 class CadetCareerProblem:
@@ -350,19 +349,27 @@ class CadetCareerProblem:
         in the value parameter dictionary
         :param vp_name: name of value parameters to set as the instance's value parameters
         """
+        if printing is None:
+            printing = self.printing
+
         if self.vp_dict is None:
-            print('Value parameter dictionary is still empty')
+            raise ValueError('Value parameter dictionary is still empty')
         else:
             if vp_name is None:
-                print('Setting initial set of value parameters')
+
+                if printing:
+                    print('Setting initial set of value parameters')
                 self.vp_name = list(self.vp_dict.keys())[0]
                 self.value_parameters = copy.deepcopy(self.vp_dict[self.vp_name])
             else:
                 if vp_name not in self.vp_dict:
-                    print(vp_name + ' set not in value parameter dictionary')
+                    raise ValueError(vp_name + ' set not in value parameter dictionary')
                 else:
                     self.value_parameters = copy.deepcopy(self.vp_dict[vp_name])
                     self.vp_name = vp_name
+
+            # Update current specific instance name
+            self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
 
     def save_new_value_parameters_to_dict(self, vp_name=None):
         """
@@ -393,9 +400,10 @@ class CadetCareerProblem:
             else:  # If it's not unique, then the "unique" variable is the name of the matching set of value parameters
                 self.vp_name = unique
 
+            # Update current specific instance name
             self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
         else:
-            print('No instance value parameters detected')
+            raise ValueError('No instance value parameters detected')
 
     def update_value_parameters_in_dict(self, vp_name=None):
         """
@@ -412,8 +420,11 @@ class CadetCareerProblem:
                 # Set attributes
                 self.vp_dict[vp_name] = copy.deepcopy(self.value_parameters)
                 self.vp_name = vp_name
+
+                # Update current specific instance name
+                self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
         else:
-            print('No instance value parameters detected')
+            raise ValueError('No instance value parameters detected')
 
     # TODO: Write this method that takes a new set of value parameters and sees if it is identical to another set
     #  within the dictionary
@@ -712,10 +723,11 @@ class CadetCareerProblem:
         return chart
 
     # Import/Convert Solutions
-    def import_original_solution(self, filepath, set_solution=True, printing=None):
+    def import_original_solution(self, filepath, set_to_instance=True, add_to_dict=True, printing=None):
         """
         This method only works for importing an "original" solution from the original excel files
-        :param set_solution: if we want to set this solution as the object's solution attribute (self.solution)
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param filepath: filepath to import the solution from
         :param printing: Whether we should print status updates or not
         :return solution
@@ -725,19 +737,22 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Import solution
-        solution = import_solution_from_excel(filepath=filepath, standard=True, printing=printing)
-
-        # Add solution to solution dictionary
-        self.add_solution_to_dictionary(solution, solution_method="Import")
+        solution = import_solution_from_excel(filepath=filepath, excel_format='Original', printing=printing)
 
         # Set the solution attribute
-        if set_solution:
+        if set_to_instance:
             self.solution = solution
             self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
                                                     printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_method="Original")
+
         if printing:
             print('Imported.')
 
+        # Return solution
         return solution
 
     def add_solution_to_dictionary(self, solution=None, full_name=None, solution_name=None, solution_method="Import"):
@@ -792,9 +807,12 @@ class CadetCareerProblem:
                 self.solution_dict[solution_name] = solution
                 self.solution_name = solution_name
 
-    def scrub_afsc_solution(self, year, filepath=None, solution_name=None, printing=None):
+    def scrub_afsc_solution(self, year, filepath=None, solution_name=None, set_to_instance=True, add_to_dict=True,
+                            printing=None):
         """
         Imports a real class year solution (sensitive data) and converts the real AFSCs into the scrubbed versions
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param solution_name: name of the solution to the real class year sensitive file
         :param filepath: filepath of the solution (optional)
         :param year: year of the solution
@@ -809,7 +827,7 @@ class CadetCareerProblem:
 
             # Figure out how we're importing the solution
             full_name = "Real " + str(year)
-            import_direct = False
+            excel_format = 'Aggregate'
 
             # If we don't specify a filepath directly
             if filepath is None:
@@ -846,36 +864,60 @@ class CadetCareerProblem:
                             if len(solution_names) > 0:
                                 solution_name = solution_names[0]
                                 filepath = paths['s_instances'] + solution_full_names[0] + '.xlsx'
-                                import_direct = True
+                                excel_format = 'Specific'
                             else:
                                 raise ValueError(str(year) + ' files exist, but no solutions detected.')
                         else:
                             raise ValueError('No ' + str(year) + ' files detected.')
             else:
-                import_direct = True
+                start_index = filepath.find(paths['s_instances']) + len(paths['s_instances']) + 1
+                end_index = len(filepath) - 5
+                full_name = file_name[start_index:end_index]
+                sections = full_name.split(' ')
+                if len(sections) == 4:
+                    solution_name = sections[3]
+                    excel_format = 'Specific'
+                elif len(sections) != 2:
+                    raise ValueError('Aggregate solution excel file not provided.')
 
-            real_solution = import_solution_from_excel(filepath=filepath)
+            # Import real class year solution
+            real_solution = import_solution_from_excel(filepath=filepath, solution_name=solution_name,
+                                                       excel_format=excel_format)
             year_afsc_table = import_data(filepath=paths['s_support'] + "Year_AFSCs_Table.xlsx",
                                           sheet_name=str(year))
             real_afscs = np.array(year_afsc_table['AFSC'])
             old_afscs = np.sort(real_afscs)
-            scrubbed_solution = np.zeros(self.parameters['N']).astype(int)
+            solution = np.zeros(self.parameters['N']).astype(int)
             for j, afsc in enumerate(real_afscs):
                 _name = self.parameters['afsc_vector'][j]
                 old_j = np.where(old_afscs == afsc)[0][0]
                 indices = np.where(real_solution == old_j)[0]
-                scrubbed_solution[indices] = j
-            self.solution = scrubbed_solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
-            return self.solution
+                solution[indices] = j
+
+            # Set the solution attribute
+            if set_to_instance:
+                self.solution = solution
+                self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                        printing=printing)
+
+            # Add solution to solution dictionary
+            if add_to_dict:
+                self.add_solution_to_dictionary(solution, solution_name=solution_name)
+
+            if printing:
+                print('Imported.')
+
+            # Return solution
+            return solution
 
         else:
-            print('No sensitive folder found. Cannot load real AFSC solution')
+            raise ValueError('No sensitive folder found. Cannot load real AFSC solutions')
 
-    def afsc_solution_to_solution(self, afsc_solution, printing=None):
+    def afsc_solution_to_solution(self, afsc_solution, set_to_instance=True, add_to_dict=True, printing=None):
         """
         Simply converts a vector of labeled AFSCs to a vector of AFSC indices
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param afsc_solution: solution vector of AFSC names (strings)
         :param printing: Whether or not we should print status updates
         :return: solution vector of AFSC indices
@@ -887,9 +929,16 @@ class CadetCareerProblem:
         for i in range(self.parameters['N']):
             solution[i] = np.where(self.parameters['afsc_vector'] == afsc_solution[i])[0]
 
-        self.solution = solution
-        self.metrics = measure_solution_quality(solution, self.parameters, self.value_parameters,
-                                                printing=printing)
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_name=solution_name)
+
         return solution
 
     def x_from_excel(self, filepath=None):
@@ -937,9 +986,11 @@ class CadetCareerProblem:
         return initialization
 
     # Solve Models
-    def generate_random_solution(self, printing=None):
+    def generate_random_solution(self, set_to_instance=True, add_to_dict=True, printing=None):
         """
         Generate random solution by assigning cadets to AFSCs that they're eligible for
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param printing: Whether or not to print status updates
         """
         if printing is None:
@@ -948,15 +999,26 @@ class CadetCareerProblem:
         if printing:
             print('Generating random solution...')
 
-        self.solution = np.array([np.random.choice(self.parameters['J^E'][i]) for i in self.parameters['I']])
-        self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                printing=printing)
+        solution = np.array([np.random.choice(self.parameters['J^E'][i]) for i in self.parameters['I']])
 
-    def stable_matching(self, printing=None, set_solution=True):
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_method='Greedy')
+
+        return solution
+
+    def stable_matching(self, set_to_instance=True, add_to_dict=True, printing=None):
         """
         This method solves the stable marriage heuristic for an initial solution
         :param printing: Whether or not to print status updates
-        :param set_solution: If we set the solution as the current object's solution
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :return: solution vector
         """
         if printing is None:
@@ -964,17 +1026,24 @@ class CadetCareerProblem:
 
         solution = stable_marriage_model_solve(self.parameters, self.value_parameters, printing=printing)
 
-        if set_solution:
+        # Set the solution attribute
+        if set_to_instance:
             self.solution = solution
-            self.measure_solution(solution, printing=printing)
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_method='Stable')
 
         return solution
 
-    def greedy_method(self, printing=None, set_solution=True):
+    def greedy_method(self, set_to_instance=True, add_to_dict=True, printing=None):
         """
         This method solves the greedy heuristic for an initial solution
         :param printing: Whether or not to print status updates
-        :param set_solution: If we set the solution as the current object's solution
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :return: solution vector
         """
         if printing is None:
@@ -982,20 +1051,28 @@ class CadetCareerProblem:
 
         solution = greedy_model_solve(self.parameters, self.value_parameters, printing=printing)
 
-        if set_solution:
+        # Set the solution attribute
+        if set_to_instance:
             self.solution = solution
-            self.measure_solution(solution, printing=printing)
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_method='Greedy')
 
         return solution
 
     def genetic_algorithm(self, initialize=True, pop_size=10, stopping_time=60, num_crossover_points=3,
                           initial_solutions=None, mutation_rate=0.05, num_time_points=100, constraints="None",
                           penalty_scale=10, time_eval=False, num_mutations=None, percent_step=10,
-                          con_tolerance=0.95, printing=None, con_fail_dict=None):
+                          con_tolerance=0.95, printing=None, con_fail_dict=None, set_to_instance=True, add_to_dict=True):
         """
         This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
         solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve
         from there
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param initialize: if we want to initialize the algorithm with solutions
         :param con_fail_dict: dictionary of failed constraints in the approximate model that we adhere to
         :param con_tolerance: constraint fail tolerance (we can meet X % of the constraint or above and be ok)
@@ -1022,13 +1099,13 @@ class CadetCareerProblem:
         if initialize:
             if initial_solutions is None:
                 if self.solution is not None:
-                    solution1 = self.stable_matching(printing, set_solution=False)
-                    solution2 = self.greedy_method(printing, set_solution=False)
+                    solution1 = self.stable_matching(set_to_instance=False, add_to_dict=False, printing=printing)
+                    solution2 = self.greedy_method(set_to_instance=False, add_to_dict=False, printing=printing)
                     initial_solutions = np.array([self.solution, solution1, solution2])
                     con_fail_dict = self.get_constraint_fail_dictionary()
                 else:
-                    solution1 = self.stable_matching(printing, set_solution=False)
-                    solution2 = self.greedy_method(printing, set_solution=False)
+                    solution1 = self.stable_matching(set_to_instance=False, add_to_dict=False, printing=printing)
+                    solution2 = self.greedy_method(set_to_instance=False, add_to_dict=False, printing=printing)
                     initial_solutions = np.array([solution1, solution2])
             else:
                 if con_fail_dict is None and self.solution is not None:
@@ -1043,19 +1120,32 @@ class CadetCareerProblem:
                                    percent_step=percent_step, con_tolerance=con_tolerance, printing=printing)
         if time_eval:
             solve_time = time.perf_counter() - start_time
-            self.solution = result[0]
-            self.measure_solution(printing=printing)
             time_eval_df = result[1]
-            return time_eval_df, solve_time
+            solution = result[0]
+            return_object = time_eval_df, solve_time
         else:
-            self.solution = result
-            self.measure_solution(printing=printing)
-            return result
+            solution = result
+            return_object = solution
 
-    def solve_vft_pyomo_model(self, solver_name="cbc", approximate=True, max_time=None, report=False,
-                              timing=False, add_breakpoints=True, initial=None, init_from_X=False, printing=None):
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_method="Genetic")
+
+        return return_object
+
+    def solve_vft_pyomo_model(self, solver_name="cbc", approximate=True, max_time=None, report=False, timing=False,
+                              add_breakpoints=True, initial=None, init_from_X=False, set_to_instance=True,
+                              add_to_dict=True, printing=None):
         """
         Solve the VFT model using pyomo
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param init_from_X: if we have an X matrix to initialize the solution with
         :param initial: if this model has a warm start or not
         :param add_breakpoints: if we should add breakpoints to adjust the approximate model
@@ -1083,39 +1173,46 @@ class CadetCareerProblem:
                                     add_breakpoints=add_breakpoints, initial=initial, printing=printing)
             if report:
                 if timing:
-                    self.solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = vft_model_solve(
+                    solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = vft_model_solve(
                         model, self.parameters, self.value_parameters, solve_name=solver_name, approximate=approximate,
                         max_time=max_time, report=True, timing=True, printing=printing)
                 else:
-                    self.solution, self.x, self.measure, self.value, self.pyomo_z = vft_model_solve(
+                    solution, self.x, self.measure, self.value, self.pyomo_z = vft_model_solve(
                         model, self.parameters, self.value_parameters, solve_name=solver_name, approximate=approximate,
                         max_time=max_time, report=True, printing=printing)
             else:
                 if timing:
-                    self.solution, solve_time = vft_model_solve(model, self.parameters, self.value_parameters,
+                    solution, solve_time = vft_model_solve(model, self.parameters, self.value_parameters,
                                                                 solve_name=solver_name, approximate=approximate,
                                                                 max_time=max_time, timing=True, printing=printing)
                 else:
-                    self.solution = vft_model_solve(model, self.parameters, self.value_parameters,
+                    solution = vft_model_solve(model, self.parameters, self.value_parameters,
                                                     solve_name=solver_name, approximate=approximate, max_time=max_time,
                                                     printing=printing)
         else:
             if printing:
-                print('Pyomo not available')
-            self.generate_random_solution()
+                raise ValueError('Pyomo not available')
 
-        self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                printing=printing)
-        self.solution = self.solution.astype(int)
+        if set_solution:
+            self.metrics = measure_solution_quality(solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+            self.solution = solution.astype(int)
+            if approximate:
+                solution_method = "A-VFT"
+            else:
+                solution_method = "E-VFT"
+            self.add_solution_to_dictionary(solution, solution_method=solution_method)
 
         if timing:
             return solve_time
         else:
-            return self.solution
+            return solution
 
-    def solve_original_pyomo_model(self, printing=None):
+    def solve_original_pyomo_model(self, printing=None, add_to_dict=True, set_to_instance=True):
         """
         Solve the original AFPC model using pyomo
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param printing: Whether the procedure should print something
         """
 
@@ -1125,12 +1222,13 @@ class CadetCareerProblem:
         if use_pyomo:
             model = original_pyomo_model_build(printing)
             data = convert_parameters_to_original_model_inputs(self.parameters, self.value_parameters, printing)
-            self.solution = solve_original_pyomo_model(data, model, printing=printing)
+            solution = solve_original_pyomo_model(data, model, printing=printing)
         else:
-            if printing:
-                print('Pyomo not available')
-            self.generate_random_solution()
-        self.measure_solution(self.solution, self.parameters, self.value_parameters)
+            raise ValueError('Pyomo not available')
+
+        if set_solution:
+            self.measure_solution(self.solution, self.parameters, self.value_parameters)
+            self.add_solution_to_dictionary(solution=self.solution, )
 
     def solve_gp_pyomo_model(self, gp_df_dict=None, max_time=None, solve_name='cbc', printing=None):
         """

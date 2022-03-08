@@ -216,10 +216,13 @@ def get_utility_preferences(parameters):
 
 
 # Solution Handling Procedures
-def import_solution_from_excel(filepath, standard=True, printing=False):
+def import_solution_from_excel(filepath, solution_name=None, afsc_vector=None, excel_format='Specific',
+                               printing=False):
     """
     Imports a solution from excel and converts it to a vector of AFSC indices
-    :param standard: if we are importing it from standard data format
+    :param solution_name: name of solution
+    :param afsc_vector: list of AFSCs
+    :param excel_format: the kind of excel file we're importing from
     :param filepath: file path
     :param printing: Whether the procedure should print something
     :return: solution (vector of AFSC indices)
@@ -228,17 +231,24 @@ def import_solution_from_excel(filepath, standard=True, printing=False):
     if printing:
         print('Importing solution from excel...')
 
-    # Load dataframes
-    afscs_fixed = import_data(filepath, sheet_name="AFSCs Fixed")
-    afsc_vector = np.array(afscs_fixed['AFSC'])
+    if afsc_vector is None:
+        afscs_fixed = import_data(filepath, sheet_name="AFSCs Fixed")
+        afsc_vector = np.array(afscs_fixed['AFSC'])
 
-    if standard:
+    if excel_format == 'Specific':
         sheet_name = "Cadet Solution Quality"
-    else:
+    elif excel_format == 'Original':
         sheet_name = "Original Solution"
-
+    else:  # From Aggregate File
+        sheet_name = "Solutions"
     solutions_df = import_data(filepath, sheet_name=sheet_name)
-    afsc_solution = np.array(solutions_df['Matched'])
+
+    if solution_name is None and excel_format not in ['Specific', 'Original']:
+        raise ValueError('No solution name provided')
+    elif excel_format in ['Specific', 'Original']:
+        afsc_solution = np.array(solutions_df['Matched'])
+    else:
+        afsc_solution = np.array(solutions_df[solution_name])
 
     # Convert afscs to afsc indices
     solution = np.zeros(len(afsc_solution)).astype(int)
