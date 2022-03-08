@@ -368,6 +368,9 @@ class CadetCareerProblem:
                     self.value_parameters = copy.deepcopy(self.vp_dict[vp_name])
                     self.vp_name = vp_name
 
+            if self.solution is not None:
+                self.measure_solution()
+
             # Update current specific instance name
             self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
 
@@ -1235,7 +1238,8 @@ class CadetCareerProblem:
             self.solution = self.solution_dict[solution_name]
             self.solution_name = solution_name
             if self.value_parameters is not None:
-                self.metrics = self.measure_solution()
+                self.measure_solution()
+                self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name + " " + self.solution_name
 
             # Return solution
             return self.solution
@@ -1932,7 +1936,7 @@ class CadetCareerProblem:
             if self.vp_name in self.vp_dict:
 
                 # Check if the instance value parameters are the same as the ones in the dictionary
-                vp_same = compare_value_parameters(self.value_parameters, self.vp_dict[self.vp_name])
+                vp_same = compare_value_parameters(self.parameters, self.value_parameters, self.vp_dict[self.vp_name])
                 if not vp_same:
                     raise ValueError("Current value parameters: " + self.vp_name +
                                      ". This is not the same set of value parameters as found in the "
@@ -1940,6 +1944,8 @@ class CadetCareerProblem:
             else:
                 raise ValueError("Value Parameters " + self.vp_name + " not found in dictionary.")
 
+            # Export to the right place
+            self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name + " " + self.solution_name
             if self.sensitive:
                 filepath = paths['s_instances'] + self.full_name + '.xlsx'
             else:
