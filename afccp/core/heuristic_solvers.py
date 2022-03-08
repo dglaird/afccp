@@ -2,6 +2,7 @@
 import time
 import numpy as np
 from afccp.core.globals import *
+from afccp.core.data_handling import value_function
 
 
 def stable_marriage_model_solve(parameters, value_parameters, printing=False):
@@ -248,11 +249,11 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
                         measure[k] = usafa_count
                     elif objective == 'ROTC Quota':
                         measure[k] = count - usafa_count
-                    elif objective in p['K^D']:
+                    elif objective in vp['K^D']:
                         measure[k] = len(np.intersect1d(p['I^D'][objective][j], cadets)) / count
 
                     # Assign AFSC objective value
-                    value[k] = value_function(vp['a'][j][k], vp['f_a'][j][k], vp['r'][j][k], measure[k])
+                    value[k] = value_function(vp['F_bp'][j][k], vp['F_v'][j][k], vp['r'][j][k], measure[k])
 
                     # AFSC Objective Constraints
                     if k in vp['K^C'][j]:
@@ -402,8 +403,8 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
     vp = value_parameters
 
     # Obtain objective minimums and maximums
-    objective_min = np.zeros([p['M'], p['O']])
-    objective_max = np.zeros([p['M'], p['O']])
+    objective_min = np.zeros([p['M'], vp['O']])
+    objective_max = np.zeros([p['M'], vp['O']])
     soc_counts = np.zeros(p['M'])
     for j in p['J']:
 

@@ -1030,7 +1030,7 @@ class CadetCareerProblem:
 
     def solve_vft_pyomo_model(self, solver_name="cbc", approximate=True, max_time=None, report=False, timing=False,
                               add_breakpoints=True, initial=None, init_from_X=False, set_to_instance=True,
-                              add_to_dict=True, printing=None):
+                              add_to_dict=True, executable=None, provide_executable=False, printing=None):
         """
         Solve the VFT model using pyomo
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
@@ -1043,6 +1043,8 @@ class CadetCareerProblem:
         :param approximate: if the model is convex or not
         :param report: if we want to grab all the information to sanity check the solution
         :param solver_name: name of solver
+        :param executable: path of the solver
+        :param provide_executable: if we want to provide an executable directly
         :param printing: if we should print something
         :return: solution
         """
@@ -1064,20 +1066,23 @@ class CadetCareerProblem:
                 if timing:
                     solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = vft_model_solve(
                         model, self.parameters, self.value_parameters, solve_name=solver_name, approximate=approximate,
-                        max_time=max_time, report=True, timing=True, printing=printing)
+                        max_time=max_time, report=True, timing=True, executable=executable,
+                        provide_executable=provide_executable, printing=printing)
                 else:
                     solution, self.x, self.measure, self.value, self.pyomo_z = vft_model_solve(
                         model, self.parameters, self.value_parameters, solve_name=solver_name, approximate=approximate,
-                        max_time=max_time, report=True, printing=printing)
+                        max_time=max_time, report=True, executable=executable,
+                        provide_executable=provide_executable, printing=printing)
             else:
                 if timing:
                     solution, solve_time = vft_model_solve(model, self.parameters, self.value_parameters,
-                                                                solve_name=solver_name, approximate=approximate,
-                                                                max_time=max_time, timing=True, printing=printing)
+                                                           solve_name=solver_name, approximate=approximate,
+                                                           max_time=max_time, timing=True, executable=executable,
+                                                           provide_executable=provide_executable, printing=printing)
                 else:
-                    solution = vft_model_solve(model, self.parameters, self.value_parameters,
-                                                    solve_name=solver_name, approximate=approximate, max_time=max_time,
-                                                    printing=printing)
+                    solution = vft_model_solve(model, self.parameters, self.value_parameters, solve_name=solver_name,
+                                               approximate=approximate, max_time=max_time, executable=executable,
+                                               provide_executable=provide_executable, printing=printing)
         else:
             if printing:
                 raise ValueError('Pyomo not available')
@@ -1130,9 +1135,12 @@ class CadetCareerProblem:
             self.add_solution_to_dictionary(solution, solution_method="AFPC")
 
     def solve_gp_pyomo_model(self, gp_df_dict=None, max_time=None, solve_name='cbc', add_to_dict=True,
-                             set_to_instance=True, printing=None):
+                             set_to_instance=True, executable=None, provide_executable=False,
+                             printing=None):
         """
         Solve the Goal Programming Model (Created by Lt. Reynolds)
+        :param executable: optional path to solver
+        :param provide_executable: if we want to directly provide an executable path
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
         :param add_to_dict: if we want to add this solution to the solution dictionary
         :param gp_df_dict: dictionary of dataframes used for parameters
@@ -1150,6 +1158,7 @@ class CadetCareerProblem:
 
         r_model = gp_model_build(self.gp_parameters, printing=printing)
         solution, self.x = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solve_name,
+                                          executable=executable, provide_executable=provide_executable,
                                           printing=printing)
 
         # Set the solution attribute
@@ -1166,7 +1175,7 @@ class CadetCareerProblem:
         return solution
 
     def full_vft_model_solve(self, ga_max_time=60 * 10, pyomo_max_time=10, add_to_dict=True, return_z=True,
-                             printing=None, ga_printing=False):
+                             executable=None, provide_executable=False, printing=None, ga_printing=False):
         """
         This is the main method to solve the problem instance. We first solve the pyomo Approximate model, and then
         evolve it using the GA
@@ -1174,6 +1183,8 @@ class CadetCareerProblem:
         :param ga_max_time: the genetic algorithm's time to solve
         :param pyomo_max_time: max time to solve the pyomo model
         :param return_z: If the method should return the z value or the solution itself
+        :param executable: optional path to solver
+        :param provide_executable: if we want to directly provide an executable path
         :param printing: Whether the procedure should print something
         :param ga_printing: If we want to print status updates during the genetic algorithm
         :return: solution z
@@ -1184,7 +1195,8 @@ class CadetCareerProblem:
         if printing:
             now = datetime.datetime.now()
             print('Solving VFT Model for ' + str(pyomo_max_time) + ' seconds at ' + now.strftime('%H:%M:%S') + '...')
-        self.solve_vft_pyomo_model(max_time=pyomo_max_time, add_to_dict=False, printing=False)
+        self.solve_vft_pyomo_model(max_time=pyomo_max_time, add_to_dict=False, executable=executable,
+                                   provide_executable=provide_executable, printing=False)
 
         if printing:
             now = datetime.datetime.now()
