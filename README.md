@@ -23,7 +23,7 @@ No installation steps yet. Still a work in progress here.
 
 ## Usage 
 
-Need to change this so it only reflects the important script (problem_class.py)
+The CadetCareerProblem class is the main class object that the user will be controlling. There are 4 main ways of initializing an instance of this problem. The first, and main way of initializing the problem, is to import a pre-existing problem instance from excel. The other three initialization methods pertain to generating fake problem instances. I have not taken the time to write a documentation file yet with all the methods of the class, but you can view them within the problem_class.py script. The methods pertain to different ways of specifying value parameters, finding solutions, measuring/comparing solutions, and more. 
 
 ### Globals
 This script (globals.py) contains all the user-specific information. Please input your own specific directory path. It is very critical that all the subfolders are in the correct place and that your main directory's path is placed into the "dir_path" variable! I also included a variable called "specify_engine" because I know that some versions of pandas have to add the parameter "engine='openpyxl'" when importing pandas dataframes. By default, we include the parameter but that can be changed if the user does not have the openpyxl module installed.
