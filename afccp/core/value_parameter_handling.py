@@ -486,6 +486,17 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     return value_parameters
 
 
+# TODO: Write this procedure!
+def compare_value_parameters(vp1, vp2):
+    """
+    Compares two sets of value parameters to see if they are identical
+    :param vp1: set 1
+    :param vp2: set 2
+    :return: True if they're identical, False otherwise
+    """
+    return False
+
+
 # Value Function Construction
 def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual=None):
     """

@@ -343,10 +343,11 @@ class CadetCareerProblem:
 
         return value_parameters
 
-    def set_instance_value_parameters(self, vp_name=None):
+    def set_instance_value_parameters(self, vp_name=None, printing=None):
         """
         Sets the current instance value parameters to a specified set based on the vp_name. This vp_name must be
         in the value parameter dictionary
+        :param printing: print status updates or not
         :param vp_name: name of value parameters to set as the instance's value parameters
         """
         if printing is None:
@@ -356,7 +357,6 @@ class CadetCareerProblem:
             raise ValueError('Value parameter dictionary is still empty')
         else:
             if vp_name is None:
-
                 if printing:
                     print('Setting initial set of value parameters')
                 self.vp_name = list(self.vp_dict.keys())[0]
@@ -872,7 +872,7 @@ class CadetCareerProblem:
             else:
                 start_index = filepath.find(paths['s_instances']) + len(paths['s_instances']) + 1
                 end_index = len(filepath) - 5
-                full_name = file_name[start_index:end_index]
+                full_name = filepath[start_index:end_index]
                 sections = full_name.split(' ')
                 if len(sections) == 4:
                     solution_name = sections[3]
@@ -902,7 +902,7 @@ class CadetCareerProblem:
 
             # Add solution to solution dictionary
             if add_to_dict:
-                self.add_solution_to_dictionary(solution, solution_name=solution_name)
+                self.add_solution_to_dictionary(solution, solution_name="Real " + solution_name)
 
             if printing:
                 print('Imported.')
@@ -913,9 +913,11 @@ class CadetCareerProblem:
         else:
             raise ValueError('No sensitive folder found. Cannot load real AFSC solutions')
 
-    def afsc_solution_to_solution(self, afsc_solution, set_to_instance=True, add_to_dict=True, printing=None):
+    def afsc_solution_to_solution(self, afsc_solution, set_to_instance=True, add_to_dict=True, solution_name=None,
+                                  printing=None):
         """
         Simply converts a vector of labeled AFSCs to a vector of AFSC indices
+        :param solution_name: name of the solution
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
         :param add_to_dict: if we want to add this solution to the solution dictionary
         :param afsc_solution: solution vector of AFSC names (strings)
@@ -1193,10 +1195,14 @@ class CadetCareerProblem:
             if printing:
                 raise ValueError('Pyomo not available')
 
-        if set_solution:
-            self.metrics = measure_solution_quality(solution, self.parameters, self.value_parameters,
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
                                                     printing=printing)
-            self.solution = solution.astype(int)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
             if approximate:
                 solution_method = "A-VFT"
             else:
@@ -1208,7 +1214,7 @@ class CadetCareerProblem:
         else:
             return solution
 
-    def solve_original_pyomo_model(self, printing=None, add_to_dict=True, set_to_instance=True):
+    def solve_original_pyomo_model(self, add_to_dict=True, set_to_instance=True, printing=None):
         """
         Solve the original AFPC model using pyomo
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
@@ -1226,13 +1232,22 @@ class CadetCareerProblem:
         else:
             raise ValueError('Pyomo not available')
 
-        if set_solution:
-            self.measure_solution(self.solution, self.parameters, self.value_parameters)
-            self.add_solution_to_dictionary(solution=self.solution, )
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
 
-    def solve_gp_pyomo_model(self, gp_df_dict=None, max_time=None, solve_name='cbc', printing=None):
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_method="AFPC")
+
+    def solve_gp_pyomo_model(self, gp_df_dict=None, max_time=None, solve_name='cbc', add_to_dict=True,
+                             set_to_instance=True, printing=None):
         """
         Solve the Goal Programming Model (Created by Lt. Reynolds)
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param gp_df_dict: dictionary of dataframes used for parameters
         :param max_time: max solve time for the model
         :param solve_name: name of the solver
@@ -1247,18 +1262,31 @@ class CadetCareerProblem:
             self.vft_to_gp_parameters(gp_df_dict=gp_df_dict)
 
         r_model = gp_model_build(self.gp_parameters, printing=printing)
-        self.solution, self.x = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solve_name,
-                                               printing=printing)
-        self.measure_solution()
+        solution, self.x = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solve_name,
+                                          printing=printing)
 
-        return self.solution
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
 
-    def full_vft_model_solve(self, ga_max_time=60 * 10, pyomo_max_time=10, printing=None, ga_printing=False):
+        # Add solution to solution dictionary
+        if add_to_dict:
+            solution_method = "GP"
+            self.add_solution_to_dictionary(solution, solution_method=solution_method)
+
+        return solution
+
+    def full_vft_model_solve(self, ga_max_time=60 * 10, pyomo_max_time=10, add_to_dict=True, return_z=True,
+                             printing=None, ga_printing=False):
         """
         This is the main method to solve the problem instance. We first solve the pyomo Approximate model, and then
         evolve it using the GA
+        :param add_to_dict: if we want to add this solution to the solution dictionary
         :param ga_max_time: the genetic algorithm's time to solve
         :param pyomo_max_time: max time to solve the pyomo model
+        :param return_z: If the method should return the z value or the solution itself
         :param printing: Whether the procedure should print something
         :param ga_printing: If we want to print status updates during the genetic algorithm
         :return: solution z
@@ -1269,18 +1297,26 @@ class CadetCareerProblem:
         if printing:
             now = datetime.datetime.now()
             print('Solving VFT Model for ' + str(pyomo_max_time) + ' seconds at ' + now.strftime('%H:%M:%S') + '...')
-        self.solve_vft_pyomo_model(max_time=pyomo_max_time, printing=False)
+        self.solve_vft_pyomo_model(max_time=pyomo_max_time, add_to_dict=False, printing=False)
 
         if printing:
             now = datetime.datetime.now()
             print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
             print('Solving Genetic Algorithm for ' + str(ga_max_time) + ' seconds at ' +
                   now.strftime('%H:%M:%S') + '...')
-        self.genetic_algorithm(initialize=True, stopping_time=ga_max_time, printing=ga_printing, constraints='Fail')
+        self.genetic_algorithm(initialize=True, add_to_dict=False, stopping_time=ga_max_time, printing=ga_printing,
+                               constraints='Fail')
         if printing:
             print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
 
-        return round(self.metrics['z'], 4)
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(self.solution, solution_method="AG-VFT")
+
+        if return_z:
+            return round(self.metrics['z'], 4)
+        else:
+            return self.solution
 
     # Measure Solutions
     def get_constraint_fail_dictionary(self, metrics=None):
@@ -1567,9 +1603,27 @@ class CadetCareerProblem:
     def overall_weights_pareto_analysis(self, step=10, full_solve=True, ga_max_time=60 * 2,
                                         printing=None, filepath=None, import_df=False, thesis_chart=False, save=False,
                                         figsize=(16, 10), facecolor='white', display_title=True):
+        """
+        This procedure conducts the pareto analysis and builds the chart
+        :param step: percent step between different overall cadet weights
+        :param full_solve: if we want to solve the full VFT model or just the approximate model
+        :param ga_max_time: max time for the GA to solve
+        :param printing: if we want to print status updates or not
+        :param filepath: file path
+        :param import_df: if we want to import the dataframe or not
+        :param thesis_chart: if this is meant to go into the thesis
+        :param save: if we want to save the chart
+        :param figsize: size of the figure
+        :param facecolor: color of the figure
+        :param display_title: if we're displaying a title or not
+        :return: chart
+        """
 
         if filepath is None:
-            filepath = paths['Analysis & Results'] + self.data_name + '_Pareto_Analysis.xlsx'
+            if self.sensitive:
+                filepath = paths['s_results'] + self.data_name + '_Pareto_Analysis.xlsx'
+            else:
+                filepath = paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
 
         if printing is None:
             printing = self.printing
@@ -1637,7 +1691,10 @@ class CadetCareerProblem:
     def least_squares_procedure(self, t_solution, delta=0, printing=None, show_graph=True, names=None, afsc=None,
                                 colors=None, save=False, figsize=(19, 7), facecolor="white", title=None,
                                 display_title=True, thesis_chart=False):
-
+        """
+        Conducts the "Least Squares Procedure" for sensitivity analysis. This method also builds the chart. I got
+        lazy about writing all the parameters in the doc-string since most of them are already defined elsewhere.
+        """
         if printing is None:
             printing = self.printing
 
@@ -1673,7 +1730,10 @@ class CadetCareerProblem:
                                              save=False, figsize=(14, 6), facecolor="white", title=None,
                                              display_title=True, thesis_chart=False, title_size=None, bar_color=None,
                                              legend_size=None, label_size=20, xaxis_tick_size=15, yaxis_tick_size=15):
-
+        """
+        Displays a chart comparing the objective weights for a particular afsc across multiple sets of value parameters
+        in the vp_dict
+        """
         if printing is None:
             printing = self.printing
 
@@ -1706,6 +1766,7 @@ class CadetCareerProblem:
 
         return chart
 
+    # Export
     def create_aggregate_file(self, from_files=False, printing=None):
         """
         Create the "data_type data_name" main aggregate file with solutions, metrics, and vps
@@ -1756,20 +1817,11 @@ class CadetCareerProblem:
         create_aggregate_instance_file(self.data_instance_name, self.parameters, solution_dict, vp_dict, metrics_dict,
                                        sensitive=self.sensitive)
 
-    # Other
-    def find_solution_parameter_ineligibility(self, solution=None, filepath=None):
-
-        if solution is None:
-            if filepath is None:
-                solution = self.solution
-            else:
-                self.import_solution(filepath)
-                solution = self.solution
-
-        find_original_solution_ineligibility(self.parameters, solution)
-
-    # Export
     def pyomo_measures_to_excel(self, filepath=None):
+        """
+        Exports the VFT optimization model variables from a particular solution to excel
+        :param filepath: file path
+        """
         if filepath is None:
             if '.xlsx' in self.filepath:
                 data_name = self.filepath[:-len('.xlsx')]
@@ -1779,19 +1831,49 @@ class CadetCareerProblem:
         pyomo_measures_to_excel(self.x, self.measure, self.value, self.parameters, self.value_parameters,
                                 filepath=filepath, printing=self.printing)
 
-    def export_to_excel(self, filepath=None, printing=None):
-
+    def export_to_excel(self, aggregate=True, printing=None):
+        """
+        Export data information to excel. We can either export the dictionaries back to excel or we can export
+        the results for one particular solution given one set of value parameters
+        :param aggregate: if we are exporting back to the aggregate excel file or not
+        :param printing: if we should print status updates or not
+        """
         if printing is None:
             printing = self.printing
 
-        if filepath is None:
-            if self.filepath is None:
-                self.filepath = paths['instances'] + "New_Matching_Instance.xlsx"
-            else:
-                filepath = self.filepath
+        if aggregate:
+            self.create_aggregate_file()
+        else:
 
-        # Export to excel
-        data_to_excel(filepath, self.parameters, self.value_parameters, self.metrics, printing=printing)
+            if self.solution_name in self.solution_dict:
+
+                # Check if the instance solution is the same as the one in the dictionary
+                p_s = compare_solutions(self.solution, self.solution_dict[self.solution_name])
+                if p_s != 1:
+                    raise ValueError("Current solution: " + self.solution_name +
+                                     ". This is not the same solution as found in the dictionary under that name.")
+
+            else:
+                raise ValueError("Solution " + self.solution_name + " not found in dictionary.")
+
+            if self.vp_name in self.vp_dict:
+
+                # Check if the instance value parameters are the same as the ones in the dictionary
+                vp_same = compare_value_parameters(self.value_parameters, self.vp_dict[self.vp_name])
+                if not vp_same:
+                    raise ValueError("Current value parameters: " + self.vp_name +
+                                     ". This is not the same set of value parameters as found in the "
+                                     "dictionary under that name.")
+            else:
+                raise ValueError("Value Parameters " + self.vp_name + " not found in dictionary.")
+
+            if self.sensitive:
+                filepath = paths['s_instances'] + self.full_name + '.xlsx'
+            else:
+                filepath = paths['instances'] + self.full_name + '.xlsx'
+
+            # Export to excel
+            data_to_excel(filepath, self.parameters, self.value_parameters, self.metrics, printing=printing)
 
         if printing:
             print('Exported.')

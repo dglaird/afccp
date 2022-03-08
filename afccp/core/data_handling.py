@@ -567,6 +567,8 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
     # Shorthand
     p = parameters
     vp = value_parameters
+    objective_min = np.zeros((p['M'], vp['O']))
+    objective_max = np.zeros((p['M'], vp['O']))
 
     # Initialize metrics
     metrics = {'objective_measure': np.zeros([p['M'], vp['O']]), 'objective_value': np.zeros([p['M'], vp['O']]),
