@@ -486,15 +486,66 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     return value_parameters
 
 
-# TODO: Write this procedure!
-def compare_value_parameters(vp1, vp2):
+def compare_value_parameters(parameters, vp1, vp2, printing=False):
     """
     Compares two sets of value parameters to see if they are identical
+    :param printing: if we should print how the two sets are similar
+    :param parameters: set of fixed cadet/AFSC parameters
     :param vp1: set 1
     :param vp2: set 2
     :return: True if they're identical, False otherwise
     """
-    return False
+
+    # Assume identical until proven otherwise
+    identical = True
+
+    # Loop through each value parameter key
+    for key in vp1:
+
+        if key in ['afscs_overall_weight', 'cadets_overall_weight', 'cadet_weight_function', 'afsc_weight_function',
+                   'cadets_overall_value_min', 'afscs_overall_value_min']:
+            if vp1[key] != vp2[key]:
+                if printing:
+                    print('VPs not the same. ' + key + ' is different.')
+                identical = False
+                break
+
+        elif key in ['afsc_value_min', 'cadet_value_min', 'objective_value_min', 'value_functions', 'objective_target',
+                     'objective_weight', 'afsc_weight', 'cadet_weight', 'I^C', 'J^C', 'value_functions']:
+            vp_1_arr, vp_2_arr = np.ravel(vp1[key]), np.ravel(vp2[key])
+            if np.all(vp_1_arr != vp_2_arr) and (vp1[key] != [] or vp2[key] != []):
+                if printing:
+                    print('VPs not the same. ' + key + ' is different.')
+                    print(vp1[key], vp2[key])
+                identical = False
+                break
+
+        elif key == 'F_bp':  # Check the breakpoints
+
+            for j in parameters['J']:
+                for k in vp1['K^A'][j]:
+                    for l in vp1['L'][j][k]:
+                        try:
+                            if vp1[key][j][k][l] != vp2[key][j][k][l]:
+                                identical = False
+                                if printing:
+                                    print('VPs not the same. Breakpoints are different for AFSC ' + str(j) +
+                                          ' Objective ' + str(k) + '.')
+                                break
+                        except:  # If there was a range error, then the breakpoints are not the same
+                            identical = False
+                            if printing:
+                                print('VPs not the same. Breakpoints are different for AFSC ' + str(j) +
+                                      ' Objective ' + str(k) + '.')
+                            break
+                    if not identical:
+                        break
+                if not identical:
+                    break
+            if not identical:
+                break
+
+    return identical
 
 
 # Value Function Construction

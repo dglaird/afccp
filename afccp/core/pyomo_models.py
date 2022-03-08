@@ -216,7 +216,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
         print('Building VFT Model...')
 
     # Build Model
-    model = ConcreteModel()
+    m = ConcreteModel()
 
     # Shorthand
     p = parameters
@@ -277,94 +277,92 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
     if initial is None:
 
         # If we don't use a warm-start, we don't initialize starting values for the variables
-        model.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
-        model.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)  # objective value
+        m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
+        m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)  # objective value
+        m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in L[j, k]),
+                        within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
+        m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
 
-        # Lambda and y variables for value functions
-        model.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in L[j, k]),
-                        within=NonNegativeReals, bounds=(0, 1))
-        model.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
-
-    # If we do want to initialize the variables. Probably initializing the exact model using the approximate solution
+    # If we do want to initialize the variables. Probably initializing the exact m using the approximate solution
     else:
 
         # x: 1 if assign cadet i to AFSC j; 0 otherwise
-        model.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
+        m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
         for i in p['I']:
             for j in p['J^E'][i]:
-                model.x[i, j] = round(initial['X'][i, j])
+                m.x[i, j] = round(initial['X'][i, j])
 
         # f^hat: value for AFSC j objective k
-        model.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)
+        m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)
         for j in p['J']:
             for k in vp['K^A'][j]:
-                model.f_value[j, k] = initial['F_X'][j, k]
+                m.f_value[j, k] = initial['F_X'][j, k]
 
         # lambda: % between breakpoint l and l + 1 that the measure for AFSC j objective k "has yet to travel"
-        model.lam = Var(((j, k, l) for j in J for k in vp['K^A'][j] for l in L[j, k]), within=NonNegativeReals,
+        m.lam = Var(((j, k, l) for j in J for k in vp['K^A'][j] for l in L[j, k]), within=NonNegativeReals,
                         bounds=(0, 1))
         for j in p['J']:
             for k in vp['K^A'][j]:
                 for l in L[j, k]:
-                    model.lam[j, k, l] = initial['lam'][j, k, l]
+                    m.lam[j, k, l] = initial['lam'][j, k, l]
 
         # y: 1 if the objective measure for AFSC j objective k is along line segment between breakpoints l and l + 1
-        model.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
+        m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
         for j in p['J']:
             for k in vp['K^A'][j]:
                 for l in range(r[j, k] - 1):
-                    model.y[j, k, l] = initial['y'][j, k, l]
+                    m.y[j, k, l] = initial['y'][j, k, l]
 
     # _________________________________OBJECTIVE FUNCTION_________________________________
     pass
 
     # Max Z!
-    def objective_function(model):
+    def objective_function(m):
         return vp['afscs_overall_weight'] * np.sum(vp['afsc_weight'][j] * np.sum(
-            vp['objective_weight'][j, k] * model.f_value[j, k] for k in vp['K^A'][j]) for j in p['J']) + \
+            vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) for j in p['J']) + \
                vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * np.sum(
-            parameters['utility'][i, j] * model.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+            parameters['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
-    model.objective = Objective(rule=objective_function, sense=maximize)
+    m.objective = Objective(rule=objective_function, sense=maximize)
 
     # ____________________________________CONSTRAINTS_____________________________________
     pass
 
     # Value Function Constraints: Linking main methodology with value function methodology
-    model.measure_vf_constraints = ConstraintList()  # 20a in Thesis
-    model.value_vf_constraints = ConstraintList()  # 20b in Thesis
+    m.measure_vf_constraints = ConstraintList()  # 20a in Thesis
+    m.value_vf_constraints = ConstraintList()  # 20b in Thesis
 
     # Value Function Constraints: Functional constraints enforcing the relationship above
-    model.lambda_y_constraint1 = ConstraintList()  # 20c in Thesis
-    model.lambda_y_constraint2 = ConstraintList()  # 20d in Thesis
-    model.lambda_y_constraint3 = ConstraintList()  # 20e in Thesis
-    model.y_sum_constraint = ConstraintList()  # 20f in Thesis
-    model.lambda_sum_constraint = ConstraintList()  # 20g in Thesis
-    model.lambda_positive = ConstraintList()  # Lambda domain (20h)
-    model.f_value_positive = ConstraintList()  # AFSC objective value domain
+    m.lambda_y_constraint1 = ConstraintList()  # 20c in Thesis
+    m.lambda_y_constraint2 = ConstraintList()  # 20d in Thesis
+    m.lambda_y_constraint3 = ConstraintList()  # 20e in Thesis
+    m.y_sum_constraint = ConstraintList()  # 20f in Thesis
+    m.lambda_sum_constraint = ConstraintList()  # 20g in Thesis
+    m.lambda_positive = ConstraintList()  # Lambda domain (20h)
+    m.f_value_positive = ConstraintList()  # AFSC objective value domain
 
     # Cadet/AFSC Value Constraints (Optional decision-maker constraints)
-    model.min_afsc_value_constraints = ConstraintList()
-    model.min_cadet_value_constraints = ConstraintList()
+    m.min_afsc_value_constraints = ConstraintList()
+    m.min_cadet_value_constraints = ConstraintList()
 
     # AFSC Objective Measure/Value Constraints (Optional decision-maker constraints)
-    model.measure_constraints = ConstraintList()
-    model.value_constraints = ConstraintList()
+    m.measure_constraints = ConstraintList()
+    m.value_constraints = ConstraintList()
 
     # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
-    model.one_afsc_constraints = ConstraintList()
+    m.one_afsc_constraints = ConstraintList()
     for i in p['I']:
-        model.one_afsc_constraints.add(expr=np.sum(model.x[i, j] for j in p['J^E'][i]) == 1)
+        m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
 
     # Loop through all AFSCs
     for j in p['J']:
 
         # Get count variables for this AFSC
-        count = np.sum(model.x[i, j] for i in p['I^E'][j])
+        count = np.sum(m.x[i, j] for i in p['I^E'][j])
         if 'usafa' in parameters:
 
             # Number of USAFA cadets assigned to the AFSC
-            usafa_count = np.sum(model.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
+            usafa_count = np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
 
         # Are we using approximate measures or not
         if convex:
@@ -380,10 +378,10 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
             # If it's a demographic objective, we sum over the cadets with that demographic
             if objective in vp['K^D']:
-                numerator = np.sum(model.x[i, j] for i in p['I^D'][objective][j])
+                numerator = np.sum(m.x[i, j] for i in p['I^D'][objective][j])
                 measure_jk = numerator / num_cadets
             elif objective == "Merit":
-                numerator = np.sum(p['merit'][i] * model.x[i, j] for i in p['I^E'][j])
+                numerator = np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j])
                 measure_jk = numerator / num_cadets
             elif objective == "Combined Quota":
                 measure_jk = count
@@ -392,32 +390,32 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
             elif objective == "ROTC Quota":
                 measure_jk = count - usafa_count
             else:  # Utility
-                numerator = np.sum(parameters['utility'][i, j] * model.x[i, j] for i in p['I^E'][j])
+                numerator = np.sum(parameters['utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
                 measure_jk = numerator / num_cadets
 
             # Add Linear Value Function Constraints
-            model.measure_vf_constraints.add(expr=measure_jk == np.sum(  # Measure Constraint for Value Function
-                a[j, k][l] * model.lam[j, k, l] for l in L[j, k]))
-            model.value_vf_constraints.add(expr=model.f_value[j, k] == np.sum(  # Value Constraint for Value Function
-                f[j, k][l] * model.lam[j, k, l] for l in L[j, k]))
+            m.measure_vf_constraints.add(expr=measure_jk == np.sum(  # Measure Constraint for Value Function
+                a[j, k][l] * m.lam[j, k, l] for l in L[j, k]))
+            m.value_vf_constraints.add(expr=m.f_value[j, k] == np.sum(  # Value Constraint for Value Function
+                f[j, k][l] * m.lam[j, k, l] for l in L[j, k]))
 
             # Lambda .. y constraints
-            model.lambda_y_constraint1.add(expr=model.lam[j, k, 0] <= model.y[j, k, 0])
+            m.lambda_y_constraint1.add(expr=m.lam[j, k, 0] <= m.y[j, k, 0])
             if r[j, k] > 2:
                 for l in range(1, r[j, k] - 1):
-                    model.lambda_y_constraint2.add(expr=model.lam[j, k, l] <= model.y[j, k, l - 1] + model.y[j, k, l])
-            model.lambda_y_constraint3.add(expr=model.lam[j, k, r[j, k] - 1] <= model.y[j, k, r[j, k] - 2])
+                    m.lambda_y_constraint2.add(expr=m.lam[j, k, l] <= m.y[j, k, l - 1] + m.y[j, k, l])
+            m.lambda_y_constraint3.add(expr=m.lam[j, k, r[j, k] - 1] <= m.y[j, k, r[j, k] - 2])
 
             # Y sum to 1 constraint
-            model.y_sum_constraint.add(expr=np.sum(model.y[j, k, l] for l in range(0, r[j, k] - 1)) == 1)
+            m.y_sum_constraint.add(expr=np.sum(m.y[j, k, l] for l in range(0, r[j, k] - 1)) == 1)
 
             # Lambda sum to 1 constraint
-            model.lambda_sum_constraint.add(expr=np.sum(model.lam[j, k, l] for l in L[j, k]) == 1)
+            m.lambda_sum_constraint.add(expr=np.sum(m.lam[j, k, l] for l in L[j, k]) == 1)
 
             # Lambda .. value positive constraint
             for l in L[j, k]:
-                model.lambda_positive.add(expr=model.lam[j, k, l] >= 0)
-            model.f_value_positive.add(expr=model.f_value[j, k] >= 0)
+                m.lambda_positive.add(expr=m.lam[j, k, l] >= 0)
+            m.f_value_positive.add(expr=m.f_value[j, k] >= 0)
 
             # Add Min Value/Measure Constraints
             if k in vp['K^C'][j]:  # (1/2 constrain value, 3 constrains approximate measure, 4 constrains exact measure)
@@ -426,54 +424,54 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
                 if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
 
                     # The formulation only lists "objective_min, objective_max" since I no longer want value constraints
-                    model.value_constraints.add(expr=model.f_value[j, k] >= objective_min_value[j, k])
+                    m.value_constraints.add(expr=m.f_value[j, k] >= objective_min_value[j, k])
 
                 # Constrained Approximate Measure
                 elif vp['constraint_type'][j, k] == 3:
                     if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                        model.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
-                        model.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
+                        m.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
+                        m.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
                     else:
-                        model.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
-                        model.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
+                        m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
+                        m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
 
                 # Constrained Exact Measure
                 else:
                     if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                        model.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
-                        model.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
+                        m.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
+                        m.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
                     else:
-                        model.measure_constraints.add(expr=numerator - objective_min_value[j, k] * count >= 0)
-                        model.measure_constraints.add(expr=numerator - objective_max_value[j, k] * count <= 0)
+                        m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * count >= 0)
+                        m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * count <= 0)
 
         # AFSC value constraint
         if vp['afsc_value_min'][j] != 0:
-            model.min_afsc_value_constraints.add(expr=np.sum(
-                vp['objective_weight'][j, k] * model.f_value[j, k] for k in vp['K^A'][j]) >= vp['afsc_value_min'][j])
+            m.min_afsc_value_constraints.add(expr=np.sum(
+                vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) >= vp['afsc_value_min'][j])
 
     # Cadet value constraint
     for i in p['I']:
         if vp['cadet_value_min'][i] != 0:
-            model.min_cadet_value_constraints.add(expr=np.sum(
-                parameters['utility'][i, j] * model.x[i, j] for j in p['J^E'][i]) >= vp['cadet_value_min'][i])
+            m.min_cadet_value_constraints.add(expr=np.sum(
+                parameters['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) >= vp['cadet_value_min'][i])
 
     # AFSCs Overall Min Value
-    def afsc_min_value_constraint(model):
+    def afsc_min_value_constraint(m):
         return vp['afscs_overall_value_min'] <= np.sum(vp['afsc_weight'][j] * np.sum(
-            vp['objective_weight'][j, k] * model.f_value[j, k] for k in vp['K^A'][j]) for j in p['J'])
+            vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) for j in p['J'])
 
     if vp['afscs_overall_value_min'] != 0:
-        model.afsc_min_value_constraint = Constraint(rule=afsc_min_value_constraint)
+        m.afsc_min_value_constraint = Constraint(rule=afsc_min_value_constraint)
 
     # Cadets Overall Min Value
-    def cadet_min_value_constraint(model):
+    def cadet_min_value_constraint(m):
         return vp['cadets_overall_value_min'] <= np.sum(vp['cadet_weight'][i] * np.sum(
-            parameters['utility'][i, j] * model.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+            parameters['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
     if vp['cadets_overall_value_min'] != 0:
-        model.cadet_min_value_constraint = Constraint(rule=cadet_min_value_constraint)
+        m.cadet_min_value_constraint = Constraint(rule=cadet_min_value_constraint)
 
-    return model
+    return m
 
 
 def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", approximate=True, report=False,

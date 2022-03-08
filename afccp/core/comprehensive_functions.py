@@ -1,6 +1,4 @@
 # Import libraries
-import pandas as pd
-
 from afccp.core.data_handling import *
 from afccp.core.value_parameter_handling import *
 from afccp.core.simulation_functions import *
@@ -391,8 +389,8 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
     num_rows = num_solutions * num_metrics
 
     # Initialize columns
-    column_dict = {'Solution': np.array([" " * 10 for _ in range(num_rows)]),
-                   'Metric': np.array([" " * 10 for _ in range(num_rows)])}
+    column_dict = {'Solution': np.array([" " * 20 for _ in range(num_rows)]),
+                   'Metric': np.array([" " * 20 for _ in range(num_rows)])}
     for vp_name in vp_names:
         column_dict[vp_name] = np.zeros(num_rows)
     for column_name in ['Avg.', 'WgtAvg.']:
@@ -415,8 +413,8 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
                 column_dict[vp_name][row] = m
                 avg += m / num_vps
                 w_avg += m * vp_dict[vp_name]['vp_local_weight']
-            column_dict['Avg.'][row] = avg
-            column_dict['WgtAvg.'][row] = w_avg
+            column_dict['Avg.'][row] = round(avg, 4)
+            column_dict['WgtAvg.'][row] = round(w_avg, 4)
             row += 1
 
     # Construct metrics_df
@@ -447,7 +445,6 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
     else:
         filepath = paths['instances'] + full_name + '.xlsx'
 
-    print(filepath)
     with pd.ExcelWriter(filepath) as writer:  # Export to excel
         cadets_fixed.to_excel(writer, sheet_name="Cadets Fixed", index=False)
         afscs_fixed.to_excel(writer, sheet_name="AFSCs Fixed", index=False)

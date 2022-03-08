@@ -381,6 +381,7 @@ class CadetCareerProblem:
                 self.vp_dict = {}
                 if vp_name is None:
                     vp_name = "VP"
+                unique = True  # If this is the first set of value parameters, it's unique!
             else:
                 if vp_name is None:
                     high = 1
@@ -391,10 +392,10 @@ class CadetCareerProblem:
                                 high = num
                     vp_name = "VP_" + str(high + 1)
 
-            # Check if this new set is unique or not to get the name of the set
-            unique = self.check_unique_value_parameters()
+                # Check if this new set is unique or not to get the name of the set
+                unique = self.check_unique_value_parameters()
 
-            if unique:  # If it's unique, we save this new set of value parameters to the dictionary
+            if unique is True:  # If it's unique, we save this new set of value parameters to the dictionary
                 self.vp_dict[vp_name] = copy.deepcopy(self.value_parameters)
                 self.vp_name = vp_name
             else:  # If it's not unique, then the "unique" variable is the name of the matching set of value parameters
@@ -436,7 +437,15 @@ class CadetCareerProblem:
         """
         if value_parameters is None:
             value_parameters = self.value_parameters
-        return True
+
+        # Assume the new set is unique until proven otherwise
+        unique = True
+        for vp_name in self.vp_dict:
+            identical = compare_value_parameters(self.parameters, value_parameters, self.vp_dict[vp_name])
+            if identical:
+                unique = vp_name
+                break
+        return unique
 
     def import_default_value_parameters(self, filepath=None, no_constraints=False, num_breakpoints=24,
                                         generate_afsc_weights=True, printing=None):
@@ -473,6 +482,7 @@ class CadetCareerProblem:
         value_parameters = model_value_parameters_set_additions(value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
         self.value_parameters = model_value_parameters_set_additions(value_parameters)
+        self.value_parameters['vp_weight'] = 100
 
         # Save new set of value parameters to dictionary
         self.save_new_value_parameters_to_dict()
@@ -533,6 +543,7 @@ class CadetCareerProblem:
         value_parameters = model_value_parameters_set_additions(value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
         self.value_parameters = model_value_parameters_set_additions(value_parameters)
+        self.value_parameters['vp_weight'] = 100
 
         # Save new set of value parameters to dictionary
         self.save_new_value_parameters_to_dict()
@@ -722,7 +733,7 @@ class CadetCareerProblem:
 
         return chart
 
-    # Import/Convert Solutions
+    # Import Solutions
     def import_original_solution(self, filepath, set_to_instance=True, add_to_dict=True, printing=None):
         """
         This method only works for importing an "original" solution from the original excel files
@@ -754,58 +765,6 @@ class CadetCareerProblem:
 
         # Return solution
         return solution
-
-    def add_solution_to_dictionary(self, solution=None, full_name=None, solution_name=None, solution_method="Import"):
-
-        # If the solution is not provided, we assume it's the current solution
-        if solution is None:
-            solution = self.solution
-
-        # If we provide a full excel file name, we can get the name of the solution directly
-        if full_name is not None:
-            split_list = full_name.split(' ')
-            if len(split_list) == 4:
-                if solution_name is None:
-                    solution_name = split_list[3]
-
-        # Determine name of solution
-        if solution_name is None:
-
-            # Initially assume the name is "Method"_i unless it's the original solution
-            if solution_method == "Original":
-                solution_name = "Original"
-            else:
-                count = 1
-                if self.solution_dict is not None:
-                    for s_name in self.solution_dict:
-                        if solution_method in s_name:
-                            count += 1
-                if count == 1:
-                    solution_name = solution_method
-                else:
-                    solution_name = solution_method + '_' + str(count)
-
-        # Add solution to dictionary if it is a new solution
-        if self.solution_dict is None:
-
-            # if the solution_dict is None, we can initialize it
-            self.solution_dict = {solution_name: solution}
-            self.solution_name = solution_name
-        else:
-
-            # Check if this solution is a new solution
-            new = True
-            for s_name in self.solution_dict:
-                p_i = compare_solutions(self.solution_dict[s_name], solution)
-                if p_i == 1:
-                    new = False
-                    self.solution_name = s_name
-                    break
-
-            # If it is new, we add it to the dictionary
-            if new:
-                self.solution_dict[solution_name] = solution
-                self.solution_name = solution_name
 
     def scrub_afsc_solution(self, year, filepath=None, solution_name=None, set_to_instance=True, add_to_dict=True,
                             printing=None):
@@ -912,80 +871,6 @@ class CadetCareerProblem:
 
         else:
             raise ValueError('No sensitive folder found. Cannot load real AFSC solutions')
-
-    def afsc_solution_to_solution(self, afsc_solution, set_to_instance=True, add_to_dict=True, solution_name=None,
-                                  printing=None):
-        """
-        Simply converts a vector of labeled AFSCs to a vector of AFSC indices
-        :param solution_name: name of the solution
-        :param set_to_instance: if we want to set this solution to the instance's solution attribute
-        :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param afsc_solution: solution vector of AFSC names (strings)
-        :param printing: Whether or not we should print status updates
-        :return: solution vector of AFSC indices
-        """
-        if printing is None:
-            printing = self.printing
-
-        solution = np.zeros(len(afsc_solution))
-        for i in range(self.parameters['N']):
-            solution[i] = np.where(self.parameters['afsc_vector'] == afsc_solution[i])[0]
-
-        # Set the solution attribute
-        if set_to_instance:
-            self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
-
-        # Add solution to solution dictionary
-        if add_to_dict:
-            self.add_solution_to_dictionary(solution, solution_name=solution_name)
-
-        return solution
-
-    def x_from_excel(self, filepath=None):
-        """
-        This method loads in an X matrix from excel
-        :param filepath: filepath of the X matrix
-        """
-
-        # Load X dataframe From Excel
-        if filepath is None:
-            if '.xlsx' in self.filepath:
-                data_name = self.filepath[:-len('.xlsx')]
-            else:
-                data_name = self.filepath
-            filepath = data_name + '_X.xlsx'
-        X = import_data(filepath)
-
-        # Convert to X matrix
-        X.drop(labels='Encrypt_PII', axis=1, inplace=True)
-        self.x = np.array(X)
-
-    def init_exact_solution_from_x(self, printing=None):
-        """
-        This method creates a dictionary of initial variables used in the exact optimization model if we want to
-        start it with a solution
-        :param printing: Whether we should print statues updates or not
-        :return: dictionary of exact pyomo model initial variables
-        """
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print('Initializing VFT solution from X matrix...')
-
-        if self.x is None:
-            self.x_from_excel()
-
-        # Evaluate Solution
-        metrics = measure_solution_quality(self.x, self.parameters, self.value_parameters)
-        values = metrics['objective_value']
-        measures = metrics['objective_measure']
-
-        lam, y = x_to_solution_initialization(self.parameters, self.value_parameters, measures, values)
-        initialization = {'X': self.x, 'lam': lam, 'y': y, 'F_X': values}
-        return initialization
 
     # Solve Models
     def generate_random_solution(self, set_to_instance=True, add_to_dict=True, printing=None):
@@ -1318,6 +1203,156 @@ class CadetCareerProblem:
         else:
             return self.solution
 
+    # Solution Handling
+    def set_instance_solution(self, solution_name=None):
+        """
+        Set the current instance object's solution to a solution from the dictionary
+        :param solution_name: name of the solution
+        """
+        if self.solution_dict is None:
+            raise ValueError('No solution dictionary initialized')
+        else:
+            if solution_name is None:
+                solution_name = list(self.solution_dict.keys())[0]
+            else:
+                if solution_name not in self.solution_dict:
+                    raise ValueError('Solution ' + solution_name + ' not in solution dictionary')
+
+            self.solution = self.solution_dict[solution_name]
+            self.solution_name = solution_name
+            if self.value_parameters is not None:
+                self.metrics = self.measure_solution()
+
+            # Return solution
+            return self.solution
+
+    def add_solution_to_dictionary(self, solution=None, full_name=None, solution_name=None,
+                                   solution_method="Import"):
+
+        # If the solution is not provided, we assume it's the current solution
+        if solution is None:
+            solution = self.solution
+
+        # If we provide a full excel file name, we can get the name of the solution directly
+        if full_name is not None:
+            split_list = full_name.split(' ')
+            if len(split_list) == 4:
+                if solution_name is None:
+                    solution_name = split_list[3]
+
+        # Determine name of solution
+        if solution_name is None:
+
+            # Initially assume the name is "Method"_i unless it's the original solution
+            if solution_method == "Original":
+                solution_name = "Original"
+            else:
+                count = 1
+                if self.solution_dict is not None:
+                    for s_name in self.solution_dict:
+                        if solution_method in s_name:
+                            count += 1
+                if count == 1:
+                    solution_name = solution_method
+                else:
+                    solution_name = solution_method + '_' + str(count)
+
+        # Add solution to dictionary if it is a new solution
+        if self.solution_dict is None:
+
+            # if the solution_dict is None, we can initialize it
+            self.solution_dict = {solution_name: solution}
+            self.solution_name = solution_name
+        else:
+
+            # Check if this solution is a new solution
+            new = True
+            for s_name in self.solution_dict:
+                p_i = compare_solutions(self.solution_dict[s_name], solution)
+                if p_i == 1:
+                    new = False
+                    self.solution_name = s_name
+                    break
+
+            # If it is new, we add it to the dictionary
+            if new:
+                self.solution_dict[solution_name] = solution
+                self.solution_name = solution_name
+
+    def afsc_solution_to_solution(self, afsc_solution, set_to_instance=True, add_to_dict=True, solution_name=None,
+                                  printing=None):
+        """
+        Simply converts a vector of labeled AFSCs to a vector of AFSC indices
+        :param solution_name: name of the solution
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
+        :param afsc_solution: solution vector of AFSC names (strings)
+        :param printing: Whether or not we should print status updates
+        :return: solution vector of AFSC indices
+        """
+        if printing is None:
+            printing = self.printing
+
+        solution = np.zeros(len(afsc_solution))
+        for i in range(self.parameters['N']):
+            solution[i] = np.where(self.parameters['afsc_vector'] == afsc_solution[i])[0]
+
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_name=solution_name)
+
+        return solution
+
+    def x_from_excel(self, filepath=None):
+        """
+        This method loads in an X matrix from excel
+        :param filepath: filepath of the X matrix
+        """
+
+        # Load X dataframe From Excel
+        if filepath is None:
+            if '.xlsx' in self.filepath:
+                data_name = self.filepath[:-len('.xlsx')]
+            else:
+                data_name = self.filepath
+            filepath = data_name + '_X.xlsx'
+        X = import_data(filepath)
+
+        # Convert to X matrix
+        X.drop(labels='Encrypt_PII', axis=1, inplace=True)
+        self.x = np.array(X)
+
+    def init_exact_solution_from_x(self, printing=None):
+        """
+        This method creates a dictionary of initial variables used in the exact optimization model if we want to
+        start it with a solution
+        :param printing: Whether we should print statues updates or not
+        :return: dictionary of exact pyomo model initial variables
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print('Initializing VFT solution from X matrix...')
+
+        if self.x is None:
+            self.x_from_excel()
+
+        # Evaluate Solution
+        metrics = measure_solution_quality(self.x, self.parameters, self.value_parameters)
+        values = metrics['objective_value']
+        measures = metrics['objective_measure']
+
+        lam, y = x_to_solution_initialization(self.parameters, self.value_parameters, measures, values)
+        initialization = {'X': self.x, 'lam': lam, 'y': y, 'F_X': values}
+        return initialization
+
     # Measure Solutions
     def get_constraint_fail_dictionary(self, metrics=None):
         """
@@ -1440,6 +1475,29 @@ class CadetCareerProblem:
                                       printing=printing)
 
         return metrics
+
+    def update_metrics_dict(self):
+        """
+        Updates metrics dictionary from solutions and vp dictionaries
+        """
+        if self.metrics_dict is None:
+            self.metrics_dict = {}
+        for vp_name in self.vp_dict:
+            value_parameters = self.vp_dict[vp_name]
+            if vp_name not in self.metrics_dict:
+                self.metrics_dict[vp_name] = {}
+            for solution_name in self.solution_dict:
+                solution = self.solution_dict[solution_name]
+                if solution_name not in self.metrics_dict[vp_name]:
+                    metrics = measure_solution_quality(solution, self.parameters, value_parameters)
+                    self.metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
+
+        # Update weights on the sets of value parameters relative to each other
+        sum_weights = 0
+        for vp_name in self.vp_dict:
+            sum_weights += self.vp_dict[vp_name]['vp_weight']
+        for vp_name in self.vp_dict:
+            self.vp_dict[vp_name]['vp_local_weight'] = self.vp_dict[vp_name]['vp_weight'] / sum_weights
 
     # Observe Results
     def display_results_graph(self, graph='Average Merit', title=None, save=None, printing=None, facecolor='white',
@@ -1810,6 +1868,7 @@ class CadetCareerProblem:
                                                     printing=False)
                     metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
         else:
+            self.update_metrics_dict()
             metrics_dict = self.metrics_dict
             solution_dict = self.solution_dict
             vp_dict = self.vp_dict
