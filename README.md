@@ -55,10 +55,8 @@ This script (simulation_functions.py) contains the functions that pertain to sim
 This project would not have been possible without the various python libraries used. In addition to the widely used libraries: pandas, numpy, matplotlib, etc. I will also mention a couple less popular ones that have been very useful to this project. The SDV library allowed me to generate realistic cadet/AFSC problem instances using their conditional-tabular generative adversarial network (CTGAN) module. Traditionally used for generating data for a machine learning model, CTGAN was able to generate problem instances for my optimization model to solve: which was a very valuable tool. I formulated the optimization model using the library Pyomo, another great python package. Pyomo is an easy-to-use optimization library that can solve many different kinds of optimization problems using a variety of commercial and open-source solvers. 
 
 SDV: [https://github.com/sdv-dev/SDV](https://github.com/sdv-dev/SDV)
+
 CTGAN: [https://github.com/sdv-dev/CTGAN](https://github.com/sdv-dev/CTGAN)
+
 Pyomo: [https://github.com/Pyomo/pyomo](https://github.com/Pyomo/pyomo)
-
-## License
-
-The last section of a high-quality README file is the license. This lets other developers know what they can and cannot do with your project. If you need help choosing a license, refer to [https://choosealicense.com/](https://choosealicense.com/).
 
