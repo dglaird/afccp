@@ -48,7 +48,7 @@ To add a screenshot, create an `assets/images` folder in your repository and upl
     ```md
     ![alt text](assets/images/af_logo.jpeg)
     ```
-
+![alt text](assets/images/af_logo.jpeg)
 ## Credits
 
 List your collaborators, if any, with links to their GitHub profiles.
