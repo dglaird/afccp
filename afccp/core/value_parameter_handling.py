@@ -63,8 +63,11 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
         # Loop through each objective for this AFSC
         for k, objective in enumerate(value_parameters['objectives']):
 
-            # We import the functions directly from the breakpoints
-            if num_breakpoints is None:
+            # Value Function string
+            vf_string = value_parameters["value_functions"][j, k]
+
+            # We import the function directly from the breakpoints
+            if num_breakpoints is None or 'Quota_Over' in vf_string:
                 string = afsc_weights.loc[j * O + k, 'Function Breakpoints']
                 if type(string) == str:
                     value_parameters['F_bp'][j][k] = [float(x) for x in string.split(",")]
@@ -72,9 +75,8 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
                 if type(string) == str:
                     value_parameters['F_v'][j][k] = [float(x) for x in string.split(",")]
 
-            # We recreate the functions from the vf strings
+            # We recreate the function from the vf string
             else:
-                vf_string = value_parameters["value_functions"][j, k]
                 if vf_string != 'None':
                     target = value_parameters['objective_target'][j, k]
                     actual = None
@@ -87,10 +89,9 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
                             actual = np.mean(parameters['usafa'][cadets])
 
                     if objective == 'Combined Quota':
+
                         # Get bounds
                         split_str = value_parameters["objective_value_min"][j, k].split(',')
-
-                        # Get constraint upper bound
                         maximum = float(split_str[1])
 
                     segment_dict = create_segment_dict_from_string(vf_string, target, actual=actual,
@@ -549,10 +550,11 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
 
 
 # Value Function Construction
-def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual=None):
+def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual=None, multiplier=True):
     """
     This function takes a value function string and converts it into the segment
     dictionary which can then be used to generate the function breakpoints
+    :param multiplier: if we're multiplying the target values by some scalar for the quota objectives or not
     :param actual: proportion of eligible cadets
     :param vf_string: value function string
     :param target: target objective measure (optional)
@@ -601,7 +603,8 @@ def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual
         domain_max = float(split_list[0].strip())
         rho1 = float(split_list[1].strip()) * target
         rho2 = float(split_list[2].strip()) * target
-        maximum = int(target * maximum)
+        if multiplier:
+            maximum = int(target * maximum)
         real_max = max(int(target + (maximum - target) + target * domain_max), maximum + 1)
 
         # Build segments
@@ -618,8 +621,9 @@ def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual
         rho2 = float(split_list[2].strip()) * target
         rho3 = float(split_list[3].strip()) * target
         buffer_y = float(split_list[4].strip())
-        maximum = int(target * maximum)
-        actual = int(target * actual)
+        if multiplier:
+            maximum = int(target * maximum)
+            actual = int(target * actual)
         real_max = max(int(target + (actual - target) + target * domain_max), actual + 1)
 
         # Build segments
@@ -866,7 +870,7 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
         print('Translating VFT model parameters to R Model parameters...')
 
     if gp_df_dict is None:
-        filepath = paths['Data Processing Support'] + 'R_Parameter_File.xlsx'
+        filepath = paths['support'] + 'GP_Parameters.xlsx'
         gp_df_dict = {'weights_scaling': import_data(filepath=filepath, sheet_name='Weights and Scaling'),
                       'indv_overclass': import_data(filepath=filepath, sheet_name='Individual Overclass'),
                       'addl_overclass': import_data(filepath=filepath, sheet_name='Additional Overclass'),

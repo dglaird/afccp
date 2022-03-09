@@ -165,10 +165,13 @@ def convert_parameters_to_original_model_inputs(parameters, value_parameters, pr
     return data
 
 
-def solve_original_pyomo_model(data, model, model_name='Original Model', solve_name="cbc", printing=False):
+def solve_original_pyomo_model(data, model, model_name='Original Model', solver_name="cbc",
+                               executable=None, provide_executable=False, printing=False):
     """
     Solves the pyomo model and returns the solution
-    :param solve_name: which solver to use
+    :param provide_executable: whether or not to supply the solver with an executable path
+    :param executable: path to solver executable (optional- defaults to solver folder)
+    :param solver_name: which solver to use
     :param model_name: kind of model we're solving
     :param data: pyomo model parameters
     :param model: abstract model
@@ -183,14 +186,7 @@ def solve_original_pyomo_model(data, model, model_name='Original Model', solve_n
     if printing:
         print('Solving ' + model_name + ' instance with solver ' + solve_name + '...')
 
-    if solve_name == "baron":
-        solver = SolverFactory(solve_name, executable='../Main Directory/Solvers/baron/' + solve_name + '.exe')
-    elif solve_name == 'cplex':
-        solver = SolverFactory(solve_name)
-    else:
-        solver = SolverFactory(solve_name, executable=paths['Solvers'] + solve_name + '.exe')
-
-    solver.solve(instance)
+    instance = solve_pyomo_model(instance, solver_name, executable, provide_executable)
     solution = np.zeros(instance.N.value)
     for i in range(instance.N.value):
         for j in range(instance.M.value):
@@ -891,11 +887,15 @@ def lsp_model_build(printing=False):
     return model
 
 
-def x_to_solution_initialization(parameters, value_parameters, measures, values):
+def x_to_solution_initialization(parameters, value_parameters, measures, values, solver_name="gurobi",
+                                 executable=None, provide_executable=False):
     """
     This procedure takes the values and measures of a solution, along with other model parameters, and then returns
     the value function variables used to initialize a VFT pyomo model. This is meant to
     initialize the exact VFT model with an approximate solution
+    :param solver_name: name of solver
+    :param executable: optional executable path
+    :param provide_executable: if we want to use the "solver" folder for an executable
     :param measures: AFSC objective measures
     :param values: AFSC objective values
     :param parameters: cadet/AFSC parameters
@@ -969,8 +969,7 @@ def x_to_solution_initialization(parameters, value_parameters, measures, values)
         return 5  # arbitrary objective function just to get solution that meets the constraints
 
     model.objective = Objective(rule=objective_function, sense=maximize)
-    solver = SolverFactory('cbc', executable='../Main Directory/Solvers/cbc.exe')
-    solver.solve(model)
+    model = solve_pyomo_model(model, solver_name, executable, provide_executable)
 
     # Load model variables
     lam = np.zeros([M, O, max_L + 1])
