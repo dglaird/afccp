@@ -32,7 +32,7 @@ class CadetCareerProblem:
         if self.sensitive and not sensitive_folder:
 
             # If we want a real class year instance but don't have the folder, we can't create it
-            print('No sensitive folder found. Instance ' + data_name + ' cannot be created.')
+            raise ValueError('No sensitive folder found. Instance ' + data_name + ' cannot be created.')
         else:
 
             # Get right directory folder
@@ -430,8 +430,6 @@ class CadetCareerProblem:
         else:
             raise ValueError('No instance value parameters detected')
 
-    # TODO: Write this method that takes a new set of value parameters and sees if it is identical to another set
-    #  within the dictionary
     def check_unique_value_parameters(self, value_parameters=None):
         """
         Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the

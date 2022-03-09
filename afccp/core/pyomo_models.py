@@ -241,7 +241,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
         # Loop through each objective for each AFSC
         for k in vp['K^A'][j]:
 
-            # We need to add an extra breakpoint to effectively extend the range
+            # We need to add an extra breakpoint to effectively extend the domain
             if add_breakpoints:
 
                 # We add an extra breakpoint far along the x-axis with the same y value as the previous one
@@ -255,7 +255,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
             # Retrieve minimum values based on constraint type (approximate/exact and value/measure)
             if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
 
-                # These are "value" constraints and so only a minimum is needed
+                # These are "value" constraints and so only a minimum value is needed
                 objective_min_value[j, k] = float(vp['objective_value_min'][j, k])
             elif vp['constraint_type'][j, k] == 3 or vp['constraint_type'][j, k] == 4:
 
