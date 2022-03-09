@@ -46,7 +46,7 @@ This script (simulation_functions.py) contains the functions that pertain to sim
 To add a screenshot, create an `assets/images` folder in your repository and upload your screenshot to it. Then, using the relative filepath, add it to your README using the following syntax:
 
     ```md
-    ![alt text](assets/images/screenshot.png)
+    ![alt text](assets/images/af_logo.jpeg)
     ```
 
 ## Credits
