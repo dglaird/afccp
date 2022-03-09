@@ -1,4 +1,4 @@
-<center>![alt text](assets/images/af_logo.png)</center>
+![alt text](assets/images/af_logo.png)
 # Air Force Cadet Career Problem
 
 ## Description
