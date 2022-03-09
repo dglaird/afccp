@@ -1,5 +1,11 @@
-![alt text](assets/images/af_logo.png)
+<div align="center">
+<br/>
+
 # Air Force Cadet Career Problem
+
+![alt text](assets/images/af_logo.png)
+
+</div>
 
 ## Description
 
