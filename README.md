@@ -15,7 +15,7 @@ I created this project for the completion of my master's thesis. My thesis, titl
 
 - [Installation](#installation)
 - [Usage](#usage)
-    - [Globals](#globals)
+    - [Problem Class](#problem-class)
     - [Data Handling](#data-handling)
     - [Value Parameter Handling](#value-parameter-handling)
     - [Heuristic Solvers](#heuristic-solvers)
