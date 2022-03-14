@@ -64,7 +64,7 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
     # Load Instance Parameters (may or may not be included in this dataset)
     cadet_parameter_dictionary = {'USAFA': 'usafa', 'Male': 'male', 'Minority': 'minority', 'ASC1': 'asc1',
                                   'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit'}
-    for col_name in list(cadet_parameter_dictionary.keys()):
+    for col_name in cadet_parameter_dictionary:
         if col_name in columns:
             parameters[cadet_parameter_dictionary[col_name]] = np.array(cadets_fixed.loc[:, col_name])
 
@@ -552,7 +552,12 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
 def ga_fitness_function(chromosome, parameters, value_parameters, constraints='Fail', penalty_scale=1.3,
                         con_fail_dict=None, printing=False, first=True):
     """
-    This function takes in a chromosome (solution vector) and evaluates it.
+    This function takes in a chromosome (solution vector) and evaluates it. This function is only here because I wanted
+    to test the function to make sure it was returning the same objective value as the "measure_solution_quality"
+    function since the two calculate the objective value a little differently. This one uses a vector of AFSCs and
+    can therefore use sets more efficiently while the other one uses a binary solution matrix which is more like
+    how the model actually calculates the objective value. Assuming integer solutions (and no constraints are violated),
+    the two functions will return the same value.
     :param first: if this is a solution in the initial population
     :param con_fail_dict: dictionary used for constraints
     :param penalty_scale: how much to penalize failed constraints

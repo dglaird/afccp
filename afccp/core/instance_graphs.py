@@ -8,7 +8,6 @@ from afccp.core.globals import *
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl
-
 mpl.rc('font', family='Times New Roman')
 
 
