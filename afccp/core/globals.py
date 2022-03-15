@@ -8,9 +8,9 @@ from packaging import version
 global dir_path
 dir_path = os.getcwd() + '/'
 
-# Check if the directory is actually in the afccp sub-folder, not the main folder
-if dir_path.count('afccp') != 1:
-    dir_path = dir_path[:-6]
+# Make sure directory path is "../afccp/'
+index = dir_path.find('afccp')
+dir_path = dir_path[:index + 6]
 
 # Additional folders in Directory
 global paths
