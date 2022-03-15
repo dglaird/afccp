@@ -867,14 +867,15 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
     :return: gp_parameters
     """
     if printing:
-        print('Translating VFT model parameters to R Model parameters...')
+        print('Translating VFT model parameters to Goal Programming Model parameters...')
 
     if gp_df_dict is None:
         filepath = paths['support'] + 'GP_Parameters.xlsx'
-        gp_df_dict = {'weights_scaling': import_data(filepath=filepath, sheet_name='Weights and Scaling'),
-                      'indv_overclass': import_data(filepath=filepath, sheet_name='Individual Overclass'),
-                      'addl_overclass': import_data(filepath=filepath, sheet_name='Additional Overclass'),
-                      'indv_targets': import_data(filepath=filepath, sheet_name='Individual Targets')}
+        # gp_df_dict = {'weights_scaling': import_data(filepath=filepath, sheet_name='Weights and Scaling'),
+        #               'indv_overclass': import_data(filepath=filepath, sheet_name='Individual Overclass'),
+        #               'addl_overclass': import_data(filepath=filepath, sheet_name='Additional Overclass'),
+        #               'indv_targets': import_data(filepath=filepath, sheet_name='Individual Targets')}
+        gp_df_dict = {'weights_scaling': import_data(filepath=filepath, sheet_name='Weights and Scaling')}
 
     # Shorthand
     p = parameters

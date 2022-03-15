@@ -647,7 +647,7 @@ def gp_model_build(gp, printing=False):
     :return: pyomo model
     """
     if printing:
-        print('Building R Model...')
+        print('Building GP Model...')
 
     # Create model
     m = ConcreteModel()
@@ -758,7 +758,7 @@ def gp_model_solve(model, gp, solver_name="gurobi", executable=None, provide_exe
     :return: solution vector
     """
     if printing:
-        print('Solving R Model...')
+        print('Solving GP Model...')
 
     # Solve the model
     model = solve_pyomo_model(model, solver_name, executable=executable, provide_executable=provide_executable,
