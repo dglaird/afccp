@@ -554,13 +554,13 @@ class CadetCareerProblem:
             data_type = self.data_type
 
         if constraints_df is None:
-            if self.data_type == "Real":
+            if self.data_variant == "Year":
                 constraints_df = import_data(
                     paths['s_support'] + 'Value_Parameter_Sets_Options_Real.xlsx',
                     sheet_name=data_type + ' Constraint Options')
             else:
                 constraints_df = import_data(
-                    paths['support'] + 'Value_Parameter_Sets_Options_Scrubbed.xlsx',
+                    paths['support'] + 'Value_Parameter_Sets_Options.xlsx',
                     sheet_name=data_type + ' Constraint Options')
 
         value_parameters = value_parameter_realistic_generator(self.parameters, default_value_parameters,
