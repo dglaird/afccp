@@ -5,3 +5,4 @@ dir_path = os.getcwd() + '/'
 
 # Import main problem class
 from afccp.core.problem_class import CadetCareerProblem
+pass

@@ -109,7 +109,7 @@ class CadetCareerProblem:
                 d_name = sections[1]
                 if d_name == self.data_name and len(sections) != 2:
                     self.instance_files.append(file_name)
-                if len(sections) == 2:
+                elif d_name == self.data_name and len(sections) == 2:
                     main_file = True
 
             # initialize more instance attributes
@@ -509,6 +509,8 @@ class CadetCareerProblem:
         if self.printing:
             print('Imported.')
 
+        return value_parameters
+
     def generate_realistic_value_parameters(self, default_value_parameters=None, constraints_df=None,
                                             deterministic=True, set_to_instance=True, add_to_dict=True,
                                             vp_weight=100, printing=None, constrain_merit=False):
@@ -585,6 +587,8 @@ class CadetCareerProblem:
 
         if printing:
             print('Generated.')
+
+        return value_parameters
 
     def change_weight_function(self, cadets=True, function=None):
         """
@@ -1875,9 +1879,11 @@ class CadetCareerProblem:
         return chart
 
     # Export
-    def create_aggregate_file(self, from_files=False, printing=None):
+    def create_aggregate_file(self, from_files=False, one_time_new_vp=False, printing=None):
         """
         Create the "data_type data_name" main aggregate file with solutions, metrics, and vps
+        :param one_time_new_vp: this is just to recreate default value parameters for some class years
+        (ignore this parameter)
         :param printing: whether to print status updates
         :param from_files: if we want to import the data from the self.instance_files or use the instance attributes
         """
@@ -1900,11 +1906,17 @@ class CadetCareerProblem:
                 vp_name = full_name.split(' ')[2]
                 solution_name = full_name.split(' ')[3]
                 if vp_name not in vp_dict:
-                    value_parameters = self.import_value_parameters(filepath=filepath, set_value_parameters=False,
-                                                                    printing=False)
+                    if one_time_new_vp:
+                        value_parameters = self.import_default_value_parameters(no_constraints=True,
+                                                                                set_to_instance=False,
+                                                                                add_to_dict=False)
+                    else:
+                        value_parameters = self.import_value_parameters(filepath=filepath, set_value_parameters=False,
+                                                                        printing=False)
                     vp_dict[vp_name] = copy.deepcopy(value_parameters)
                 if solution_name not in solution_dict:
-                    solution = self.import_solution(filepath=filepath, set_solution=False, printing=False)
+                    solution = self.import_solution(filepath=filepath, set_to_instance=False, add_to_dict=False,
+                                                    printing=False)
                     solution_dict[solution_name] = copy.deepcopy(solution)
             metrics_dict = {}
             for vp_name in vp_dict:
