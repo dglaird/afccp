@@ -3,6 +3,7 @@ import numpy as np
 import random
 from math import *
 from afccp.core.globals import *
+from afccp.core.value_parameter_handling import *
 
 
 # Value Parameter Generator
@@ -374,7 +375,7 @@ def value_parameter_realistic_generator(parameters, default_value_parameters, co
             for j, afsc in enumerate(afscs):
 
                 # AFSC variables
-                cadets = parameters['I_E'][j]
+                cadets = parameters['I^E'][j]
                 quota_str = constraint_options.loc[j, 'Combined Quota']
                 mand_str = constraint_options.loc[j, 'Mandatory']
 
