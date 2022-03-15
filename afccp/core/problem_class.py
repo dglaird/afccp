@@ -374,12 +374,16 @@ class CadetCareerProblem:
             # Update current specific instance name
             self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
 
-    def save_new_value_parameters_to_dict(self, vp_name=None):
+    def save_new_value_parameters_to_dict(self, value_parameters=None, vp_name=None):
         """
-        Adds the current set of value parameters to a dictionary as a new set (if it is a unique set)
+        Adds the set of value parameters to a dictionary as a new set (if it is a unique set)
+        :param value_parameters: set of value parameters
         :param vp_name: name of the new set of value parameters (defaults to adding 1 to the last set in the dict)
         """
-        if self.value_parameters is not None:
+        if value_parameters is None:
+            value_parameters = self.value_parameters
+
+        if value_parameters is not None:
             if self.vp_dict is None:
                 self.vp_dict = {}
                 if vp_name is None:
@@ -399,7 +403,7 @@ class CadetCareerProblem:
                 unique = self.check_unique_value_parameters()
 
             if unique is True:  # If it's unique, we save this new set of value parameters to the dictionary
-                self.vp_dict[vp_name] = copy.deepcopy(self.value_parameters)
+                self.vp_dict[vp_name] = copy.deepcopy(value_parameters)
                 self.vp_name = vp_name
             else:  # If it's not unique, then the "unique" variable is the name of the matching set of value parameters
                 self.vp_name = unique
@@ -449,12 +453,16 @@ class CadetCareerProblem:
         return unique
 
     def import_default_value_parameters(self, filepath=None, no_constraints=False, num_breakpoints=24,
-                                        generate_afsc_weights=True, printing=None):
+                                        generate_afsc_weights=True, set_to_instance=True, add_to_dict=True,
+                                        vp_weight=100, printing=None):
         """
         Import default value parameter setting and generate value parameters for this instance from those
         ones.
         :param filepath: filepath to import from (if none specified, will use filepath attribute)
         :param num_breakpoints: Number of breakpoints to use for the value functions
+        :param set_to_instance: if we want to set this set to the instance's value parameters attribute
+        :param add_to_dict: if we want to add this set of value parameters to the vp dictionary
+        :param vp_weight: swing weight of this entire set of value parameters relative to others
         :param printing: Whether we should print status updates or not
         :param no_constraints: If we don't want to use the predefined constraints
         :param generate_afsc_weights: If we generate the AFSC weights from the weight function, or just
@@ -468,9 +476,11 @@ class CadetCareerProblem:
             if self.data_variant == "Scrubbed":
                 filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
             elif self.data_variant == 'Year':
-                filepath = paths['s_support'] + 'Value_Parameters_Defaults_' + self.data_type + '.xlsx'
+                filepath = paths['s_support'] + 'Value_Parameters_Defaults_Real.xlsx'
+            elif self.data_variant == 'Perfect':
+                filepath = paths['support'] + 'Value_Parameters_Defaults_Perfect.xlsx'
             else:
-                filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_type + '.xlsx'
+                filepath = paths['support'] + 'Value_Parameters_Defaults_Generated.xlsx'
 
         self.default_value_parameters = default_value_parameters_from_excel(filepath, num_breakpoints=num_breakpoints,
                                                                             printing=printing)
@@ -482,17 +492,26 @@ class CadetCareerProblem:
             value_parameters['constraint_type'] = np.zeros([self.parameters['M'], value_parameters['O']])
         value_parameters = model_value_parameters_set_additions(value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
-        self.value_parameters = model_value_parameters_set_additions(value_parameters)
-        self.value_parameters['vp_weight'] = 100
+        value_parameters = model_value_parameters_set_additions(value_parameters)
+        value_parameters['vp_weight'] = vp_weight
+
+        # Set value parameters to instance attribute
+        if set_to_instance:
+            self.value_parameters = value_parameters
+            if self.solution is not None:
+                self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                        printing=printing)
 
         # Save new set of value parameters to dictionary
-        self.save_new_value_parameters_to_dict()
+        if add_to_dict:
+            self.save_new_value_parameters_to_dict(value_parameters)
 
         if self.printing:
             print('Imported.')
 
     def generate_realistic_value_parameters(self, default_value_parameters=None, constraints_df=None,
-                                            deterministic=True, printing=None, constrain_merit=False):
+                                            deterministic=True, set_to_instance=True, add_to_dict=True,
+                                            vp_weight=100, printing=None, constrain_merit=False):
         """
         This procedure only works on actual class years (scrubbed and "real"). We have data on what the quotas and
         constraints were supposed to be, as well as what was actually implemented with the original solution for each
@@ -500,6 +519,9 @@ class CadetCareerProblem:
         original solution.
         :param default_value_parameters: optional set of default value parameters (we would just import it
         otherwise)
+        :param set_to_instance: if we want to set this set to the instance's value parameters attribute
+        :param add_to_dict: if we want to add this set of value parameters to the vp dictionary
+        :param vp_weight: swing weight of this entire set of value parameters relative to others
         :param constraints_df: dataframe of constraints used for the real class years
         :param deterministic: if we're generating sets of value parameters deterministically or not
         :param printing: Whether we should print status updates or not
@@ -516,9 +538,13 @@ class CadetCareerProblem:
                 print("Generating non-deterministic set of value parameters...")
 
         if default_value_parameters is None:
-            filepath = paths['Data Processing Support'] + 'Value_Parameters_Defaults_' + self.data_type + '.xlsx'
-            if self.data_variant == 'Perfect':
-                filepath = paths['Data Processing Support'] + 'Value_Parameters_Defaults_Perfect.xlsx'
+            if self.data_variant == "Scrubbed":
+                filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
+            elif self.data_variant == 'Year':
+                filepath = paths['s_support'] + 'Value_Parameters_Defaults_Real.xlsx'
+            else:
+                raise ValueError('Data type must be Real not Generated.')
+
             default_value_parameters = default_value_parameters_from_excel(filepath)
             self.default_value_parameters = default_value_parameters
 
@@ -543,11 +569,19 @@ class CadetCareerProblem:
                                                                data_name=data_type)
         value_parameters = model_value_parameters_set_additions(value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
-        self.value_parameters = model_value_parameters_set_additions(value_parameters)
-        self.value_parameters['vp_weight'] = 100
+        value_parameters = model_value_parameters_set_additions(value_parameters)
+        value_parameters['vp_weight'] = vp_weight
+
+        # Set value parameters to instance attribute
+        if set_to_instance:
+            self.value_parameters = value_parameters
+            if self.solution is not None:
+                self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                        printing=printing)
 
         # Save new set of value parameters to dictionary
-        self.save_new_value_parameters_to_dict()
+        if add_to_dict:
+            self.save_new_value_parameters_to_dict(value_parameters)
 
         if printing:
             print('Generated.')
