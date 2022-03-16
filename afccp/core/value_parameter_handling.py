@@ -857,9 +857,10 @@ def condense_value_functions(parameters, value_parameters):
 
 
 # Rebecca's Model Parameter Translation
-def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, printing=False):
+def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, use_gp_df=True, printing=False):
     """
     This function translates the VFT parameters to Rebecca's model's parameters
+    :param use_gp_df: if we want to obtain the rewards and penalties for this instance
     :param printing: Whether or not to print a status update
     :param gp_df: dataframe of parameters used in Rebecca's model
     :param parameters: fixed cadet/AFSC parameters
@@ -869,9 +870,10 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, pri
     if printing:
         print('Translating VFT model parameters to Goal Programming Model parameters...')
 
-    if gp_df is None:
-        filepath = paths['support'] + 'GP_Parameters.xlsx'
-        gp_df = import_data(filepath=filepath, sheet_name='Weights and Scaling')
+    if use_gp_df:
+        if gp_df is None:
+            filepath = paths['support'] + 'GP_Parameters.xlsx'
+            gp_df = import_data(filepath=filepath, sheet_name='Weights and Scaling')
 
     # Shorthand
     p = parameters
@@ -976,21 +978,22 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, pri
     gp['merit'] = p['merit']  # cadet percentiles
 
     # Penalty and Reward parameters
-    columns = ['Normalized Penalty', 'Normalized Reward', 'Run Penalty', 'Run Reward']
-    column_dict = {column: np.array(gp_df[column]) for column in columns}
+    if use_gp_df:
+        columns = ['Normalized Penalty', 'Normalized Reward', 'Run Penalty', 'Run Reward']
+        column_dict = {column: np.array(gp_df[column]) for column in columns}
 
-    # actual reward parameters
-    reward = column_dict['Normalized Reward'] * column_dict['Run Reward']
+        # actual reward parameters
+        reward = column_dict['Normalized Reward'] * column_dict['Run Reward']
 
-    # actual penalty parameters
-    penalty = column_dict['Normalized Penalty'] * column_dict['Run Penalty']
+        # actual penalty parameters
+        penalty = column_dict['Normalized Penalty'] * column_dict['Run Penalty']
 
-    # mu parameters (Penalties)
-    gp['mu^'] = {con: penalty[index] for index, con in enumerate(gp['con'])}
+        # mu parameters (Penalties)
+        gp['mu^'] = {con: penalty[index] for index, con in enumerate(gp['con'])}
 
-    # lambda parameters (Rewards)
-    gp['lam^'] = {con: reward[index] for index, con in enumerate(gp['con'])}
-    gp['lam^']['S'] = reward[len(gp['con'])]  # extra reward for preference in order of merit
+        # lambda parameters (Rewards)
+        gp['lam^'] = {con: reward[index] for index, con in enumerate(gp['con'])}
+        gp['lam^']['S'] = reward[len(gp['con'])]  # extra reward for preference in order of merit
 
     if printing:
         print('Translated.')

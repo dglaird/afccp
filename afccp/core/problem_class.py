@@ -1,4 +1,6 @@
 # Import libraries
+import pandas as pd
+
 from afccp.core.comprehensive_functions import *
 import datetime
 import glob
@@ -646,18 +648,32 @@ class CadetCareerProblem:
                 self.value_parameters['afsc_weight'] = swing_weights / sum(swing_weights)
 
     # Translate Parameters
-    def vft_to_gp_parameters(self, gp_df=None, printing=None):
+    def vft_to_gp_parameters(self, use_gp_df=True, get_new_rewards_penalties=False, printing=None):
         """
         Converts the instance parameters and value parameters to parameters used by Rebecca's model
-        :param gp_df: dataframe used by Rebecca's model
+        :param use_gp_df: if we want to use the dataframe of normalized rewards and penalties
+        :param get_new_rewards_penalties: if we want to create a new gp df or just import the pre-determined one
         :param printing: Whether we should print status updates or not
         """
 
         if printing is None:
             printing = self.printing
 
-        self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, gp_df,
-                                                            printing=printing)
+        if use_gp_df and get_new_rewards_penalties:
+            self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, self.gp_df,
+                                                                use_gp_df)
+            rewards, penalties = calculate_rewards_penalties(self.gp_parameters, printing=printing)
+            if self.gp_df is None:
+                con_list = copy.deepcopy(self.gp_parameters['con'])
+                con_list.append('S')
+                self.gp_df = pd.DataFrame({'Constraint': con_list, 'Normalized Penalty': penalties,
+                                           'Normalized Reward': rewards, 'Run Penalty': np.ones(len(rewards)),
+                                           'Run Reward': np.ones(len(rewards))})
+            else:
+                self.gp_df['Normalized Reward'], self.gp_df['Normalized Penalty'] = rewards, penalties
+
+        self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, self.gp_df,
+                                                            use_gp_df, printing=printing)
 
     # Observe Value Parameters
     def show_value_function(self, afsc='13N', objective='Combined Quota', printing=None, label_size=25,
@@ -1174,16 +1190,17 @@ class CadetCareerProblem:
         if add_to_dict:
             self.add_solution_to_dictionary(solution, solution_method="AFPC")
 
-    def solve_gp_pyomo_model(self, gp_df_dict=None, max_time=None, solver_name='cbc', add_to_dict=True,
-                             set_to_instance=True, executable=None, provide_executable=False, con_term=None,
+    def solve_gp_pyomo_model(self, max_time=None, solver_name='cbc', add_to_dict=True, set_to_instance=True,
+                             executable=None, provide_executable=False, con_term=None,
                              get_reward=False, printing=None):
         """
         Solve the Goal Programming Model (Created by Lt. Reynolds)
+        :param con_term: constraint to solve the model for (if none, it's the regular model)
+        :param get_reward: if we want to solve for the reward (lambda) or penalty (mu) term
         :param executable: optional path to solver
         :param provide_executable: if we want to directly provide an executable path
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
         :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param gp_df_dict: dictionary of dataframes used for parameters
         :param max_time: max solve time for the model
         :param solver_name: name of the solver
         :param printing: Whether the procedure should print something
@@ -1194,7 +1211,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         if self.gp_parameters is None:
-            self.vft_to_gp_parameters(gp_df_dict=gp_df_dict)
+            self.vft_to_gp_parameters()
 
         r_model = gp_model_build(self.gp_parameters, con_term=con_term, get_reward=get_reward, printing=printing)
         gp_var = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solver_name,
@@ -1211,8 +1228,7 @@ class CadetCareerProblem:
 
             # Add solution to solution dictionary
             if add_to_dict:
-                solution_method = "GP"
-                self.add_solution_to_dictionary(solution, solution_method=solution_method)
+                self.add_solution_to_dictionary(solution, solution_method="GP")
 
             return solution
         else:
@@ -1948,7 +1964,7 @@ class CadetCareerProblem:
             vp_dict = self.vp_dict
 
         create_aggregate_instance_file(self.data_instance_name, self.parameters, solution_dict, vp_dict, metrics_dict,
-                                       sensitive=self.sensitive)
+                                       self.gp_df, sensitive=self.sensitive)
 
     def pyomo_measures_to_excel(self, filepath=None):
         """

@@ -239,7 +239,6 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
             # We need to add an extra breakpoint to effectively extend the domain
             if add_breakpoints:
-
                 # We add an extra breakpoint far along the x-axis with the same y value as the previous one
                 last_a = a[j][k][r[j][k] - 1]
                 last_f = f[j][k][r[j][k] - 1]
@@ -276,7 +275,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
         m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
         m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)  # objective value
         m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in L[j, k]),
-                        within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
+                    within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
         m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
 
     # If we do want to initialize the variables. Probably initializing the exact m using the approximate solution
@@ -296,7 +295,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
         # lambda: % between breakpoint l and l + 1 that the measure for AFSC j objective k "has yet to travel"
         m.lam = Var(((j, k, l) for j in J for k in vp['K^A'][j] for l in L[j, k]), within=NonNegativeReals,
-                        bounds=(0, 1))
+                    bounds=(0, 1))
         for j in p['J']:
             for k in vp['K^A'][j]:
                 for l in L[j, k]:
@@ -356,7 +355,6 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
         # Get count variables for this AFSC
         count = np.sum(m.x[i, j] for i in p['I^E'][j])
         if 'usafa' in parameters:
-
             # Number of USAFA cadets assigned to the AFSC
             usafa_count = np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
 
@@ -642,6 +640,8 @@ def solve_pyomo_model(model, solver_name, executable=None, provide_executable=Fa
 def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
     """
     This is Rebecca's model. We've incorporated her parameters and are building that model
+    :param con_term: constraint to solve the model for (if none, it's the regular model)
+    :param get_reward: if we want to solve for the reward (lambda) or penalty (mu) term
     :param gp: goal programming model parameters
     :param printing: Whether or not to print something
     :return: pyomo model
@@ -669,9 +669,9 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
         return np.sum(  # Sum across each constraint
             np.sum(  # Sum across each AFSC with that constraint
 
-            # Calculate penalties and rewards (for each necessary AFSC for each constraint)
-            gp['lam^'][con] * m.Z[con, a] - gp['mu^'][con] * m.Y[con, a] for a in gp['A^'][con]) for con in gp['con']) \
-               + gp['lam^']['S'] * np.sum(  # Sum across every cadet
+                # Calculate penalties and rewards for each necessary AFSC
+                gp['lam^'][con] * m.Z[con, a] - gp['mu^'][con] * m.Y[con, a] for a in gp['A^'][con]) for con in
+            gp['con']) + gp['lam^']['S'] * np.sum(  # Sum across every cadet
             np.sum(  # Sum across each AFSC that the cadet is both eligible for and has placed a preference on
 
                 # Calculate utility that the cadet received  (for each preferred AFSC for each constraint)
@@ -691,6 +691,7 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
             m.objective = Objective(rule=penalty_objective_function, sense=maximize)
     else:
         m.objective = Objective(rule=main_objective_function, sense=maximize)
+
     # Each Cadet gets one AFSC for which they're eligible
     m.one_afsc_constraints = ConstraintList()
     for c in gp['C']:
@@ -738,7 +739,6 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
 
     # If we have AFSCs that have specified a limit on the number of USAFA cadets
     if len(gp['A^']['U_lim']) > 0:
-
         # Number of USAFA cadets assigned to AFSCs that have an upper limit on USAFA cadets
         usafa_cadet_lim_afsc_count = np.sum(np.sum(m.x[c, a] for c in gp['C^']['U'][a]) for a in gp['A^']['U_lim'])
 
@@ -748,6 +748,7 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
         # USAFA upper limit constraint
         def USAFA_Limit(model):
             return usafa_cadet_lim_afsc_count <= gp['u_limit'] * cadet_lim_afsc_count
+
         m.usafa_limit_constraint = Constraint(rule=USAFA_Limit)
 
     if printing:
@@ -756,9 +757,10 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
 
 
 def gp_model_solve(model, gp, solver_name="gurobi", executable=None, provide_executable=False, max_time=None,
-                   con_term=None, get_reward=False, printing=False):
+                   con_term=None, printing=False):
     """
     This procedure solves Rebecca's model.
+    :param con_term: constraint to solve the model for
     :param gp: goal programming model parameters
     :param max_time: maximum time to solve
     :param executable: optional executable path
@@ -778,21 +780,22 @@ def gp_model_solve(model, gp, solver_name="gurobi", executable=None, provide_exe
     if con_term is not None:
         gp_var = model.objective()
         return gp_var
+    else:
 
-    # Get solution
-    N, M = len(gp['C']), len(gp['A'])
-    solution = np.zeros(N)
-    X = np.zeros((N, M))
-    for c in gp['C']:
-        for a in gp['A^']['E'][c]:
-            X[c, a] = model.x[c, a].value
-            if round(X[c, a]):
-                solution[c] = int(a)
+        # Get solution
+        N, M = len(gp['C']), len(gp['A'])
+        solution = np.zeros(N)
+        X = np.zeros((N, M))
+        for c in gp['C']:
+            for a in gp['A^']['E'][c]:
+                X[c, a] = model.x[c, a].value
+                if round(X[c, a]):
+                    solution[c] = int(a)
 
-    if printing:
-        print('Model solved.')
+        if printing:
+            print('Model solved.')
 
-    return solution, X
+        return solution, X
 
 
 def convert_parameters_to_lsp_model_inputs(parameters, value_parameters, metrics_1, metrics_2, delta, printing=False):

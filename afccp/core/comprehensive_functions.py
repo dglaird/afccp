@@ -6,6 +6,7 @@ from afccp.core.value_parameter_generator import *
 from afccp.core.instance_graphs import *
 from afccp.core.heuristic_solvers import *
 import copy
+
 if use_pyomo:
     from afccp.core.pyomo_models import *
 
@@ -34,7 +35,8 @@ def least_squares_procedure(parameters, value_parameters, solution_1, solution_2
         metrics_2 = measure_solution_quality(solution_2, parameters, value_parameters, printing)
 
         model = lsp_model_build(printing)
-        data = convert_parameters_to_lsp_model_inputs(parameters, value_parameters, metrics_1, metrics_2, delta, printing)
+        data = convert_parameters_to_lsp_model_inputs(parameters, value_parameters, metrics_1, metrics_2, delta,
+                                                      printing)
         instance = model.create_instance(data)
 
         if printing:
@@ -281,18 +283,57 @@ def plot_value_function(afsc, objective, parameters, value_parameters, title=Non
 
 
 # Goal Programming Model Functions
-def calculate_rewards_penalties(parameters, value_parameters, gp_df=None):
+def calculate_rewards_penalties(gp, printing=True):
     """
-    This function takes a set of parameters and a set of value parameters and then returns the normalized
+    This function takes a set of Rebecca's goal programming parameters and then returns the normalized
     penalties and rewards specific to this instance that are used in Rebecca's goal programming (GP) model
-    :param parameters: "fixed" cadet/AFSC data
-    :param value_parameters: weight and value parameters
+    :param printing: if we want to print status updates or not
+    :param gp: Rebecca's goal programming parameters
     :return: gp norm penalties, gp norm rewards
     """
+    num_constraints = len(gp['con']) + 1
+    rewards = np.zeros(num_constraints)
+    penalties = np.zeros(num_constraints)
+    r_model = gp_model_build(gp, con_term=gp['con'][0], get_reward=True)
+    for c, con in enumerate(gp['con']):
 
-    # Translate parameters to GP parameters
-    gp = translate_vft_to_gp_parameters(parameters, value_parameters)
-    return None, None
+        # Get reward term
+        def objective_function(m):
+            return np.sum(m.Z[con, a] for a in gp['A^'][con])
+
+        if printing:
+            print('')
+            print('Obtaining reward for constraint ' + con + '...')
+        r_model.objective = Objective(rule=objective_function, sense=maximize)
+        rewards[c] = gp_model_solve(r_model, gp, max_time=60 * 4, con_term=con, solver_name='cbc')
+        if printing:
+            print('Reward:', rewards[c])
+
+        # Get penalty term
+        def objective_function(m):
+            return np.sum(m.Y[con, a] for a in gp['A^'][con])
+
+        if printing:
+            print('')
+            print('Obtaining penalty for constraint ' + con + '...')
+        r_model.objective = Objective(rule=objective_function, sense=maximize)
+        penalties[c] = gp_model_solve(r_model, gp, max_time=60 * 4, con_term=con, solver_name='cbc')
+        if printing:
+            print('Penalty:', penalties[c])
+
+    # S reward term
+    def objective_function(m):
+        return np.sum(m.Z['S', a] for a in gp['A^']['S'])
+
+    if printing:
+        print('')
+        print('Obtaining reward for constraint S...')
+    r_model.objective = Objective(rule=objective_function, sense=maximize)
+    rewards[num_constraints] = gp_model_solve(r_model, gp, max_time=60 * 4, con_term='S', printing=printing)
+    if printing:
+        print('Reward:', rewards[num_constraints])
+
+    return rewards, penalties
 
 
 # Export instance data functions
@@ -363,10 +404,11 @@ def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, pri
             overall_solution.to_excel(writer, sheet_name="Overall Solution Quality", index=False)
 
 
-def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict, metrics_dict,
-                                   sensitive=False, printing=False):
+def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp_dict=None, metrics_dict=None,
+                                   gp_df=None, sensitive=False, printing=False):
     """
     This file takes all of the relevant data for a particular fixed instance and exports it to excel
+    :param gp_df: dataframe of goal programming parameters
     :param full_name: name of the instance
     :param parameters: fixed cadet/afsc parameters
     :param solution_dict: dictionary of solutions
@@ -383,76 +425,81 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
 
     # Get other information
     afscs = parameters['afsc_vector']
-    vp_names = list(vp_dict.keys())
-    solution_names = list(solution_dict.keys())
-    metric_names = {'Z': 'z', 'Cadet Value': 'cadets_overall_value', 'AFSC Value': 'afscs_overall_value'}
-    for k, objective in enumerate(vp_dict[vp_names[0]]['objectives']):
-        metric_names[objective + ' Score'] = k
-    num_solutions = len(solution_names)
-    num_vps = len(vp_names)
-    num_metrics = len(metric_names)
 
-    # Create solutions dataframe
-    solutions_df = pd.DataFrame({})
-    for solution_name in solution_names:
+    if vp_dict is not None:
+        vp_names = list(vp_dict.keys())
+        num_vps = len(vp_names)
 
-        # Translate AFSC indices into the AFSCs themselves
-        solution = solution_dict[solution_name]
-        solutions_df[solution_name] = [afscs[int(solution[i])] for i in parameters['I']]
+        # Construct value parameter dataframes
+        vp_afscs_df_dict = {}
+        vp_weights = []
+        for v, vp_name in enumerate(vp_names):
+            overall_weights_df, cadet_weights_df, afsc_weights_df = model_value_parameter_data_frame_from_parameters(
+                parameters, vp_dict[vp_name])
+            if v == 0:
+                vp_overall_df = overall_weights_df
+            else:
+                vp_overall_df = pd.concat([vp_overall_df, overall_weights_df], ignore_index=True)
+            vp_afscs_df_dict[vp_name] = afsc_weights_df
+            vp_weights.append(vp_dict[vp_name]['vp_weight'])
 
-    # Number of rows of metrics dataframe
-    num_rows = num_solutions * num_metrics
+        # Add columns
+        vp_overall_df.insert(loc=0, column='VP Name', value=vp_names)
+        vp_overall_df['VP Weight'] = vp_weights
 
-    # Initialize columns
-    column_dict = {'Solution': np.array([" " * 20 for _ in range(num_rows)]),
-                   'Metric': np.array([" " * 20 for _ in range(num_rows)])}
-    for vp_name in vp_names:
-        column_dict[vp_name] = np.zeros(num_rows)
-    for column_name in ['Avg.', 'WgtAvg.']:
-        column_dict[column_name] = np.zeros(num_rows)
+    if solution_dict is not None:
+        solution_names = list(solution_dict.keys())
+        num_solutions = len(solution_names)
 
-    # Input column data
-    row = 0
-    for metric_name in metric_names:
+        # Create solutions dataframe
+        solutions_df = pd.DataFrame({})
         for solution_name in solution_names:
-            column_dict['Solution'][row] = solution_name
-            column_dict['Metric'][row] = metric_name
-            avg = 0
-            w_avg = 0
-            for vp_name in vp_names:
-                if metric_name in ['Z', 'Cadet Value', 'AFSC Value']:
-                    m = round(metrics_dict[vp_name][solution_name][metric_names[metric_name]], 4)
-                else:
-                    m = round(
-                        metrics_dict[vp_name][solution_name]['objective_score'][metric_names[metric_name]], 4)
-                column_dict[vp_name][row] = m
-                avg += m / num_vps
-                w_avg += m * vp_dict[vp_name]['vp_local_weight']
-            column_dict['Avg.'][row] = round(avg, 4)
-            column_dict['WgtAvg.'][row] = round(w_avg, 4)
-            row += 1
+            # Translate AFSC indices into the AFSCs themselves
+            solution = solution_dict[solution_name]
+            solutions_df[solution_name] = [afscs[int(solution[i])] for i in parameters['I']]
 
-    # Construct metrics_df
-    metrics_df = pd.DataFrame({})
-    for column_name in column_dict:
-        metrics_df[column_name] = column_dict[column_name]
+    if metrics_dict is not None:
+        metric_names = {'Z': 'z', 'Cadet Value': 'cadets_overall_value', 'AFSC Value': 'afscs_overall_value'}
+        for k, objective in enumerate(vp_dict[vp_names[0]]['objectives']):
+            metric_names[objective + ' Score'] = k
+        num_metrics = len(metric_names)
 
-    # Construct value parameter dataframes
-    vp_afscs_df_dict = {}
-    vp_weights = []
-    for v, vp_name in enumerate(vp_names):
-        overall_weights_df, cadet_weights_df, afsc_weights_df = model_value_parameter_data_frame_from_parameters(
-            parameters, vp_dict[vp_name])
-        if v == 0:
-            vp_overall_df = overall_weights_df
-        else:
-            vp_overall_df = pd.concat([vp_overall_df, overall_weights_df], ignore_index=True)
-        vp_afscs_df_dict[vp_name] = afsc_weights_df
-        vp_weights.append(vp_dict[vp_name]['vp_weight'])
+        # Number of rows of metrics dataframe
+        num_rows = num_solutions * num_metrics
 
-    # Add columns
-    vp_overall_df.insert(loc=0, column='VP Name', value=vp_names)
-    vp_overall_df['VP Weight'] = vp_weights
+        # Initialize columns
+        column_dict = {'Solution': np.array([" " * 20 for _ in range(num_rows)]),
+                       'Metric': np.array([" " * 20 for _ in range(num_rows)])}
+        for vp_name in vp_names:
+            column_dict[vp_name] = np.zeros(num_rows)
+        for column_name in ['Avg.', 'WgtAvg.']:
+            column_dict[column_name] = np.zeros(num_rows)
+
+        # Input column data
+        row = 0
+        for metric_name in metric_names:
+            for solution_name in solution_names:
+                column_dict['Solution'][row] = solution_name
+                column_dict['Metric'][row] = metric_name
+                avg = 0
+                w_avg = 0
+                for vp_name in vp_names:
+                    if metric_name in ['Z', 'Cadet Value', 'AFSC Value']:
+                        m = round(metrics_dict[vp_name][solution_name][metric_names[metric_name]], 4)
+                    else:
+                        m = round(
+                            metrics_dict[vp_name][solution_name]['objective_score'][metric_names[metric_name]], 4)
+                    column_dict[vp_name][row] = m
+                    avg += m / num_vps
+                    w_avg += m * vp_dict[vp_name]['vp_local_weight']
+                column_dict['Avg.'][row] = round(avg, 4)
+                column_dict['WgtAvg.'][row] = round(w_avg, 4)
+                row += 1
+
+        # Construct metrics_df
+        metrics_df = pd.DataFrame({})
+        for column_name in column_dict:
+            metrics_df[column_name] = column_dict[column_name]
 
     # Export to excel
     if sensitive:
@@ -463,16 +510,23 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict, vp_dict
     with pd.ExcelWriter(filepath) as writer:  # Export to excel
         cadets_fixed.to_excel(writer, sheet_name="Cadets Fixed", index=False)
         afscs_fixed.to_excel(writer, sheet_name="AFSCs Fixed", index=False)
-        solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
-        metrics_df.to_excel(writer, sheet_name="Results", index=False)
-        vp_overall_df.to_excel(writer, sheet_name="VP Overall", index=False)
-        for vp_name in vp_names:
-            vp_afscs_df_dict[vp_name].to_excel(writer, sheet_name=vp_name, index=False)
+        if gp_df is not None:
+            gp_df.to_excel(writer, sheet_name="GP Parameters", index=False)
+        if solutions_df is not None:
+            solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
+        if metrics_df is not None:
+            metrics_df.to_excel(writer, sheet_name="Results", index=False)
+        if vp_overall_df is not None:
+            vp_overall_df.to_excel(writer, sheet_name="VP Overall", index=False)
+            for vp_name in vp_names:
+                vp_afscs_df_dict[vp_name].to_excel(writer, sheet_name=vp_name, index=False)
 
 
-def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=False):
+def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=True, printing=False):
     """
     This procedure imports all available information on a particular problem instance
+    :param use_actual: if we want to use the sets of eligible cadets for each of the AFSCs
+    in determining value functions
     :param num_breakpoints: number of breakpoints to use with value functions
     :param filepath: filepath of the problem instance excel aggregate file
     :param printing: if we should print status updates or not
@@ -485,6 +539,15 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=Fals
     cadets_fixed, afscs_fixed = import_fixed_cadet_afsc_data_from_excel(filepath)
     parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
     parameters = model_fixed_parameters_set_additions(parameters)
+
+    # Try to import GP parameter dataframe (may not exist)
+    try:
+
+        # Goal Programming parameter dataframe
+        gp_df = import_data(filepath, sheet_name="GP Parameters")
+
+    except:
+        gp_df = None
 
     # Try to import solution information (may not exist)
     try:
@@ -581,7 +644,6 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=Fals
                                     actual = np.mean(parameters['usafa'][cadets])
 
                             if objective == 'Combined Quota':
-
                                 # Get bounds
                                 split_str = value_parameters["objective_value_min"][j, k].split(',')
 
@@ -618,9 +680,6 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=Fals
 
     else:
         metrics_dict = None
-
-    # Try to import gp df (may not exist)
-    gp_df = None
 
     # return instance data
     return parameters, vp_dict, solution_dict, metrics_dict, gp_df

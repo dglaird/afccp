@@ -13,13 +13,5 @@ os.chdir(dir_path)
 from afccp.core.problem_class import CadetCareerProblem
 
 instance = CadetCareerProblem('C', printing=True)
-print(instance.vp_dict.keys())
 instance.set_instance_value_parameters()
-print('before', instance.value_parameters['objective_weight'][11, :])
-instance.value_parameters['objective_weight'][11, 0] += 0.02
-instance.value_parameters['objective_weight'][11, 2] -= 0.02
-print('after', instance.value_parameters['objective_weight'][11, :])
-print(instance.vp_name)
-instance.save_new_value_parameters_to_dict()
-print(instance.vp_dict.keys())
-print(instance.vp_name)
+instance.vft_to_gp_parameters(get_new_rewards_penalties=True)
