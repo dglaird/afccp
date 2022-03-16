@@ -1598,16 +1598,23 @@ class CadetCareerProblem:
             metrics = None
 
         if afsc_rotation is None:
-            if self.data_type == "Real":
+            if self.data_variant == "Year":
                 afsc_rotation = 45
             else:
                 afsc_rotation = 0
 
         if skip_afscs is None:
-            if self.data_type == "Real":
+            if self.data_variant == "Year":
                 skip_afscs = False
             else:
                 skip_afscs = True
+
+        if self.data_variant == 'Year' and afsc_tick_size == 30:
+            if self.parameters['M'] > 33:
+                afsc_tick_size = 20
+                afsc_rotation = 60
+            else:
+                afsc_tick_size = 25
 
         if thesis_chart:
             if figsize == (19, 7):

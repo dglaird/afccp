@@ -6,7 +6,7 @@ dir_path = os.getcwd() + '/'
 # Import main problem class
 from afccp.core.problem_class import CadetCareerProblem
 
-instance = CadetCareerProblem('Realistic', printing=True)
-instance.import_default_value_parameters(no_constraints=True)
-instance.solve_vft_pyomo_model(max_time=10)
-instance.export_to_excel()
+instance = CadetCareerProblem('C', printing=True)
+instance.set_instance_value_parameters()
+instance.set_instance_solution()
+instance.display_results_graph(graph='USAFA Proportion')
