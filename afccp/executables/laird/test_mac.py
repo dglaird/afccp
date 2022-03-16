@@ -13,8 +13,13 @@ os.chdir(dir_path)
 from afccp.core.problem_class import CadetCareerProblem
 
 instance = CadetCareerProblem('C', printing=True)
+print(instance.vp_dict.keys())
 instance.set_instance_value_parameters()
-instance.set_instance_solution()
-print(instance.solution_dict.keys())
-instance.solve_gp_pyomo_model(max_time=20)
-instance.export_to_excel()
+print('before', instance.value_parameters['objective_weight'][11, :])
+instance.value_parameters['objective_weight'][11, 0] += 0.02
+instance.value_parameters['objective_weight'][11, 2] -= 0.02
+print('after', instance.value_parameters['objective_weight'][11, :])
+print(instance.vp_name)
+instance.save_new_value_parameters_to_dict()
+print(instance.vp_dict.keys())
+print(instance.vp_name)

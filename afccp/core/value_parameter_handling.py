@@ -514,10 +514,10 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
         elif key in ['afsc_value_min', 'cadet_value_min', 'objective_value_min', 'value_functions', 'objective_target',
                      'objective_weight', 'afsc_weight', 'cadet_weight', 'I^C', 'J^C', 'value_functions']:
             vp_1_arr, vp_2_arr = np.ravel(vp1[key]), np.ravel(vp2[key])
-            if np.all(vp_1_arr != vp_2_arr) and (vp1[key] != [] or vp2[key] != []):
+            diff_arr = np.array([vp_1_arr[i] != vp_2_arr[i] for i in range(len(vp_1_arr))])
+            if sum(diff_arr) != 0 and (vp1[key] != [] or vp2[key] != []):
                 if printing:
                     print('VPs not the same. ' + key + ' is different.')
-                    print(vp1[key], vp2[key])
                 identical = False
                 break
 
