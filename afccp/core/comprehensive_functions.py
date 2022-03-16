@@ -280,6 +280,21 @@ def plot_value_function(afsc, objective, parameters, value_parameters, title=Non
     return chart
 
 
+# Goal Programming Model Functions
+def calculate_rewards_penalties(parameters, value_parameters, gp_df=None):
+    """
+    This function takes a set of parameters and a set of value parameters and then returns the normalized
+    penalties and rewards specific to this instance that are used in Rebecca's goal programming (GP) model
+    :param parameters: "fixed" cadet/AFSC data
+    :param value_parameters: weight and value parameters
+    :return: gp norm penalties, gp norm rewards
+    """
+
+    # Translate parameters to GP parameters
+    gp = translate_vft_to_gp_parameters(parameters, value_parameters)
+    return None, None
+
+
 # Export instance data functions
 def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, printing=False):
     """
@@ -471,7 +486,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=Fals
     parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
     parameters = model_fixed_parameters_set_additions(parameters)
 
-    # Try to import aggregate information (may not exist)
+    # Try to import solution information (may not exist)
     try:
 
         # Solution dictionary
@@ -482,6 +497,12 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=Fals
             afsc_solution = np.array(solutions_df[solution_name])
             solution = np.array([np.where(parameters['afsc_vector'] == afsc)[0][0] for afsc in afsc_solution])
             solution_dict[solution_name] = solution
+
+    except:
+        solution_dict = None
+
+    # Try to import value parameter information (may not exist)
+    try:
 
         # Value Parameter Dictionary
         overall_weights = import_data(filepath, sheet_name="VP Overall")
@@ -580,6 +601,12 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=Fals
             vp_dict[vp_name]['vp_weight'] = vp_weights[v]
             vp_dict[vp_name]['vp_local_weight'] = vp_weights[v] / sum(vp_weights)
 
+    except:
+        vp_dict = None
+
+    # Create metrics dictionary if we have solutions and value parameters
+    if solution_dict is not None and vp_dict is not None:
+
         # Metrics Dictionary
         metrics_dict = {}
         for vp_name in vp_names:
@@ -589,8 +616,11 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, printing=Fals
                 value_parameters = copy.deepcopy(vp_dict[vp_name])
                 metrics_dict[vp_name][solution_name] = measure_solution_quality(solution, parameters, value_parameters)
 
-        return parameters, solution_dict, vp_dict, metrics_dict
-    except:
-        return parameters, None, None, None
+    else:
+        metrics_dict = None
 
+    # Try to import gp df (may not exist)
+    gp_df = None
 
+    # return instance data
+    return parameters, vp_dict, solution_dict, metrics_dict, gp_df

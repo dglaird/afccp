@@ -639,7 +639,7 @@ def solve_pyomo_model(model, solver_name, executable=None, provide_executable=Fa
     return model
 
 
-def gp_model_build(gp, printing=False):
+def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
     """
     This is Rebecca's model. We've incorporated her parameters and are building that model
     :param gp: goal programming model parameters
@@ -665,7 +665,7 @@ def gp_model_build(gp, printing=False):
     m.alpha = Var(((con, a) for con in gp['con'] for a in gp['A^'][con]), within=Binary)
 
     # ______________FORMULATION______________
-    def objective_function(m):
+    def main_objective_function(m):
         return np.sum(  # Sum across each constraint
             np.sum(  # Sum across each AFSC with that constraint
 
@@ -677,9 +677,20 @@ def gp_model_build(gp, printing=False):
                 # Calculate utility that the cadet received  (for each preferred AFSC for each constraint)
                 gp['utility'][c, a] * m.x[c, a] for a in gp['A^']['W^E'][c]) for c in gp['C'])
 
-    # Define model objective function
-    m.objective = Objective(rule=objective_function, sense=maximize)
+    def penalty_objective_function(m):
+        return np.sum(m.Y[con_term, a] for a in gp['A^'][con_term])
 
+    def reward_objective_function(m):
+        return np.sum(m.Z[con_term, a] for a in gp['A^'][con_term])
+
+    # Define model objective function
+    if con_term is not None:
+        if get_reward:
+            m.objective = Objective(rule=reward_objective_function, sense=maximize)
+        else:
+            m.objective = Objective(rule=penalty_objective_function, sense=maximize)
+    else:
+        m.objective = Objective(rule=main_objective_function, sense=maximize)
     # Each Cadet gets one AFSC for which they're eligible
     m.one_afsc_constraints = ConstraintList()
     for c in gp['C']:
@@ -745,7 +756,7 @@ def gp_model_build(gp, printing=False):
 
 
 def gp_model_solve(model, gp, solver_name="gurobi", executable=None, provide_executable=False, max_time=None,
-                   printing=False):
+                   con_term=None, get_reward=False, printing=False):
     """
     This procedure solves Rebecca's model.
     :param gp: goal programming model parameters
@@ -763,6 +774,10 @@ def gp_model_solve(model, gp, solver_name="gurobi", executable=None, provide_exe
     # Solve the model
     model = solve_pyomo_model(model, solver_name, executable=executable, provide_executable=provide_executable,
                               max_time=max_time)
+
+    if con_term is not None:
+        gp_var = model.objective()
+        return gp_var
 
     # Get solution
     N, M = len(gp['C']), len(gp['A'])

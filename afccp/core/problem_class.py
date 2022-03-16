@@ -124,6 +124,7 @@ class CadetCareerProblem:
             self.year = None
             self.solution = None
             self.gp_parameters = None
+            self.gp_df = None
             self.solution_dict = None
             self.metrics_dict = None
             self.solution_name = None
@@ -168,8 +169,8 @@ class CadetCareerProblem:
                 else:
                     filepath = self.instance_files[0]
 
-                self.parameters, self.solution_dict, self.vp_dict, self.metrics_dict = import_aggregate_instance_file(
-                    filepath, num_breakpoints=num_breakpoints)
+                self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df = \
+                    import_aggregate_instance_file(filepath, num_breakpoints=num_breakpoints)
 
             if printing:
                 if generate:
@@ -645,17 +646,17 @@ class CadetCareerProblem:
                 self.value_parameters['afsc_weight'] = swing_weights / sum(swing_weights)
 
     # Translate Parameters
-    def vft_to_gp_parameters(self, gp_df_dict=None, printing=None):
+    def vft_to_gp_parameters(self, gp_df=None, printing=None):
         """
         Converts the instance parameters and value parameters to parameters used by Rebecca's model
-        :param gp_df_dict: dictionary of dataframes used by Rebecca's model
+        :param gp_df: dataframe used by Rebecca's model
         :param printing: Whether we should print status updates or not
         """
 
         if printing is None:
             printing = self.printing
 
-        self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, gp_df_dict,
+        self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, gp_df,
                                                             printing=printing)
 
     # Observe Value Parameters
@@ -1174,8 +1175,8 @@ class CadetCareerProblem:
             self.add_solution_to_dictionary(solution, solution_method="AFPC")
 
     def solve_gp_pyomo_model(self, gp_df_dict=None, max_time=None, solver_name='cbc', add_to_dict=True,
-                             set_to_instance=True, executable=None, provide_executable=False,
-                             printing=None):
+                             set_to_instance=True, executable=None, provide_executable=False, con_term=None,
+                             get_reward=False, printing=None):
         """
         Solve the Goal Programming Model (Created by Lt. Reynolds)
         :param executable: optional path to solver
@@ -1195,23 +1196,27 @@ class CadetCareerProblem:
         if self.gp_parameters is None:
             self.vft_to_gp_parameters(gp_df_dict=gp_df_dict)
 
-        r_model = gp_model_build(self.gp_parameters, printing=printing)
-        solution, self.x = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solver_name,
-                                          executable=executable, provide_executable=provide_executable,
-                                          printing=printing)
+        r_model = gp_model_build(self.gp_parameters, con_term=con_term, get_reward=get_reward, printing=printing)
+        gp_var = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solver_name,
+                                con_term=con_term, executable=executable, provide_executable=provide_executable,
+                                printing=printing)
+        if con_term is None:
+            solution, self.x = gp_var
 
-        # Set the solution attribute
-        if set_to_instance:
-            self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
+            # Set the solution attribute
+            if set_to_instance:
+                self.solution = solution
+                self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                        printing=printing)
 
-        # Add solution to solution dictionary
-        if add_to_dict:
-            solution_method = "GP"
-            self.add_solution_to_dictionary(solution, solution_method=solution_method)
+            # Add solution to solution dictionary
+            if add_to_dict:
+                solution_method = "GP"
+                self.add_solution_to_dictionary(solution, solution_method=solution_method)
 
-        return solution
+            return solution
+        else:
+            return gp_var
 
     def full_vft_model_solve(self, ga_max_time=60 * 10, pyomo_max_time=10, add_to_dict=True, return_z=True,
                              executable=None, provide_executable=False, printing=None, ga_printing=False):

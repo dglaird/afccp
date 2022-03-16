@@ -6,7 +6,9 @@ dir_path = os.getcwd() + '/'
 # Import main problem class
 from afccp.core.problem_class import CadetCareerProblem
 
-instance = CadetCareerProblem('C', printing=True)
+instance = CadetCareerProblem('2020', printing=True)
 instance.set_instance_value_parameters()
-instance.set_instance_solution()
-instance.display_results_graph(graph='USAFA Proportion')
+gp_var = instance.solve_gp_pyomo_model(con_term='T', max_time=60*4)
+print(gp_var)
+# instance.set_instance_solution()
+# instance.display_results_graph(graph='USAFA Proportion')

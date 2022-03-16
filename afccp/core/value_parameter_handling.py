@@ -857,11 +857,11 @@ def condense_value_functions(parameters, value_parameters):
 
 
 # Rebecca's Model Parameter Translation
-def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None, printing=False):
+def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, printing=False):
     """
     This function translates the VFT parameters to Rebecca's model's parameters
     :param printing: Whether or not to print a status update
-    :param gp_df_dict: dictionary of dataframes used in Rebecca's model
+    :param gp_df: dataframe of parameters used in Rebecca's model
     :param parameters: fixed cadet/AFSC parameters
     :param value_parameters: weight and value parameters
     :return: gp_parameters
@@ -869,13 +869,9 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
     if printing:
         print('Translating VFT model parameters to Goal Programming Model parameters...')
 
-    if gp_df_dict is None:
+    if gp_df is None:
         filepath = paths['support'] + 'GP_Parameters.xlsx'
-        # gp_df_dict = {'weights_scaling': import_data(filepath=filepath, sheet_name='Weights and Scaling'),
-        #               'indv_overclass': import_data(filepath=filepath, sheet_name='Individual Overclass'),
-        #               'addl_overclass': import_data(filepath=filepath, sheet_name='Additional Overclass'),
-        #               'indv_targets': import_data(filepath=filepath, sheet_name='Individual Targets')}
-        gp_df_dict = {'weights_scaling': import_data(filepath=filepath, sheet_name='Weights and Scaling')}
+        gp_df = import_data(filepath=filepath, sheet_name='Weights and Scaling')
 
     # Shorthand
     p = parameters
@@ -974,15 +970,14 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df_dict=None
                    'W': np.repeat(0.5, p['M'])}  # Cadet preference lower bound
 
     # Other parameters
-    gp['utility'] = p['utility']  # utility matrix
+    gp['utility'] = p['utility']  # utility matrix (replaced "w" since "w" was already a parameter in her model)
     gp['Big_M'] = 2000  # sufficiently large number
     gp['u_limit'] = 0.05  # limit on number of USAFA cadets for certain AFSCs
     gp['merit'] = p['merit']  # cadet percentiles
 
     # Penalty and Reward parameters
-    weights_scaling = gp_df_dict['weights_scaling']
     columns = ['Normalized Penalty', 'Normalized Reward', 'Run Penalty', 'Run Reward']
-    column_dict = {column: np.array(weights_scaling[column]) for column in columns}
+    column_dict = {column: np.array(gp_df[column]) for column in columns}
 
     # actual reward parameters
     reward = column_dict['Normalized Reward'] * column_dict['Run Reward']
