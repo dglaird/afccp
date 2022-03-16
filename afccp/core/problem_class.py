@@ -1104,22 +1104,22 @@ class CadetCareerProblem:
             if report:
                 if timing:
                     solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = vft_model_solve(
-                        model, self.parameters, self.value_parameters, solve_name=solver_name, approximate=approximate,
+                        model, self.parameters, self.value_parameters, solver_name=solver_name, approximate=approximate,
                         max_time=max_time, report=True, timing=True, executable=executable,
                         provide_executable=provide_executable, printing=printing)
                 else:
                     solution, self.x, self.measure, self.value, self.pyomo_z = vft_model_solve(
-                        model, self.parameters, self.value_parameters, solve_name=solver_name, approximate=approximate,
+                        model, self.parameters, self.value_parameters, solver_name=solver_name, approximate=approximate,
                         max_time=max_time, report=True, executable=executable,
                         provide_executable=provide_executable, printing=printing)
             else:
                 if timing:
                     solution, solve_time = vft_model_solve(model, self.parameters, self.value_parameters,
-                                                           solve_name=solver_name, approximate=approximate,
+                                                           solver_name=solver_name, approximate=approximate,
                                                            max_time=max_time, timing=True, executable=executable,
                                                            provide_executable=provide_executable, printing=printing)
                 else:
-                    solution = vft_model_solve(model, self.parameters, self.value_parameters, solve_name=solver_name,
+                    solution = vft_model_solve(model, self.parameters, self.value_parameters, solver_name=solver_name,
                                                approximate=approximate, max_time=max_time, executable=executable,
                                                provide_executable=provide_executable, printing=printing)
         else:
@@ -1173,7 +1173,7 @@ class CadetCareerProblem:
         if add_to_dict:
             self.add_solution_to_dictionary(solution, solution_method="AFPC")
 
-    def solve_gp_pyomo_model(self, gp_df_dict=None, max_time=None, solve_name='cbc', add_to_dict=True,
+    def solve_gp_pyomo_model(self, gp_df_dict=None, max_time=None, solver_name='cbc', add_to_dict=True,
                              set_to_instance=True, executable=None, provide_executable=False,
                              printing=None):
         """
@@ -1184,7 +1184,7 @@ class CadetCareerProblem:
         :param add_to_dict: if we want to add this solution to the solution dictionary
         :param gp_df_dict: dictionary of dataframes used for parameters
         :param max_time: max solve time for the model
-        :param solve_name: name of the solver
+        :param solver_name: name of the solver
         :param printing: Whether the procedure should print something
         :return: solution
         """
@@ -1196,7 +1196,7 @@ class CadetCareerProblem:
             self.vft_to_gp_parameters(gp_df_dict=gp_df_dict)
 
         r_model = gp_model_build(self.gp_parameters, printing=printing)
-        solution, self.x = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solve_name,
+        solution, self.x = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solver_name,
                                           executable=executable, provide_executable=provide_executable,
                                           printing=printing)
 

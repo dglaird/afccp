@@ -184,7 +184,7 @@ def solve_original_pyomo_model(data, model, model_name='Original Model', solver_
     instance = model.create_instance(data)
 
     if printing:
-        print('Solving ' + model_name + ' instance with solver ' + solve_name + '...')
+        print('Solving ' + model_name + ' instance with solver ' + solver_name + '...')
 
     instance = solve_pyomo_model(instance, solver_name, executable, provide_executable)
     solution = np.zeros(instance.N.value)
@@ -470,7 +470,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
     return m
 
 
-def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", approximate=True, report=False,
+def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", approximate=True, report=False,
                     max_time=None, executable=None, provide_executable=False, timing=False, printing=False):
     """
     Solve VFT Model
@@ -483,7 +483,7 @@ def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", appro
     :param report: if we want to grab all the information to sanity check the solution
     :param parameters: fixed parameters
     :param model: pyomo model
-    :param solve_name: name of solver
+    :param solver_name: name of solver
     :param printing: if we should print something
     :return: solution
     """
@@ -494,14 +494,14 @@ def vft_model_solve(model, parameters, value_parameters, solve_name="cbc", appro
             model_str = 'Approximate'
         else:
             model_str = 'Exact'
-        print('Solving ' + model_str + ' VFT Model instance with solver ' + solve_name + '...')
+        print('Solving ' + model_str + ' VFT Model instance with solver ' + solver_name + '...')
 
     # Start Time
     if timing:
         start_time = time.perf_counter()
 
     # Solve the model
-    model = solve_pyomo_model(model, solve_name, executable=executable, provide_executable=provide_executable,
+    model = solve_pyomo_model(model, solver_name, executable=executable, provide_executable=provide_executable,
                               max_time=max_time)
 
     # Stop Time
@@ -631,7 +631,7 @@ def solve_pyomo_model(model, solver_name, executable=None, provide_executable=Fa
         else:
             solver.solve(model)
     else:
-        if solve_name == 'mindtpy':
+        if solver_name == 'mindtpy':
             solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
         else:
             solver.solve(model)
