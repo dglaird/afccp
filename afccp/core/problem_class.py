@@ -648,9 +648,13 @@ class CadetCareerProblem:
                 self.value_parameters['afsc_weight'] = swing_weights / sum(swing_weights)
 
     # Translate Parameters
-    def vft_to_gp_parameters(self, use_gp_df=True, get_new_rewards_penalties=False, printing=None):
+    def vft_to_gp_parameters(self, use_gp_df=True, get_new_rewards_penalties=False, solver_name='cbc', executable=None,
+                             provide_executable=False, printing=None):
         """
         Converts the instance parameters and value parameters to parameters used by Rebecca's model
+        :param solver_name: name of solver
+        :param executable: path of the solver
+        :param provide_executable: if we want to provide an executable directly
         :param use_gp_df: if we want to use the dataframe of normalized rewards and penalties
         :param get_new_rewards_penalties: if we want to create a new gp df or just import the pre-determined one
         :param printing: Whether we should print status updates or not
@@ -662,7 +666,8 @@ class CadetCareerProblem:
         if use_gp_df and get_new_rewards_penalties:
             self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, self.gp_df,
                                                                 use_gp_df)
-            rewards, penalties = calculate_rewards_penalties(self.gp_parameters, printing=printing)
+            rewards, penalties = calculate_rewards_penalties(self.gp_parameters, solver_name, executable,
+                                                             provide_executable, printing)
             if self.gp_df is None:
                 con_list = copy.deepcopy(self.gp_parameters['con'])
                 con_list.append('S')
