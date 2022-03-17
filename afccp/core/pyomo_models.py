@@ -681,7 +681,10 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
         return np.sum(m.Y[con_term, a] for a in gp['A^'][con_term])
 
     def reward_objective_function(m):
-        return np.sum(m.Z[con_term, a] for a in gp['A^'][con_term])
+        if con_term == 'S':
+            return np.sum(np.sum(gp['utility'][c, a] * m.x[c, a] for a in gp['A^']['W^E'][c]) for c in gp['C'])
+        else:
+            return np.sum(m.Z[con_term, a] for a in gp['A^'][con_term])
 
     # Define model objective function
     if con_term is not None:

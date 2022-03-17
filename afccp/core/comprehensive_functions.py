@@ -328,16 +328,16 @@ def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_
 
     # S reward term
     def objective_function(m):
-        return np.sum(m.Z['S', a] for a in gp['A^']['S'])
+        return np.sum(np.sum(gp['utility'][c, a] * m.x[c, a] for a in gp['A^']['W^E'][c]) for c in gp['C'])
 
     if printing:
         print('')
         print('Obtaining reward for constraint S...')
     r_model.objective = Objective(rule=objective_function, sense=maximize)
-    rewards[num_constraints] = gp_model_solve(r_model, gp, max_time=60 * 4, con_term='S', solver_name=solver_name,
-                                              executable=executable, provide_executable=provide_executable)
+    rewards[num_constraints - 1] = gp_model_solve(r_model, gp, max_time=60 * 4, con_term='S', solver_name=solver_name,
+                                                  executable=executable, provide_executable=provide_executable)
     if printing:
-        print('Reward:', rewards[num_constraints])
+        print('Reward:', rewards[num_constraints - 1])
 
     return rewards, penalties
 
@@ -474,8 +474,8 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
         num_rows = num_solutions * num_metrics
 
         # Initialize columns
-        column_dict = {'Solution': np.array([" " * 20 for _ in range(num_rows)]),
-                       'Metric': np.array([" " * 20 for _ in range(num_rows)])}
+        column_dict = {'Solution': np.array([" " * 25 for _ in range(num_rows)]),
+                       'Metric': np.array([" " * 25 for _ in range(num_rows)])}
         for vp_name in vp_names:
             column_dict[vp_name] = np.zeros(num_rows)
         for column_name in ['Avg.', 'WgtAvg.']:

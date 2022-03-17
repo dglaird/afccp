@@ -413,9 +413,9 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
             soc_counts[j] = 1
 
         for k in vp['K^C'][j]:
-            if vp['objective_constraint_type'][j, k] == 1 or vp['objective_constraint_type'][j, k] == 2:
+            if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
                 objective_min[j, k] = float(value_parameters['objective_value_min'][j, k])
-            elif vp['objective_constraint_type'][j, k] == 3 or vp['objective_constraint_type'][j, k] == 4:
+            elif vp['constraint_type'][j, k] == 3 or vp['constraint_type'][j, k] == 4:
                 value_list = value_parameters['objective_value_min'][j, k].split(",")
                 objective_min[j, k] = float(value_list[0].strip())
                 objective_max[j, k] = float(value_list[1].strip())

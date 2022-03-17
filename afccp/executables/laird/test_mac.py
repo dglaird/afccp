@@ -16,4 +16,3 @@ instance = CadetCareerProblem('C', printing=True)
 instance.set_instance_value_parameters()
 instance.vft_to_gp_parameters(get_new_rewards_penalties=True)
 
-print('hello')

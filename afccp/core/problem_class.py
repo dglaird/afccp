@@ -668,14 +668,32 @@ class CadetCareerProblem:
                                                                 use_gp_df)
             rewards, penalties = calculate_rewards_penalties(self.gp_parameters, solver_name, executable,
                                                              provide_executable, printing)
+            con_list = copy.deepcopy(self.gp_parameters['con'])
+            con_list.append('S')
+            num_constraints = len(con_list)  # should be 12
+            norm_penalties = np.zeros(num_constraints)
+            norm_rewards = np.zeros(num_constraints)
             if self.gp_df is None:
-                con_list = copy.deepcopy(self.gp_parameters['con'])
-                con_list.append('S')
-                self.gp_df = pd.DataFrame({'Constraint': con_list, 'Normalized Penalty': penalties,
-                                           'Normalized Reward': rewards, 'Run Penalty': np.ones(len(rewards)),
-                                           'Run Reward': np.ones(len(rewards))})
+                penalty_weight = [100, 100, 90, 30, 30, 25, 50, 50, 50, 50, 25, 0]
+                reward_weight = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100]
             else:
-                self.gp_df['Normalized Reward'], self.gp_df['Normalized Penalty'] = rewards, penalties
+                penalty_weight = np.array(self.gp_df['Penalty Weight'])
+                reward_weight = np.array(self.gp_df['Reward Weight'])
+            run_penalties = np.zeros(num_constraints)
+            run_rewards = np.zeros(num_constraints)
+            min_penalty = min([penalty for penalty in penalties if penalty != 0])
+            min_reward = min(rewards)
+            for c, con in enumerate(con_list):
+                norm_penalties[c] = min_penalty / penalties[c]
+                norm_rewards[c] = min_reward / rewards[c]
+                run_penalties[c] = penalty_weight[c] / norm_penalties[c]
+                run_rewards[c] = reward_weight[c] / norm_rewards[c]
+
+            self.gp_df = pd.DataFrame({'Constraint': con_list, 'Raw Penalty': penalties, 'Raw Reward': rewards,
+                                       'Normalized Penalty': norm_penalties,
+                                       'Normalized Reward': norm_rewards, 'Penalty Weight': penalty_weight,
+                                       'Reward Weight': reward_weight, 'Run Penalty': np.ones(num_constraints),
+                                       'Run Reward': np.ones(num_constraints)})
 
         self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, self.gp_df,
                                                             use_gp_df, printing=printing)
