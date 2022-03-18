@@ -202,18 +202,18 @@ def piecewise_sanity_check(a=None, f_a=None, x=None, graph=True, printing=True):
             chart.show()
 
 
-def value_function_points(F_bp, F_v):
+def value_function_points(a, fhat):
     """
     Takes the linear function parameters and returns the approximately non-linear coordinates
-    :param F_bp: function breakpoints
-    :param F_v: function breakpoint values
+    :param a: function breakpoints
+    :param fhat: function breakpoint values
     :return: x, y
     """
-    x = (np.arange(1001) / 1000) * F_bp[len(F_bp) - 1]
+    x = (np.arange(1001) / 1000) * a[len(a) - 1]
     y = []
-    r = len(F_bp)
+    r = len(a)
     for x_i in x:
-        val = value_function(F_bp, F_v, r, x_i)
+        val = value_function(a, fhat, r, x_i)
         y.append(val)
     return x, y
 
@@ -273,9 +273,9 @@ def plot_value_function(afsc, objective, parameters, value_parameters, title=Non
     if printing:
         print('Creating value function chart for objective ' + objective + ' for AFSC ' + afsc + '...')
 
-    F_bp = value_parameters['F_bp'][j][k]
-    F_v = value_parameters['F_v'][j][k]
-    x, y = value_function_points(F_bp, F_v)
+    a = value_parameters['a'][j][k]
+    fhat = value_parameters['f^hat'][j][k]
+    x, y = value_function_points(a, fhat)
     chart = value_function_graph(x, y, title=title, label_size=label_size, yaxis_tick_size=yaxis_tick_size,
                                  xaxis_tick_size=xaxis_tick_size, figsize=figsize, facecolor=facecolor,
                                  display_title=display_title, save=save, x_label=x_label)
@@ -297,7 +297,7 @@ def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_
     num_constraints = len(gp['con']) + 1
     rewards = np.zeros(num_constraints)
     penalties = np.zeros(num_constraints)
-    r_model = gp_model_build(gp, con_term=gp['con'][0], get_reward=True)
+    model = gp_model_build(gp, con_term=gp['con'][0], get_reward=True)
     for c, con in enumerate(gp['con']):
 
         # Get reward term
@@ -307,8 +307,8 @@ def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_
         if printing:
             print('')
             print('Obtaining reward for constraint ' + con + '...')
-        r_model.objective = Objective(rule=objective_function, sense=maximize)
-        rewards[c] = gp_model_solve(r_model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name,
+        model.objective = Objective(rule=objective_function, sense=maximize)
+        rewards[c] = gp_model_solve(model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name,
                                     executable=executable, provide_executable=provide_executable)
         if printing:
             print('Reward:', rewards[c])
@@ -320,8 +320,8 @@ def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_
         if printing:
             print('')
             print('Obtaining penalty for constraint ' + con + '...')
-        r_model.objective = Objective(rule=objective_function, sense=maximize)
-        penalties[c] = gp_model_solve(r_model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name,
+        model.objective = Objective(rule=objective_function, sense=maximize)
+        penalties[c] = gp_model_solve(model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name,
                                       executable=executable, provide_executable=provide_executable)
         if printing:
             print('Penalty:', penalties[c])
@@ -333,8 +333,8 @@ def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_
     if printing:
         print('')
         print('Obtaining reward for constraint S...')
-    r_model.objective = Objective(rule=objective_function, sense=maximize)
-    rewards[num_constraints - 1] = gp_model_solve(r_model, gp, max_time=60 * 4, con_term='S', solver_name=solver_name,
+    model.objective = Objective(rule=objective_function, sense=maximize)
+    rewards[num_constraints - 1] = gp_model_solve(model, gp, max_time=60 * 4, con_term='S', solver_name=solver_name,
                                                   executable=executable, provide_executable=provide_executable)
     if printing:
         print('Reward:', rewards[num_constraints - 1])
@@ -596,8 +596,8 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                                 "afsc_value_min": np.zeros(M), 'cadet_value_min': np.zeros(parameters['N']),
                                 "objective_value_min": np.array([[" " * 20 for _ in range(O)] for _ in range(M)]),
                                 "value_functions": np.array([[" " * 200 for _ in range(O)] for _ in range(M)]),
-                                "constraint_type": np.zeros([M, O]), "F_bp": [[[] for _ in range(O)] for _ in range(M)],
-                                "objective_target": np.zeros([M, O]), "F_v": [[[] for _ in range(O)] for _ in range(M)],
+                                "constraint_type": np.zeros([M, O]), 'a': [[[] for _ in range(O)] for _ in range(M)],
+                                "objective_target": np.zeros([M, O]), 'f^hat': [[[] for _ in range(O)] for _ in range(M)],
                                 "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
                                 'objectives': np.array(afsc_weights.loc[:int(len(afsc_weights) / M - 1), 'Objective'])}
 
@@ -630,10 +630,10 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                     if num_breakpoints is None:
                         string = afsc_weights.loc[j * O + k, 'Function Breakpoints']
                         if type(string) == str:
-                            value_parameters['F_bp'][j][k] = [float(x) for x in string.split(",")]
+                            value_parameters['a'][j][k] = [float(x) for x in string.split(",")]
                         string = afsc_weights.loc[j * O + k, 'Function Breakpoint Values']
                         if type(string) == str:
-                            value_parameters['F_v'][j][k] = [float(x) for x in string.split(",")]
+                            value_parameters['f^hat'][j][k] = [float(x) for x in string.split(",")]
 
                     # We recreate the functions from the vf strings
                     else:
@@ -658,7 +658,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
 
                             segment_dict = create_segment_dict_from_string(vf_string, target, actual=actual,
                                                                            maximum=maximum)
-                            value_parameters['F_bp'][j][k], value_parameters['F_v'][j][k] = value_function_builder(
+                            value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                                 segment_dict, num_breakpoints=num_breakpoints)
 
             # Load value_parameter dictionary

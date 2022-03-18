@@ -253,7 +253,7 @@ def genetic_algorithm(parameters, value_parameters, pop_size=6, stopping_time=60
                         measure[k] = len(np.intersect1d(p['I^D'][objective][j], cadets)) / count
 
                     # Assign AFSC objective value
-                    value[k] = value_function(vp['F_bp'][j][k], vp['F_v'][j][k], vp['r'][j][k], measure[k])
+                    value[k] = value_function(vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k], measure[k])
 
                     # AFSC Objective Constraints
                     if k in vp['K^C'][j]:

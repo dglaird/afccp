@@ -39,8 +39,8 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
                         "afsc_value_min": np.zeros(M),
                         "objective_value_min": np.array([[" " * 20 for _ in range(O)] for _ in range(M)]),
                         "value_functions": np.array([[" " * 200 for _ in range(O)] for _ in range(M)]),
-                        "constraint_type": np.zeros([M, O]), "F_bp": [[[] for _ in range(O)] for _ in range(M)],
-                        "objective_target": np.zeros([M, O]), "F_v": [[[] for _ in range(O)] for _ in range(M)],
+                        "constraint_type": np.zeros([M, O]), 'a': [[[] for _ in range(O)] for _ in range(M)],
+                        "objective_target": np.zeros([M, O]), 'f^hat': [[[] for _ in range(O)] for _ in range(M)],
                         "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
                         'objectives': np.array(afsc_weights.loc[:int(len(afsc_weights) / M - 1), 'Objective'])}
 
@@ -70,10 +70,10 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
             if num_breakpoints is None or 'Quota_Over' in vf_string:
                 string = afsc_weights.loc[j * O + k, 'Function Breakpoints']
                 if type(string) == str:
-                    value_parameters['F_bp'][j][k] = [float(x) for x in string.split(",")]
+                    value_parameters['a'][j][k] = [float(x) for x in string.split(",")]
                 string = afsc_weights.loc[j * O + k, 'Function Breakpoint Values']
                 if type(string) == str:
-                    value_parameters['F_v'][j][k] = [float(x) for x in string.split(",")]
+                    value_parameters['f^hat'][j][k] = [float(x) for x in string.split(",")]
 
             # We recreate the function from the vf string
             else:
@@ -96,7 +96,7 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
 
                     segment_dict = create_segment_dict_from_string(vf_string, target, actual=actual,
                                                                    maximum=maximum)
-                    value_parameters['F_bp'][j][k], value_parameters['F_v'][j][k] = value_function_builder(
+                    value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                         segment_dict, num_breakpoints=num_breakpoints)
 
     return value_parameters
@@ -111,17 +111,15 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
     """
     N, M = parameters['N'], parameters['M']
     O = len(value_parameters['objectives'])
-    F_bp_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
-    F_v_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
+    a_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
+    fhat_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
     for j, afsc in enumerate(parameters['afsc_vector']):
         for k, objective in enumerate(value_parameters['objectives']):
-            string_list = [str(x) for x in value_parameters['F_bp'][j][k]]
-            F_bp_strings[j, k] = ",".join(string_list)
-            string_list = [str(x) for x in value_parameters['F_v'][j][k]]
-            F_v_strings[j, k] = ",".join(string_list)
+            string_list = [str(x) for x in value_parameters['a'][j][k]]
+            a_strings[j, k] = ",".join(string_list)
+            string_list = [str(x) for x in value_parameters['f^hat'][j][k]]
+            fhat_strings[j, k] = ",".join(string_list)
 
-    F_bps = np.ndarray.flatten(F_bp_strings)
-    F_vs = np.ndarray.flatten(F_v_strings)
     afsc_objective_min_values = np.ndarray.flatten(value_parameters['objective_value_min'])
     afsc_objective_convex_constraints = np.ndarray.flatten(value_parameters['constraint_type'])
     afsc_objective_targets = np.ndarray.flatten(value_parameters['objective_target'])
@@ -141,7 +139,8 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
                                     'Objective Target': afsc_objective_targets, 'AFSC Weight': afsc_weights,
                                     'Min Value': afsc_min_values, 'Min Objective Value': afsc_objective_min_values,
                                     'Constraint Type': afsc_objective_convex_constraints,
-                                    'Function Breakpoints': F_bps, 'Function Breakpoint Values': F_vs,
+                                    'Function Breakpoint Measures (a)': np.ndarray.flatten(a_strings),
+                                    'Function Breakpoint Values (f^hat)': np.ndarray.flatten(fhat_strings),
                                     'Value Functions': afsc_value_functions})
 
     cadet_weights_df = pd.DataFrame({'Cadet': parameters['SS_encrypt'],
@@ -198,7 +197,7 @@ def model_value_parameters_set_additions(value_parameters, printing=False):
     value_parameters['J^C'] = np.where(value_parameters['afsc_value_min'] > 0)[0]
 
     # number of breakpoints
-    value_parameters['r'] = np.array([[len(value_parameters['F_bp'][j][k]) for k in range(O)] for j in range(M)])
+    value_parameters['r'] = np.array([[len(value_parameters['a'][j][k]) for k in range(O)] for j in range(M)])
 
     # set of breakpoints
     value_parameters['L'] = np.array([[np.arange(value_parameters['r'][j, k]) for k in range(O)] for j in range(M)],
@@ -397,8 +396,8 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
             value_parameters['afsc_weight'] = parameters['quota'] / sum(parameters['quota'])
 
     # Initialize breakpoints
-    value_parameters['F_bp'] = [[[] for _ in range(O)] for _ in range(M)]
-    value_parameters['F_v'] = [[[] for _ in range(O)] for _ in range(M)]
+    value_parameters['a'] = [[[] for _ in range(O)] for _ in range(M)]
+    value_parameters['f^hat'] = [[[] for _ in range(O)] for _ in range(M)]
 
     # Load value function strings
     value_functions = default_value_parameters['value_functions'][:, objective_indices]
@@ -473,7 +472,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                                                                maximum, actual=actual)
 
                 # Linearize the non-linear function using the specified number of breakpoints
-                value_parameters['F_bp'][j][k], value_parameters['F_v'][j][k] = value_function_builder(
+                value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                     segment_dict, num_breakpoints=num_breakpoints)
 
         # Scale the weights for this AFSC so they sum to 1
@@ -521,7 +520,7 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
                 identical = False
                 break
 
-        elif key == 'F_bp':  # Check the breakpoints
+        elif key == 'a':  # Check the breakpoints
 
             for j in parameters['J']:
                 for k in vp1['K^A'][j]:
@@ -656,7 +655,7 @@ def value_function_builder(segment_dict=None, num_breakpoints=None, derivative_l
     :param segment_dict: (x1, y1, x2, y2, rho, and optional "r": number of breakpoints per segment)
     :param num_breakpoints: if num_breakpoints is not specified within segment array, we have a
     general number of breakpoints to go off of
-    :return: F_bp, F_v  (breakpoints and values)
+    :return: a, f^hat  (breakpoint measures and values)
     """
     if segment_dict is None:
         segment_dict = {1: {'x1': 0, 'y1': 0, 'x2': 0.2, 'y2': 0.8, 'rho': -0.2, 'r': 10},
@@ -694,21 +693,21 @@ def value_function_builder(segment_dict=None, num_breakpoints=None, derivative_l
     extra = False
     insert = False
     if (num_segments == 4 and segment_dict[2]['x2'] != segment_dict[3]['x1']) or num_segments == 2:
-        F_bp = np.zeros(num_breakpoints + 2)
-        F_v = np.zeros(num_breakpoints + 2)
+        a = np.zeros(num_breakpoints + 2)
+        fhat = np.zeros(num_breakpoints + 2)
         extra = True
     elif num_segments == 1 and segment_dict[1]['x2'] < 1:
-        F_bp = np.zeros(num_breakpoints + 2)
-        F_v = np.zeros(num_breakpoints + 2)
+        a = np.zeros(num_breakpoints + 2)
+        fhat = np.zeros(num_breakpoints + 2)
         add_bp = True
     elif num_segments == 1 and segment_dict[1]['x1'] != 0:
-        F_bp = np.zeros(num_breakpoints + 2)
-        F_v = np.zeros(num_breakpoints + 2)
-        F_v[0] = 1
+        a = np.zeros(num_breakpoints + 2)
+        fhat = np.zeros(num_breakpoints + 2)
+        fhat[0] = 1
         insert = True
     else:
-        F_bp = np.zeros(num_breakpoints + 1)
-        F_v = np.zeros(num_breakpoints + 1)
+        a = np.zeros(num_breakpoints + 1)
+        fhat = np.zeros(num_breakpoints + 1)
 
     # Loop through each exponential segment
     i = 1
@@ -747,31 +746,31 @@ def value_function_builder(segment_dict=None, num_breakpoints=None, derivative_l
 
         # If we need to add extra breakpoints
         if y1 == 1 and extra:
-            F_bp[i] = x1
-            F_v[i] = 1
+            a[i] = x1
+            fhat[i] = 1
             i += 1
 
         if insert:
-            F_bp[1] = x1
-            F_v[1] = 1
-            F_bp[2:2 + r] = x1 + x_arr * abs(y_diff)
-            F_v[2:2 + r] = y2 + vals * abs(y_diff)
+            a[1] = x1
+            fhat[1] = 1
+            a[2:2 + r] = x1 + x_arr * abs(y_diff)
+            fhat[2:2 + r] = y2 + vals * abs(y_diff)
         else:
-            F_bp[i:i + r] = x1 + x_arr * abs(y_diff)
+            a[i:i + r] = x1 + x_arr * abs(y_diff)
             if positive:
-                F_v[i:i + r] = y1 + vals * y_diff
+                fhat[i:i + r] = y1 + vals * y_diff
             else:
-                F_v[i:i + r] = y2 + vals * abs(y_diff)
+                fhat[i:i + r] = y2 + vals * abs(y_diff)
             i += r
 
             if add_bp:
-                F_bp[r + 1] = 1
-                F_v[r + 1] = 1
+                a[r + 1] = 1
+                fhat[r + 1] = 1
 
     # Return breakpoint measures and values used in value function
-    F_bp = np.around(F_bp, 5)
-    F_v = np.around(F_v, 5)
-    return F_bp, F_v
+    a = np.around(a, 5)
+    fhat = np.around(fhat, 5)
+    return a, fhat
 
 
 def exponential_function(x, x_i, x_f, rho, positive):
@@ -838,20 +837,20 @@ def condense_value_functions(parameters, value_parameters):
     """
     for j in parameters['J']:
         for k in value_parameters['K^A'][j]:
-            F_bp = np.array(value_parameters["F_bp"][j][k])
-            F_v = np.array(value_parameters["F_v"][j][k])
+            a = np.array(value_parameters['a'][j][k])
+            fhat = np.array(value_parameters['f^hat'][j][k])
 
             # Find unnecessary zeros
-            zero_indices = np.where(F_v == 0)[0]
-            last_i = len(F_bp) - 1
+            zero_indices = np.where(fhat == 0)[0]
+            last_i = len(a) - 1
             removals = []
             for i in zero_indices:
                 if i + 1 in zero_indices and i + 1 != last_i and i != 0:
                     removals.append(i)
 
             # Remove unnecessary zeros
-            value_parameters["F_bp"][j][k] = np.delete(F_bp, removals)
-            value_parameters["F_v"][j][k] = np.delete(F_v, removals)
+            value_parameters['a'][j][k] = np.delete(a, removals)
+            value_parameters['f^hat'][j][k] = np.delete(fhat, removals)
 
     return value_parameters
 

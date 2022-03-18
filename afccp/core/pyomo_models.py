@@ -222,10 +222,10 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
     pass
 
     # Value Function Parameters
-    r = [[len(vp['F_bp'][j][k]) for k in vp['K']] for j in p['J']]  # number of breakpoints (bps)
+    r = [[len(vp['a'][j][k]) for k in vp['K']] for j in p['J']]  # number of breakpoints (bps)
     L = [[list(range(r[j][k])) for k in vp['K']] for j in p['J']]  # set of bps
-    a = [[[vp['F_bp'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']]  # measures of bps
-    f = [[[vp['F_v'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']]  # values of bps
+    a = [[[vp['a'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']]  # measures of bps
+    f = [[[vp['f^hat'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']]  # values of bps
 
     # Initialize AFSC objective measure constraint ranges
     objective_min_value = np.zeros([p['M'], vp['O']])
@@ -652,7 +652,7 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
     # Create model
     m = ConcreteModel()
 
-    # ______________VARIABLE DEFINITIONS______________
+    # ___________________________________VARIABLE DEFINITIONS_________________________________
     m.x = Var(((c, a) for c in gp['C'] for a in gp['A^']['E'][c]), within=Binary)
 
     # Amount by which the constraint is not met
@@ -664,7 +664,7 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
     # Binary variable indicating if Y is used (1) or if Z is used (0)
     m.alpha = Var(((con, a) for con in gp['con'] for a in gp['A^'][con]), within=Binary)
 
-    # ______________FORMULATION______________
+    # ___________________________________OBJECTIVE FUNCTION___________________________________
     def main_objective_function(m):
         return np.sum(  # Sum across each constraint
             np.sum(  # Sum across each AFSC with that constraint
@@ -687,13 +687,16 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
             return np.sum(m.Z[con_term, a] for a in gp['A^'][con_term])
 
     # Define model objective function
-    if con_term is not None:
+    if con_term is not None:  # Reward/Penalty specific objective function to get raw rewards/penalties
         if get_reward:
             m.objective = Objective(rule=reward_objective_function, sense=maximize)
         else:
             m.objective = Objective(rule=penalty_objective_function, sense=maximize)
-    else:
+    else:  # Regular objective function
         m.objective = Objective(rule=main_objective_function, sense=maximize)
+
+    # ___________________________________CONSTRAINTS______________________________________
+    pass
 
     # Each Cadet gets one AFSC for which they're eligible
     m.one_afsc_constraints = ConstraintList()
@@ -931,10 +934,10 @@ def x_to_solution_initialization(parameters, value_parameters, measures, values,
     K = range(O)  # set of objectives
 
     # Value Function Parameters
-    r = [[len(value_parameters['F_bp'][j][k]) for k in K] for j in J]  # number of breakpoints
+    r = [[len(value_parameters['a'][j][k]) for k in K] for j in J]  # number of breakpoints
     L = [[list(range(r[j][k])) for k in K] for j in J]  # set of breakpoints
-    a = [[[value_parameters['F_bp'][j][k][l] for l in L[j][k]] for k in K] for j in J]  # breakpoints
-    f = [[[value_parameters['F_v'][j][k][l] for l in L[j][k]] for k in K] for j in J]  # values of bps
+    a = [[[value_parameters['a'][j][k][l] for l in L[j][k]] for k in K] for j in J]  # breakpoints
+    f = [[[value_parameters['f^hat'][j][k][l] for l in L[j][k]] for k in K] for j in J]  # values of bps
     r = np.array(r)
     L = np.array(L)
     a = np.array(a)

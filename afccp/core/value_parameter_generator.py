@@ -52,8 +52,8 @@ def value_parameter_realistic_generator(parameters, default_value_parameters, co
     value_parameters = {'objectives': objectives, 'O': O, 'M': M, 'objective_weight': np.zeros([M, O]),
                         'objective_target': np.zeros([M, O]), 'num_breakpoints': num_breakpoints,
                         'value_functions': np.array([[" " * 100 for _ in range(O)] for _ in range(M)]),
-                        'F_bp': [[[] for _ in range(O)] for _ in range(M)],
-                        'F_v': [[[] for _ in range(O)] for _ in range(M)],
+                        'a': [[[] for _ in range(O)] for _ in range(M)],
+                        'f^hat': [[[] for _ in range(O)] for _ in range(M)],
                         'constraint_type': np.zeros([M, O]).astype(int),
                         'objective_value_min': np.array([[" " * 20 for _ in range(O)] for _ in range(M)]),
                         'afsc_value_min': np.zeros(M), 'cadet_value_min': np.zeros(N),
@@ -635,7 +635,7 @@ def value_parameter_realistic_generator(parameters, default_value_parameters, co
                         segment_dict = create_segment_dict_from_string(vf_string, target, actual=actual,
                                                                        maximum=maximum)
                         # print(afsc, objective, segment_dict)
-                        value_parameters['F_bp'][j][k], value_parameters['F_v'][j][k] = value_function_builder(
+                        value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                             segment_dict, num_breakpoints=num_breakpoints)
 
     return value_parameters

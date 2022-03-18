@@ -1258,7 +1258,8 @@ class CadetCareerProblem:
             return gp_var
 
     def full_vft_model_solve(self, ga_max_time=60 * 10, pyomo_max_time=10, add_to_dict=True, return_z=True,
-                             executable=None, provide_executable=False, printing=None, ga_printing=False):
+                             executable=None, provide_executable=False, printing=None, percent_step=10,
+                             ga_printing=False):
         """
         This is the main method to solve the problem instance. We first solve the pyomo Approximate model, and then
         evolve it using the GA
@@ -1269,6 +1270,7 @@ class CadetCareerProblem:
         :param executable: optional path to solver
         :param provide_executable: if we want to directly provide an executable path
         :param printing: Whether the procedure should print something
+        :param percent_step: what percent checkpoints we should display updates for the GA
         :param ga_printing: If we want to print status updates during the genetic algorithm
         :return: solution z
         """
@@ -1287,7 +1289,7 @@ class CadetCareerProblem:
             print('Solving Genetic Algorithm for ' + str(ga_max_time) + ' seconds at ' +
                   now.strftime('%H:%M:%S') + '...')
         self.genetic_algorithm(initialize=True, add_to_dict=False, stopping_time=ga_max_time, printing=ga_printing,
-                               constraints='Fail')
+                               constraints='Fail', percent_step=percent_step)
         if printing:
             print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
 

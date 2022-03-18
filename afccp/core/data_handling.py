@@ -401,8 +401,8 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                     metrics['objective_measure'][j, k] = numerator / num_cadets
 
                 # Get the correct value for this objective
-                metrics['objective_value'][j, k] = value_function(a=vp['F_bp'][j][k],
-                                                                  f_a=vp['F_v'][j][k],
+                metrics['objective_value'][j, k] = value_function(a=vp['a'][j][k],
+                                                                  f_a=vp['f^hat'][j][k],
                                                                   r=vp['r'][j][k],
                                                                   x=metrics['objective_measure'][j, k])
 
@@ -645,7 +645,7 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
                     metrics['objective_measure'][j, k] = len(np.intersect1d(p['I^D'][objective][j], cadets)) / count
 
                 # Calculate AFSC objective value
-                metrics['objective_value'][j, k] = value_function(vp['a'][j][k], vp['f_a'][j][k], vp['r'][j][k],
+                metrics['objective_value'][j, k] = value_function(vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k],
                                                                   metrics['objective_measure'][j, k])
 
                 # AFSC Objective Constraints
