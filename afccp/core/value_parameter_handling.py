@@ -203,6 +203,11 @@ def model_value_parameters_set_additions(value_parameters, printing=False):
     value_parameters['L'] = np.array([[np.arange(value_parameters['r'][j, k]) for k in range(O)] for j in range(M)],
                                      dtype=object)
 
+    # Round weights
+    value_parameters['objective_weight'] = np.around(value_parameters['objective_weight'], 8)
+    value_parameters['afsc_weight'] = np.around(value_parameters['afsc_weight'], 8)
+    value_parameters['cadet_weight'] = np.around(value_parameters['cadet_weight'], 8)
+
     return value_parameters
 
 
@@ -512,7 +517,10 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
 
         elif key in ['afsc_value_min', 'cadet_value_min', 'objective_value_min', 'value_functions', 'objective_target',
                      'objective_weight', 'afsc_weight', 'cadet_weight', 'I^C', 'J^C', 'value_functions']:
-            vp_1_arr, vp_2_arr = np.ravel(vp1[key]), np.ravel(vp2[key])
+            if key not in ['objective_value_min', 'value_functions']:
+                vp_1_arr, vp_2_arr = np.ravel(np.around(vp1[key], 4)), np.ravel(np.around(vp2[key], 4))
+            else:
+                vp_1_arr, vp_2_arr = np.ravel(vp1[key]), np.ravel(vp2[key])
             diff_arr = np.array([vp_1_arr[i] != vp_2_arr[i] for i in range(len(vp_1_arr))])
             if sum(diff_arr) != 0 and (vp1[key] != [] or vp2[key] != []):
                 if printing:
@@ -544,6 +552,9 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
                     break
             if not identical:
                 break
+
+    if identical and printing:
+        print('VPs are the same.')
 
     return identical
 

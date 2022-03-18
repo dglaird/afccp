@@ -626,12 +626,20 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                 # Loop through each objective for this AFSC
                 for k, objective in enumerate(value_parameters['objectives']):
 
+                    # Refactored column names
+                    if 'Function Breakpoints' in list(afsc_weights.keys()):
+                        measure_col_name = 'Function Breakpoints'
+                        value_col_name = 'Function Breakpoint Values'
+                    else:
+                        measure_col_name = 'Function Breakpoint Measures (a)'
+                        value_col_name = 'Function Breakpoint Values (f^hat)'
+
                     # We import the functions directly from the breakpoints
                     if num_breakpoints is None:
-                        string = afsc_weights.loc[j * O + k, 'Function Breakpoints']
+                        string = afsc_weights.loc[j * O + k, measure_col_name]
                         if type(string) == str:
                             value_parameters['a'][j][k] = [float(x) for x in string.split(",")]
-                        string = afsc_weights.loc[j * O + k, 'Function Breakpoint Values']
+                        string = afsc_weights.loc[j * O + k, value_col_name]
                         if type(string) == str:
                             value_parameters['f^hat'][j][k] = [float(x) for x in string.split(",")]
 
@@ -650,6 +658,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                                     actual = np.mean(parameters['usafa'][cadets])
 
                             if objective == 'Combined Quota':
+
                                 # Get bounds
                                 split_str = value_parameters["objective_value_min"][j, k].split(',')
 

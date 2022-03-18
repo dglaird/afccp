@@ -423,7 +423,7 @@ class CadetCareerProblem:
         """
         if self.value_parameters is not None:
             if self.vp_dict is None:
-                print('No value parameter dictionary detected')
+                raise ValueError('No value parameter dictionary detected')
             else:
                 if vp_name is None:
                     vp_name = self.vp_name
@@ -437,10 +437,11 @@ class CadetCareerProblem:
         else:
             raise ValueError('No instance value parameters detected')
 
-    def check_unique_value_parameters(self, value_parameters=None):
+    def check_unique_value_parameters(self, value_parameters=None, printing=False):
         """
         Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the
         the set of parameters is unique, or return the name of the matching set otherwise
+        :param printing: if we want to print out which value parameter sets are different
         :param value_parameters: set of value parameters (presumably the instance attributes)
         """
         if value_parameters is None:
@@ -449,7 +450,8 @@ class CadetCareerProblem:
         # Assume the new set is unique until proven otherwise
         unique = True
         for vp_name in self.vp_dict:
-            identical = compare_value_parameters(self.parameters, value_parameters, self.vp_dict[vp_name])
+            identical = compare_value_parameters(self.parameters, value_parameters, self.vp_dict[vp_name],
+                                                 printing=printing)
             if identical:
                 unique = vp_name
                 break
