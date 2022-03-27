@@ -576,7 +576,10 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
         # Value Parameter Dictionary
         overall_weights = import_data(filepath, sheet_name="VP Overall")
         vp_names = np.array(overall_weights['VP Name'])
-        vp_weights = np.array(overall_weights['VP Weight'])
+        if 'VP Weight' in overall_weights:
+            vp_weights = np.array(overall_weights['VP Weight'])
+        else:  # Refactored
+            vp_weights = np.ones(len(vp_names)) * 100
         vp_dict = {}
         for v, vp_name in enumerate(vp_names):
 

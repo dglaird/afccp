@@ -13,5 +13,8 @@ os.chdir(dir_path)
 from afccp.core.problem_class import CadetCareerProblem
 
 instance = CadetCareerProblem('C', printing=True)
-instance.import_default_value_parameters()
+instance.set_instance_value_parameters()
+instance.vft_to_gp_parameters()
+instance.export_to_excel()
+
 

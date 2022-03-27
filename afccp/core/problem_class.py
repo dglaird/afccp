@@ -292,16 +292,23 @@ class CadetCareerProblem:
             print('Adjusting qualification matrix...')
 
         parameters = copy.deepcopy(self.parameters)
-        qual_matrix = cip_to_qual(parameters['afsc_vector'], parameters['cip1'].astype(str),
-                                  cip2=parameters['cip2'].astype(str))
-        parameters['qual'] = qual_matrix
-        parameters['ineligible'] = (qual_matrix == 'I') * 1
-        parameters['eligible'] = (parameters['ineligible'] == 0) * 1
-        parameters['mandatory'] = (qual_matrix == 'M') * 1
-        parameters['desired'] = (qual_matrix == 'D') * 1
-        parameters['permitted'] = (qual_matrix == 'P') * 1
-        parameters = model_fixed_parameters_set_additions(parameters)
-        self.parameters = copy.deepcopy(parameters)
+
+        if 'cip1' in parameters:
+            if 'cip2' in parameters:
+                qual_matrix = cip_to_qual(parameters['afsc_vector'], parameters['cip1'].astype(str),
+                                          cip2=parameters['cip2'].astype(str))
+                parameters['qual'] = qual_matrix
+                parameters['ineligible'] = (qual_matrix == 'I') * 1
+                parameters['eligible'] = (parameters['ineligible'] == 0) * 1
+                parameters['mandatory'] = (qual_matrix == 'M') * 1
+                parameters['desired'] = (qual_matrix == 'D') * 1
+                parameters['permitted'] = (qual_matrix == 'P') * 1
+                parameters = model_fixed_parameters_set_additions(parameters)
+                self.parameters = copy.deepcopy(parameters)
+            else:
+                raise ValueError("No 'cip2' column in parameters")
+        else:
+            raise ValueError("No 'cip1' column in parameters")
 
     # Specify Value Parameters
     def import_value_parameters(self, filepath=None, vp_name=None, num_breakpoints=None, set_value_parameters=True,
@@ -314,22 +321,28 @@ class CadetCareerProblem:
         :param num_breakpoints: Number of breakpoints to use for the value functions
         :param printing: Whether we should print status updates or not
         """
+        if filepath is None and len(self.instance_files) == 0:
+            raise ValueError('No instance files found that contain value parameters (besides aggregate file). '
+                             'Either generate new ones or load them in from the value parameters dictionary.')
         if vp_name is not None:
             full_name = self.data_type + " " + self.data_name + " " + vp_name
             if filepath is None:
-                full_name = [file_name for file_name in self.instance_files if full_name in file_name][0]
-                filepath = paths['instances'] + full_name + '.xlsx'
+                filepath = [file_name for file_name in self.instance_files if full_name in file_name][0]
         else:
             if filepath is None:
-                filepath = paths['instances'] + self.instance_files[0] + '.xlsx'
+                filepath = self.instance_files[0]
             vp_name = self.instance_files[0].split(' ')[2]
 
         if printing is None:
             printing = self.printing
 
         # Import value parameters
-        value_parameters = model_value_parameters_from_excel(self.parameters, filepath, printing=printing,
-                                                             num_breakpoints=num_breakpoints)
+        try:
+            value_parameters = model_value_parameters_from_excel(self.parameters, filepath, printing=printing,
+                                                                 num_breakpoints=num_breakpoints)
+        except:
+            raise ValueError('Filepath invalid for this particular problem instance.')
+
         value_parameters = model_value_parameters_set_additions(value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
         value_parameters = model_value_parameters_set_additions(value_parameters, printing)
@@ -346,22 +359,17 @@ class CadetCareerProblem:
 
         return value_parameters
 
-    def set_instance_value_parameters(self, vp_name=None, printing=None):
+    def set_instance_value_parameters(self, vp_name=None):
         """
         Sets the current instance value parameters to a specified set based on the vp_name. This vp_name must be
         in the value parameter dictionary
         :param printing: print status updates or not
         :param vp_name: name of value parameters to set as the instance's value parameters
         """
-        if printing is None:
-            printing = self.printing
-
         if self.vp_dict is None:
             raise ValueError('Value parameter dictionary is still empty')
         else:
             if vp_name is None:
-                if printing:
-                    print('Setting initial set of value parameters')
                 self.vp_name = list(self.vp_dict.keys())[0]
                 self.value_parameters = copy.deepcopy(self.vp_dict[self.vp_name])
             else:
@@ -665,37 +673,57 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        if use_gp_df and get_new_rewards_penalties:
+        if use_gp_df:
+
+            # Get basic parameters (May or may not include penalty/reward parameters
             self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, self.gp_df,
                                                                 use_gp_df)
-            rewards, penalties = calculate_rewards_penalties(self.gp_parameters, solver_name, executable,
-                                                             provide_executable, printing)
+
+            # Use generalized "GP DF"
+            if self.gp_df is None:
+                filepath = paths['support'] + 'GP_Parameters.xlsx'
+                self.gp_df = import_data(filepath=filepath, sheet_name='Weights and Scaling')
+                specific_gp_df = False
+            else:
+                specific_gp_df = True
+
+            # Get list of constraints
             con_list = copy.deepcopy(self.gp_parameters['con'])
             con_list.append('S')
             num_constraints = len(con_list)  # should be 12
-            norm_penalties = np.zeros(num_constraints)
-            norm_rewards = np.zeros(num_constraints)
-            if self.gp_df is None:
+
+            # Either create new rewards and penalties for this specific instance
+            if get_new_rewards_penalties:
+                rewards, penalties = calculate_rewards_penalties(self.gp_parameters, solver_name, executable,
+                                                                 provide_executable, printing)
+                min_penalty = min([penalty for penalty in penalties if penalty != 0])
+                min_reward = min(rewards)
+                norm_penalties = np.array([min_penalty / penalty if penalty != 0 else 0 for penalty in penalties])
+                norm_rewards = np.array([min_reward / reward for reward in rewards])
+            else:
+                if 'Raw Reward' in self.gp_df:
+                    rewards, penalties = np.array(self.gp_df['Raw Reward']), np.array(self.gp_df['Raw Penalty'])
+                else:
+                    rewards, penalties = np.array(['Unk' for _ in range(num_constraints)]), \
+                                         np.array(['Unk' for _ in range(num_constraints)])
+                norm_rewards, norm_penalties = np.array(self.gp_df['Normalized Reward']), \
+                                               np.array(self.gp_df['Normalized Penalty'])
+            if not specific_gp_df:
                 penalty_weight = [100, 100, 90, 30, 30, 25, 50, 50, 50, 50, 25, 0]
                 reward_weight = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100]
             else:
                 penalty_weight = np.array(self.gp_df['Penalty Weight'])
                 reward_weight = np.array(self.gp_df['Reward Weight'])
-            run_penalties = np.zeros(num_constraints)
-            run_rewards = np.zeros(num_constraints)
-            min_penalty = min([penalty for penalty in penalties if penalty != 0])
-            min_reward = min(rewards)
-            for c, con in enumerate(con_list):
-                norm_penalties[c] = min_penalty / penalties[c]
-                norm_rewards[c] = min_reward / rewards[c]
-                run_penalties[c] = penalty_weight[c] / norm_penalties[c]
-                run_rewards[c] = reward_weight[c] / norm_rewards[c]
+
+            run_penalties = np.array(
+                [penalty_weight[c] / norm_penalties[c] if penalties[c] != 0 else 0 for c in range(num_constraints)])
+            run_rewards = np.array([reward_weight[c] / norm_rewards[c] for c in range(num_constraints)])
 
             self.gp_df = pd.DataFrame({'Constraint': con_list, 'Raw Penalty': penalties, 'Raw Reward': rewards,
                                        'Normalized Penalty': norm_penalties,
                                        'Normalized Reward': norm_rewards, 'Penalty Weight': penalty_weight,
-                                       'Reward Weight': reward_weight, 'Run Penalty': np.ones(num_constraints),
-                                       'Run Reward': np.ones(num_constraints)})
+                                       'Reward Weight': reward_weight, 'Run Penalty': run_penalties,
+                                       'Run Reward': run_rewards})
 
         self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, self.gp_df,
                                                             use_gp_df, printing=printing)
