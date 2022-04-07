@@ -1289,7 +1289,7 @@ class CadetCareerProblem:
             return gp_var
 
     def full_vft_model_solve(self, ga_max_time=60 * 10, pyomo_max_time=10, add_to_dict=True, return_z=True,
-                             executable=None, provide_executable=False, printing=None, percent_step=10,
+                             executable=None, provide_executable=True, printing=None, percent_step=10,
                              ga_printing=False):
         """
         This is the main method to solve the problem instance. We first solve the pyomo Approximate model, and then

@@ -12,7 +12,7 @@ os.chdir(dir_path)
 # Import main problem class
 from afccp.core.problem_class import CadetCareerProblem
 
-instance = CadetCareerProblem('2020', printing=True)
+instance = CadetCareerProblem('C', printing=True)
 instance.set_instance_value_parameters()
 # instance.solve_vft_pyomo_model(provide_executable=True, max_time=10)
 # instance.set_instance_solution('GP')
