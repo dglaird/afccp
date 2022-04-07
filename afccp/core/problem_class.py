@@ -1139,7 +1139,8 @@ class CadetCareerProblem:
 
     def solve_vft_pyomo_model(self, solver_name="cbc", approximate=True, max_time=None, report=False, timing=False,
                               add_breakpoints=True, initial=None, init_from_X=False, set_to_instance=True,
-                              add_to_dict=True, executable=None, provide_executable=False, printing=None):
+                              add_to_dict=True, executable=None, provide_executable=False,
+                              printing=None):
         """
         Solve the VFT model using pyomo
         :param set_to_instance: if we want to set this solution to the instance's solution attribute

@@ -239,6 +239,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
             # We need to add an extra breakpoint to effectively extend the domain
             if add_breakpoints:
+
                 # We add an extra breakpoint far along the x-axis with the same y value as the previous one
                 last_a = a[j][k][r[j][k] - 1]
                 last_f = f[j][k][r[j][k] - 1]
@@ -278,7 +279,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
                     within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
         m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
 
-    # If we do want to initialize the variables. Probably initializing the exact m using the approximate solution
+    # If we do want to initialize the variables. Probably initializing the exact model using the approximate solution
     else:
 
         # x: 1 if assign cadet i to AFSC j; 0 otherwise
@@ -294,7 +295,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
                 m.f_value[j, k] = initial['F_X'][j, k]
 
         # lambda: % between breakpoint l and l + 1 that the measure for AFSC j objective k "has yet to travel"
-        m.lam = Var(((j, k, l) for j in J for k in vp['K^A'][j] for l in L[j, k]), within=NonNegativeReals,
+        m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in L[j, k]), within=NonNegativeReals,
                     bounds=(0, 1))
         for j in p['J']:
             for k in vp['K^A'][j]:
@@ -355,6 +356,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
         # Get count variables for this AFSC
         count = np.sum(m.x[i, j] for i in p['I^E'][j])
         if 'usafa' in parameters:
+
             # Number of USAFA cadets assigned to the AFSC
             usafa_count = np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
 
@@ -595,7 +597,10 @@ def solve_pyomo_model(model, solver_name, executable=None, provide_executable=Fa
     # Determine how the solver is called
     if executable is None:
         if provide_executable:
-            executable = paths['solvers'] + solver_name + '.exe'
+            if exe_extension:  # (global variable <- see "globals.py")
+                executable = paths['solvers'] + solver_name + '.exe'
+            else:
+                executable = paths['solvers'] + solver_name
     else:
         provide_executable = True
 
@@ -927,6 +932,10 @@ def x_to_solution_initialization(parameters, value_parameters, measures, values,
     :return: lam, y
     """
 
+    # Shorthand
+    p = parameters
+    vp = value_parameters
+
     # Set Definitions
     M = parameters['M']  # number of afscs
     O = value_parameters['O']  # number of objectives
@@ -934,7 +943,7 @@ def x_to_solution_initialization(parameters, value_parameters, measures, values,
     K = range(O)  # set of objectives
 
     # Value Function Parameters
-    r = [[len(value_parameters['a'][j][k]) for k in K] for j in J]  # number of breakpoints
+    r = [[len(value_parameters['a'][j][k]) for k in vp['K']] for j in J]  # number of breakpoints
     L = [[list(range(r[j][k])) for k in K] for j in J]  # set of breakpoints
     a = [[[value_parameters['a'][j][k][l] for l in L[j][k]] for k in K] for j in J]  # breakpoints
     f = [[[value_parameters['f^hat'][j][k][l] for l in L[j][k]] for k in K] for j in J]  # values of bps

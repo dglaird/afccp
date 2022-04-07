@@ -8,6 +8,13 @@ from packaging import version
 global dir_path
 dir_path = os.getcwd() + '/'
 
+# exe extension
+global exe_extension  # I use this for my main Mac since it uses "cbc" without the ".exe" extension in the path
+if "griffenlaird" in dir_path:
+    exe_extension = False
+else:
+    exe_extension = True
+
 # Make sure directory path is "../afccp/'
 index = dir_path.find('afccp')
 dir_path = dir_path[:index + 6]

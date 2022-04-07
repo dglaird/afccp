@@ -153,6 +153,10 @@ cython_debug/
 sensitive/
 afccp/sensitive/
 
+# Solvers
+solvers/
+resources/solvers/
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
