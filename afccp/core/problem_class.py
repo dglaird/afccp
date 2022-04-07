@@ -218,18 +218,6 @@ class CadetCareerProblem:
         else:
             num_afscs = self.parameters['M']
 
-        if afsc_rotation is None:
-            if self.data_variant == "Real":
-                if num_afscs > 18:
-                    afsc_rotation = 45
-                else:
-                    afsc_rotation = 0
-            else:
-                if num_afscs < 25:
-                    afsc_rotation = 0
-                else:
-                    afsc_rotation = 45
-
         if skip_afscs is None:
             if self.data_variant == "Real":
                 skip_afscs = False
@@ -238,6 +226,21 @@ class CadetCareerProblem:
                     skip_afscs = False
                 else:
                     skip_afscs = True
+
+        if afsc_rotation is None:
+            if skip_afscs:
+                afsc_rotation = 0
+            else:
+                if self.data_variant == "Real":
+                    if num_afscs > 18:
+                        afsc_rotation = 45
+                    else:
+                        afsc_rotation = 0
+                else:
+                    if num_afscs < 25:
+                        afsc_rotation = 0
+                    else:
+                        afsc_rotation = 45
 
         if thesis_chart:
             figsize = (16, 10)
@@ -805,17 +808,20 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        if afsc_rotation is None:
-            if self.data_type == "Real":
-                afsc_rotation = 45
-            else:
-                afsc_rotation = 0
-
         if skip_afscs is None:
-            if self.data_type == "Real":
+            if self.data_variant == "Real":
                 skip_afscs = False
             else:
                 skip_afscs = True
+
+        if afsc_rotation is None:
+            if skip_afscs:
+                afsc_rotation = 0
+            else:
+                if self.parameters['M'] < 18:
+                    afsc_rotation = 45
+                else:
+                    afsc_rotation = 0
 
         if thesis_chart:
             figsize = (16, 10)
@@ -1922,7 +1928,7 @@ class CadetCareerProblem:
         else:
             return value_parameters
 
-    def display_afsc_objective_weights_chart(self, value_parameters_dict=None, afsc=None, printing=None, colors=None,
+    def display_afsc_objective_weights_chart(self, current_set=True, afsc=None, printing=None, colors=None,
                                              save=False, figsize=(14, 6), facecolor="white", title=None,
                                              display_title=True, thesis_chart=False, title_size=None, bar_color=None,
                                              legend_size=None, label_size=20, xaxis_tick_size=15, yaxis_tick_size=15):
@@ -1933,8 +1939,10 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        if value_parameters_dict is None:
-            value_parameters_dict = {'P1': self.value_parameters}
+        if current_set:
+            vp_dict = {self.vp_name: self.value_parameters}
+        else:
+            vp_dict = self.vp_dict
 
         if title_size is None:
             title_size = label_size
@@ -1952,7 +1960,7 @@ class CadetCareerProblem:
             yaxis_tick_size = 30
             xaxis_tick_size = 30
 
-        chart = afsc_objective_weights_graph(self.parameters, value_parameters_dict, afsc, colors=colors, save=save,
+        chart = afsc_objective_weights_graph(self.parameters, vp_dict, afsc, colors=colors, save=save,
                                              figsize=figsize, facecolor=facecolor, title=title, legend_size=legend_size,
                                              display_title=display_title, label_size=label_size, title_size=title_size,
                                              xaxis_tick_size=xaxis_tick_size, yaxis_tick_size=yaxis_tick_size,
