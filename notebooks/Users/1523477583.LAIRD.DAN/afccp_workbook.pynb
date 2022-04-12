@@ -1,0 +1,7 @@
+# Databricks notebook source
+import os
+path = os. getcwd()
+print(path)
+
+# COMMAND ----------
+
