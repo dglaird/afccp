@@ -45,7 +45,8 @@ global specify_engine
 if version.parse(pd.__version__) > version.parse("1.2.1"):
     specify_engine = True
 else:
-    specify_engine = False
+    # specify_engine = False  # Looks like we need to specify engine all the time! (databricks issue)
+    specify_engine = True
 
 # Only use pyomo script if we have pyomo
 global use_pyomo
