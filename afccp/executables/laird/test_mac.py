@@ -12,6 +12,7 @@ os.chdir(dir_path)
 # Import main problem class
 from afccp.core.problem_class import CadetCareerProblem
 
-instance = CadetCareerProblem('C', printing=True)
+instance = CadetCareerProblem('2021', printing=True)
 instance.set_instance_value_parameters()
-instance.display_afsc_objective_weights_chart()
+instance.solve_vft_pyomo_model(max_time=10)
+instance.export_to_excel(aggregate=False)
