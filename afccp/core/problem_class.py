@@ -468,12 +468,13 @@ class CadetCareerProblem:
                 break
         return unique
 
-    def import_default_value_parameters(self, filepath=None, no_constraints=False, num_breakpoints=24,
+    def import_default_value_parameters(self, filename=None, filepath=None, no_constraints=False, num_breakpoints=24,
                                         generate_afsc_weights=True, set_to_instance=True, add_to_dict=True,
                                         vp_weight=100, printing=None):
         """
         Import default value parameter setting and generate value parameters for this instance from those
         ones.
+        :param filename: filename (assumes paths['support'])
         :param filepath: filepath to import from (if none specified, will use filepath attribute)
         :param num_breakpoints: Number of breakpoints to use for the value functions
         :param set_to_instance: if we want to set this set to the instance's value parameters attribute
@@ -488,15 +489,29 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        if filepath is None:
-            if self.data_variant == "Scrubbed":
-                filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
-            elif self.data_variant == 'Year':
-                filepath = paths['s_support'] + 'Value_Parameters_Defaults_Real.xlsx'
-            elif self.data_variant == 'Perfect':
-                filepath = paths['support'] + 'Value_Parameters_Defaults_Perfect.xlsx'
+        # check first if the user did not specify a filename (just name of excel file within correct folder)
+        if filename is None:
+
+            # if filename not specified, check if file path was not directly specified
+            if filepath is None:  # default value parameters
+                if self.data_variant == "Scrubbed":
+                    filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
+                elif self.data_variant == 'Year':
+                    filepath = paths['s_support'] + 'Value_Parameters_Defaults_Real.xlsx'
+                elif self.data_variant == 'Perfect':
+                    filepath = paths['support'] + 'Value_Parameters_Defaults_Perfect.xlsx'
+                else:
+                    filepath = paths['support'] + 'Value_Parameters_Defaults_Generated.xlsx'
             else:
-                filepath = paths['support'] + 'Value_Parameters_Defaults_Generated.xlsx'
+                pass  # we have given a filepath already, no more info is needed
+        else:
+            if self.data_variant == "Year":
+                filepath = paths['s_support'] + filename
+            else:
+                filepath = paths['support'] + filename
+
+            if '.xlsx' not in filepath:
+                filepath += '.xlsx'
 
         self.default_value_parameters = default_value_parameters_from_excel(filepath, num_breakpoints=num_breakpoints,
                                                                             printing=printing)

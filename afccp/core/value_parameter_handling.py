@@ -48,8 +48,8 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
     for j in range(M):  # These are Os (Ohs) not 0s (zeros)
         value_parameters["objective_target"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
                                                               'Objective Target'])
-        value_parameters["objective_weight"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
-                                                              'Objective Weight'])
+        objective_weights = np.array(afsc_weights.loc[j * O:(j * O + O - 1), 'Objective Weight'])
+        value_parameters["objective_weight"][j, :] = objective_weights / sum(objective_weights)
         value_parameters["objective_value_min"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
                                                                  'Min Objective Value'])
         value_parameters["constraint_type"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
@@ -99,6 +99,8 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
                     value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                         segment_dict, num_breakpoints=num_breakpoints)
 
+    # Force AFSC weights to sum to 1
+    value_parameters["afsc_weight"] = value_parameters["afsc_weight"] / sum(value_parameters["afsc_weight"])
     return value_parameters
 
 
@@ -124,10 +126,22 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
     afsc_objective_convex_constraints = np.ndarray.flatten(value_parameters['constraint_type'])
     afsc_objective_targets = np.ndarray.flatten(value_parameters['objective_target'])
     afsc_objectives = np.tile(value_parameters['objectives'], parameters['M'])
-    afsc_objective_weights = np.ndarray.flatten(value_parameters['objective_weight'])
+
+    # Get AFSC objective swing weights
+    # afsc_objective_weights = value_parameters['objective_weight'] / np.max(value_parameters['objective_weight'], axis=1)
+    ow = value_parameters['objective_weight']
+    max_weights = np.max(value_parameters['objective_weight'], axis=1)
+    ow = np.array([[ow[j, k] / max_weights[j] for k in range(O)] for j in range(M)])
+    afsc_objective_weights = np.ndarray.flatten(np.around(ow * 100, 3))
+
+    # More stuff
     afsc_value_functions = np.ndarray.flatten(value_parameters['value_functions'])
     afscs = np.ndarray.flatten(np.array(list(np.repeat(parameters['afsc_vector'][j],
                                                        value_parameters['O']) for j in range(parameters['M']))))
+
+    # AFSC swing weights
+    value_parameters['afsc_weight'] = value_parameters['afsc_weight'] / np.max(value_parameters['afsc_weight'])
+    value_parameters['afsc_weight'] = np.around(value_parameters['afsc_weight'] * 100, 3)
     afsc_weights = np.ndarray.flatten(np.array(list(np.repeat(value_parameters['afsc_weight'][j],
                                                               value_parameters['O']) for j in
                                                     range(parameters['M']))))
@@ -480,10 +494,10 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                 value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                     segment_dict, num_breakpoints=num_breakpoints)
 
-        # Scale the weights for this AFSC so they sum to 1
+        # Scale the weights for this AFSC, so they sum to 1
         value_parameters['objective_weight'][j] = value_parameters['objective_weight'][j] / \
                                                   sum(value_parameters['objective_weight'][j])
-    # Scale the weights across all AFSCs so they sum to 1
+    # Scale the weights across all AFSCs, so they sum to 1
     if not generate_afsc_weights:
         value_parameters['afsc_weight'] = value_parameters['afsc_weight'] / \
                                           sum(value_parameters['afsc_weight'])

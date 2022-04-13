@@ -614,8 +614,10 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
             for j in range(M):  # These are Os (Ohs) not 0s (zeros)
                 value_parameters["objective_target"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
                                                                       'Objective Target'])
-                value_parameters["objective_weight"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
-                                                                      'Objective Weight'])
+
+                # Force objective weights to sum to 1
+                objective_weights = np.array(afsc_weights.loc[j * O:(j * O + O - 1), 'Objective Weight'])
+                value_parameters["objective_weight"][j, :] = objective_weights / sum(objective_weights)
                 value_parameters["objective_value_min"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
                                                                          'Min Objective Value'])
                 value_parameters["constraint_type"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
@@ -672,6 +674,9 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                                                                            maximum=maximum)
                             value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                                 segment_dict, num_breakpoints=num_breakpoints)
+
+            # Force AFSC weights to sum to 1
+            value_parameters["afsc_weight"] = value_parameters["afsc_weight"] / sum(value_parameters["afsc_weight"])
 
             # Load value_parameter dictionary
             value_parameters = model_value_parameters_set_additions(value_parameters)
