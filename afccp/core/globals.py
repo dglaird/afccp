@@ -8,23 +8,41 @@ from packaging import version
 global dir_path
 dir_path = os.getcwd() + '/'
 
-# exe extension
-global exe_extension  # I use this for my main Mac since it uses "cbc" without the ".exe" extension in the path
-if "griffenlaird" in dir_path:
+# If I'm on my Mac, I don't want to add ".exe" to the solver path
+global exe_extension
+if 'griffenlaird' in dir_path:
     exe_extension = False
 else:
     exe_extension = True
 
-# Make sure directory path is "../afccp/'
-index = dir_path.find('afccp')
-dir_path = dir_path[:index + 6]
+# Check if we're on databricks or not
+global databricks, paths
+if 'databricks' in dir_path:
+    print('Running on databricks.')
+    databricks = True
 
-# Additional folders in Directory
-global paths
-resource_path = 'afccp/resources/'
-paths = {}
-for folder in ['figures', 'instances', 'results', 'solvers', 'support', 'tables']:
-    paths[folder] = dir_path + resource_path + folder + '/'
+    # Databricks folders
+    resource_path = '/dbfs/FileStore/shared_uploads/1523477583.LAIRD.DAN/NRL_Data/'
+    paths = {}
+    for folder in ['figures', 'instances', 'results', 'support']:
+        paths[folder] = resource_path + folder + '/'
+else:
+    if exe_extension:
+        print('Running elsewhere.')
+    else:
+        print("Running on Griffen's Macbook")
+    databricks = False
+
+    # Make sure directory path is "../afccp/'
+    index = dir_path.find('afccp')
+    dir_path = dir_path[:index + 6]
+
+    # Additional folders in Directory
+    resource_path = 'afccp/resources/'
+    paths = {}
+    for folder in ['figures', 'instances', 'results', 'solvers', 'support', 'tables']:
+        paths[folder] = dir_path + resource_path + folder + '/'
+
 
 # sensitive information
 global sensitive_folder
