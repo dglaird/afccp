@@ -26,7 +26,7 @@ class CadetCareerProblem:
         if data_name is None:  # we're going to generate random data
             self.sensitive = False
         else:
-            if len(data_name) == 4:  # class year
+            if len(data_name) == 4 and not databricks:  # class year
                 self.sensitive = True
             else:
                 self.sensitive = False
