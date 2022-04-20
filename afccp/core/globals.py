@@ -22,7 +22,8 @@ if 'databricks' in dir_path:
     databricks = True
 
     # Databricks folders
-    resource_path = '/dbfs/FileStore/shared_uploads/1523477583.LAIRD.DAN/NRL_Data/'
+    resource_path = 'afccp/resources/'  # for now, demo it working through afccp
+    # resource_path = '/dbfs/FileStore/shared_uploads/1523477583.LAIRD.DAN/NRL_Data/'
     paths = {}
     for folder in ['figures', 'instances', 'results', 'support']:
         paths[folder] = resource_path + folder + '/'
