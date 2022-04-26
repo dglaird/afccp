@@ -1,7 +1,7 @@
 # Import libraries
 import pandas as pd
 
-from comprehensive_functions import *
+from afccp.core.comprehensive_functions import *
 import datetime
 import glob
 import copy
