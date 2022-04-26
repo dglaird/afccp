@@ -1712,15 +1712,15 @@ def cadet_utility_histogram(metrics=None, metrics_dict=None, save=False, figsize
 
 def holistic_color_graph(parameters, value_parameters, metrics, figsize=(11, 10), save=False, facecolor='white'):
     """
-        Builds the Holistic Color Chart
-        :param facecolor: color of the background of the graph
-        :param figsize: size of the figure
-        :param save: Whether we should save the graph
-        :param parameters: fixed cadet/AFSC data
-        :param value_parameters: value parameters
-        :param metrics: solution metrics
-        :return: figure
-        """
+    Builds the Holistic Color Chart
+    :param facecolor: color of the background of the graph
+    :param figsize: size of the figure
+    :param save: Whether we should save the graph
+    :param parameters: fixed cadet/AFSC data
+    :param value_parameters: value parameters
+    :param metrics: solution metrics
+    :return: figure
+    """
     fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, tight_layout=True)
     ax.set_aspect('equal', adjustable='box')
     N = parameters['N']
