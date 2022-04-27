@@ -86,6 +86,7 @@ target/
 # DS Store
 .DS_Store
 /.DS_Store
+afccp/.DS_Store
 
 # IPython
 profile_default/
