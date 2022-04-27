@@ -26,20 +26,20 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None):
     """
     # Get correct data type
     if len(afscs[0]) == 2:
-        data_type = 'Generated'
+        path_folder = "scrubbed"
         full_afscs = afscs
     else:
-        data_type = 'Real'
+        path_folder = "real"
 
     # Load CIP to Qual matrix
     if cip_qual_matrix is None:
-        cip_qual_matrix = import_data(paths['support'] + "Qual_CIP_Matrix_" + data_type + ".xlsx",
+        cip_qual_matrix = import_data(support_paths[path_folder] + "Qual_CIP_Matrix.xlsx",
                                       sheet_name="Qual Matrix")
 
     # Load full afscs
     if full_afscs is None:
         full_afscs = np.array(import_data(
-            paths['support'] + "Qual_CIP_Matrix_" + data_type + ".xlsx", sheet_name="Full AFSCS"))
+            support_paths[path_folder] + "Qual_CIP_Matrix.xlsx", sheet_name="Full AFSCS"))
 
     afsc_indices = np.where(full_afscs == afscs)[0]  # afscs used in this instance
     full_cip_codes = np.array(cip_qual_matrix.loc[:, "CIP"]).astype(str)  # full list of CIP codes
@@ -79,7 +79,7 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None):
     return qual_matrix
 
 
-def import_generator_parameters(filepath=paths['support'] + "Instance_Generator_Parameters.xlsx",
+def import_generator_parameters(filepath=support_paths['scrubbed'] + "Instance_Generator_Parameters.xlsx",
                                 printing=False):
     """
     Imports generator parameters used for the different generation functions
@@ -109,7 +109,7 @@ def simulate_model_fixed_parameters(N=1600, P=6, M=32, printing=False):
         print('Simulating (Random)...')
 
     # Import CIP to Qual Matrix
-    cip_qual_matrix = import_data(paths['support'] + "Qual_CIP_Matrix_Generated.xlsx",
+    cip_qual_matrix = import_data(support_paths['scrubbed'] + "Qual_CIP_Matrix.xlsx",
                                   sheet_name="Qual Matrix")
 
     # Import Generator Parameters
@@ -431,7 +431,7 @@ if use_sdv:
             print('Simulating (Realistic)...')
 
         if generator is None:
-            generator = CTGAN.load(paths['support'] + 'CTGAN.pkl')
+            generator = CTGAN.load(support_paths['scrubbed'] + 'CTGAN.pkl')
 
         # Generate data
         data = generator.sample(N)
@@ -491,7 +491,7 @@ if use_sdv:
 
         # Import CIP to Qual Matrix
         if cip_qual_matrix is None:
-            cip_qual_matrix = import_data(paths['support'] + "Qual_CIP_Matrix_Generated.xlsx",
+            cip_qual_matrix = import_data(support_paths['scrubbed'] + "Qual_CIP_Matrix.xlsx",
                                           sheet_name="Qual Matrix")
 
         # Import Generator Parameters
@@ -590,7 +590,7 @@ if use_sdv:
         """
 
         if data is None:
-            data = import_data(paths['support'] + 'ctgan_data.xlsx', sheet_name='Data')
+            data = import_data(support_paths['scrubbed'] + 'ctgan_data.xlsx', sheet_name='Data')
             data = ctgan_data_filter(data)
 
         print('')
@@ -619,7 +619,7 @@ if use_sdv:
         model.fit(data)
 
         # Save the model
-        model.save(paths['support'] + name + '.pkl')
+        model.save(support_paths['scrubbed'] + name + '.pkl')
         if printing:
             print('Model Saved.')
 
@@ -634,7 +634,7 @@ if use_sdv:
 
         # Load Data
         if ctgan_data is None:
-            ctgan_data = import_data(paths['support'] + 'ctgan_data.xlsx', sheet_name='Data')
+            ctgan_data = import_data(support_paths['scrubbed'] + 'ctgan_data.xlsx', sheet_name='Data')
 
         # Replace nans with blanks
         ctgan_data = ctgan_data.replace(np.nan, "", regex=True)
@@ -722,7 +722,7 @@ if use_sdv:
         ctgan_data = ctgan_data.drop(ctgan_data.index[indices])
 
         if export:  # Export to excel
-            with pd.ExcelWriter(paths['support'] + 'ctgan_data.xlsx') as writer:
+            with pd.ExcelWriter(support_paths['scrubbed'] + 'ctgan_data.xlsx') as writer:
                 ctgan_data.to_excel(writer, sheet_name="Data", index=False)
 
         return ctgan_data

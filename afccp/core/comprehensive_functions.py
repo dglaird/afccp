@@ -411,7 +411,7 @@ def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, pri
 
 
 def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp_dict=None, metrics_dict=None,
-                                   gp_df=None, sensitive=False, printing=False):
+                                   gp_df=None, printing=False):
     """
     This file takes all of the relevant data for a particular fixed instance and exports it to excel
     :param gp_df: dataframe of goal programming parameters
@@ -431,6 +431,10 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
 
     # Get other information
     afscs = parameters['afsc_vector']
+
+    # Just so pycharm doesn't yell at me
+    solutions_df, metrics_df, vp_overall_df, vp_afscs_df_dict = None, None, None, None
+    num_solutions, vp_names, solution_names, num_vps = None, None, None, None
 
     if vp_dict is not None:
         vp_names = list(vp_dict.keys())
@@ -508,11 +512,7 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
             metrics_df[column_name] = column_dict[column_name]
 
     # Export to excel
-    if sensitive:
-        filepath = paths['s_instances'] + full_name + '.xlsx'
-    else:
-        filepath = paths['instances'] + full_name + '.xlsx'
-
+    filepath = paths_out['instances'] + full_name + '.xlsx'
     with pd.ExcelWriter(filepath) as writer:  # Export to excel
         cadets_fixed.to_excel(writer, sheet_name="Cadets Fixed", index=False)
         afscs_fixed.to_excel(writer, sheet_name="AFSCs Fixed", index=False)

@@ -11,6 +11,7 @@ import matplotlib as mpl
 mpl.rc('font', family='Times New Roman')
 
 
+# TODO: Fix color handling on this script (should be controlled better through problem instance)
 def data_graph(parameters, save=False, figsize=(19, 7), facecolor='white', eligibility=True,
                title=None, display_title=True, num=None, label_size=25, afsc_tick_size=15, graph='AFOCD Data',
                yaxis_tick_size=25, afsc_rotation=80, dpi=100, bar_color='black',
@@ -185,7 +186,7 @@ def data_graph(parameters, save=False, figsize=(19, 7), facecolor='white', eligi
             fig.suptitle(title, fontsize=label_size, color='white')
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -266,7 +267,7 @@ def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display
     plt.ylim(0, 1.05)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png')
+        fig.savefig(paths_out['figures'] + title + '.png')
     return fig
 
 
@@ -395,7 +396,7 @@ def individual_weight_graph(parameters, value_parameters, cadets=True, save=Fals
         ax.set_title(title, fontsize=label_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -582,7 +583,7 @@ def afsc_value_results_graph(parameters, value_parameters, metrics=None, metrics
             ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -644,19 +645,19 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
     else:
 
         num_solutions = len(list(metrics_dict.keys()))
-        if colors is None:
-            color_choices = ['red', 'blue', 'green', 'orange']
-            marker_choices = ['o', 'D', '^', 'P']
-            colors = {}
-            markers = {}
-            for s, solution in enumerate(list(metrics_dict.keys())):
 
-                if s < len(color_choices):
-                    colors[solution] = color_choices[s]
-                    markers[solution] = marker_choices[s]
-                else:
-                    colors[solution] = color_choices[0]
-                    markers[solution] = marker_choices[0]
+        color_choices = ['red', 'blue', 'green', 'orange']
+        marker_choices = ['o', 'D', '^', 'P']
+        colors = {}
+        markers = {}
+        for s, solution in enumerate(list(metrics_dict.keys())):
+
+            if s < len(color_choices):
+                colors[solution] = color_choices[s]
+                markers[solution] = marker_choices[s]
+            else:
+                colors[solution] = color_choices[0]
+                markers[solution] = marker_choices[0]
         O = len(objectives)
         max_value = np.zeros(O)
         min_value = np.repeat(10000, O)
@@ -718,7 +719,7 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
             ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png')
+        fig.savefig(paths_out['figures'] + title + '.png')
 
     return fig
 
@@ -867,7 +868,7 @@ def average_merit_results_graph(parameters, value_parameters, metrics=None, metr
         ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1078,7 +1079,7 @@ def quota_fill_results_graph(parameters, value_parameters, metrics=None, metrics
     ax.set(ylim=(0, y_top * y_max))
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1262,7 +1263,7 @@ def usafa_proportion_results_graph(parameters, value_parameters, metrics=None, m
         ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1369,19 +1370,18 @@ def afocd_degree_proportions_results_graph(parameters, value_parameters, metrics
 
     else:
         num_solutions = len(list(metrics_dict.keys()))
-        if colors is None:
-            color_choices = ['red', 'blue', 'green', 'orange']
-            marker_choices = ['o', 'D', '^', 'P']
-            colors = {}
-            markers = {}
-            for s, solution in enumerate(list(metrics_dict.keys())):
+        color_choices = ['red', 'blue', 'green', 'orange']
+        marker_choices = ['o', 'D', '^', 'P']
+        colors = {}
+        markers = {}
+        for s, solution in enumerate(list(metrics_dict.keys())):
 
-                if s < len(color_choices):
-                    colors[solution] = color_choices[s]
-                    markers[solution] = marker_choices[s]
-                else:
-                    colors[solution] = color_choices[0]
-                    markers[solution] = marker_choices[0]
+            if s < len(color_choices):
+                colors[solution] = color_choices[s]
+                markers[solution] = marker_choices[s]
+            else:
+                colors[solution] = color_choices[0]
+                markers[solution] = marker_choices[0]
         legend_elements = []
         above = np.zeros(M)
         below = np.repeat(10000, M)
@@ -1485,7 +1485,7 @@ def afocd_degree_proportions_results_graph(parameters, value_parameters, metrics
     ax.xaxis.label.set_size(label_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1612,7 +1612,7 @@ def average_utility_results_graph(parameters, value_parameters, metrics=None, me
         ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1656,15 +1656,14 @@ def cadet_utility_histogram(metrics=None, metrics_dict=None, save=False, figsize
     else:
 
         num_solutions = len(list(metrics_dict.keys()))
-        if colors is None:
-            color_choices = ['red', 'blue', 'green', 'orange']
-            colors = {}
-            for s, solution in enumerate(list(metrics_dict.keys())):
+        color_choices = ['red', 'blue', 'green', 'orange']
+        colors = {}
+        for s, solution in enumerate(list(metrics_dict.keys())):
 
-                if s < len(color_choices):
-                    colors[solution] = color_choices[s]
-                else:
-                    colors[solution] = color_choices[0]
+            if s < len(color_choices):
+                colors[solution] = color_choices[s]
+            else:
+                colors[solution] = color_choices[0]
         legend_elements = []
         for s, solution in enumerate(list(metrics_dict.keys())):
             value = metrics_dict[solution]['cadet_value']
@@ -1705,7 +1704,7 @@ def cadet_utility_histogram(metrics=None, metrics_dict=None, save=False, figsize
             ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1773,7 +1772,7 @@ def holistic_color_graph(parameters, value_parameters, metrics, figsize=(11, 10)
         y += height
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -1847,7 +1846,7 @@ def pareto_graph(pareto_df, dimensions=None, save=False, title=None, figsize=(10
     ax.tick_params(axis='x', labelsize=xaxis_tick_size)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png')
+        fig.savefig(paths_out['figures'] + title + '.png')
 
     return fig
 
@@ -1941,7 +1940,7 @@ def afsc_objective_weights_graph(parameters, value_parameters_dict, afsc, colors
                   ncol=num_weights, columnspacing=0.8, handletextpad=0.25, borderaxespad=0.5, borderpad=0.4)
 
     if save:
-        fig.savefig(paths['figures'] + title + '.png')
+        fig.savefig(paths_out['figures'] + title + '.png')
 
     return fig
 
@@ -1993,7 +1992,7 @@ def solution_parameter_comparison_graph(z_dict, colors=None, save=False, figsize
     ax.legend(handles=legend_elements, edgecolor='black', loc='upper right', columnspacing=0.8, handletextpad=0.25,
               borderaxespad=0.5, borderpad=0.4)
     if save:
-        fig.savefig(paths['figures'] + title + '.png')
+        fig.savefig(paths_out['figures'] + title + '.png')
 
     return fig
 
@@ -2097,7 +2096,7 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
     ax.set_ylabel(objective + ' Measure')
 
     if save:
-        fig.savefig(paths['figures'] + 'Solution_Results.png', bbox_inches='tight')
+        fig.savefig(paths_out['figures'] + 'Solution_Results.png', bbox_inches='tight')
 
     return fig
 
@@ -2206,7 +2205,7 @@ def solution_similarity_graph(coords, solution_names, title=None, colors=None, f
         ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
         if save:
-            fig.savefig(paths['figures'] + title + '.png')
+            fig.savefig(paths_out['figures'] + title + '.png')
 
         return fig
     if use_models:
@@ -2291,6 +2290,6 @@ def solution_similarity_graph(coords, solution_names, title=None, colors=None, f
             ax.set_title(title)
 
         if save:
-            fig.savefig(paths['figures'] + title + '.png')
+            fig.savefig(paths_out['figures'] + title + '.png')
 
         return fig

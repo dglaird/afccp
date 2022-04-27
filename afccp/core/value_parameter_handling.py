@@ -240,7 +240,13 @@ def model_value_parameters_to_defaults(parameters, value_parameters, filepath=No
         print('Exporting value parameters as defaults to excel...')
 
     if filepath is None:
-        filepath = paths['Data Processing Support'] + 'Value_Parameters_Default_New.xlsx'
+        if len(parameters['afsc_vector'][0]) == 2:  # Letter + "1"  (A1, B1, etc.)
+            folder_out = 'scrubbed'
+        else:
+            folder_out = 'real'
+
+        # Will have to change the name to the specific scrubbed letter if applicable
+        filepath = support_paths[folder_out] + 'Value_Parameters_Default_New.xlsx'
 
     overall_weights_df = pd.DataFrame({'Cadets Overall': [value_parameters['cadets_overall_weight']],
                                        'AFSCs Overall': [value_parameters['afscs_overall_weight']],
@@ -276,19 +282,16 @@ def model_value_parameters_to_defaults(parameters, value_parameters, filepath=No
         afsc_objective_value_functions_df.to_excel(writer, sheet_name='Value Functions', index=False)
 
 
-def default_value_parameters_from_excel(filepath=None, num_breakpoints=24, printing=False):
+def default_value_parameters_from_excel(filepath, num_breakpoints=24, printing=False):
     """
     Imports the "factory defaults" for value parameters
     :param num_breakpoints: number of breakpoints to use for value functions
-    :param filepath: Optional other "default parameters" to grab
+    :param filepath: Filepath to import from
     :param printing: Whether the function should print something
     :return: default user parameters
     """
     if printing:
         print('Importing default value parameters...')
-
-    if filepath is None:
-        filepath = paths['Data Processing Support'] + 'Value_Parameters_Defaults_Generated.xlsx'
 
     # Get dataframes
     overall_weights_df = import_data(filepath, sheet_name="Overall Weights")
@@ -896,7 +899,7 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, use
 
     if use_gp_df:
         if gp_df is None:
-            filepath = paths['support'] + 'GP_Parameters.xlsx'
+            filepath = support_paths['scrubbed'] + 'gp_parameters.xlsx'
             gp_df = import_data(filepath=filepath, sheet_name='Weights and Scaling')
 
     # Shorthand

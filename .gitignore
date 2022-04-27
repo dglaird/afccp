@@ -157,9 +157,14 @@ cython_debug/
 sensitive/
 afccp/sensitive/
 
+# Real
+afccp/resources/shared/real/
+
+# Laird Folder
+afccp/resources/laird/
+
 # Solvers
-solvers/
-resources/solvers/
+resources/shared/solvers/
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

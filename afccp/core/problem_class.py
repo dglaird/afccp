@@ -22,163 +22,166 @@ class CadetCareerProblem:
         :param printing: Whether we should print status updates or not
         """
 
-        # Find out if we're dealing with sensitive information or not
+        # Find out if we're dealing with "scrubbed" information or not
         if data_name is None:  # we're going to generate random data
-            self.sensitive = False
+            self.scrubbed = True
         else:
-            if len(data_name) == 4 and not databricks:  # class year
-                self.sensitive = True
+            if len(data_name) == 4:  # class year
+                self.scrubbed = False
             else:
-                self.sensitive = False
+                self.scrubbed = True
 
-        if self.sensitive and not sensitive_folder:
+        # Get list of specific data_name instances
+        directory = paths_in['instances']
+        self.generated_data_names = {'Random': [], 'Perfect': [], 'Realistic': []}
+        real_instance_data_names = []
+        for file_name in glob.iglob(directory + '*.xlsx', recursive=True):
+            start_index = file_name.find(paths_in['instances']) + len(paths_in['instances']) + 1
+            end_index = len(file_name) - 5
+            full_name = file_name[start_index:end_index]
+            sections = full_name.split(' ')
+            d_name = sections[1]
+            for variant in self.generated_data_names:
+                if variant in d_name and d_name not in self.generated_data_names[variant]:
+                    self.generated_data_names[variant].append(d_name)
+            if len(d_name) in [1, 4]:
+                real_instance_data_names.append(full_name)
+        self.real_instance_data_names = np.array(real_instance_data_names)
 
-            # If we want a real class year instance but don't have the folder, we can't create it
-            raise ValueError('No sensitive folder found. Instance ' + data_name + ' cannot be created.')
+        # Get correct data attributes
+        if data_name is None:
+            self.data_name = "Random_" + str(len(self.generated_data_names["Random"]) + 1)
+            self.data_type = "Generated"
+            self.data_variant = "Random"
+            generate = True
+        else:
+            self.data_name = data_name
+
+            # Initially assume it's a "real" set of data
+            self.data_type = "Real"
+            generate = False
+
+            # Loop through "Random", "Realistic", "Perfect"
+            for data_variant in self.generated_data_names:
+
+                # If we passed one of those three names generally, we will generate a new instance of that kind
+                if data_variant == self.data_name:
+                    self.data_name = data_variant + "_" + str(len(self.generated_data_names[data_variant]) + 1)
+                    self.data_type = "Generated"
+                    generate = True
+                    break
+
+                # If we specified a specific version ("Random_4" for instance), then we'll load it in
+                elif data_variant in self.data_name and '_' in self.data_name:
+                    self.data_type = "Generated"
+                    generate = False
+                    break
+
+        # Get data variant
+        if self.data_type == "Real":
+
+            # Is it a class year or a scrubbed class year
+            if len(self.data_name) == 1:
+                self.data_variant = "Scrubbed"
+            else:
+                self.data_variant = "Year"
         else:
 
-            # Get right directory folder
-            if self.sensitive:
-                self.inst_folder = 's_instances'
-            else:
-                self.inst_folder = "instances"
+            # Figure out if the data is "Random", "Realistic", or "Perfect"
+            for data_variant in self.generated_data_names:
+                if data_variant in self.data_name:
+                    self.data_variant = data_variant
 
-            # Get list of specific data_name instances
-            directory = paths[self.inst_folder]
-            self.generated_data_names = {'Random': [], 'Perfect': [], 'Realistic': []}
-            real_instance_data_names = []
-            for file_name in glob.iglob(directory + '*.xlsx', recursive=True):
-                start_index = file_name.find(paths[self.inst_folder]) + len(paths[self.inst_folder]) + 1
-                end_index = len(file_name) - 5
-                full_name = file_name[start_index:end_index]
-                sections = full_name.split(' ')
-                d_name = sections[1]
-                for variant in self.generated_data_names:
-                    if variant in d_name and d_name not in self.generated_data_names[variant]:
-                        self.generated_data_names[variant].append(d_name)
-                if len(d_name) in [1, 4]:
-                    real_instance_data_names.append(full_name)
-            self.real_instance_data_names = np.array(real_instance_data_names)
+        # Create the "full name" which we piece together all the current available information
+        self.full_name = self.data_type + ' ' + self.data_name   # "Real A" for example
+        self.data_instance_name = copy.deepcopy(self.full_name)
 
-            # Get correct data attributes
-            if data_name is None:
-                self.data_name = "Random_" + str(len(self.generated_data_names["Random"]) + 1)
-                self.data_type = "Generated"
-                self.data_variant = "Random"
-                generate = True
-            else:
-                self.data_name = data_name
-                self.data_type = "Real"
-                generate = False
-                for data_variant in self.generated_data_names:
-                    if data_variant == self.data_name:
-                        self.data_name = data_variant + "_" + str(len(self.generated_data_names[data_variant]) + 1)
-                        self.data_type = "Generated"
-                        generate = True
-                        break
-                    elif data_variant in self.data_name and '_' in self.data_name:
-                        self.data_type = "Generated"
-                        generate = False
-                        break
+        # Get correct filepath  (for loading in the instance right now)
+        self.filepath_in = paths_in['instances'] + self.data_instance_name + '.xlsx'
 
-            # Get data variant
-            if self.data_type == "Real":
-                if len(self.data_name) == 1:
-                    self.data_variant = "Scrubbed"
-                else:
-                    self.data_variant = "Year"
-            else:
-                for data_variant in self.generated_data_names:
-                    if data_variant in self.data_name:
-                        self.data_variant = data_variant
+        # Get list of instance filenames
+        directory = paths_in['instances']
+        main_file = False  # if there is a "data_type data_name.xlsx" file
+        self.instance_files = []
+        for file_name in glob.iglob(directory + '*.xlsx', recursive=True):
+            start_index = file_name.find(paths_in['instances']) + len(paths_in['instances']) + 1
+            end_index = len(file_name) - 5
+            full_name = file_name[start_index:end_index]
+            sections = full_name.split(' ')
+            d_name = sections[1]
+            if d_name == self.data_name and len(sections) != 2:
+                self.instance_files.append(file_name)
+            elif d_name == self.data_name and len(sections) == 2:
+                main_file = True
 
-            # Create the "full name" which we piece together all the current available information
-            self.full_name = self.data_type + ' ' + self.data_name
-            self.data_instance_name = copy.deepcopy(self.full_name)
+        # initialize more instance attributes
+        self.printing = printing
+        self.default_value_parameters = None
+        self.value_parameters = None
+        self.metrics = None
+        self.x = None
+        self.measure = None
+        self.value = None
+        self.pyomo_z = None
+        self.year = None
+        self.solution = None
+        self.gp_parameters = None
+        self.gp_df = None
+        self.solution_dict = None
+        self.metrics_dict = None
+        self.solution_name = None
+        self.vp_dict = None
+        self.vp_name = None
 
-            # Get correct filepath
-            self.filepath = paths[self.inst_folder] + self.data_instance_name + '.xlsx'
-
-            # Get list of instance filenames
-            directory = paths[self.inst_folder]
-            main_file = False  # if there is a "data_type data_name.xlsx" file
-            self.instance_files = []
-            for file_name in glob.iglob(directory + '*.xlsx', recursive=True):
-                start_index = file_name.find(paths[self.inst_folder]) + len(paths[self.inst_folder]) + 1
-                end_index = len(file_name) - 5
-                full_name = file_name[start_index:end_index]
-                sections = full_name.split(' ')
-                d_name = sections[1]
-                if d_name == self.data_name and len(sections) != 2:
-                    self.instance_files.append(file_name)
-                elif d_name == self.data_name and len(sections) == 2:
-                    main_file = True
-
-            # initialize more instance attributes
-            self.printing = printing
-            self.default_value_parameters = None
-            self.value_parameters = None
-            self.metrics = None
-            self.x = None
-            self.measure = None
-            self.value = None
-            self.pyomo_z = None
-            self.year = None
-            self.solution = None
-            self.gp_parameters = None
-            self.gp_df = None
-            self.solution_dict = None
-            self.metrics_dict = None
-            self.solution_name = None
-            self.vp_dict = None
-            self.vp_name = None
-
-            # Check if we're generating data, and the data variant
-            if self.data_variant == 'Random' and generate:
-
-                if printing:
-                    print('Generating ' + self.data_name + ' problem instance...')
-                parameters = simulate_model_fixed_parameters(N=N, P=P, M=M)
-                self.parameters = model_fixed_parameters_set_additions(parameters)
-
-            elif self.data_variant == 'Perfect' and generate:
-
-                if printing:
-                    print('Generating ' + self.data_name + ' problem instance...')
-                parameters, self.solution = perfect_example_generator(N=N, P=P, M=M)
-                self.parameters = model_fixed_parameters_set_additions(parameters)
-
-            elif self.data_variant == 'Realistic' and generate:
-
-                if printing:
-                    print('Generating ' + self.data_name + ' problem instance...')
-
-                if use_sdv:
-                    data = simulate_realistic_fixed_data(N=N)
-                    cadets_fixed, afscs_fixed = convert_realistic_data_parameters(data)
-                    parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
-                else:
-                    parameters = simulate_model_fixed_parameters(N=N, P=P, M=M)
-
-                self.parameters = model_fixed_parameters_set_additions(parameters)
-            else:
-
-                if printing:
-                    print('Importing ' + self.data_name + ' problem instance...')
-
-                if main_file:
-                    filepath = self.filepath
-                else:
-                    filepath = self.instance_files[0]
-
-                self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df = \
-                    import_aggregate_instance_file(filepath, num_breakpoints=num_breakpoints)
+        # Check if we're generating data, and the data variant
+        if self.data_variant == 'Random' and generate:
 
             if printing:
-                if generate:
-                    print('Generated.')
-                else:
-                    print('Imported.')
+                print('Generating ' + self.data_name + ' problem instance...')
+            parameters = simulate_model_fixed_parameters(N=N, P=P, M=M)
+            self.parameters = model_fixed_parameters_set_additions(parameters)
+
+        elif self.data_variant == 'Perfect' and generate:
+
+            if printing:
+                print('Generating ' + self.data_name + ' problem instance...')
+            parameters, self.solution = perfect_example_generator(N=N, P=P, M=M)
+            self.parameters = model_fixed_parameters_set_additions(parameters)
+
+        elif self.data_variant == 'Realistic' and generate:
+
+            if printing:
+                print('Generating ' + self.data_name + ' problem instance...')
+
+            if use_sdv:
+                data = simulate_realistic_fixed_data(N=N)
+                cadets_fixed, afscs_fixed = convert_realistic_data_parameters(data)
+                parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
+            else:
+                parameters = simulate_model_fixed_parameters(N=N, P=P, M=M)
+
+            self.parameters = model_fixed_parameters_set_additions(parameters)
+        else:
+
+            if printing:
+                print('Importing ' + self.data_name + ' problem instance...')
+
+            if main_file:  # If we're importing from the main instance file
+                filepath = self.filepath_in
+            else:  # If we're importing from a specific solution file (though I really want to "phase this out"
+                try:
+                    filepath = self.instance_files[0]
+                except:
+                    raise ValueError("Instance '" + self.data_name + "' not found at path " + paths_in['instances'])
+
+            self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df = \
+                import_aggregate_instance_file(filepath, num_breakpoints=num_breakpoints)
+
+        if printing:
+            if generate:
+                print('Generated.')
+            else:
+                print('Imported.')
 
     # Observe "Fixed" Data
     def display_data_graph(self, graph='Average Merit', save=False, printing=None, facecolor='white', title=None,
@@ -429,7 +432,7 @@ class CadetCareerProblem:
 
     def update_value_parameters_in_dict(self, vp_name=None):
         """
-        Updates a set of value parameters in the dictionary
+        Updates a set of value parameters in the dictionary using the current instance value parameters
         :param vp_name: name of the set of value parameters to update (default current vp_name)
         """
         if self.value_parameters is not None:
@@ -474,7 +477,7 @@ class CadetCareerProblem:
         """
         Import default value parameter setting and generate value parameters for this instance from those
         ones.
-        :param filename: filename (assumes paths['support'])
+        :param filename: filename (assumes support_paths[data variant])
         :param filepath: filepath to import from (if none specified, will use filepath attribute)
         :param num_breakpoints: Number of breakpoints to use for the value functions
         :param set_to_instance: if we want to set this set to the instance's value parameters attribute
@@ -495,20 +498,20 @@ class CadetCareerProblem:
             # if filename not specified, check if file path was not directly specified
             if filepath is None:  # default value parameters
                 if self.data_variant == "Scrubbed":
-                    filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
+                    filepath = support_paths['scrubbed'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
                 elif self.data_variant == 'Year':
-                    filepath = paths['s_support'] + 'Value_Parameters_Defaults_Real.xlsx'
+                    filepath = support_paths['real'] + 'Value_Parameters_Defaults.xlsx'
                 elif self.data_variant == 'Perfect':
-                    filepath = paths['support'] + 'Value_Parameters_Defaults_Perfect.xlsx'
+                    filepath = support_paths['scrubbed'] + 'Value_Parameters_Defaults_Perfect.xlsx'
                 else:
-                    filepath = paths['support'] + 'Value_Parameters_Defaults_Generated.xlsx'
+                    filepath = support_paths['scrubbed'] + 'Value_Parameters_Defaults_Generated.xlsx'
             else:
                 pass  # we have given a filepath already, no more info is needed
         else:
             if self.data_variant == "Year":
-                filepath = paths['s_support'] + filename
+                filepath = support_paths['real'] + filename
             else:
-                filepath = paths['support'] + filename
+                filepath = support_paths['scrubbed'] + filename
 
             if '.xlsx' not in filepath:
                 filepath += '.xlsx'
@@ -572,9 +575,9 @@ class CadetCareerProblem:
 
         if default_value_parameters is None:
             if self.data_variant == "Scrubbed":
-                filepath = paths['support'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
+                filepath = support_paths['scrubbed'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
             elif self.data_variant == 'Year':
-                filepath = paths['s_support'] + 'Value_Parameters_Defaults_Real.xlsx'
+                filepath = support_paths['real'] + 'Value_Parameters_Defaults.xlsx'
             else:
                 raise ValueError('Data type must be Real not Generated.')
 
@@ -589,11 +592,11 @@ class CadetCareerProblem:
         if constraints_df is None:
             if self.data_variant == "Year":
                 constraints_df = import_data(
-                    paths['s_support'] + 'Value_Parameter_Sets_Options_Real.xlsx',
+                    support_paths['real'] + 'Value_Parameter_Sets_Options.xlsx',
                     sheet_name=data_type + ' Constraint Options')
             else:
                 constraints_df = import_data(
-                    paths['support'] + 'Value_Parameter_Sets_Options.xlsx',
+                    support_paths['scrubbed'] + 'Value_Parameter_Sets_Options.xlsx',
                     sheet_name=data_type + ' Constraint Options')
 
         value_parameters = value_parameter_realistic_generator(self.parameters, default_value_parameters,
@@ -620,6 +623,32 @@ class CadetCareerProblem:
             print('Generated.')
 
         return value_parameters
+
+    def export_value_parameters_as_defaults(self, filename=None, filepath=None, printing=None):
+        """
+        This method exports the current set of instance value parameters to a new excel file in the "default"
+        value parameter format
+        :param printing: status updates
+        :param filename: name of the new default value parameters sheet (defaults to "Value_Parameters_Defaults_New")
+        :param filepath: path to the file (defaults to support_paths[])
+        """
+        if printing is None:
+            printing = self.printing
+
+        if self.value_parameters is None:
+            raise ValueError('No instance value parameters detected.')
+        else:
+            if filename is None:
+                filename = "Value_Parameters_Defaults_New.xlsx"
+
+            if filepath is None:
+                if self.scrubbed:
+                    filepath = support_paths['scrubbed'] + filename
+                else:
+                    filepath = support_paths['real'] + filename
+
+            model_value_parameters_to_defaults(self.parameters, self.value_parameters, filepath=filepath,
+                                               printing=printing)
 
     def change_weight_function(self, cadets=True, function=None):
         """
@@ -699,7 +728,7 @@ class CadetCareerProblem:
 
             # Use generalized "GP DF"
             if self.gp_df is None:
-                filepath = paths['support'] + 'GP_Parameters.xlsx'
+                filepath = support_paths['scrubbed'] + 'GP_Parameters.xlsx'
                 self.gp_df = import_data(filepath=filepath, sheet_name='Weights and Scaling')
                 specific_gp_df = False
             else:
@@ -865,7 +894,7 @@ class CadetCareerProblem:
 
     # Import Solutions
     def import_solution(self, filepath, excel_format="Specific", set_to_instance=True, add_to_dict=True,
-                         printing=None):
+                        printing=None):
         """
         This method imports a solution from excel
         :param excel_format: kind of excel sheet we're importing from
@@ -928,7 +957,7 @@ class CadetCareerProblem:
 
                     # If the "full name" is the name of a file, we will import the solution from that file
                     if full_name in self.real_instance_data_names:
-                        filepath = paths['s_instances'] + full_name + '.xlsx'
+                        filepath = paths_in['instances'] + full_name + '.xlsx'
                     else:
 
                         # If we need to specify a solution from a specific solution excel file
@@ -954,14 +983,14 @@ class CadetCareerProblem:
                             # If we have at least one solution, we arbitrarily take the first one
                             if len(solution_names) > 0:
                                 solution_name = solution_names[0]
-                                filepath = paths['s_instances'] + solution_full_names[0] + '.xlsx'
+                                filepath = paths_in['instances'] + solution_full_names[0] + '.xlsx'
                                 excel_format = 'Specific'
                             else:
                                 raise ValueError(str(year) + ' files exist, but no solutions detected.')
                         else:
                             raise ValueError('No ' + str(year) + ' files detected.')
             else:
-                start_index = filepath.find(paths['s_instances']) + len(paths['s_instances']) + 1
+                start_index = filepath.find(paths_in['instances']) + len(paths_in['instances']) + 1
                 end_index = len(filepath) - 5
                 full_name = filepath[start_index:end_index]
                 sections = full_name.split(' ')
@@ -974,7 +1003,7 @@ class CadetCareerProblem:
             # Import real class year solution
             real_solution = import_solution_from_excel(filepath=filepath, solution_name=solution_name,
                                                        excel_format=excel_format)
-            year_afsc_table = import_data(filepath=paths['s_support'] + "Year_AFSCs_Table.xlsx",
+            year_afsc_table = import_data(filepath=support_paths['real'] + "Year_AFSCs_Table.xlsx",
                                           sheet_name=str(year))
             real_afscs = np.array(year_afsc_table['AFSC'])
             old_afscs = np.sort(real_afscs)
@@ -1431,6 +1460,7 @@ class CadetCareerProblem:
                 self.solution_dict[solution_name] = solution
                 self.solution_name = solution_name
 
+    # TODO: This method is irrelevant now
     def afsc_solution_to_solution(self, afsc_solution, set_to_instance=True, add_to_dict=True, solution_name=None,
                                   printing=None):
         """
@@ -1461,25 +1491,7 @@ class CadetCareerProblem:
 
         return solution
 
-    def x_from_excel(self, filepath=None):
-        """
-        This method loads in an X matrix from excel
-        :param filepath: filepath of the X matrix
-        """
-
-        # Load X dataframe From Excel
-        if filepath is None:
-            if '.xlsx' in self.filepath:
-                data_name = self.filepath[:-len('.xlsx')]
-            else:
-                data_name = self.filepath
-            filepath = data_name + '_X.xlsx'
-        X = import_data(filepath)
-
-        # Convert to X matrix
-        X.drop(labels='Encrypt_PII', axis=1, inplace=True)
-        self.x = np.array(X)
-
+    # TODO: Need to fix this method (doesn't work right now)
     def init_exact_solution_from_x(self, printing=None):
         """
         This method creates a dictionary of initial variables used in the exact optimization model if we want to
@@ -1492,9 +1504,6 @@ class CadetCareerProblem:
 
         if printing:
             print('Initializing VFT solution from X matrix...')
-
-        if self.x is None:
-            self.x_from_excel()
 
         # Evaluate Solution
         metrics = measure_solution_quality(self.x, self.parameters, self.value_parameters)
@@ -1837,10 +1846,7 @@ class CadetCareerProblem:
         """
 
         if filepath is None:
-            if self.sensitive:
-                filepath = paths['s_results'] + self.data_name + '_Pareto_Analysis.xlsx'
-            else:
-                filepath = paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
+            filepath = paths_in['results'] + self.data_name + '_Pareto_Analysis.xlsx'
 
         if printing is None:
             printing = self.printing
@@ -2007,7 +2013,7 @@ class CadetCareerProblem:
             else:
                 vp_dict = self.vp_dict
             for filepath in self.instance_files:
-                start_index = filepath.find(paths[self.inst_folder]) + len(paths[self.inst_folder]) + 1
+                start_index = filepath.find(paths_in['instances']) + len(paths_in['instances']) + 1
                 end_index = len(filepath) - 5
                 full_name = filepath[start_index:end_index]
                 vp_name = full_name.split(' ')[2]
@@ -2043,21 +2049,7 @@ class CadetCareerProblem:
             vp_dict = self.vp_dict
 
         create_aggregate_instance_file(self.data_instance_name, self.parameters, solution_dict, vp_dict, metrics_dict,
-                                       self.gp_df, sensitive=self.sensitive)
-
-    def pyomo_measures_to_excel(self, filepath=None):
-        """
-        Exports the VFT optimization model variables from a particular solution to excel
-        :param filepath: file path
-        """
-        if filepath is None:
-            if '.xlsx' in self.filepath:
-                data_name = self.filepath[:-len('.xlsx')]
-                filepath = data_name + '_X.xlsx'
-            else:
-                filepath = 'X_matrix.xlsx'
-        pyomo_measures_to_excel(self.x, self.measure, self.value, self.parameters, self.value_parameters,
-                                filepath=filepath, printing=self.printing)
+                                       self.gp_df)
 
     def export_to_excel(self, aggregate=True, printing=None):
         """
@@ -2097,13 +2089,22 @@ class CadetCareerProblem:
 
             # Export to the right place
             self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name + " " + self.solution_name
-            if self.sensitive:
-                filepath = paths['s_instances'] + self.full_name + '.xlsx'
-            else:
-                filepath = paths['instances'] + self.full_name + '.xlsx'
+            filepath = paths_out['instances'] + self.full_name + '.xlsx'
 
             # Export to excel
             data_to_excel(filepath, self.parameters, self.value_parameters, self.metrics, printing=printing)
 
         if printing:
             print('Exported.')
+
+
+try:
+    from afccp.core.problem_class_add import MoreCCPMethods
+
+    # Load in the methods from the other sheet and attach them to CadetCareerProblem
+    for method_name in dir(MoreCCPMethods):
+        method = getattr(MoreCCPMethods, method_name)
+        if not method_name.startswith('__'):
+            setattr(CadetCareerProblem, method.__name__, method)
+except:
+    print('Tried to import more methods for CCP, but failed. Please fix something.')

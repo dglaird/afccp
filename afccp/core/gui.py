@@ -4,10 +4,13 @@ from tkinter import font as tkFont
 import tkinter
 from tkinter import messagebox
 from tkinter import *
+import copy
+import pandas as pd
+import numpy as np
 from PIL import ImageTk, Image
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
-from afccp.core.problem_class import *
+from afccp.core.problem_class import CadetCareerProblem
 
 # The GUI global object
 global root
@@ -282,7 +285,7 @@ class GUI(tk.Tk):
         self.sensitivity_chart_page = 'Measures'
         self.values_chart_page = 'Objectives'
 
-    def Init_Title_Data(self):
+    def init_title_data(self):
 
         # Reset attributes
         self.perfect = False
@@ -308,7 +311,7 @@ class GUI(tk.Tk):
 
         self.show_page(Title)  # set Title screen to be the initial screen
 
-    def Init_Main_Frame(self):
+    def init_main_frame(self):
         """
         Initializes the "Main" page after data has been imported. This is the main page the user will be navigating
         :return: None.
@@ -330,7 +333,7 @@ class GUI(tk.Tk):
 
         self.pages[Title].canvas.create_window(xy(1420, 20), anchor=tk.SE, window=self.pages[Title].continue_button)
 
-    def Init_Parameter_Frames(self):
+    def init_parameter_frames(self):
         """
         Initializes the "Edit Weights" and "Objectives" pages after the initial value parameters have been specified.
         :param container: the container that the pages are attached to
@@ -356,7 +359,7 @@ class GUI(tk.Tk):
         page = self.pages[cont]
         page.tkraise()
 
-    def Init_Results_Frame(self):
+    def init_results_frame(self):
         """
         Initializes the "Results" page after model has been solved.
         :return: None.
@@ -385,7 +388,7 @@ class GUI(tk.Tk):
 
         self.show_page(Main)  # set Main screen to be the initial screen
 
-    def New_Results(self):
+    def new_results(self):
 
         num_parameter_sets = len(self.vp_dict.keys())
         if num_parameter_sets == 0:
@@ -509,7 +512,7 @@ class GUI(tk.Tk):
 
                         self.z_dict[solution_name][vp_name] = self.metrics_dict[solution_name][vp_name]['z']
 
-        self.Init_Results_Frame()
+        self.init_results_frame()
 
 
 # Title Page
@@ -609,7 +612,7 @@ class Data(tk.Frame):
 
         try:
             root.instance = CadetCareerProblem(filepath=filepath)
-            root.Init_Main_Frame()
+            root.init_main_frame()
         except:
             tkinter.messagebox.showerror(message="Please Choose a valid Cadet/AFSC dataset.")
 
@@ -626,7 +629,7 @@ class Data(tk.Frame):
 
                 root.instance = CadetCareerProblem('Random', N=int(self.N_entry.get()), M=int(self.M_entry.get()),
                                                    P=int(self.P_entry.get()))
-                root.Init_Main_Frame()
+                root.init_main_frame()
             else:
                 self.canvas.itemconfig(self.warning_text, text="Select valid 'random' simulation parameters: \n"
                                                            "                  N > 0, M > P > 0")
@@ -643,7 +646,7 @@ class Data(tk.Frame):
             if int(self.N_entry.get()) > 100 and int(self.M_entry.get()) == 32 and int(self.P_entry.get()) == 6:
 
                 root.instance = CadetCareerProblem("Realistic", N=int(self.N_entry.get()))
-                root.Init_Main_Frame()
+                root.init_main_frame()
             else:
                 self.canvas.itemconfig(self.warning_text, text="Select valid 'realistic' simulation parameters: \n"
                                                                "                  N > 100, M = 32, P = 6")
@@ -665,7 +668,7 @@ class Data(tk.Frame):
                 root.perfect = True
                 root.instance = CadetCareerProblem('Perfect', N=int(self.N_entry.get()), M=int(self.M_entry.get()),
                                                    P=int(self.P_entry.get()))
-                root.Init_Main_Frame()
+                root.init_main_frame()
             else:
                 self.canvas.itemconfig(self.warning_text, text="Select valid 'perfect' simulation parameters: \n"
                                                            "N is divisible by 4 and M, M >= 2, N >= 8, M >= P")
@@ -782,7 +785,7 @@ class Main(tk.Frame):
                 pivot_x += 420
 
     def Reset_Problem(self):
-        root.Init_Title_Data()
+        root.init_title_data()
 
     def Import_Value_Parameters(self):
         global root
@@ -811,7 +814,7 @@ class Main(tk.Frame):
     def Init_Value_Parameters(self):
 
         # Initialize value parameter pages
-        root.Init_Parameter_Frames()
+        root.init_parameter_frames()
 
         # Alter User Text on Main Screen
         self.canvas.itemconfig(self.value_parameter_text, text="Edit Value Parameters")
@@ -871,7 +874,7 @@ class Main(tk.Frame):
         self.canvas.create_window(xy(1157, 560), anchor=tk.CENTER, window=self.sensitivity_button)
 
         root.current_solution_name = self.solver_var.get()
-        root.New_Results()
+        root.new_results()
 
 
 # Data Chart Page
@@ -2369,7 +2372,7 @@ class Sensitivity(tk.Frame):
             root.current_solution_name = solution_name
             root.instance.solution = root.solution_dict[solution_name]
             root.instance.measure_solution()
-            root.New_Results()
+            root.new_results()
             root.show_page(Sensitivity)
             self.Update_Screen()
 
@@ -2379,8 +2382,8 @@ class Sensitivity(tk.Frame):
             root.current_vp_name = vp_name
             root.instance.value_parameters = root.vp_dict[vp_name]
             root.instance.measure_solution()
-            root.Init_Parameter_Frames()
-            root.New_Results()
+            root.init_parameter_frames()
+            root.new_results()
             root.show_page(Sensitivity)
             self.Update_Screen()
 
@@ -2758,6 +2761,6 @@ if __name__ == "__main__":
     root = GUI()
 
     # Initialize pages
-    root.Init_Title_Data()
+    root.init_title_data()
 
     root.mainloop()  # main loop

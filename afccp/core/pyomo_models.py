@@ -598,9 +598,9 @@ def solve_pyomo_model(model, solver_name, executable=None, provide_executable=Fa
     if executable is None:
         if provide_executable:
             if exe_extension:  # (global variable <- see "globals.py")
-                executable = paths['solvers'] + solver_name + '.exe'
+                executable = support_paths['solvers'] + solver_name + '.exe'
             else:
-                executable = paths['solvers'] + solver_name
+                executable = support_paths['solvers'] + solver_name
     else:
         provide_executable = True
 

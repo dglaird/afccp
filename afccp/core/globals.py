@@ -5,48 +5,72 @@ import openpyxl
 from packaging import version
 
 # Get directory path
-global dir_path
+global dir_path, exe_extension, databricks, paths_in, paths_out, support_paths
 dir_path = os.getcwd() + '/'
+exe_extension = True  # specific variable relating to pyomo solver paths
+databricks = False  # initally assume we're not running on databricks
 
-# If I'm on my Mac, I don't want to add ".exe" to the solver path
-global exe_extension
-if 'griffenlaird' in dir_path:
-    exe_extension = False
-else:
-    exe_extension = True
+# Figure out where this directory is running from
+if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working directory
 
-# Check if we're on databricks or not
-global databricks, paths
-if 'databricks' in dir_path:
+    # Databricks
     print('Running on databricks.')
     databricks = True
 
-    # Databricks folders
-    resource_path = 'afccp/resources/'  # for now, demo it working through afccp
-    # resource_path = '/dbfs/FileStore/shared_uploads/1523477583.LAIRD.DAN/NRL_Data/'
-    paths = {}
-    for folder in ['figures', 'instances', 'results', 'support']:
-        paths[folder] = resource_path + folder + '/'
+    # Databricks folder path
+    input_folder = '/dbfs/FileStore/shared_uploads/1523477583.LAIRD.DAN/NRL_Data/main/'  # (cloud folder)
+    output_folder = ''  # Output straight into the working directory (have to manually move on databricks to cloud)
+    support_folder = dir_path + 'afccp/resources/shared/'
+
+elif 'griffenlaird' in dir_path:
+
+    # We're on my macbook
+    print("Running on Griffen's Macbook")
+
+    # If I'm on my Mac, I don't want to add ".exe" to the solver path
+    exe_extension = False
+
+    # Import and export to my folder
+    input_folder = dir_path + 'afccp/resources/laird/'
+    output_folder = dir_path + 'afccp/resources/laird/'
+    support_folder = dir_path + 'afccp/resources/shared/'
+
 else:
-    if exe_extension:
-        print('Running elsewhere.')
+
+    # Running somewhere else
+    print("Running elsewhere")
+
+    # Import and export to shared folder
+    input_folder = dir_path + 'afccp/resources/shared/'
+    output_folder = dir_path + 'afccp/resources/shared/'
+    support_folder = dir_path + 'afccp/resources/shared/'
+
+
+# Need different sets of paths (data to import from and to export to)
+paths_in = {}  # Path to the folders we want to import data from
+paths_out = {}  # Path to the folders we want to export data to
+support_paths = {}  # Path to the folders we want to import supporting material from (and potentially export to)
+
+# Paths "in"
+paths_in = {}
+for folder in ['figures', 'instances', 'results', 'tables']:
+    paths_in[folder] = input_folder + folder + '/'
+
+# Paths "out"
+paths_out = {}
+for folder in ['figures', 'instances', 'results', 'tables']:
+
+    if output_folder == "":
+        paths_out[folder] = ""  # Just want to export to the working directory
     else:
-        print("Running on Griffen's Macbook")
-    databricks = False
+        paths_out[folder] = output_folder + folder + '/'
 
-    # Make sure directory path is "../afccp/'
-    index = dir_path.find('afccp')
-    dir_path = dir_path[:index + 6]
-
-    # Additional folders in Directory
-    resource_path = 'afccp/resources/'
-    paths = {}
-    for folder in ['figures', 'instances', 'results', 'solvers', 'support', 'tables']:
-        paths[folder] = dir_path + resource_path + folder + '/'
-
+# Support paths
+for folder in ['real', 'scrubbed', 'solvers']:
+    support_paths[folder] = support_folder + folder + '/'
 
 # sensitive information
-global sensitive_folder
+global sensitive_folder, sensitive_folder
 sensitive_folder = os.path.exists(dir_path + 'afccp/sensitive')
 
 if sensitive_folder:
@@ -54,10 +78,8 @@ if sensitive_folder:
 else:
     print('Sensitive data folder not found.')
 
-# Additional sensitive folders
-sensitive_path = 'afccp/sensitive/resources/'
-for folder in ['instances', 'results', 'support', 'raw']:
-    paths['s_' + folder] = dir_path + sensitive_path + folder + '/'
+# Additional sensitive folder
+sensitive_path = dir_path + 'afccp/sensitive/raw/'
 
 # This determines how we import data from excel!
 global specify_engine
