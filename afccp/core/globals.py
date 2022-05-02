@@ -8,7 +8,7 @@ from packaging import version
 global dir_path, exe_extension, databricks, paths_in, paths_out, support_paths
 dir_path = os.getcwd() + '/'
 exe_extension = True  # specific variable relating to pyomo solver paths
-databricks = False  # initally assume we're not running on databricks
+databricks = False  # initially assume we're not running on databricks
 
 # Figure out where this directory is running from
 if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working directory
@@ -29,6 +29,16 @@ elif 'griffenlaird' in dir_path:
 
     # If I'm on my Mac, I don't want to add ".exe" to the solver path
     exe_extension = False
+
+    # Import and export to my folder
+    input_folder = dir_path + 'afccp/resources/laird/'
+    output_folder = dir_path + 'afccp/resources/laird/'
+    support_folder = dir_path + 'afccp/resources/shared/'
+
+elif 'griff007' in dir_path:
+
+    # We're on my old macbook
+    print("Running on Griffen's old macbook")
 
     # Import and export to my folder
     input_folder = dir_path + 'afccp/resources/laird/'
@@ -78,7 +88,7 @@ if sensitive_folder:
 else:
     print('Sensitive data folder not found.')
 
-# Additional sensitive folder
+# Additional sensitive folder path (for the original thesis data cleaning)
 sensitive_path = dir_path + 'afccp/sensitive/raw/'
 
 # This determines how we import data from excel!
