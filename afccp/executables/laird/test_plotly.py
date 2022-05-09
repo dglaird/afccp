@@ -2,7 +2,8 @@
 import os
 dir_path = os.getcwd() + '/'
 
-print(dir_path)
+
+print('dir_path:', dir_path)
 
 # # Get main afccp folder path
 # index = dir_path.find('afccp')
