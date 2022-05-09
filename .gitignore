@@ -209,13 +209,18 @@ docs/_build/
 sensitive/
 
 # Real
-resources/shared/real/
+afccp/resources/shared/real/
+real/
+
+# Processing
+afccp/processing/
 
 # Laird Folder
 afccp/resources/laird/
 
 # Solvers
-resources/shared/solvers/
+afccp/resources/shared/solvers/
+
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
