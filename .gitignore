@@ -209,17 +209,16 @@ docs/_build/
 sensitive/
 
 # Real
-afccp/resources/shared/real/
 real/
 
 # Processing
-afccp/processing/
+processing/
 
 # Laird Folder
 afccp/resources/laird/
 
 # Solvers
-afccp/resources/shared/solvers/
+# afccp/resources/shared/solvers/
 
 
 # PyCharm
