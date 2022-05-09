@@ -8,12 +8,20 @@ dir_path = "/workspace/afccp/"
 # Update working directory
 os.chdir(dir_path)
 
-# Add afccp to path
-import sys
-sys.path.insert(0,dir_path)
+# If this is the first time we run this script, we'll get an error saying "No module named 'afccp'" so we need to add it to the path
+try:
 
-# Import main problem class
-from afccp.core.problem_class import CadetCareerProblem
+    # Import main problem class
+    from afccp.core.problem_class import CadetCareerProblem
+except:
+
+    # Add afccp to path
+    import sys
+    sys.path.insert(0,dir_path)
+
+    # Import main problem class
+    from afccp.core.problem_class import CadetCareerProblem
+
 
 instance = CadetCareerProblem('C', printing=True)
 instance.set_instance_value_parameters()
