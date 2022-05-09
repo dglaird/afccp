@@ -8,7 +8,7 @@ from packaging import version
 global dir_path, exe_extension, databricks, paths_in, paths_out, support_paths
 dir_path = os.getcwd() + '/'
 exe_extension = True  # specific variable relating to pyomo solver paths
-databricks = False  # initially assume we're not running on databricks
+databricks = False  # initiallypip assume we're not running on databricks
 
 # Figure out where this directory is running from
 if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working directory

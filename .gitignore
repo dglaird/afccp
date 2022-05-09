@@ -205,18 +205,20 @@ instance/
 # Sphinx documentation
 docs/_build/
 
-# Sensitive
-sensitive/
+# "Sensitive" Folder
 afccp/sensitive/
 
-# Real
-afccp/resources/shared/real/
+# Real "Support" Folder
+resources/shared/real/
 
-# Laird Folder
-afccp/resources/laird/
+# Laird Resources Folder
+resources/laird/
 
-# Solvers
-resources/shared/solvers/
+# Processing Folder
+afccp/processing/
+
+# Solvers (I commented this out because the solvers may actually be useful sometimes)
+# solvers/
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

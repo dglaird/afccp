@@ -1,21 +1,21 @@
 # Get directory path
 import os
-dir_path = os.getcwd() + '/'
+dir_path = os.getcwd() + '/'  # on ploty enterprise, the directory path is "/workspace/"
 
+# Get main afccp folder path
+dir_path = "/workspace/afccp/"
 
-print('dir_path:', dir_path)
+# Update working directory
+os.chdir(dir_path)
 
-# # Get main afccp folder path
-# index = dir_path.find('afccp')
-# dir_path = dir_path[:index + 6]
+# Add afccp to path
+import sys
+sys.path.insert(0,dir_path)
 
-# # Update working directory
-# os.chdir(dir_path)
+# Import main problem class
+from afccp.core.problem_class import CadetCareerProblem
 
-# # Import main problem class
-# from afccp.core.problem_class import CadetCareerProblem
-
-# instance = CadetCareerProblem('2021', printing=True)
-# instance.set_instance_value_parameters()
-# instance.set_instance_solution()
-# instance.export_value_parameters_as_defaults()
+instance = CadetCareerProblem('C', printing=True)
+instance.set_instance_value_parameters()
+instance.set_instance_solution()
+instance.export_value_parameters_as_defaults()
