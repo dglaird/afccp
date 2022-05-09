@@ -214,6 +214,7 @@ real/
 # Processing
 processing/
 /afccp/processing/
+afccp/processing/
 
 # Laird Folder
 afccp/resources/laird/
