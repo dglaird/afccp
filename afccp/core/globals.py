@@ -22,6 +22,16 @@ if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working 
     output_folder = ''  # Output straight into the working directory (have to manually move on databricks to cloud)
     support_folder = dir_path + 'afccp/resources/shared/'
 
+elif 'workspace' in dir_path:  # We're running this from plotly!
+
+    # We're on my macbook
+    print("Running on plotly enterprise")
+
+    # Import and export to my folder
+    input_folder = dir_path + 'afccp/resources/laird/'
+    output_folder = dir_path + 'afccp/resources/laird/'
+    support_folder = dir_path + 'afccp/resources/shared/'
+
 elif 'griffenlaird' in dir_path:
 
     # We're on my macbook

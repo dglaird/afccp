@@ -3,7 +3,7 @@ import os
 dir_path = os.getcwd() + '/'  # on ploty enterprise, the directory path is "/workspace/"
 
 # Get main afccp folder path
-dir_path = "/workspace/afccp/"
+dir_path = "/workspace/afccp/"  # This file needs to be run on plotly enterprise
 
 # Update working directory
 os.chdir(dir_path)
@@ -12,7 +12,7 @@ os.chdir(dir_path)
 try:
 
     # Import main problem class
-    from afccp.core.problem_class import CadetCareerProblem
+    from afccp.processing.compiler import DataAggregator
 except:
 
     # Add afccp to path
@@ -20,9 +20,7 @@ except:
     sys.path.insert(0,dir_path)
 
     # Import main problem class
-    from afccp.core.problem_class import CadetCareerProblem
+    from afccp.processing.compiler import DataAggregator
 
-
-instance = CadetCareerProblem('2020', printing=True)
-instance.set_instance_value_parameters()
-instance.set_instance_solution()
+agg = DataAggregator(cy='2023')
+agg.view_rotc_columns()
