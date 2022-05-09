@@ -26,4 +26,3 @@ except:
 instance = CadetCareerProblem('C', printing=True)
 instance.set_instance_value_parameters()
 instance.set_instance_solution()
-instance.export_value_parameters_as_defaults()
