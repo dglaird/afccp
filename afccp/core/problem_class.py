@@ -44,17 +44,21 @@ class CadetCareerProblem:
             for variant in self.generated_data_names:
                 if variant in d_name and d_name not in self.generated_data_names[variant]:
                     self.generated_data_names[variant].append(d_name)
-            if len(d_name) in [1, 4]:
+            if len(d_name) in [1, 4]:  # Letter or Class Year
                 real_instance_data_names.append(full_name)
         self.real_instance_data_names = np.array(real_instance_data_names)
 
         # Get correct data attributes
         if data_name is None:
+
+            # If we didn't specify a data_name, we're just going to generate a random set of cadets
             self.data_name = "Random_" + str(len(self.generated_data_names["Random"]) + 1)
             self.data_type = "Generated"
             self.data_variant = "Random"
             generate = True
         else:
+
+            # We specified a data_name
             self.data_name = data_name
 
             # Initially assume it's a "real" set of data
@@ -71,7 +75,7 @@ class CadetCareerProblem:
                     generate = True
                     break
 
-                # If we specified a specific version ("Random_4" for instance), then we'll load it in
+                # If we specified a specific version ("Random_4" for example), then we'll load it in
                 elif data_variant in self.data_name and '_' in self.data_name:
                     self.data_type = "Generated"
                     generate = False
@@ -99,7 +103,7 @@ class CadetCareerProblem:
         # Get correct filepath  (for loading in the instance right now)
         self.filepath_in = paths_in['instances'] + self.data_instance_name + '.xlsx'
 
-        # Get list of instance filenames
+        # Get list of instance filenames (Could be more than just the main file)
         directory = paths_in['instances']
         main_file = False  # if there is a "data_type data_name.xlsx" file
         self.instance_files = []
@@ -222,7 +226,7 @@ class CadetCareerProblem:
             num_afscs = self.parameters['M']
 
         if skip_afscs is None:
-            if self.data_variant == "Real":
+            if self.data_variant == "Year":
                 skip_afscs = False
             else:
                 if num_afscs < self.parameters['M']:
@@ -234,7 +238,7 @@ class CadetCareerProblem:
             if skip_afscs:
                 afsc_rotation = 0
             else:
-                if self.data_variant == "Real":
+                if self.data_variant == "Year":
                     if num_afscs > 18:
                         afsc_rotation = 45
                     else:
@@ -1641,24 +1645,29 @@ class CadetCareerProblem:
         """
         Updates metrics dictionary from solutions and vp dictionaries
         """
-        if self.metrics_dict is None:
-            self.metrics_dict = {}
-        for vp_name in self.vp_dict:
-            value_parameters = self.vp_dict[vp_name]
-            if vp_name not in self.metrics_dict:
-                self.metrics_dict[vp_name] = {}
-            for solution_name in self.solution_dict:
-                solution = self.solution_dict[solution_name]
-                if solution_name not in self.metrics_dict[vp_name]:
-                    metrics = measure_solution_quality(solution, self.parameters, value_parameters)
-                    self.metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
 
-        # Update weights on the sets of value parameters relative to each other
-        sum_weights = 0
-        for vp_name in self.vp_dict:
-            sum_weights += self.vp_dict[vp_name]['vp_weight']
-        for vp_name in self.vp_dict:
-            self.vp_dict[vp_name]['vp_local_weight'] = self.vp_dict[vp_name]['vp_weight'] / sum_weights
+        # We only update the dictionaries if we have at least one set of value parameters and one solution
+        if self.vp_dict is not None and self.solution_dict is not None:
+
+            if self.metrics_dict is None:
+                self.metrics_dict = {}
+
+            for vp_name in self.vp_dict:
+                value_parameters = self.vp_dict[vp_name]
+                if vp_name not in self.metrics_dict:
+                    self.metrics_dict[vp_name] = {}
+                for solution_name in self.solution_dict:
+                    solution = self.solution_dict[solution_name]
+                    if solution_name not in self.metrics_dict[vp_name]:
+                        metrics = measure_solution_quality(solution, self.parameters, value_parameters)
+                        self.metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
+
+            # Update weights on the sets of value parameters relative to each other
+            sum_weights = 0
+            for vp_name in self.vp_dict:
+                sum_weights += self.vp_dict[vp_name]['vp_weight']
+            for vp_name in self.vp_dict:
+                self.vp_dict[vp_name]['vp_local_weight'] = self.vp_dict[vp_name]['vp_weight'] / sum_weights
 
     # Observe Results
     def display_results_graph(self, graph='Average Merit', title=None, save=None, printing=None, facecolor='white',

@@ -10,7 +10,10 @@ dir_path = dir_path[:index + 6]
 os.chdir(dir_path)
 
 # Import compiler class
-from afccp.processing.compiler import DataAggregator
+from afccp.core.problem_class import CadetCareerProblem
 
-data = DataAggregator()
-data.compile_problem_instance_file(printing=True)
+instance = CadetCareerProblem('2021', printing=True)
+instance.set_instance_value_parameters()
+# instance.vft_to_gp_parameters(get_new_rewards_penalties=True, provide_executable=True)
+# instance.export_to_excel()
+
