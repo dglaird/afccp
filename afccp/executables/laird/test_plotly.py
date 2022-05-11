@@ -26,3 +26,6 @@ except:
 instance = CadetCareerProblem('2020', printing=True)
 instance.set_instance_value_parameters()
 instance.set_instance_solution()
+# instance.set_instance_solution()
+# instance.solve_vft_pyomo_model(max_time=10, provide_executable=False)
+instance.full_vft_model_solve(provide_executable=False, ga_printing=True, ga_max_time=120)

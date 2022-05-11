@@ -23,4 +23,4 @@ except:
     from afccp.processing.compiler import DataAggregator
 
 agg = DataAggregator(cy='2023')
-agg.view_rotc_columns()
+agg.create_info_df()
