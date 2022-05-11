@@ -24,3 +24,5 @@ except:
 
 agg = DataAggregator(cy='2023')
 agg.create_info_df()
+
+print(agg.ic["CIP1"])
