@@ -1270,11 +1270,15 @@ class CadetCareerProblem:
         else:
             return solution
 
-    def solve_original_pyomo_model(self, add_to_dict=True, set_to_instance=True, printing=None):
+    def solve_original_pyomo_model(self, add_to_dict=True, set_to_instance=True, max_time=None, executable=None,
+                                   provide_executable=True, printing=None):
         """
         Solve the original AFPC model using pyomo
+        :param max_time: max time allowed by the solver
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
         :param add_to_dict: if we want to add this solution to the solution dictionary
+        :param executable: path of the solver
+        :param provide_executable: if we want to provide an executable directly
         :param printing: Whether the procedure should print something
         """
 
@@ -1284,7 +1288,8 @@ class CadetCareerProblem:
         if use_pyomo:
             model = original_pyomo_model_build(printing)
             data = convert_parameters_to_original_model_inputs(self.parameters, self.value_parameters, printing)
-            solution = solve_original_pyomo_model(data, model, printing=printing)
+            solution = solve_original_pyomo_model(data, model, max_time=max_time, provide_executable=provide_executable,
+                                                  executable=executable, printing=printing)
         else:
             raise ValueError('Pyomo not available')
 

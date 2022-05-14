@@ -85,7 +85,7 @@ def original_pyomo_model_build(printing=False):
     model.con_max_percentile = Constraint(model.L, rule=max_percentile_rule)
 
     def objective_rule(model):
-        return sum(sum(model.C[i, j] * model.x[i, j] for j in model.J) for i in model.I)
+        return sum(sum(model.C[i, j] * model.x[i, j] for i in model.I) for j in model.J)
 
     model.objective = Objective(rule=objective_rule, sense=maximize, doc='Objective Function')
 
@@ -148,11 +148,11 @@ def convert_parameters_to_original_model_inputs(parameters, value_parameters, pr
         'I': {None: np.arange(N)},
         'J': {None: np.arange(M)},
         'L': {None: large_afscs},
-        'R': {None: value_parameters['J_A'][mand_k]},
+        'R': {None: value_parameters['J^A'][mand_k]},
         'N': {None: N},
         'M': {None: M},
         'G': {None: G},
-        'M_R': {None: len(value_parameters['J_A'][mand_k])},
+        'M_R': {None: len(value_parameters['J^A'][mand_k])},
         'merit': {i: parameters['merit'][i] for i in range(N)},
         'usafa': {i: parameters['usafa'][i] for i in range(N)},
         'target': {j: value_parameters['objective_target'][j, quota_k] for j in range(M)},
@@ -166,9 +166,10 @@ def convert_parameters_to_original_model_inputs(parameters, value_parameters, pr
 
 
 def solve_original_pyomo_model(data, model, model_name='Original Model', solver_name="cbc",
-                               executable=None, provide_executable=False, printing=False):
+                               executable=None, provide_executable=False, max_time=None, printing=False):
     """
     Solves the pyomo model and returns the solution
+    :param max_time: max time allowed
     :param provide_executable: whether or not to supply the solver with an executable path
     :param executable: path to solver executable (optional- defaults to solver folder)
     :param solver_name: which solver to use
@@ -186,7 +187,7 @@ def solve_original_pyomo_model(data, model, model_name='Original Model', solver_
     if printing:
         print('Solving ' + model_name + ' instance with solver ' + solver_name + '...')
 
-    instance = solve_pyomo_model(instance, solver_name, executable, provide_executable)
+    instance = solve_pyomo_model(instance, solver_name, executable, provide_executable, max_time=max_time)
     solution = np.zeros(instance.N.value)
     for i in range(instance.N.value):
         for j in range(instance.M.value):
