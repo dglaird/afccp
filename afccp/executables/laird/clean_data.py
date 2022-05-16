@@ -22,7 +22,5 @@ except:
     # Import main problem class
     from afccp.processing.compiler import DataAggregator
 
-agg = DataAggregator(cy='2023')
-agg.create_info_df()
-
-print(agg.ic["CIP1"])
+agg = DataAggregator(cy='2023', re_compile=False)
+agg.compile_problem_instance_file(re_compile=False)
