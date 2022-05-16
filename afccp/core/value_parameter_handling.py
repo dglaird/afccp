@@ -157,7 +157,7 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
                                     'Function Breakpoint Values (f^hat)': np.ndarray.flatten(fhat_strings),
                                     'Value Functions': afsc_value_functions})
 
-    cadet_weights_df = pd.DataFrame({'Cadet': parameters['SS_encrypt'],
+    cadet_weights_df = pd.DataFrame({'Cadet': parameters['ID'],
                                      'Weight': value_parameters['cadet_weight'],
                                      'Min Value': value_parameters['cadet_value_min']})
 

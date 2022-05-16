@@ -178,7 +178,7 @@ class CadetCareerProblem:
                 except:
                     raise ValueError("Instance '" + self.data_name + "' not found at path " + paths_in['instances'])
 
-            self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df = \
+            self.info_df, self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df = \
                 import_aggregate_instance_file(filepath, num_breakpoints=num_breakpoints)
 
         if printing:
@@ -2063,7 +2063,7 @@ class CadetCareerProblem:
             vp_dict = self.vp_dict
 
         create_aggregate_instance_file(self.data_instance_name, self.parameters, solution_dict, vp_dict, metrics_dict,
-                                       self.gp_df)
+                                       self.gp_df, info_df=self.info_df)
 
     def export_to_excel(self, aggregate=True, printing=None):
         """

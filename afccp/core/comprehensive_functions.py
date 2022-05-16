@@ -411,7 +411,7 @@ def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, pri
 
 
 def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp_dict=None, metrics_dict=None,
-                                   gp_df=None, printing=False):
+                                   gp_df=None, info_df=None, printing=False):
     """
     This file takes all of the relevant data for a particular fixed instance and exports it to excel
     :param gp_df: dataframe of goal programming parameters
@@ -514,6 +514,8 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
     # Export to excel
     filepath = paths_out['instances'] + full_name + '.xlsx'
     with pd.ExcelWriter(filepath) as writer:  # Export to excel
+        if info_df is not None:
+            info_df.to_excel(writer, sheet_name="All Cadet Info", index=False)
         cadets_fixed.to_excel(writer, sheet_name="Cadets Fixed", index=False)
         afscs_fixed.to_excel(writer, sheet_name="AFSCs Fixed", index=False)
         if gp_df is not None:
@@ -542,7 +544,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
         print('Importing problem instance data...')
 
     # Import fixed parameters
-    cadets_fixed, afscs_fixed = import_fixed_cadet_afsc_data_from_excel(filepath)
+    info_df, cadets_fixed, afscs_fixed = import_fixed_cadet_afsc_data_from_excel(filepath)
     parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
     parameters = model_fixed_parameters_set_additions(parameters)
 
@@ -705,4 +707,4 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
         metrics_dict = None
 
     # return instance data
-    return parameters, vp_dict, solution_dict, metrics_dict, gp_df
+    return info_df, parameters, vp_dict, solution_dict, metrics_dict, gp_df

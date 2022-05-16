@@ -15,10 +15,14 @@ def import_fixed_cadet_afsc_data_from_excel(filepath, printing=False):
         print("Importing fixed cadet/AFSC data from excel...")
 
     # Import datasets
+    try:
+        info_df = import_data(filepath, sheet_name="All Cadet Info")
+    except:
+        info_df = None
     cadets_fixed = import_data(filepath, sheet_name="Cadets Fixed")
     afscs_fixed = import_data(filepath, sheet_name="AFSCs Fixed")
 
-    return cadets_fixed, afscs_fixed
+    return info_df, cadets_fixed, afscs_fixed
 
 
 def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=False):
@@ -45,10 +49,21 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
     P = len([col for col in columns if 'NRat' in col])
 
     # Initialize parameters dictionary
-    parameters = {'SS_encrypt': np.array(cadets_fixed.loc[:, 'Encrypt_PII']), 'afsc_vector': afsc_vector,
+    parameters = {'afsc_vector': afsc_vector,
                   'P': P, "quota": np.array(afscs_fixed.loc[:, 'Combined Target']), 'N': N, 'M': M, 'qual': qual,
                   'quota_max': np.array(afscs_fixed.loc[:, 'Max']), 'quota_min': np.array(afscs_fixed.loc[:, 'Min']),
                   'utility': np.zeros([N, M])}
+
+    # Phasing out the old ID
+    if "Cadet" in columns:
+        parameters["ID"] = np.array(cadets_fixed.loc[:, 'Cadet'])
+    else:
+        parameters["ID"] = np.array(cadets_fixed.loc[:, 'Encrypt_PII'])
+
+    if "Assigned" in columns:
+        parameters["assigned"] = np.array(cadets_fixed.loc[:, 'Assigned'])
+    else:
+        parameters["assigned"] = np.array(["" for _ in range(N)])
 
     if qual[0, 0] in [1, 0]:  # Qual Matrix is Binary
         parameters['ineligible'] = (qual == 0) * 1
@@ -63,7 +78,8 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
 
     # Load Instance Parameters (may or may not be included in this dataset)
     cadet_parameter_dictionary = {'USAFA': 'usafa', 'Male': 'male', 'Minority': 'minority', 'ASC1': 'asc1',
-                                  'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit'}
+                                  'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit',
+                                  'percentile_all': 'merit_all'}
     for col_name in cadet_parameter_dictionary:
         if col_name in columns:
             parameters[cadet_parameter_dictionary[col_name]] = np.array(cadets_fixed.loc[:, col_name])
@@ -78,8 +94,14 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
         parameters['rotc_quota'] = np.array(afscs_fixed.loc[:, 'ROTC Target'])
 
     # Create utility matrix from preference columns
-    preferences_array = np.array(cadets_fixed.loc[:, 'NRat' + str(1):'NRat' + str(parameters['P'])])
-    utilities_array = np.array(cadets_fixed.loc[:, 'NrWgt' + str(1):'NrWgt' + str(parameters['P'])])
+    try:  # Phasing out "NRat"
+        preferences_array = np.array(cadets_fixed.loc[:, 'NR_Pref_' + str(1):'NR_Pref_' + str(parameters['P'])])
+    except:
+        preferences_array = np.array(cadets_fixed.loc[:, 'NRat' + str(1):'NRat' + str(parameters['P'])])
+    try:  # Phasing out "NrWgt"
+        utilities_array = np.array(cadets_fixed.loc[:, 'NR_Util_' + str(1):'NR_Util_' + str(parameters['P'])])
+    except:
+        utilities_array = np.array(cadets_fixed.loc[:, 'NrWgt' + str(1):'NrWgt' + str(parameters['P'])])
     for i in range(N):
         for p in range(parameters['P']):
             j = np.where(preferences_array[i, p] == afsc_vector)[0]
@@ -101,20 +123,21 @@ def model_data_frame_from_fixed_parameters(parameters):
 
     # Build Cadets Fixed data frame
     cadets_fixed = pd.DataFrame(
-        {'Encrypt_PII': parameters['SS_encrypt']})
+        {'Cadet': parameters['ID'], 'Assigned': parameters['assigned']})
 
     # Load Instance Parameters (may or may not be included)
     cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'USAFA': 'usafa', 'ASC1': 'asc1',
-                                  'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit'}
+                                  'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit',
+                                  'percentile_all': 'merit_all'}
     for col_name in cadet_parameter_dictionary:
         if cadet_parameter_dictionary[col_name] in parameters:
             cadets_fixed[col_name] = parameters[cadet_parameter_dictionary[col_name]]
 
     # Loop through all the choices
     for i in range(parameters['P']):
-        cadets_fixed['NrWgt' + str(i + 1)] = utilities_array[:, i]
+        cadets_fixed['NR_Util_' + str(i + 1)] = utilities_array[:, i]
     for i in range(parameters['P']):
-        cadets_fixed['NRat' + str(i + 1)] = preferences[:, i]
+        cadets_fixed['NR_Pref_' + str(i + 1)] = preferences[:, i]
 
     # Number of AFSCs
     M = parameters['M']
