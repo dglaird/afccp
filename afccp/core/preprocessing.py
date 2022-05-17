@@ -330,12 +330,19 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None):
     N = len(cip1)
     M = len(afscs)
 
+    # Adjust CIPs in case python cut the leading 0s off
+    for i, cip in full_cip_codes:
+        full_cip_codes[i] = "0" * (6 - len(cip)) + cip
+
     # Initialize Qual Matrix
     qual_matrix = np.array([[" " for _ in range(M)] for _ in range(N)])
     tier_dict = {'M': 3, 'D': 2, 'P': 1, 'I': 0}
 
     # Loop through all cadets
     for i in range(N):
+
+        # Clean up CIPs (Add leading 0s)
+        cip1[i] = "0" * (6 - len(cip1[i])) + cip1[i]
 
         # Load qualifications for this cadet
         cip_index = np.where(full_cip_codes == cip1[i])[0]
@@ -347,6 +354,11 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None):
 
         # Check second degree
         if cip2 is not None:
+
+            if len(cip2[i]) >= 4 and cip2[i] != "None":
+                cip2[i] = "0" * (6 - len(cip2[i])) + cip2[i]
+            else:
+                cip2[i] = "None"
             cip_index2 = np.where(full_cip_codes == cip2[i])[0]
             if len(cip_index2) != 0:
                 cip_index2 = cip_index2[0]
