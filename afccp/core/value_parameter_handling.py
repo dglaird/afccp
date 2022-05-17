@@ -488,6 +488,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
             # If we care about this objective, we load in its value function breakpoints
             if value_parameters['objective_weight'][j, k] != 0:
+
                 # Create the non-linear piecewise exponential segment dictionary
                 segment_dict = create_segment_dict_from_string(value_functions[j, k],
                                                                value_parameters['objective_target'][j, k],

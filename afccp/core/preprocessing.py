@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from afccp.core.globals import *
 
+
 def generate_cip_to_qual_matrix(printing=True, year=2016):
     """
     This procedure takes all the CIP codes from the ASC_CIP excel sheet and then creates a matrix of AFSCs that the
@@ -17,10 +18,7 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
 
     cip_codes = np.unique(np.array(cip_df.loc[:, 'CIP']).astype(str)).astype(str)
     for i, cip in enumerate(cip_codes):
-        num = len(cip)
-        if num < 6:
-            new_cip = "0" + cip
-            cip_codes[i] = new_cip
+        cip_codes[i] = (6 - len(cip)) * "0" + cip  # Add leading 0s if necessary
     afscs = ['13H', '13M', '13N', '13S', '14F', '14N', '15A', '15W', '17X', '17S', '17D', '21A', '21M', '21R', '31P', '32EXA',
              '32EXC', '32EXE', '32EXF', '32EXG', '32EXJ', '35P', '38F', '38P', '61A', '61B', '61C', '61D', '62EXA',
              '62EXB', '62EXC', '62EXE', '62EXG', '62EXH', '62EXI', '62EXS', '63A', '64P', '65F']
@@ -72,7 +70,7 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
             elif afsc == '14F':
                 m_list4 = ['3017', '4201', '4227', '4501', '4511']
                 d_list4 = ['0909', '5214', '3023', '3026']
-                p_list4 = ['0501' ,'4509', '4502', '3025', '0901'] 
+                p_list4 = ['0501', '4509', '4502', '3025', '0901']
                 if cip[:4] in m_list4:
                     qual_matrix[i, j] = 'M'
                 elif cip[:4] in d_list4:
@@ -91,18 +89,20 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
                 else:
                     qual_matrix[i, j] = 'P'
             elif afsc == '15A' or afsc == '61A':
-                if cip[:4] in ['1437', '1435'] or cip[:2] == '27' or cip in ['303001', '307001']:
+                m_list4 = ['1437', '1435', '3070', '3030', '3008']
+                if cip[:4] in m_list4 or cip[:2] in ['27'] or cip in ['110102']:
                     qual_matrix[i, j] = 'M'
-                elif cip in ['110701', '450603'] or cip[:4] == '1427':
+                elif cip in ['110804', '450603'] or cip[:4] in ['1427', '1107', '3039', '3049']:
                     qual_matrix[i, j] = 'D'
-                elif (cip[:2] == '14' and cip != '140102') or cip[:4] in ['4008', '4506']:
+                elif (cip[:2] == '14' and cip != '140102') or cip[:4] in ['4008', '4506', '2611', '3071', '5213',
+                                                                          '4506']:
                     qual_matrix[i, j] = 'P'
                 else:
                     qual_matrix[i, j] = 'I'
             elif afsc == '15W':
                 if cip[:4] == '4004':
                     qual_matrix[i, j] = 'M'
-                elif cip[:4] in ['3008', '3030'] or cip[:2] in ['27', '41'] or (cip[:2] == '40' and cip[:4] != '4004'):
+                elif cip[:2] in ['27', '41'] or (cip[:2] == '40' and cip[:4] != '4004') or cip[:4] in ['3008', '3030']:
                     qual_matrix[i, j] = 'P'
                 else:
                     qual_matrix[i, j] = 'I'
@@ -126,15 +126,21 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
                 d_list4 = ['1107', '1101', '1110', '5202', '5206', '5213']
                 d_list2 = ['14', '27', '40']
                 d_list6 = ['290407', '290408', '151501', '520409']
-                if cip[:2] in d_list2 or cip[:4] in d_list4 or cip in d_list6:
+
+                # Added Ops Research and Data Processing (no CIPs in AFOCD)
+                d_list6_add = ['143701', '110301']
+                if cip[:2] in d_list2 or cip[:4] in d_list4 or cip in d_list6 or cip in d_list6_add:
                     qual_matrix[i, j] = 'D'
                 else:
                     qual_matrix[i, j] = 'P'
             elif afsc == '21R':
                 d_list4 = ['1425', '1407', '1101', '1102', '1103', '1104', '1107', '1110', '4506', '5202', '5203',
-                           '5206', '5208', '5212']
+                           '5206', '5208']
                 d_list6 = ['151501', '490101', '520409']
-                if cip[:4] in d_list4 or cip in d_list6:
+
+                # Added Ops Research and Data Processing (no CIPs in AFOCD)
+                d_list6_add = ['143701', '110301']
+                if cip[:4] in d_list4 or cip in d_list6 or cip in d_list6_add or cip[:3] == "521":
                     qual_matrix[i, j] = 'D'
                 else:
                     qual_matrix[i, j] = 'P'
@@ -148,7 +154,7 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
                 else:
                     qual_matrix[i, j] = 'P'
             elif afsc == '32EXA':
-                if cip[:4] == '0402' or cip in ['140401', '402010']:
+                if cip[:4] == '0402' or cip in ['140401']:  # Sometimes 402010 is included
                     qual_matrix[i, j] = 'M'
                 else:
                     qual_matrix[i, j] = 'I'
@@ -170,6 +176,8 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
             elif afsc == '32EXG':
                 if cip[:4] in ['1408', '1410'] or cip in ['140401', '141401', '141901', '143301', '143501']:
                     qual_matrix[i, j] = 'M'
+                elif cip in ["140701"] or cip[:4] in ["1405", "1425", "1402", "5220"]:
+                    qual_matrix[i, j] = 'D'  # CY23 added a desired tier to 32EXG!
                 else:
                     qual_matrix[i, j] = 'I'
             elif afsc == '32EXJ':
@@ -214,7 +222,7 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
                 else:
                     qual_matrix[i, j] = 'I'
             elif afsc == '62EXA':
-                if cip[:4] == '1402' or (cip == '142701' and year == 2016):
+                if cip[:4] == '1402':  # or (cip == '142701' and year == 2016):
                     qual_matrix[i, j] = 'M'
                 else:
                     qual_matrix[i, j] = 'I'
@@ -239,7 +247,7 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
                 else:
                     qual_matrix[i, j] = 'I'
             elif afsc == '62EXG':
-                if cip[:2] == '14' and cip != '140102' or (cip == '401002' and year in [2016]):
+                if cip[:2] == '14' and cip != '140102' and cip[:4] != "1437":  # (cip == '401002' and year in [2016]):
                     qual_matrix[i, j] = 'M'
                 else:
                     qual_matrix[i, j] = 'I'

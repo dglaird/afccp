@@ -1,4 +1,6 @@
 # Import libraries
+import os
+
 import pandas as pd
 
 from afccp.core.comprehensive_functions import *
@@ -504,7 +506,11 @@ class CadetCareerProblem:
                 if self.data_variant == "Scrubbed":
                     filepath = support_paths['scrubbed'] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
                 elif self.data_variant == 'Year':
-                    filepath = support_paths['real'] + 'Value_Parameters_Defaults.xlsx'
+                    filename = 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
+                    if filename in os.listdir(support_paths['real']):
+                        filepath = support_paths['real'] + filename
+                    else:
+                        filepath = support_paths['real'] + 'Value_Parameters_Defaults.xlsx'
                 elif self.data_variant == 'Perfect':
                     filepath = support_paths['scrubbed'] + 'Value_Parameters_Defaults_Perfect.xlsx'
                 else:
@@ -642,8 +648,8 @@ class CadetCareerProblem:
         if self.value_parameters is None:
             raise ValueError('No instance value parameters detected.')
         else:
-            if filename is None:
-                filename = "Value_Parameters_Defaults_New.xlsx"
+            if filename is None:  # I add the "_New" just so we make sure we don't accidentally overwrite the old one
+                filename = "Value_Parameters_Defaults_" + self.data_name + "_New.xlsx"
 
             if filepath is None:
                 if self.scrubbed:

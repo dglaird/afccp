@@ -13,6 +13,8 @@ os.chdir(dir_path)
 from afccp.core.problem_class import CadetCareerProblem
 
 instance = CadetCareerProblem('2021', printing=True)
+instance.import_default_value_parameters()
+print(instance.value_parameters["afscs_overall_weight"])
 # instance.set_instance_value_parameters()
 # instance.solve_original_pyomo_model(max_time=60)
 # instance.full_vft_model_solve(ga_max_time=60, ga_printing=True)
