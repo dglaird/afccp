@@ -290,11 +290,14 @@ class CadetCareerProblem:
         find_original_solution_ineligibility(self.parameters, solution)
 
     # Adjust Data
-    def adjust_qualification_matrix(self, printing=None):
+    def adjust_qualification_matrix(self, printing=None, report_cips_not_found=False, use_matrix=True):
         """
         This procedure simply re-runs the CIP to Qual function in case I change qualifications or I
         identify errors since some cadets in the AFPC solution may receive AFSCs for which they
         are ineligible for.
+        :param use_matrix: use the matrix (loaded from excel) or the function that does it directly
+        :param report_cips_not_found: if we want to get a list of CIPs of cadets that are not found in
+        the full list of CIPs
         :param printing: Whether we should print status updates or not
         """
         if printing is None:
@@ -304,11 +307,22 @@ class CadetCareerProblem:
             print('Adjusting qualification matrix...')
 
         parameters = copy.deepcopy(self.parameters)
+        unknown_cips = {}
 
         if 'cip1' in parameters:
             if 'cip2' in parameters:
-                qual_matrix = cip_to_qual(parameters['afsc_vector'], parameters['cip1'].astype(str),
-                                          cip2=parameters['cip2'].astype(str))
+
+                if use_matrix:
+                    if report_cips_not_found:
+                        qual_matrix, unknown_cips = cip_to_qual(parameters['afsc_vector'], parameters['cip1'].astype(str),
+                                                                cip2=parameters['cip2'].astype(str),
+                                                                report_cips_not_found=True)
+                    else:
+                        qual_matrix = cip_to_qual(parameters['afsc_vector'], parameters['cip1'].astype(str),
+                                                  cip2=parameters['cip2'].astype(str))
+                else:
+                    qual_matrix = cip_to_qual_direct(parameters['afsc_vector'], parameters['cip1'].astype(str),
+                                                     cip2=parameters['cip2'].astype(str))
                 parameters['qual'] = qual_matrix
                 parameters['ineligible'] = (qual_matrix == 'I') * 1
                 parameters['eligible'] = (parameters['ineligible'] == 0) * 1
@@ -321,6 +335,19 @@ class CadetCareerProblem:
                 raise ValueError("No 'cip2' column in parameters")
         else:
             raise ValueError("No 'cip1' column in parameters")
+
+        if report_cips_not_found:
+            cips = []
+            counts = []
+            for cip in unknown_cips:
+                print(str(unknown_cips[cip]) + " cadets contained a CIP labeled " + cip +
+                      " that was not found in the full list of CIPs.")
+                cips.append(cip)
+                counts.append(unknown_cips[cip])
+
+            df = pd.DataFrame({"Unknown CIP": cips, "Occurrences": counts})
+            with pd.ExcelWriter(paths_out["tables"] + self.data_name + "_CIP_Report.xlsx") as writer:  # Export to excel
+                df.to_excel(writer, sheet_name="Unknown CIPs", index=False)
 
     # Specify Value Parameters
     def import_value_parameters(self, filepath=None, vp_name=None, num_breakpoints=None, set_value_parameters=True,

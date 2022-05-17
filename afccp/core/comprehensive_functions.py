@@ -370,7 +370,7 @@ def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, pri
     # Build the solution metrics dataframes if need be
     if metrics is not None:
 
-        cadet_solution_df = pd.DataFrame({'Cadet': parameters['SS_encrypt'], 'Matched': metrics['afsc_solution'],
+        cadet_solution_df = pd.DataFrame({'Cadet': parameters['ID'], 'Matched': metrics['afsc_solution'],
                                           'Value': metrics['cadet_value'],
                                           'Weight': value_parameters['cadet_weight'],
                                           'Value Fail': metrics['cadet_constraint_fail']})

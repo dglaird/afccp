@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import pandas as pd
 from afccp.core.globals import *
@@ -296,10 +298,11 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
         full_afscs_df.to_excel(writer, sheet_name="Full AFSCS", index=False)
 
 
-def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None):
+def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None, report_cips_not_found=False):
     """
     This procedure takes two cip arrays: cadet first and second degrees and then
     returns a qual matrix for those cadets
+    :param report_cips_not_found: return a list of cips of cadets that aren't in the list
     :param full_afscs: list of the full afscs
     :param afscs: list of afscs used for this problem
     :param cip_qual_matrix: Matrix matching cip codes to qualifications
@@ -331,23 +334,31 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None):
     M = len(afscs)
 
     # Adjust CIPs in case python cut the leading 0s off
-    for i, cip in full_cip_codes:
+    for i, cip in enumerate(full_cip_codes):
         full_cip_codes[i] = "0" * (6 - len(cip)) + cip
 
     # Initialize Qual Matrix
     qual_matrix = np.array([[" " for _ in range(M)] for _ in range(N)])
     tier_dict = {'M': 3, 'D': 2, 'P': 1, 'I': 0}
+    unknown_cips = {}
 
     # Loop through all cadets
     for i in range(N):
 
         # Clean up CIPs (Add leading 0s)
-        cip1[i] = "0" * (6 - len(cip1[i])) + cip1[i]
+        if cip1[i] != "Unk":
+            cip1[i] = "0" * (6 - len(cip1[i])) + cip1[i]
 
         # Load qualifications for this cadet
         cip_index = np.where(full_cip_codes == cip1[i])[0]
         if len(cip_index) == 0:
-            cip_index = 0
+            cip_index = 0  # Set degree qualifications to arbitrary degree
+
+            if report_cips_not_found:
+                if cip1[i] in unknown_cips:
+                    unknown_cips[cip1[i]] += 1
+                else:
+                    unknown_cips[cip1[i]] = 1
         else:
             cip_index = cip_index[0]
         qual_matrix[i, :] = full_qual_matrix[cip_index][afsc_indices]
@@ -371,7 +382,310 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None):
                     if tier_dict[qual2] > tier_dict[qual1]:
                         qual_matrix[i, j] = qual2
 
+    if report_cips_not_found:
+        return qual_matrix, unknown_cips
+    else:
+        return qual_matrix
+
+
+def cip_to_qual_direct(afscs, cip1, cip2=None, printing=True):
+    """
+    This procedure takes in a list of AFSCs, CIP codes, and optionally a second set of CIP codes
+    (the cadets' second degrees) and generates a qual matrix
+    :return: None
+    """
+
+    # AFOCD CLASSIFICATION
+    N = len(cip1)
+    M = len(afscs)
+    cips = {1: cip1, 2: cip2}
+    qual = {}
+    if cip2 is None:
+        degrees = [1]
+    else:
+        degrees = [1, 2]
+
+    # Loop through both sets of degrees (if applicable)
+    for d in degrees:
+
+        # Initialize qual matrix (for this set of degrees)
+        qual[d] = np.array([["I" for _ in range(M)] for _ in range(N)])
+        for i in range(N):
+            cip = "0" * (6 - len(cips[d][i])) + cips[d][i]
+            for j, afsc in enumerate(afscs):
+                if afsc == '13H':
+                    if cip[:4] in ['2607', '3027', '3105', '2609']:
+                        qual[d][i, j] = 'M'
+                    elif cip[:4] in ['2904', '4228']:
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '13M':
+                    if cip == '290402' or cip[:4] in ['4901', '5201', '5202', '5206', '5207', '5211', '5212', '5213',
+                                                      '5214', '5218', '5219', '5220']:
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '13N':
+                    m_list4 = ['0402', '0403', '0404', '0405', '1427', '1428', '1437', '2903', '5202', '5213']
+                    for x in range(3, 10):
+                        m_list4.append('140' + str(x))
+                    for x in range(10, 15):
+                        m_list4.append('14' + str(x))
+                    m_list6 = ['290203', '290205', '290207']
+                    for x in ['0601', '0801', '1601', '3001', '3101']:
+                        m_list6.append('30' + x)
+                    if cip[:4] in m_list4 or cip in m_list6 or cip[:2] in ['11', '27', '40']:
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '13S':
+                    m_list4 = ['1402', '1410', '1419', '1427', '4002']
+                    d_list4 = ['1101', '1102', '1104', '1105', '1107', '1108', '1109', '1110', '1404', '1406', '1407',
+                               '1408', '1409', '1411', '1412', '1413', '1414', '1418', '1420', '1423', '1432', '1435',
+                               '1436', '1437', '1438', '1439', '1441', '1442', '1444', '3006', '3008', '3030', '4008']
+                    d_list6 = ['140101', '290203', '290204', '290205', '290207', '290301', '290302', '290304']
+                    if cip[:4] in m_list4 or cip[:2] == '27' or cip == '290305':
+                        qual[d][i, j] = 'M'
+                    elif cip[:4] in d_list4 or cip in d_list6:
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '14F':
+                    m_list4 = ['3017', '4201', '4227', '4501', '4511']
+                    d_list4 = ['0909', '5214', '3023', '3026']
+                    p_list4 = ['0501', '4509', '4502', '3025', '0901']
+                    if cip[:4] in m_list4:
+                        qual[d][i, j] = 'M'
+                    elif cip[:4] in d_list4:
+                        qual[d][i, j] = 'D'
+                    elif cip[:4] in p_list4:
+                        qual[d][i, j] = 'P'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '14N':
+                    m_list2 = ['11', '14', '27', '40', '05', '16', '22', '24', '28', '29', '45', '54']
+                    d_list2 = ['13', '09', '23', '28', '29', '30', '35', '38', '42', '43', '52']
+                    if cip[:2] in m_list2 or cip in ['307001', '301701']:
+                        qual[d][i, j] = 'M'
+                    elif cip[:2] in d_list2 or cip == '490101':
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '15A' or afsc == '61A':
+                    m_list4 = ['1437', '1435', '3070', '3030', '3008']
+                    if cip[:4] in m_list4 or cip[:2] in ['27'] or cip in ['110102']:
+                        qual[d][i, j] = 'M'
+                    elif cip in ['110804', '450603'] or cip[:4] in ['1427', '1107', '3039', '3049']:
+                        qual[d][i, j] = 'D'
+                    elif (cip[:2] == '14' and cip != '140102') or cip[:4] in ['4008', '4506', '2611', '3071', '5213',
+                                                                              '4506']:
+                        qual[d][i, j] = 'P'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '15W':
+                    if cip[:4] == '4004':
+                        qual[d][i, j] = 'M'
+                    elif cip[:2] in ['27', '41'] or (cip[:2] == '40' and cip[:4] != '4004') or cip[:4] in ['3008', '3030']:
+                        qual[d][i, j] = 'P'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '17D' or afsc == '17S' or afsc == '17X':
+                    m_list6 = ['150303', '151202', '290207', '303001', '307001', '270103', '270303', '270304']
+                    d_list4 = ['1503', '1504', '1508', '1512', '1514', '4008', '4005']
+                    if cip[:4] in ['3008', '3016', '5212'] or cip in m_list6 or \
+                            (cip[:2] == '11' and cip[:4] not in ['1103', '1106']) or (cip[:2] == '14' and cip != '140102'):
+                        qual[d][i, j] = 'M'
+                    elif cip[:4] in d_list4 or cip[:2] == '27':
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '21A':
+                    d_list4 = ['5202', '5206', '1101', '1102', '1103', '1104', '1107', '1110', '5212']
+                    if cip[:4] in d_list4 or cip[:2] in ['14', '40'] or cip in ['151501', '520409', '490104', '490101']:
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '21M':
+                    d_list4 = ['1107', '1101', '1110', '5202', '5206', '5213']
+                    d_list2 = ['14', '27', '40']
+                    d_list6 = ['290407', '290408', '151501', '520409']
+
+                    # Added Ops Research and Data Processing (no CIPs in AFOCD)
+                    d_list6_add = ['143701', '110301']
+                    if cip[:2] in d_list2 or cip[:4] in d_list4 or cip in d_list6 or cip in d_list6_add:
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '21R':
+                    d_list4 = ['1425', '1407', '1101', '1102', '1103', '1104', '1107', '1110', '4506', '5202', '5203',
+                               '5206', '5208']
+                    d_list6 = ['151501', '490101', '520409']
+
+                    # Added Ops Research and Data Processing (no CIPs in AFOCD)
+                    d_list6_add = ['143701', '110301']
+                    if cip[:4] in d_list4 or cip in d_list6 or cip in d_list6_add or cip[:3] == "521":
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '31P':
+                    d_list6 = ['450902', '430301', '430302', '430303', '430304', '439999', '450401', '451101', '301701',
+                               '220000', '220001', '229999']
+                    for x in ['03', '04', '07', '11', '12', '14', '18', '19', '20', '02', '13', '99']:
+                        d_list6.append('4301' + x)
+                    if cip in d_list6:
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '32EXA':
+                    if cip[:4] == '0402' or cip in ['140401']:  # Sometimes 402010 is included
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '32EXC':
+                    if cip[:4] == '1408':
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '32EXE':
+                    if cip[:4] == '1410':
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '32EXF':
+                    if cip == '141901':
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '32EXG':
+                    if cip[:4] in ['1408', '1410'] or cip in ['140401', '141401', '141901', '143301', '143501']:
+                        qual[d][i, j] = 'M'
+                    elif cip in ["140701"] or cip[:4] in ["1405", "1425", "1402", "5220"]:
+                        qual[d][i, j] = 'D'  # CY23 added a desired tier to 32EXG!
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '32EXJ':
+                    if cip == '141401':
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '35P':
+                    if cip[:2] == '09':
+                        qual[d][i, j] = 'M'
+                    elif cip[:4] in ['2313', '4509', '4510', '5214'] or cip[:2] == '42':
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '38F' or afsc == '38P':
+                    d_list4 = ['4404', '4405', '4506', '5202', '5203', '5206', '5208', '5210']
+                    if cip[:2] == '27' or cip[:4] == '5213' or cip in ['143701', '143501']:
+                        qual[d][i, j] = 'M'
+                    elif cip[:4] in d_list4 or cip in ['301601', '301701', '422804']:
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '61B':
+                    m_list4 = ['3017', '4502', '4511', '4513', '4514', '4501']
+                    if cip[:2] == '42' or cip[:4] in m_list4 or cip in ['450501', '451201']:
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '61C':
+                    d_list6 = ['140601', '141801', '143201', '144301', '144401', '260299']
+                    if cip[:4] in ['1407', '4005'] or cip in ['260202', '260205']:
+                        qual[d][i, j] = 'M'
+                    elif cip in d_list6 or cip[:5] == '26021' or cip[:4] == '4010':
+                        qual[d][i, j] = 'D'
+                    elif cip in ['140501', '142001', '142501', '144501']:
+                        qual[d][i, j] = 'P'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '61D':
+                    if cip[:4] in ['1412', '1423', '4002', '4008']:
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '62EXA':
+                    if cip[:4] == '1402':  # or (cip == '142701' and year == 2016):
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '62EXB':
+                    if cip[:4] == '1402':
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '62EXC':
+                    if cip[:4] in ['1409', '1447']:
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '62EXE':
+                    if cip[:4] in ['1410', '1447']:
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '62EXF':
+                    if cip[:2] in ['27', '40'] or (cip[:2] == '14' and cip != '140102'):
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '62EXG':
+                    if cip[:2] == '14' and cip != '140102' and cip[:4] != "1437":  # (cip == '401002' and year in [2016]):
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '62EXH':
+                    if cip[:4] == '1419':
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '62EXI' or afsc == '62EXS':
+                    if cip[:4] in ['1427', '1435']:
+                        qual[d][i, j] = 'M'
+                    else:
+                        qual[d][i, j] = 'I'
+                elif afsc == '63A':
+                    if cip[:2] in ['14', '40']:
+                        qual[d][i, j] = 'M'
+                    elif cip[:2] in ['11', '27'] or cip[:4] == '4506' or (cip[:2] == '52' and cip[:4] != '5204'):
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '64P':
+                    d_list2 = ['52', '14', '15', '26', '27', '29', '40', '41', '28', '44', '54', '16', '23', '05', '42']
+                    if cip[:2] in d_list2 or (cip[:2] == '45' and cip[:4] != '4506') or \
+                            cip[:4] in ['2200', '2202'] or cip == '220101':
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                elif afsc == '65F':
+                    d_list4 = ['4506', '5203', '5206', '5213', '5208']
+                    if cip[:4] in d_list4 or cip[:2] in ['27', '52', '14']:
+                        qual[d][i, j] = 'D'
+                    else:
+                        qual[d][i, j] = 'P'
+                else:
+                    qual[d][i, j] = 'I'
+
+    if cip2 is None:
+        qual_matrix = copy.deepcopy(qual[1])
+    else:
+        qual_matrix = np.array([["I" for _ in range(M)] for _ in range(N)])
+        tier = {'M': 3, 'D': 2, 'P': 1, 'I': 0}
+        for i in range(N):
+            for j in range(M):
+                qual_1 = qual[1][i, j]
+                qual_2 = qual[2][i, j]
+                if tier[qual_1] > tier[qual_2]:
+                    qual_matrix[i, j] = qual_1
+                else:
+                    qual_matrix[i, j] = qual_2
+
     return qual_matrix
+
+
+
 
 
 def clean_problem_instance_preferences_utilities(afscs, original_preferences, original_utilities=None,

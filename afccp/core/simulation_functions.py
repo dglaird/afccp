@@ -3,7 +3,7 @@ import random
 import numpy as np
 import warnings
 from afccp.core.globals import *
-from afccp.core.preprocessing import cip_to_qual
+from afccp.core.preprocessing import cip_to_qual, cip_to_qual_direct
 
 if use_sdv:
     from sdv.evaluation import evaluate
