@@ -15,14 +15,15 @@ generate_cip_to_qual_matrix()
 
 
 # # Import problem class
-# from afccp.core.problem_class import CadetCareerProblem
+from afccp.core.problem_class import CadetCareerProblem
 
-# instance = CadetCareerProblem('2021', printing=True)
-# instance.import_default_value_parameters()
+instance = CadetCareerProblem('2023', printing=True)
+instance.import_default_value_parameters()
+instance.stable_matching()
 # print(instance.value_parameters["afscs_overall_weight"])
 # instance.set_instance_value_parameters()
 # instance.solve_original_pyomo_model(max_time=60)
 # instance.full_vft_model_solve(ga_max_time=60, ga_printing=True)
 # instance.vft_to_gp_parameters(get_new_rewards_penalties=True, provide_executable=True)
-# instance.export_to_excel()
+instance.export_to_excel()
 
