@@ -23,9 +23,10 @@ except:
     from afccp.core.problem_class import CadetCareerProblem
 
 
-instance = CadetCareerProblem('2020', printing=True)
-instance.set_instance_value_parameters()
-instance.set_instance_solution()
+instance = CadetCareerProblem('2023', printing=True)
+instance.import_default_value_parameters()
+instance.generate_random_solution()
+instance.export_to_excel()
 # instance.set_instance_solution()
 # instance.solve_vft_pyomo_model(max_time=10, provide_executable=False)
-instance.full_vft_model_solve(provide_executable=False, ga_printing=True, ga_max_time=120)
+# instance.full_vft_model_solve(provide_executable=False, ga_printing=True, ga_max_time=120)

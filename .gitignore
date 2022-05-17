@@ -209,9 +209,9 @@ docs/_build/
 sensitive/
 
 # Real
-real/
+# real/
 
-# Processing
+# Processing  (Very import .gitignore)
 processing/
 /afccp/processing/
 afccp/processing/

@@ -46,7 +46,10 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
     afsc_columns = list(afscs_fixed.keys())
 
     # Number of preferences
-    P = len([col for col in columns if 'NRat' in col])
+    if "NR_Pref_1" in columns:
+        P = len([col for col in columns if 'NR_Pref_' in col])
+    else:
+        P = len([col for col in columns if 'NRat' in col])
 
     # Initialize parameters dictionary
     parameters = {'afsc_vector': afsc_vector,

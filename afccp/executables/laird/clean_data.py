@@ -22,5 +22,5 @@ except:
     # Import main problem class
     from afccp.processing.compiler import DataAggregator
 
-agg = DataAggregator(cy='2023', re_compile=False)
-agg.compile_problem_instance_file(re_compile=False)
+agg = DataAggregator(cy='2023', re_compile=True)
+agg.compile_problem_instance_file(re_compile=True)
