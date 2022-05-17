@@ -208,13 +208,11 @@ docs/_build/
 # Sensitive
 sensitive/
 
-# Real
+# Real  (Later on, we will want to ignore this)
 # real/
 
 # Processing  (Very import .gitignore)
 processing/
-/afccp/processing/
-afccp/processing/
 
 # Laird Folder
 afccp/resources/laird/

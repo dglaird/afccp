@@ -3,6 +3,7 @@ import random
 import numpy as np
 import warnings
 from afccp.core.globals import *
+from afccp.core.preprocessing import cip_to_qual
 
 if use_sdv:
     from sdv.evaluation import evaluate
@@ -11,72 +12,6 @@ if use_sdv:
     from sdv.tabular import CTGAN
 
 warnings.filterwarnings('ignore')  # prevent red warnings from printing
-
-
-def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None):
-    """
-    This procedure takes two cip arrays: cadet first and second degrees and then
-    returns a qual matrix for those cadets
-    :param full_afscs: list of the full afscs
-    :param afscs: list of afscs used for this problem
-    :param cip_qual_matrix: Matrix matching cip codes to qualifications
-    :param cip1: cip codes for first degree
-    :param cip2: cip codes for second degree
-    :return: qual matrix
-    """
-    # Get correct data type
-    if len(afscs[0]) == 2:
-        path_folder = "scrubbed"
-        full_afscs = afscs
-    else:
-        path_folder = "real"
-
-    # Load CIP to Qual matrix
-    if cip_qual_matrix is None:
-        cip_qual_matrix = import_data(support_paths[path_folder] + "Qual_CIP_Matrix.xlsx",
-                                      sheet_name="Qual Matrix")
-
-    # Load full afscs
-    if full_afscs is None:
-        full_afscs = np.array(import_data(
-            support_paths[path_folder] + "Qual_CIP_Matrix.xlsx", sheet_name="Full AFSCS"))
-
-    afsc_indices = np.where(full_afscs == afscs)[0]  # afscs used in this instance
-    full_cip_codes = np.array(cip_qual_matrix.loc[:, "CIP"]).astype(str)  # full list of CIP codes
-    full_qual_matrix = np.array(cip_qual_matrix.iloc[:, 1:])  # full qual matrix
-    N = len(cip1)
-    M = len(afscs)
-
-    # Initialize Qual Matrix
-    qual_matrix = np.array([[" " for _ in range(M)] for _ in range(N)])
-    tier_dict = {'M': 3, 'D': 2, 'P': 1, 'I': 0}
-
-    # Loop through all cadets
-    for i in range(N):
-
-        # Load qualifications for this cadet
-        cip_index = np.where(full_cip_codes == cip1[i])[0]
-        if len(cip_index) == 0:
-            cip_index = 0
-        else:
-            cip_index = cip_index[0]
-        qual_matrix[i, :] = full_qual_matrix[cip_index][afsc_indices]
-
-        # Check second degree
-        if cip2 is not None:
-            cip_index2 = np.where(full_cip_codes == cip2[i])[0]
-            if len(cip_index2) != 0:
-                cip_index2 = cip_index2[0]
-                check_row = full_qual_matrix[cip_index2][afsc_indices]
-                for j in range(M):
-                    qual1 = qual_matrix[i, j]
-                    qual2 = check_row[j]
-
-                    # If second degree tier trumps first, we use it instead
-                    if tier_dict[qual2] > tier_dict[qual1]:
-                        qual_matrix[i, j] = qual2
-
-    return qual_matrix
 
 
 def import_generator_parameters(filepath=support_paths['scrubbed'] + "Instance_Generator_Parameters.xlsx",
