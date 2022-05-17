@@ -9,15 +9,20 @@ dir_path = dir_path[:index + 6]
 # Update working directory
 os.chdir(dir_path)
 
-# Import compiler class
-from afccp.core.problem_class import CadetCareerProblem
+# Generate qual matrix
+from afccp.core.preprocessing import generate_cip_to_qual_matrix
+generate_cip_to_qual_matrix()
 
-instance = CadetCareerProblem('2021', printing=True)
-instance.import_default_value_parameters()
-print(instance.value_parameters["afscs_overall_weight"])
+
+# # Import problem class
+# from afccp.core.problem_class import CadetCareerProblem
+
+# instance = CadetCareerProblem('2021', printing=True)
+# instance.import_default_value_parameters()
+# print(instance.value_parameters["afscs_overall_weight"])
 # instance.set_instance_value_parameters()
 # instance.solve_original_pyomo_model(max_time=60)
 # instance.full_vft_model_solve(ga_max_time=60, ga_printing=True)
 # instance.vft_to_gp_parameters(get_new_rewards_penalties=True, provide_executable=True)
-instance.export_to_excel()
+# instance.export_to_excel()
 
