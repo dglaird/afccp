@@ -391,7 +391,7 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None, r
 def cip_to_qual_direct(afscs, cip1, cip2=None, printing=True):
     """
     This procedure takes in a list of AFSCs, CIP codes, and optionally a second set of CIP codes
-    (the cadets' second degrees) and generates a qual matrix
+    (the cadets' second degrees) and generates a qual matrix for this years' specific cadets. AFOCD cao April 2022
     :return: None
     """
 
@@ -683,9 +683,6 @@ def cip_to_qual_direct(afscs, cip1, cip2=None, printing=True):
                     qual_matrix[i, j] = qual_2
 
     return qual_matrix
-
-
-
 
 
 def clean_problem_instance_preferences_utilities(afscs, original_preferences, original_utilities=None,

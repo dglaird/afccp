@@ -657,6 +657,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                             target = value_parameters['objective_target'][j, k]
                             actual = None
                             maximum = None
+                            minimum = None
 
                             if use_actual:
                                 if objective == 'Merit':
@@ -667,13 +668,11 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                             if objective == 'Combined Quota':
 
                                 # Get bounds
-                                split_str = value_parameters["objective_value_min"][j, k].split(',')
-
-                                # Get constraint upper bound
-                                maximum = float(split_str[1])
+                                minimum, maximum = parameters['quota_min'][j], parameters['quota_max'][j]
+                                target = parameters['quota'][j]
 
                             segment_dict = create_segment_dict_from_string(vf_string, target, actual=actual,
-                                                                           maximum=maximum)
+                                                                           maximum=maximum, minimum=minimum)
                             value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                                 segment_dict, num_breakpoints=num_breakpoints)
 
