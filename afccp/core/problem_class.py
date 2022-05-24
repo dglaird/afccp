@@ -518,8 +518,8 @@ class CadetCareerProblem:
         :param vp_weight: swing weight of this entire set of value parameters relative to others
         :param printing: Whether we should print status updates or not
         :param no_constraints: If we don't want to use the predefined constraints
-        :param generate_afsc_weights: If we generate the AFSC weights from the weight function, or just
-        import the weights directly from the "AFSC Weight" column
+        :param generate_afsc_weights: If we generate the AFSC weights from the weight function (True), or just
+        import the weights directly from the "AFSC Weight" column (False)
         """
 
         if printing is None:

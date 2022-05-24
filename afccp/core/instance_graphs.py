@@ -1407,7 +1407,7 @@ def afocd_degree_proportions_results_graph(parameters, value_parameters, metrics
                     if degree == 'Mandatory':
                         minimums[j] = value_parameters['objective_target'][loc, k]
                         maximums[j] = 1
-                    elif degree == 'Desired' and afsc not in ['15A', '61A', '14F', '17X', '17D', '17S', '17DXS']:
+                    elif degree == 'Desired' and ("Decreasing" not in value_parameters['value_functions'][loc, k]):
                         minimums[j] = value_parameters['objective_target'][loc, k]
                         maximums[j] = 1
                     else:

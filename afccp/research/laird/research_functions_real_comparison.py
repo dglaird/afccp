@@ -1,6 +1,6 @@
 import datetime
 from afccp.core.problem_class import *
-from afccp.research.research_graphs import *
+from afccp.research.laird.research_graphs import *
 
 
 # Thesis Comparison Against Real Solutions
@@ -52,12 +52,12 @@ def solve_class_year_real_instances(years=None, instances=None, solve_ga_from_ex
 
             # Load instance
             data_name = str(year) + '_VP_' + str(i)
-            instance = CadetCareerProblem(data_name, filepath=paths['instances'] +
+            instance = CadetCareerProblem(data_name, filepath=paths_in['instances'] +
                                                                    'Class Year VP Instances\\' + data_name + '.xlsx')
             instance.import_value_parameters()
 
             # Load AFPC Solution
-            instance.import_solution(filepath=paths['instances'] + str(year) + '_Original.xlsx')
+            instance.import_solution(filepath=paths_in['instances'] + str(year) + '_Original.xlsx')
             z_original = instance.measure_solution()
             original_fail = str(instance.metrics['total_failed_constraints'])
 
@@ -355,14 +355,14 @@ def plot_real_results(years=None, printing=True):
         years = [2016, 2017, 2018, 2019, 2020, 2021]
 
     # Load df
-    results_df = import_data(paths['Analysis & Results'] + 'Real_Solution_Comparison_Results.xlsx',
+    results_df = import_data(paths_in['results'] + 'Real_Solution_Comparison_Results.xlsx',
                              sheet_name='Results')
 
     # Similarity Plots
     for year in years:
 
         # Load Similarity Matrix
-        filepath = paths['Analysis & Results'] + 'Real_Solution_Comparison_Results.xlsx'
+        filepath = paths_in['Analysis & Results'] + 'Real_Solution_Comparison_Results.xlsx'
 
         similarity_df = import_data(filepath, sheet_name=str(year))
         data_names = np.array(similarity_df.loc[:, 'Solution Similarity'])

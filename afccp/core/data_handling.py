@@ -51,11 +51,16 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
     else:
         P = len([col for col in columns if 'NRat' in col])
 
+    # Check if the "Combined Target" is the quota identifier (I changed this)
+    if "Combined Target" in afsc_columns:
+        quota_col = "Combined Target"
+    else:
+        quota_col = "Real Target"
+
     # Initialize parameters dictionary
-    parameters = {'afsc_vector': afsc_vector,
-                  'P': P, "quota": np.array(afscs_fixed.loc[:, 'Combined Target']), 'N': N, 'M': M, 'qual': qual,
-                  'quota_max': np.array(afscs_fixed.loc[:, 'Max']), 'quota_min': np.array(afscs_fixed.loc[:, 'Min']),
-                  'utility': np.zeros([N, M])}
+    parameters = {'afsc_vector': afsc_vector, 'P': P, "quota": np.array(afscs_fixed.loc[:, quota_col]), 'N': N,
+                  'M': M, 'qual': qual, 'quota_max': np.array(afscs_fixed.loc[:, 'Max']),
+                  'quota_min': np.array(afscs_fixed.loc[:, 'Min']), 'utility': np.zeros([N, M])}
 
     # Phasing out the old ID
     if "Cadet" in columns:
@@ -63,6 +68,8 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
     else:
         parameters["ID"] = np.array(cadets_fixed.loc[:, 'Encrypt_PII'])
 
+    # I added this feature in case we want to constrain cadets to be assigned to a specific AFSC
+    # (while still including them in the objective calculations)
     if "Assigned" in columns:
         parameters["assigned"] = np.array(cadets_fixed.loc[:, 'Assigned'])
     else:
@@ -82,7 +89,7 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
     # Load Instance Parameters (may or may not be included in this dataset)
     cadet_parameter_dictionary = {'USAFA': 'usafa', 'Male': 'male', 'Minority': 'minority', 'ASC1': 'asc1',
                                   'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit',
-                                  'percentile_all': 'merit_all'}
+                                  'percentile_all': 'merit_all', 'Race': 'race'}
     for col_name in cadet_parameter_dictionary:
         if col_name in columns:
             parameters[cadet_parameter_dictionary[col_name]] = np.array(cadets_fixed.loc[:, col_name])
@@ -129,8 +136,8 @@ def model_data_frame_from_fixed_parameters(parameters):
         {'Cadet': parameters['ID'], 'Assigned': parameters['assigned']})
 
     # Load Instance Parameters (may or may not be included)
-    cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'USAFA': 'usafa', 'ASC1': 'asc1',
-                                  'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit',
+    cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'Race': 'race', 'USAFA': 'usafa',
+                                  'ASC1': 'asc1', 'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit',
                                   'percentile_all': 'merit_all'}
     for col_name in cadet_parameter_dictionary:
         if cadet_parameter_dictionary[col_name] in parameters:
@@ -156,7 +163,7 @@ def model_data_frame_from_fixed_parameters(parameters):
         afscs_fixed['USAFA Target'] = parameters['usafa_quota']
         afscs_fixed['ROTC Target'] = parameters['rotc_quota']
 
-    afscs_fixed['Combined Target'] = parameters['quota']
+    afscs_fixed['Real Target'] = parameters['quota']
     afscs_fixed['Min'] = parameters['quota_min']
     afscs_fixed['Max'] = parameters['quota_max']
     afscs_fixed['Eligible Cadets'] = [len(parameters['I^E'][j]) for j in range(M)]

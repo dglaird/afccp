@@ -81,6 +81,7 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
                     target = value_parameters['objective_target'][j, k]
                     actual = None
                     maximum = None
+                    minimum = None
 
                     if use_actual:
                         if objective == 'Merit':
@@ -91,11 +92,11 @@ def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None
                     if objective == 'Combined Quota':
 
                         # Get bounds
-                        split_str = value_parameters["objective_value_min"][j, k].split(',')
-                        maximum = float(split_str[1])
+                        minimum, maximum = parameters['quota_min'][j], parameters['quota_max'][j]
+                        target = parameters['quota'][j]
 
                     segment_dict = create_segment_dict_from_string(vf_string, target, actual=actual,
-                                                                   maximum=maximum)
+                                                                   maximum=maximum, minimum=minimum)
                     value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
                         segment_dict, num_breakpoints=num_breakpoints)
 
@@ -128,7 +129,6 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
     afsc_objectives = np.tile(value_parameters['objectives'], parameters['M'])
 
     # Get AFSC objective swing weights
-    # afsc_objective_weights = value_parameters['objective_weight'] / np.max(value_parameters['objective_weight'], axis=1)
     ow = value_parameters['objective_weight']
     max_weights = np.max(value_parameters['objective_weight'], axis=1)
     ow = np.array([[ow[j, k] / max_weights[j] for k in range(O)] for j in range(M)])
@@ -265,8 +265,14 @@ def model_value_parameters_to_defaults(parameters, value_parameters, filepath=No
     afsc_objective_convex_constraint_df = pd.DataFrame({'AFSC': parameters['afsc_vector']})
     afsc_objective_value_functions_df = pd.DataFrame({'AFSC': parameters['afsc_vector']})
 
+    # Turn local weights into swing weights
+    weights = value_parameters['objective_weight']
+    for j in range(parameters['M']):
+        max_weight = max(weights[j, :])
+        weights[j, :] = (weights[j, :] / max_weight) * 100
+
     for k, objective in enumerate(value_parameters['objectives']):
-        afsc_objective_weights_df[objective] = value_parameters['objective_weight'][:, k]
+        afsc_objective_weights_df[objective] = weights[:, k]
         afsc_objective_targets_df[objective] = value_parameters['objective_target'][:, k]
         afsc_objective_value_min_df[objective] = value_parameters['objective_value_min'][:, k]
         afsc_objective_convex_constraint_df[objective] = value_parameters['constraint_type'][:, k]
@@ -449,8 +455,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
         # Loop through each objective to load their targets
         for k, objective in enumerate(value_parameters['objectives']):
 
-            maximum = None
-            actual = None
+            maximum, minimum, actual = None, None, None
             if objective == 'Merit' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['sum_merit'] / parameters['N']
                 actual = np.mean(parameters['merit'][parameters['I^E'][j]])
@@ -467,10 +472,10 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
             elif objective == 'Combined Quota' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['quota'][j]
-                split_str = value_parameters['objective_value_min'][j, k].split(', ')
-                maximum = float(split_str[1])
-                value_parameters['objective_value_min'][j, k] = str(int(parameters['quota'][j] * float(split_str[0]))) \
-                                                                + ", " + str(int(parameters['quota'][j] * maximum))
+
+                # Get bounds
+                minimum, maximum = parameters['quota_min'][j], parameters['quota_max'][j]
+                value_parameters['objective_value_min'][j, k] = str(int(minimum)) + ", " + str(int(maximum))
 
             elif objective == 'USAFA Quota' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['usafa_quota'][j]
@@ -492,7 +497,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                 # Create the non-linear piecewise exponential segment dictionary
                 segment_dict = create_segment_dict_from_string(value_functions[j, k],
                                                                value_parameters['objective_target'][j, k],
-                                                               maximum, actual=actual)
+                                                               minimum=minimum, maximum=maximum, actual=actual)
 
                 # Linearize the non-linear function using the specified number of breakpoints
                 value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
@@ -578,10 +583,11 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
 
 
 # Value Function Construction
-def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual=None, multiplier=True):
+def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual=None, multiplier=False, minimum=None):
     """
     This function takes a value function string and converts it into the segment
     dictionary which can then be used to generate the function breakpoints
+    :param minimum: minimum objective measure (optional)
     :param multiplier: if we're multiplying the target values by some scalar for the quota objectives or not
     :param actual: proportion of eligible cadets
     :param vf_string: value function string
@@ -658,6 +664,53 @@ def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual
         segment_dict = {1: {'x1': 0, 'y1': 0, 'x2': target, 'y2': 1, 'rho': -rho1},
                         2: {'x1': maximum, 'y1': 1, 'x2': actual, 'y2': buffer_y, 'rho': rho2},
                         3: {'x1': actual, 'y1': buffer_y, 'x2': real_max, 'y2': 0, 'rho': -rho3}}
+
+    elif f_type == 'Quota_Direct':  # The benefit of value functions is here! Captures ambiguity of PGL/constraints
+
+        # Receive values from string
+        f_param_list = split_list[1]
+        split_list = f_param_list.split(',')
+        domain_max = 1.05  # Arbitrary max (this doesn't really matter since we constrain quota anyway)
+        rho1 = float(split_list[0].strip())
+        rho2 = float(split_list[1].strip())
+        rho3 = float(split_list[2].strip())
+        rho4 = float(split_list[3].strip())
+        y1 = float(split_list[4].strip())
+        y2 = float(split_list[5].strip())
+
+        if len(split_list) == 7:
+            pref_target = int(split_list[6].strip())
+        else:
+            pref_target = target
+
+        # Build segments
+        if pref_target == minimum:
+            if pref_target == maximum:
+                segment_dict = {1: {'x1': 0, 'y1': 0, 'x2': pref_target, 'y2': 1, 'rho': -(rho1 * pref_target)},
+                                2: {'x1': maximum, 'y1': 1, 'x2': domain_max * maximum, 'y2': 0,
+                                    'rho': -(rho4 * (maximum - pref_target))}}
+            else:
+                segment_dict = {1: {'x1': 0, 'y1': 0, 'x2': pref_target, 'y2': 1, 'rho': -(rho1 * pref_target)},
+                                2: {'x1': pref_target, 'y1': 1, 'x2': maximum, 'y2': y2,
+                                    'rho': (rho3 * (maximum - pref_target))},
+                                3: {'x1': maximum, 'y1': y2, 'x2': domain_max * maximum, 'y2': 0,
+                                    'rho': -(rho4 * (domain_max * maximum - maximum))}}
+
+        else:
+            if pref_target == maximum:
+                segment_dict = {1: {'x1': 0, 'y1': 0, 'x2': minimum, 'y2': y1, 'rho': -(rho1 * (minimum - 0))},
+                                2: {'x1': minimum, 'y1': y1, 'x2': pref_target, 'y2': 1,
+                                    'rho': (rho2 * (pref_target - minimum))},
+                                3: {'x1': pref_target, 'y1': 1, 'x2': domain_max * maximum, 'y2': 0,
+                                    'rho': -(rho4 * (domain_max * maximum - maximum))}}
+            else:
+                segment_dict = {1: {'x1': 0, 'y1': 0, 'x2': minimum, 'y2': y1, 'rho': -(rho1 * (minimum - 0))},
+                                2: {'x1': minimum, 'y1': y1, 'x2': pref_target, 'y2': 1,
+                                    'rho': (rho2 * (pref_target - minimum))},
+                                3: {'x1': pref_target, 'y1': 1, 'x2': maximum, 'y2': y2,
+                                    'rho': (rho3 * (maximum - pref_target))},
+                                4: {'x1': maximum, 'y1': y2, 'x2': domain_max * maximum, 'y2': 0,
+                                    'rho': -(rho4 * (domain_max * maximum - maximum))}}
 
     else:  # Must be a "Min Increasing/Decreasing" function
 
