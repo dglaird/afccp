@@ -5,6 +5,7 @@ from afccp.core.simulation_functions import *
 from afccp.core.value_parameter_generator import *
 from afccp.core.instance_graphs import *
 from afccp.core.heuristic_solvers import *
+from afccp.core.more_graphs import *
 import copy
 
 if use_pyomo:

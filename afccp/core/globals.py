@@ -17,10 +17,6 @@ if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working 
     print('Running on databricks.')
     databricks = True
 
-    # Databricks folder path
-    # input_folder = '/dbfs/FileStore/shared_uploads/1523477583.LAIRD.DAN/NRL_Data/main/'  # (cloud folder)
-    # output_folder = ''  # Output straight into the working directory (have to manually move on databricks to cloud)
-
     # Decided to use databricks in a more generalized fashion
     input_folder = dir_path + 'afccp/resources/shared/'
     output_folder = dir_path + 'afccp/resources/shared/'
