@@ -383,16 +383,12 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     value_parameters['num_breakpoints'] = num_breakpoints
 
     # Determine weights on cadets
-    if value_parameters['cadet_weight_function'] == 'Linear':
-        value_parameters['cadet_weight'] = parameters['merit'] / parameters['sum_merit']
-    elif value_parameters['cadet_weight_function'] == 'Equal':
-        value_parameters['cadet_weight'] = np.repeat(1 / N, N)
+    if 'merit_all' in parameters:
+        value_parameters['cadet_weight'] = cadet_weight_function(parameters['merit_all'],
+                                                                 func=value_parameters['cadet_weight_function'])
     else:
-        # Generate cadet weights
-        rho = -0.3
-        swing_weights = np.array([
-            (1 - exp(-i / rho)) / (1 - exp(-1 / rho)) for i in parameters['merit']])
-        value_parameters['cadet_weight'] = swing_weights / sum(swing_weights)
+        value_parameters['cadet_weight'] = cadet_weight_function(parameters['merit'],
+                                                                 func=value_parameters['cadet_weight_function'])
 
     # Determine weights on AFSCs
     if generate_afsc_weights:
@@ -580,6 +576,34 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
         print('VPs are the same.')
 
     return identical
+
+
+def cadet_weight_function(merit, func="Curve"):
+    """
+    Take in a merit array and generate cadet weights depending on function specified
+    """
+
+    # Number of Cadets
+    N = len(merit)
+
+    # Generate Swing Weights based on function
+    if func == 'Linear':
+        swing_weights = np.array([1 + (2 * x) for x in merit])
+    elif func == "Direct":
+        swing_weights = merit
+    elif func == 'Curve_1':
+        swing_weights = np.array([1 + 2 / (1 + exp(-10 * (x - 0.5))) for x in merit])
+    elif func == 'Curve_2':
+        swing_weights = np.array([1 + 2 / (1 + exp(-12 * (x - 0.7))) for x in merit])
+    elif func == 'Equal':
+        swing_weights = np.ones(N)
+    else:  # Exponential Function
+        rho = -0.3
+        swing_weights = np.array([(1 - exp(-x / rho)) / (1 - exp(-1 / rho)) for x in merit])
+
+    # Normalize weights and return them
+    weights = swing_weights / sum(swing_weights)
+    return weights
 
 
 # Value Function Construction

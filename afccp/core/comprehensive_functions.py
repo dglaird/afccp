@@ -1,4 +1,7 @@
 # Import libraries
+import numpy as np
+import pandas as pd
+
 from afccp.core.data_handling import *
 from afccp.core.value_parameter_handling import *
 from afccp.core.simulation_functions import *
@@ -607,11 +610,13 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                                 "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
                                 'objectives': np.array(afsc_weights.loc[:int(len(afsc_weights) / M - 1), 'Objective'])}
 
-            # Set Cadet Weights
-            if value_parameters['cadet_weight_function'] == 'Linear':
-                value_parameters['cadet_weight'] = parameters['merit'] / np.sum(parameters['merit'])
+            # Determine weights on cadets
+            if 'merit_all' in parameters:
+                value_parameters['cadet_weight'] = cadet_weight_function(parameters['merit_all'],
+                                                                         func=value_parameters['cadet_weight_function'])
             else:
-                value_parameters['cadet_weight'] = np.repeat(1 / parameters['N'], parameters['N'])
+                value_parameters['cadet_weight'] = cadet_weight_function(parameters['merit'],
+                                                                         func=value_parameters['cadet_weight_function'])
 
             # Load in value parameter data for each AFSC
             for j in range(M):  # These are Os (Ohs) not 0s (zeros)
@@ -708,3 +713,169 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
 
     # return instance data
     return info_df, parameters, vp_dict, solution_dict, metrics_dict, gp_df
+
+
+# Other Solving Functions
+def determine_model_constraints(instance, printing=True):
+    """
+    Iteratively evaluate the VFT model by adding on constraints until we get to a feasible solution
+    in order of importance
+    """
+
+    if printing:
+        print("Initializing Model Constraint Algorithm...")
+
+    # Shorthand (Easier to type everything!)
+    vp = copy.deepcopy(instance.value_parameters)
+    p = copy.deepcopy(instance.parameters)
+    all_constraint_type = copy.deepcopy(vp["constraint_type"])
+
+    # Initialize AFSC objective measure constraint ranges
+    objective_min_value = np.zeros([p['M'], vp['O']])
+    objective_max_value = np.zeros([p['M'], vp['O']])
+
+    # Loop through each AFSC
+    for j in p['J']:
+
+        # Loop through each objective for each AFSC
+        for k in vp['K^A'][j]:
+
+            # Retrieve minimum values based on constraint type (approximate/exact and value/measure)
+            if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
+
+                # These are "value" constraints and so only a minimum value is needed
+                objective_min_value[j, k] = float(vp['objective_value_min'][j, k])
+            elif vp['constraint_type'][j, k] == 3 or vp['constraint_type'][j, k] == 4:
+
+                # These are "measure" constraints and so a range is needed
+                value_list = vp['objective_value_min'][j, k].split(",")
+                objective_min_value[j, k] = float(value_list[0].strip())
+                objective_max_value[j, k] = float(value_list[1].strip())
+
+    # Initially, we'll start with no constraints turned on
+    vp["constraint_type"] = np.zeros([p["M"], vp["O"]])
+    model_value_parameters_set_additions(vp)
+
+    # Build the model
+    vft_model = vft_model_build(p, vp, convex=True, add_breakpoints=True, initial=None)
+
+    if printing:
+        print("Done. Solving model with no constraints active...")
+
+    # Initialize Report
+    report_columns = ["Solution", "New Constraint", "Objective Value", "Failed"]
+    report = {col: [] for col in report_columns}
+
+    # Dictionary of solutions with different constraints!
+    solutions = {0: vft_model_solve(vft_model, p, vp, approximate=True, max_time=10)}
+    afsc_solution = np.array([p["afsc_vector"][int(j)] for j in solutions[0]])
+    afsc_solutions = {0: afsc_solution}
+    metrics = measure_solution_quality(solutions[0], p, vp)
+
+    # Add first solution to report
+    report["Solution"].append(0)
+    report["Objective Value"].append(round(metrics["z"], 4))
+    report["New Constraint"].append("None")
+    report["Failed"].append(0)
+    print("Done. New solution objective value:", str(report["Objective Value"][0]))
+
+    # Get importance matrix based on multiplied weight
+    afsc_weight = np.atleast_2d(vp["afsc_weight"]).T  # Turns 1d array into 2d column
+    scaled_weights = afsc_weight * vp["objective_weight"]
+    flat = np.ndarray.flatten(scaled_weights)  # flatten them
+    tuples = [(j, k) for j in range(p['M']) for k in range(vp['O'])]  # get a list of tuples (0, 0), (0, 1) etc.
+    tuples = np.array(tuples)
+    sort_flat = np.argsort(flat)[::-1]
+    importance_list = tuples[sort_flat]
+
+    # Begin the algorithm!
+    cons = 0
+    for (j, k) in importance_list:
+        afsc = p["afsc_vector"][j]
+        objective = vp["objectives"][k]
+
+        # Check if this constraint should be turned on
+        if all_constraint_type[j, k] != 0:
+
+            # Make a copy of the VFT model (In case we have to remove a constraint)
+            new_model = copy.deepcopy(vft_model)
+
+            cons += 1
+            print("Solving model with " + str(cons) + " constraint active. New constraint on objective " +
+                  objective + " for AFSC " + afsc)
+
+            # Get variables for this AFSC
+            count = np.sum(new_model.x[i, j] for i in p['I^E'][j])
+            num_cadets = p['quota'][j]
+            if 'usafa' in p:
+                # Number of USAFA cadets assigned to the AFSC
+                usafa_count = np.sum(new_model.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
+
+            # If it's a demographic objective, we sum over the cadets with that demographic
+            if objective in vp['K^D']:
+                numerator = np.sum(new_model.x[i, j] for i in p['I^D'][objective][j])
+                measure_jk = numerator / num_cadets
+            elif objective == "Merit":
+                numerator = np.sum(p['merit'][i] * new_model.x[i, j] for i in p['I^E'][j])
+                measure_jk = numerator / num_cadets
+            elif objective == "Combined Quota":
+                measure_jk = count
+            elif objective == "USAFA Quota":
+                measure_jk = usafa_count
+            elif objective == "ROTC Quota":
+                measure_jk = count - usafa_count
+            else:  # Utility
+                numerator = np.sum(p['utility'][i, j] * new_model.x[i, j] for i in p['I^E'][j])
+                measure_jk = numerator / num_cadets
+
+            # Constrained Approximate Measure
+            if all_constraint_type[j, k] == 3:
+                if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+                    new_model.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
+                    new_model.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
+                else:
+                    new_model.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
+                    new_model.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
+
+            # Constrained Exact Measure  (type = 4)
+            else:
+                if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+                    new_model.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
+                    new_model.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
+                else:
+                    new_model.measure_constraints.add(expr=numerator - objective_min_value[j, k] * count >= 0)
+                    new_model.measure_constraints.add(expr=numerator - objective_max_value[j, k] * count <= 0)
+
+            # Dictionary of solutions with different constraints!
+            try:
+                solutions[cons] = vft_model_solve(new_model, p, vp, approximate=True, max_time=10)
+                failed = False
+            except:
+                solutions[cons] = np.zeros(p["N"]).astype(int)
+                failed = True
+
+            # Dictionary of solution arrays in AFSC format (not indices of AFSCs)
+            afsc_solutions[cons] = np.array([p["afsc_vector"][int(j)] for j in solutions[cons]])
+            metrics = measure_solution_quality(solutions[cons], p, vp)
+
+            # Add this solution to report
+            report["Solution"].append(cons)
+            report["New Constraint"].append(afsc + " " + objective)
+
+            if failed:
+                print("Infeasible. Proceeding with next constraint.")
+                report["Objective Value"].append(0)
+                report["Failed"].append(1)
+            else:
+                report["Objective Value"].append(round(metrics["z"], 4))
+                print("Done. New solution objective value:", str(report["Objective Value"][cons]))
+                report["Failed"].append(0)
+
+                # Save constraint as active
+                vp["constraint_type"][j, k] = all_constraint_type[j, k]
+                vft_model = new_model
+
+    # Build Report
+    solutions_df = pd.DataFrame(afsc_solutions)
+    report_df = pd.DataFrame(report)
+    return vp["constraint_type"], solutions_df, report_df

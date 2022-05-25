@@ -3,6 +3,8 @@ import time
 import numpy as np
 import logging
 import warnings
+
+import afccp.core.globals
 from afccp.core.globals import *
 
 # Ignore warnings
@@ -166,12 +168,10 @@ def convert_parameters_to_original_model_inputs(parameters, value_parameters, pr
 
 
 def solve_original_pyomo_model(data, model, model_name='Original Model', solver_name="cbc",
-                               executable=None, provide_executable=False, max_time=None, printing=False):
+                               max_time=None, printing=False):
     """
     Solves the pyomo model and returns the solution
     :param max_time: max time allowed
-    :param provide_executable: whether or not to supply the solver with an executable path
-    :param executable: path to solver executable (optional- defaults to solver folder)
     :param solver_name: which solver to use
     :param model_name: kind of model we're solving
     :param data: pyomo model parameters
@@ -187,7 +187,7 @@ def solve_original_pyomo_model(data, model, model_name='Original Model', solver_
     if printing:
         print('Solving ' + model_name + ' instance with solver ' + solver_name + '...')
 
-    instance = solve_pyomo_model(instance, solver_name, executable, provide_executable, max_time=max_time)
+    instance = solve_pyomo_model(instance, solver_name, max_time=max_time)
     solution = np.zeros(instance.N.value)
     for i in range(instance.N.value):
         for j in range(instance.M.value):
@@ -432,7 +432,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
                         m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
                         m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
 
-                # Constrained Exact Measure
+                # Constrained Exact Measure  (type = 4)
                 else:
                     if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
                         m.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
@@ -472,11 +472,9 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
 
 def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", approximate=True, report=False,
-                    max_time=None, executable=None, provide_executable=False, timing=False, printing=False):
+                    max_time=None, timing=False, printing=False):
     """
     Solve VFT Model
-    :param provide_executable: whether or not to supply the solver with an executable path
-    :param executable: path to solver executable (optional- defaults to solver folder)
     :param timing: If we want to time the model
     :param max_time: max time in seconds the solver is allowed to solve
     :param approximate: if the model is convex or not
@@ -502,8 +500,7 @@ def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", appr
         start_time = time.perf_counter()
 
     # Solve the model
-    model = solve_pyomo_model(model, solver_name, executable=executable, provide_executable=provide_executable,
-                              max_time=max_time)
+    model = solve_pyomo_model(model, solver_name, max_time=max_time)
 
     # Stop Time
     if timing:
@@ -519,10 +516,28 @@ def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", appr
     # Create solution X Matrix
     x = np.zeros([p['N'], p['M']])
     for i in p['I']:
+        found = False
         for j in p['J^E'][i]:
             x[i, j] = model.x[i, j].value
-            if round(x[i, j]):
-                solution[i] = int(j)
+            try:
+                if round(x[i, j]):
+                    solution[i] = int(j)
+                    found = True
+            except:
+                raise ValueError("Solution didn't come out right, likely model is infeasible.")
+
+        # For some reason we may not have assigned a cadet to an AFSC in which case we just give them to one
+        # they're eligible for and want
+        if not found:
+            if len(p["J^P"][i]) != 0:
+                solution[i] = int(p["J^P"][i][0])  # Try to give them an AFSC they wanted
+            else:
+                solution[i] = int(p["J^E"][i][0])  # Just give them an AFSC they're eligible for
+
+            afsc = p["afsc_vector"][int(solution[i])]
+
+            if printing:
+                print("Cadet " + str(i) + " was not assigned by the model for some reason. We assigned them to", afsc)
     if report:
         obj = model.objective()
         if printing:
@@ -584,16 +599,17 @@ def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", appr
             return solution
 
 
-def solve_pyomo_model(model, solver_name, executable=None, provide_executable=False, max_time=None):
+def solve_pyomo_model(model, solver_name, max_time=None):
     """
     Simple function that calls the pyomo solver using the specified model and max_time
-    :param provide_executable: if we want to use the "solver" folder for an executable
     :param model: model (or instance) to solve
     :param solver_name: name of solver
-    :param executable: optional executable path
     :param max_time: max time parameter
     :return:
     """
+
+    # Not sure what's going on (why won't this import properly?)
+    executable, provide_executable = afccp.core.globals.executable, afccp.core.globals.provide_executable
 
     # Determine how the solver is called
     if executable is None:
@@ -768,15 +784,12 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
     return m
 
 
-def gp_model_solve(model, gp, solver_name="gurobi", executable=None, provide_executable=False, max_time=None,
-                   con_term=None, printing=False):
+def gp_model_solve(model, gp, solver_name="gurobi", max_time=None, con_term=None, printing=False):
     """
     This procedure solves Rebecca's model.
     :param con_term: constraint to solve the model for
     :param gp: goal programming model parameters
     :param max_time: maximum time to solve
-    :param executable: optional executable path
-    :param provide_executable: if we want to use the "solver" folder for an executable
     :param model: the instantiated model
     :param solver_name: solver name
     :param printing: Whether or not to print something
@@ -786,8 +799,7 @@ def gp_model_solve(model, gp, solver_name="gurobi", executable=None, provide_exe
         print('Solving GP Model...')
 
     # Solve the model
-    model = solve_pyomo_model(model, solver_name, executable=executable, provide_executable=provide_executable,
-                              max_time=max_time)
+    model = solve_pyomo_model(model, solver_name, max_time=max_time)
 
     if con_term is not None:
         gp_var = model.objective()
@@ -917,8 +929,7 @@ def lsp_model_build(printing=False):
     return model
 
 
-def x_to_solution_initialization(parameters, value_parameters, measures, values, solver_name="gurobi",
-                                 executable=None, provide_executable=False):
+def x_to_solution_initialization(parameters, value_parameters, measures, values, solver_name="gurobi"):
     """
     This procedure takes the values and measures of a solution, along with other model parameters, and then returns
     the value function variables used to initialize a VFT pyomo model. This is meant to
@@ -1003,7 +1014,7 @@ def x_to_solution_initialization(parameters, value_parameters, measures, values,
         return 5  # arbitrary objective function just to get solution that meets the constraints
 
     model.objective = Objective(rule=objective_function, sense=maximize)
-    model = solve_pyomo_model(model, solver_name, executable, provide_executable)
+    model = solve_pyomo_model(model, solver_name)
 
     # Load model variables
     lam = np.zeros([M, O, max_L + 1])

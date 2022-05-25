@@ -5,10 +5,11 @@ import openpyxl
 from packaging import version
 
 # Get directory path
-global dir_path, exe_extension, databricks, paths_in, paths_out, support_paths
+global dir_path, exe_extension, databricks, paths_in, paths_out, support_paths, provide_executable, executable
 dir_path = os.getcwd() + '/'
 exe_extension = True  # specific variable relating to pyomo solver paths
-databricks = False  # initiallypip assume we're not running on databricks
+databricks = False  # initially assume we're not running on databricks
+provide_executable, executable = True, None  # Global variables to determine how to work with pyomo
 
 # Figure out where this directory is running from
 if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working directory
@@ -22,6 +23,9 @@ if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working 
     output_folder = dir_path + 'afccp/resources/shared/'
     support_folder = dir_path + 'afccp/resources/shared/'
 
+    # Pyomo global variables
+    provide_executable = False
+
 elif 'workspace' in dir_path:  # We're running this from plotly!
 
     # We're on my macbook
@@ -31,6 +35,9 @@ elif 'workspace' in dir_path:  # We're running this from plotly!
     input_folder = dir_path + 'afccp/resources/laird/'
     output_folder = dir_path + 'afccp/resources/laird/'
     support_folder = dir_path + 'afccp/resources/shared/'
+
+    # Pyomo global variables
+    provide_executable = False
 
 elif 'griffenlaird' in dir_path:
 

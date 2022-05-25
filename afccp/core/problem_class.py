@@ -1224,10 +1224,9 @@ class CadetCareerProblem:
 
         return return_object
 
-    def solve_vft_pyomo_model(self, solver_name="cbc", approximate=True, max_time=None, report=False, timing=False,
+    def solve_vft_pyomo_model(self, solver_name="cbc", approximate=True, max_time=10, report=False, timing=False,
                               add_breakpoints=True, initial=None, init_from_X=False, set_to_instance=True,
-                              add_to_dict=True, executable=None, provide_executable=True,
-                              printing=None):
+                              add_to_dict=True, printing=None):
         """
         Solve the VFT model using pyomo
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
@@ -1240,8 +1239,6 @@ class CadetCareerProblem:
         :param approximate: if the model is convex or not
         :param report: if we want to grab all the information to sanity check the solution
         :param solver_name: name of solver
-        :param executable: path of the solver
-        :param provide_executable: if we want to provide an executable directly
         :param printing: if we should print something
         :return: solution
         """
@@ -1263,23 +1260,19 @@ class CadetCareerProblem:
                 if timing:
                     solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = vft_model_solve(
                         model, self.parameters, self.value_parameters, solver_name=solver_name, approximate=approximate,
-                        max_time=max_time, report=True, timing=True, executable=executable,
-                        provide_executable=provide_executable, printing=printing)
+                        max_time=max_time, report=True, timing=True, printing=printing)
                 else:
                     solution, self.x, self.measure, self.value, self.pyomo_z = vft_model_solve(
                         model, self.parameters, self.value_parameters, solver_name=solver_name, approximate=approximate,
-                        max_time=max_time, report=True, executable=executable,
-                        provide_executable=provide_executable, printing=printing)
+                        max_time=max_time, report=True, printing=printing)
             else:
                 if timing:
                     solution, solve_time = vft_model_solve(model, self.parameters, self.value_parameters,
                                                            solver_name=solver_name, approximate=approximate,
-                                                           max_time=max_time, timing=True, executable=executable,
-                                                           provide_executable=provide_executable, printing=printing)
+                                                           max_time=max_time, timing=True, printing=printing)
                 else:
                     solution = vft_model_solve(model, self.parameters, self.value_parameters, solver_name=solver_name,
-                                               approximate=approximate, max_time=max_time, executable=executable,
-                                               provide_executable=provide_executable, printing=printing)
+                                               approximate=approximate, max_time=max_time, printing=printing)
         else:
             if printing:
                 raise ValueError('Pyomo not available')
@@ -1303,15 +1296,12 @@ class CadetCareerProblem:
         else:
             return solution
 
-    def solve_original_pyomo_model(self, add_to_dict=True, set_to_instance=True, max_time=None, executable=None,
-                                   provide_executable=True, printing=None):
+    def solve_original_pyomo_model(self, add_to_dict=True, set_to_instance=True, max_time=None, printing=None):
         """
         Solve the original AFPC model using pyomo
         :param max_time: max time allowed by the solver
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
         :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param executable: path of the solver
-        :param provide_executable: if we want to provide an executable directly
         :param printing: Whether the procedure should print something
         """
 
@@ -1321,8 +1311,7 @@ class CadetCareerProblem:
         if use_pyomo:
             model = original_pyomo_model_build(printing)
             data = convert_parameters_to_original_model_inputs(self.parameters, self.value_parameters, printing)
-            solution = solve_original_pyomo_model(data, model, max_time=max_time, provide_executable=provide_executable,
-                                                  executable=executable, printing=printing)
+            solution = solve_original_pyomo_model(data, model, max_time=max_time, printing=printing)
         else:
             raise ValueError('Pyomo not available')
 
@@ -1336,15 +1325,12 @@ class CadetCareerProblem:
         if add_to_dict:
             self.add_solution_to_dictionary(solution, solution_method="AFPC")
 
-    def solve_gp_pyomo_model(self, max_time=None, solver_name='cbc', add_to_dict=True, set_to_instance=True,
-                             executable=None, provide_executable=False, con_term=None,
-                             get_reward=False, printing=None):
+    def solve_gp_pyomo_model(self, max_time=60, solver_name='cbc', add_to_dict=True, set_to_instance=True,
+                             con_term=None, get_reward=False, printing=None):
         """
         Solve the Goal Programming Model (Created by Lt. Reynolds)
         :param con_term: constraint to solve the model for (if none, it's the regular model)
         :param get_reward: if we want to solve for the reward (lambda) or penalty (mu) term
-        :param executable: optional path to solver
-        :param provide_executable: if we want to directly provide an executable path
         :param set_to_instance: if we want to set this solution to the instance's solution attribute
         :param add_to_dict: if we want to add this solution to the solution dictionary
         :param max_time: max solve time for the model
@@ -1361,8 +1347,7 @@ class CadetCareerProblem:
 
         r_model = gp_model_build(self.gp_parameters, con_term=con_term, get_reward=get_reward, printing=printing)
         gp_var = gp_model_solve(r_model, self.gp_parameters, max_time=max_time, solver_name=solver_name,
-                                con_term=con_term, executable=executable, provide_executable=provide_executable,
-                                printing=printing)
+                                con_term=con_term, printing=printing)
         if con_term is None:
             solution, self.x = gp_var
 
@@ -1381,8 +1366,7 @@ class CadetCareerProblem:
             return gp_var
 
     def full_vft_model_solve(self, ga_max_time=60 * 10, pyomo_max_time=10, add_to_dict=True, return_z=True,
-                             executable=None, provide_executable=True, printing=None, percent_step=10,
-                             ga_printing=False):
+                             printing=None, percent_step=10, ga_printing=False):
         """
         This is the main method to solve the problem instance. We first solve the pyomo Approximate model, and then
         evolve it using the GA
@@ -1424,6 +1408,39 @@ class CadetCareerProblem:
             return round(self.metrics['z'], 4)
         else:
             return self.solution
+
+    def solve_for_constraints(self, export_report=True, set_new_constraint_type=False):
+        """
+        This method iteratively adds constraints to the model to find which ones should be included based on
+        feasibility and in order of importance
+        """
+
+        # Determine which constraints should be turned on!
+        if not use_pyomo:
+            raise ValueError("Pyomo is not available, model cannot be solved.")
+
+        # If no constraints are turned on right now...
+        if np.sum(self.value_parameters["constraint_type"]) == 0:
+            raise ValueError("No active constraints to search for, "
+                             "make sure the current set of value parameters has active constraints.")
+
+        # Run the function!
+        constraint_type, solutions_df, report_df = determine_model_constraints(self)
+
+        if set_new_constraint_type:
+            self.value_parameters["constraint_type"] = constraint_type
+
+        constraint_type_df = pd.DataFrame({'AFSC': self.parameters['afsc_vector']})
+        for k, objective in enumerate(self.value_parameters['objectives']):
+            constraint_type_df[objective] = constraint_type[:, k]
+
+        # Export to excel
+        if export_report:
+            filepath = paths_out["results"] + self.data_name + "_Constraint_Report.xlsx"
+            with pd.ExcelWriter(filepath) as writer:
+                report_df.to_excel(writer, sheet_name="Report", index=False)
+                constraint_type_df.to_excel(writer, sheet_name="Constraints", index=False)
+                solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
 
     # Solution Handling
     def set_instance_solution(self, solution_name=None):

@@ -195,9 +195,17 @@ def model_fixed_parameters_set_additions(parameters, printing=False):
     parameters['J^E'] = [np.where(
         parameters['ineligible'][i, :] == 0)[0] for i in parameters['I']]  # set of AFSCs that cadet i is eligible for
 
+    # set of AFSCs that cadet i has placed a preference for and is also eligible for
+    util_i = [np.where(parameters['utility'][i, :] > 0)[0] for i in parameters['I']]
+    parameters["J^P"] = [np.intersect1d(parameters['J^E'][i], util_i[i]) for i in parameters['I']]
+
     # AFSC Indexed Sets
     parameters['I^E'] = [np.where(
         parameters['ineligible'][:, j] == 0)[0] for j in parameters['J']]  # set of cadets that are eligible for AFSC j
+
+    # set of cadets that have placed a preference for AFSC j and are eligible for AFSC j
+    util_j = [np.where(parameters['utility'][:, j] > 0)[0] for j in parameters['J']]
+    parameters["I^P"] = [np.intersect1d(parameters['I^E'][j], util_j[j]) for j in parameters['J']]
 
     # Add demographic sets if they're included
     parameters['I^D'] = {}

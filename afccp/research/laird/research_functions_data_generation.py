@@ -1,5 +1,5 @@
 from afccp.core.problem_class import *
-from afccp.research.research_graphs import *
+from afccp.research.laird.research_graphs import *
 import copy
 
 

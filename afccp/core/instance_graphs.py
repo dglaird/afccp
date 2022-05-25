@@ -306,11 +306,14 @@ def individual_weight_graph(parameters, value_parameters, cadets=True, save=Fals
 
     if cadets:
 
-        x = parameters['merit']
+        if 'merit_all' in parameters:
+            x = parameters['merit_all']
+        else:
+            x = parameters['merit']
         y = value_parameters['cadet_weight']
 
         # Plot
-        ax.plot(x, y, color='black', alpha=1, linewidth=3)
+        ax.scatter(x, y, color='black', alpha=1, linewidth=3)
 
         # Labels
         ax.set_ylabel('Cadet Weight', fontname='Times New Roman')
