@@ -388,7 +388,7 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None, r
         return qual_matrix
 
 
-def cip_to_qual_direct(afscs, cip1, cip2=None, printing=True):
+def cip_to_qual_direct(afscs, cip1, cip2=None, business_hours=None, printing=True):
     """
     This procedure takes in a list of AFSCs, CIP codes, and optionally a second set of CIP codes
     (the cadets' second degrees) and generates a qual matrix for this years' specific cadets. AFOCD cao April 2022
@@ -651,7 +651,14 @@ def cip_to_qual_direct(afscs, cip1, cip2=None, printing=True):
                     elif cip[:2] in ['11', '27'] or cip[:4] == '4506' or (cip[:2] == '52' and cip[:4] != '5204'):
                         qual[d][i, j] = 'D'
                     else:
-                        qual[d][i, j] = 'P'
+
+                        if business_hours is not None:
+                            if business_hours[i] >= 24:
+                                qual[d][i, j] = 'P'
+                            else:
+                                qual[d][i, j] = 'I'
+                        else:
+                            qual[d][i, j] = 'P'
                 elif afsc == '64P':
                     d_list2 = ['52', '14', '15', '26', '27', '29', '40', '41', '28', '44', '54', '16', '23', '05', '42']
                     if cip[:2] in d_list2 or (cip[:2] == '45' and cip[:4] != '4506') or \
