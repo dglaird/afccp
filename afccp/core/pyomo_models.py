@@ -12,7 +12,7 @@ logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 warnings.filterwarnings('ignore')
 
 
-def original_pyomo_model_build(printing=False):
+def old_original_pyomo_model_build(printing=False):
     """
     Builds the original AFPC model
     :param printing: Whether the procedure should print something
@@ -94,9 +94,10 @@ def original_pyomo_model_build(printing=False):
     return model
 
 
-def convert_parameters_to_original_model_inputs(parameters, value_parameters, printing=False):
+def solve_original_pyomo_model(parameters, value_parameters, max_time=None, printing=False):
     """
     Converts the parameters and value parameters to the pyomo data structure
+    :param max_time: max time
     :param parameters: fixed cadet/AFSC parameters
     :param value_parameters: user defined parameters
     :param printing: Whether the procedure should print something
@@ -105,69 +106,59 @@ def convert_parameters_to_original_model_inputs(parameters, value_parameters, pr
     if printing:
         print("Converting parameters to Original Model Pyomo Inputs...")
 
-    N = parameters['N']
-    M = parameters['M']
-
-    # New "Large" AFSCs set
-    large_afscs = np.where(parameters['quota'] >= 40)[0]
-    G = len(large_afscs)
-
-    # Objective indices
-    mand_k = np.where(value_parameters['objectives'] == 'Mandatory')[0][0]
-    quota_k = np.where(value_parameters['objectives'] == 'Combined Quota')[0][0]
+    # Shorthand
+    p = parameters
+    vp = value_parameters
 
     # Utility Matrix
-    C = np.zeros([N, M])
-    for i in range(N):
-        for j in range(M):
+    C = np.zeros([p['N'], p['M']])
+    for i in range(p['N']):
+        for j in range(p['M']):
 
             # If AFSC j is a preference for cadet i
-            if parameters['utility'][i, j] != 0:
+            if p['utility'][i, j] > 0:
 
-                if parameters['mandatory'][i, j] == 1:
-                    C[i, j] = 10 * parameters['merit'][i] * parameters['utility'][i, j] + 250
+                if p['mandatory'][i, j] == 1:
+                    C[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 250
                 elif parameters['desired'][i, j] == 1:
-                    C[i, j] = 10 * parameters['merit'][i] * parameters['utility'][i, j] + 150
+                    C[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 150
                 elif parameters['permitted'][i, j] == 1:
-                    C[i, j] = 10 * parameters['merit'][i] * parameters['utility'][i, j]
+                    C[i, j] = 10 * p['merit'][i] * p['utility'][i, j]
                 else:
                     C[i, j] = -50000
 
             # If it is not a preference for cadet i
             else:
 
-                if parameters['mandatory'][i, j] == 1:
-                    C[i, j] = 100 * parameters['merit'][i]
-                elif parameters['desired'][i, j] == 1:
-                    C[i, j] = 50 * parameters['merit'][i]
-                elif parameters['permitted'][i, j] == 1:
+                if p['mandatory'][i, j] == 1:
+                    C[i, j] = 100 * p['merit'][i]
+                elif p['desired'][i, j] == 1:
+                    C[i, j] = 50 * p['merit'][i]
+                elif p['permitted'][i, j] == 1:
                     C[i, j] = 0
                 else:
                     C[i, j] = -50000
 
-    # Construct dictionary
-    data = {None: {
-        'I': {None: np.arange(N)},
-        'J': {None: np.arange(M)},
-        'L': {None: large_afscs},
-        'R': {None: value_parameters['J^A'][mand_k]},
-        'N': {None: N},
-        'M': {None: M},
-        'G': {None: G},
-        'M_R': {None: len(value_parameters['J^A'][mand_k])},
-        'merit': {i: parameters['merit'][i] for i in range(N)},
-        'usafa': {i: parameters['usafa'][i] for i in range(N)},
-        'target': {j: value_parameters['objective_target'][j, quota_k] for j in range(M)},
-        'over': {j: parameters['quota_max'][j] for j in range(M)},
-        'eduM': {j: value_parameters['objective_target'][j, mand_k] for j in range(M)},
-        'tierM': {(i, j): parameters['mandatory'][i][j] for i in range(N) for j in range(M)},
-        'C': {(i, j): C[i][j] for i in range(N) for j in range(M)}
-    }}
+    # ___________________________________VARIABLE DEFINITION_________________________________
+    m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
 
-    return data
+    # _____________________________________OBJECTIVE FUNCTION__________________________________
+    def objective_function(m):
+        return np.sum(np.sum(c[i, j] * m.x[i, j] for i in p["I"]) for j in p["J^E"][i])
+
+    m.objective = Objective(rule=objective_function, sense=maximize)
+
+    # ________________________________________CONSTRAINTS_____________________________________
+    pass
+
+    # Loop through each AFSC and add constraints if they need it
+    for j, afsc in enumerate(p["afsc_vector"]):
+        pass
+
+    return None
 
 
-def solve_original_pyomo_model(data, model, model_name='Original Model', solver_name="cbc",
+def old_solve_original_pyomo_model(data, model, model_name='Original Model', solver_name="cbc",
                                max_time=None, printing=False):
     """
     Solves the pyomo model and returns the solution

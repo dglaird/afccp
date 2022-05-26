@@ -287,13 +287,11 @@ def plot_value_function(afsc, objective, parameters, value_parameters, title=Non
 
 
 # Goal Programming Model Functions
-def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_executable=False, printing=True):
+def calculate_rewards_penalties(gp, solver_name='cbc', printing=True):
     """
     This function takes a set of Rebecca's goal programming parameters and then returns the normalized
     penalties and rewards specific to this instance that are used in Rebecca's goal programming (GP) model
     :param solver_name: name of solver
-    :param executable: path of the solver
-    :param provide_executable: if we want to provide an executable directly
     :param printing: if we want to print status updates or not
     :param gp: Rebecca's goal programming parameters
     :return: gp norm penalties, gp norm rewards
@@ -312,8 +310,7 @@ def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_
             print('')
             print('Obtaining reward for constraint ' + con + '...')
         model.objective = Objective(rule=objective_function, sense=maximize)
-        rewards[c] = gp_model_solve(model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name,
-                                    executable=executable, provide_executable=provide_executable)
+        rewards[c] = gp_model_solve(model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name)
         if printing:
             print('Reward:', rewards[c])
 
@@ -325,8 +322,7 @@ def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_
             print('')
             print('Obtaining penalty for constraint ' + con + '...')
         model.objective = Objective(rule=objective_function, sense=maximize)
-        penalties[c] = gp_model_solve(model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name,
-                                      executable=executable, provide_executable=provide_executable)
+        penalties[c] = gp_model_solve(model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name)
         if printing:
             print('Penalty:', penalties[c])
 
@@ -338,8 +334,7 @@ def calculate_rewards_penalties(gp, solver_name='cbc', executable=None, provide_
         print('')
         print('Obtaining reward for constraint S...')
     model.objective = Objective(rule=objective_function, sense=maximize)
-    rewards[num_constraints - 1] = gp_model_solve(model, gp, max_time=60 * 4, con_term='S', solver_name=solver_name,
-                                                  executable=executable, provide_executable=provide_executable)
+    rewards[num_constraints - 1] = gp_model_solve(model, gp, max_time=60 * 4, con_term='S', solver_name=solver_name)
     if printing:
         print('Reward:', rewards[num_constraints - 1])
 

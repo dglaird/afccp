@@ -742,13 +742,10 @@ class CadetCareerProblem:
                 self.value_parameters['afsc_weight'] = swing_weights / sum(swing_weights)
 
     # Translate Parameters
-    def vft_to_gp_parameters(self, use_gp_df=True, get_new_rewards_penalties=False, solver_name='cbc', executable=None,
-                             provide_executable=False, printing=None):
+    def vft_to_gp_parameters(self, use_gp_df=True, get_new_rewards_penalties=False, solver_name='cbc', printing=None):
         """
         Converts the instance parameters and value parameters to parameters used by Rebecca's model
         :param solver_name: name of solver
-        :param executable: path of the solver
-        :param provide_executable: if we want to provide an executable directly
         :param use_gp_df: if we want to use the dataframe of normalized rewards and penalties
         :param get_new_rewards_penalties: if we want to create a new gp df or just import the pre-determined one
         :param printing: Whether we should print status updates or not
@@ -778,8 +775,7 @@ class CadetCareerProblem:
 
             # Either create new rewards and penalties for this specific instance
             if get_new_rewards_penalties:
-                rewards, penalties = calculate_rewards_penalties(self.gp_parameters, solver_name, executable,
-                                                                 provide_executable, printing)
+                rewards, penalties = calculate_rewards_penalties(self.gp_parameters, solver_name, printing=printing)
                 min_penalty = min([penalty for penalty in penalties if penalty != 0])
                 min_reward = min(rewards)
                 norm_penalties = np.array([min_penalty / penalty if penalty != 0 else 0 for penalty in penalties])
@@ -1309,21 +1305,20 @@ class CadetCareerProblem:
             printing = self.printing
 
         if use_pyomo:
-            model = original_pyomo_model_build(printing)
-            data = convert_parameters_to_original_model_inputs(self.parameters, self.value_parameters, printing)
-            solution = solve_original_pyomo_model(data, model, max_time=max_time, printing=printing)
+            solution = solve_original_pyomo_model(self.parameters, self.value_parameters, max_time=max_time,
+                                                  printing=printing)
         else:
             raise ValueError('Pyomo not available')
 
-        # Set the solution attribute
-        if set_to_instance:
-            self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
-
-        # Add solution to solution dictionary
-        if add_to_dict:
-            self.add_solution_to_dictionary(solution, solution_method="AFPC")
+        # # Set the solution attribute
+        # if set_to_instance:
+        #     self.solution = solution
+        #     self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+        #                                             printing=printing)
+        #
+        # # Add solution to solution dictionary
+        # if add_to_dict:
+        #     self.add_solution_to_dictionary(solution, solution_method="AFPC")
 
     def solve_gp_pyomo_model(self, max_time=60, solver_name='cbc', add_to_dict=True, set_to_instance=True,
                              con_term=None, get_reward=False, printing=None):

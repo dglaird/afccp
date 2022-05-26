@@ -69,7 +69,7 @@ def class_year_value_parameter_instance_generator(years=None, instances=None, pr
             instance.export_to_excel(year_filepath)
 
 
-def create_value_function_methodology_example(function='Merit', segment=None):
+def create_value_function_methodology_example(function='Merit', segment=None, actual=0.5):
     """
     Displays the example value function graph used in the thesis
     """
@@ -153,47 +153,37 @@ def create_value_function_methodology_example(function='Merit', segment=None):
 
     elif function == 'Combined Quota':
         measure = 'Number of Cadets Assigned'
-        title = 'combined_quota_value_function'
-        target = 50
-        indiff_ub = 1.3
-        con_ub = 1.5
+        title = 'combined_quota_value_function_' + str(segment)
+        minimum, maximum = 50, 70
+        target, pref_target = 50, actual
 
-        colors = {'Method 1': 'black', 'Method 1 (Adjust)': 'red', 'Method 2': 'blue'}
-        linestyles = {'Method 1': 'solid', 'Method 1 (Adjust)': 'dashed', 'Method 2': 'dotted'}
+        colors = {1: 'black', 2: 'red', 3: 'blue', 4: "green"}
+        linestyles = {1: 'solid', 2: 'dashed', 3: 'dotted', 4: "dashed"}
+        f_type = 'Quota_Direct'
+        rho1 = round(random.random() * 0.02 + 0.06, 2)
+        rho2 = round(random.random() * 0.02 + 0.07, 2)
+        rho3 = round(random.random() * 0.02 + 0.03, 2)
+        rho4 = round(random.random() * 0.02 + 0.08, 2)
+        y1 = round(random.random() * 0.1 + 0.8, 2)
+        y2 = round(random.random() * 0.1 + 0.85, 2)
 
-        rho = {'Method 1': [0.25, 0.1], 'Method 1 (Adjust)': [0.3, 0.05], 'Method 2': [0.2, 0.1, 0.05]}
-        buffer_ys = {'Method 2': 0.6}
-        domain_max = 0.2
-        for q_type in ['Method 1', 'Method 1 (Adjust)', 'Method 2']:
+        vf_string = f_type + "|" + str(rho1) + ", " + str(rho2) + ", " + str(rho3) + ", " + \
+                    str(rho4) + ", " + str(y1) + ", " + str(y2) + ", " + str(y1) + ", " + str(pref_target)
 
-            if q_type != 'Method 2':
+        segment_dict = create_segment_dict_from_string(vf_string, target, maximum=maximum, minimum=minimum)
 
-                rho1, rho2 = rho[q_type][0], rho[q_type][1]
-                f_type = 'Quota_Normal'
-                vf_string = f_type + "|" + str(domain_max) + ", " + str(rho1) + ", " + str(rho2)
+        # Grab function points
+        a, f_a = value_function_builder(segment_dict, num_breakpoints=100)
 
-                if q_type == 'Method 1 (Adjust)':
-                    segment_dict = create_segment_dict_from_string(vf_string, target, maximum=con_ub)
-                else:
-                    segment_dict = create_segment_dict_from_string(vf_string, target, maximum=indiff_ub)
-            else:
-                rho1, rho2, rho3 = rho[q_type][0], rho[q_type][1], rho[q_type][2]
-                buffer_y = buffer_ys[q_type]
-                f_type = 'Quota_Over'
-                vf_string = f_type + "|" + str(domain_max) + ", " \
-                            + str(rho1) + ", " + str(rho2) + ", " + str(rho3) + ", " + str(buffer_y)
-
-                segment_dict = create_segment_dict_from_string(vf_string, target, maximum=indiff_ub, actual=con_ub)
-
-            # Grab function points
-            a, f_a = value_function_builder(segment_dict, num_breakpoints=100)
-
-            # Plot graph
-            ax.plot(a, f_a, color=colors[q_type], linewidth=4, label=q_type, linestyle=linestyles[q_type])
+        # Plot graph
+        ax.plot(a, f_a, color=colors[segment], linewidth=4, label=pref_target, linestyle=linestyles[segment])
 
         # Tick marks
-        x_ticks = [0, target, int(indiff_ub * target), int(con_ub * target)]
-        y_ticks = [0.6, 1]
+        if pref_target == minimum or pref_target == maximum:
+            x_ticks = [0, minimum, maximum]
+        else:
+            x_ticks = [0, minimum, pref_target, maximum]
+        y_ticks = [1]
 
         # # Plot critical lines
         # for mult in [1, indiff_ub, con_ub]:
@@ -375,7 +365,7 @@ def create_value_function_methodology_example(function='Merit', segment=None):
     fig.show()
 
 
-def value_function_examples(function='Merit', segment=None, actual=None):
+def value_function_examples(function='Merit', segment=None, actual=0.5):
     """
     Displays the example value function graph used in the thesis
     """
@@ -465,63 +455,44 @@ def value_function_examples(function='Merit', segment=None, actual=None):
         legend.get_title().set_fontsize('30')
 
     elif function == 'Combined Quota':
-        measure = 'Number of Cadets Assigned'
         if segment is None:
             segment = 0
 
-        if actual is None:
-            actual = 50
-        title = 'combined_quota_value_function_' + segment
+        measure = 'Number of Cadets Assigned'
+        title = 'combined_quota_value_function_' + str(segment)
 
-        rhos = {1: round(random.random() * 0.05 + 0.05, 2), 2: round(random.random() * 0.2 + 0.4, 2),
-                3: round(random.random() * 0.2 + 0.7, 2), 4: round(random.random() * 0.1 + 0.15, 2)}
-        y1 = round(random.random() * 0.1 + 0.8, 2)
-        y2 = round(random.random() * 0.1 + 0.85, 2)
-        minimum, maximum = 50, 70
-        target = 50
-        pref_target = actual
-        vf_string = "Quota_Direct|" + str(rhos[1]) + ", " + str(rhos[2]) + ", " + \
-                    str(rhos[3]) + ", " + str(rhos[4]) + ", " + str(y1) + ", " + str(y2) + ", " + str(pref_target)
+        ranges = {1: (10, 20), 2: (40, 50), 3: (80, 85), 4: (210, 220)}
+        targets = {1: 10, 2: 45, 3: 85, 4: 210}
+        minimum, maximum = ranges[segment][0], ranges[segment][1]
+        target = targets[segment]
+        pref_target = target
+        colors = {1: 'black', 2: 'red', 3: 'blue', 4: "green"}
+        linestyles = {1: 'solid', 2: 'dashed', 3: 'dotted', 4: "dashed"}
+        f_type = 'Quota_Direct'
+        rho1 = round(random.random() * 0.02 + 0.06, 2)
+        rho2 = round(random.random() * 0.02 + 0.07, 2)
+        rho3 = round(random.random() * 0.02 + 0.03, 2)
+        rho4 = round(random.random() * 0.02 + 0.08, 2)
+        y1 = round(random.random() * 0.3 + 0.6, 2)
+        y2 = round(random.random() * 0.3 + 0.7, 2)
+
+        vf_string = f_type + "|" + str(rho1) + ", " + str(rho2) + ", " + str(rho3) + ", " + \
+                    str(rho4) + ", " + str(y1) + ", " + str(y2) + ", " + str(y1) + ", " + str(pref_target)
+
         segment_dict = create_segment_dict_from_string(vf_string, target, maximum=maximum, minimum=minimum)
-        colors = {1: 'black', 2: 'red', 3: 'blue'}
-        linestyles = {1: 'solid', 2: 'dashed', 3: 'dotted'}
 
         # Grab function points
         a, f_a = value_function_builder(segment_dict, num_breakpoints=100)
 
         # Plot graph
-        ax.plot(a, f_a, color=colors[actual], linewidth=4, label=q_type, linestyle=linestyles[q_type])
-
-        for q_type in ['Method 1', 'Method 1 (Adjust)', 'Method 2']:
-
-            if q_type != 'Method 2':
-
-                rho1, rho2 = rho[q_type][0], rho[q_type][1]
-                f_type = 'Quota_Normal'
-                vf_string = f_type + "|" + str(domain_max) + ", " + str(rho1) + ", " + str(rho2)
-
-                if q_type == 'Method 1 (Adjust)':
-                    segment_dict = create_segment_dict_from_string(vf_string, target, maximum=con_ub)
-                else:
-                    segment_dict = create_segment_dict_from_string(vf_string, target, maximum=indiff_ub)
-            else:
-                rho1, rho2, rho3 = rho[q_type][0], rho[q_type][1], rho[q_type][2]
-                buffer_y = buffer_ys[q_type]
-                f_type = 'Quota_Over'
-                vf_string = f_type + "|" + str(domain_max) + ", " \
-                            + str(rho1) + ", " + str(rho2) + ", " + str(rho3) + ", " + str(buffer_y)
-
-                segment_dict = create_segment_dict_from_string(vf_string, target, maximum=indiff_ub, actual=con_ub)
-
-            # Grab function points
-            a, f_a = value_function_builder(segment_dict, num_breakpoints=100)
-
-            # Plot graph
-            ax.plot(a, f_a, color=colors[q_type], linewidth=4, label=q_type, linestyle=linestyles[q_type])
+        ax.plot(a, f_a, color=colors[segment], linewidth=4, label=pref_target, linestyle=linestyles[segment])
 
         # Tick marks
-        x_ticks = [0, target, int(indiff_ub * target), int(con_ub * target)]
-        y_ticks = [0.6, 1]
+        if pref_target == minimum or pref_target == maximum:
+            x_ticks = [0, minimum, maximum]
+        else:
+            x_ticks = [0, minimum, pref_target, maximum]
+        y_ticks = [1]
 
         # # Plot critical lines
         # for mult in [1, indiff_ub, con_ub]:
@@ -534,35 +505,57 @@ def value_function_examples(function='Merit', segment=None, actual=None):
 
     elif function == 'AFOCD':
         measure = 'Degree Tier Proportion'
-        title = 'afocd_value_function'
+        title = 'afocd_value_function_' + str(segment)
         targets = {'< 0.2': 0.2, '> 0.4': 0.4, '> 0.8': 0.8}
-
         colors = {'< 0.2': 'red', '> 0.4': 'blue', '> 0.8': 'black'}
         linestyles = {'< 0.2': 'dashed', '> 0.4': 'dotted', '> 0.8': 'solid'}
-
         rho = {'< 0.2': 0.1, '> 0.4': 0.1, '> 0.8': 0.1}
-        for label in targets:
+        if actual == '< 0.2':
+            function = 'Min Decreasing'
+        else:
+            function = 'Min Increasing'
+        vf_string = function + "|" + str(rho[actual])
 
-            if label == '< 0.2':
-                function = 'Min Decreasing'
-            else:
-                function = 'Min Increasing'
-            vf_string = function + "|" + str(rho[label])
+        segment_dict = create_segment_dict_from_string(vf_string, targets[actual])
 
-            segment_dict = create_segment_dict_from_string(vf_string, targets[label])
+        # Grab function points
+        a, f_a = value_function_builder(segment_dict, num_breakpoints=100)
 
-            # Grab function points
-            a, f_a = value_function_builder(segment_dict, num_breakpoints=100)
-
-            # Plot graph
-            ax.plot(a, f_a, color=colors[label], linewidth=4, label=label, linestyle=linestyles[label])
+        # Plot graph
+        ax.plot(a, f_a, color=colors[actual], linewidth=4, label=actual, linestyle=linestyles[actual])
 
         # Tick marks
-        x_ticks = [0, 0.2, 0.4, 0.8, 1]
+        x_ticks = [0, targets[actual], 1]
         y_ticks = [1]
 
         # Legend
         legend = ax.legend(edgecolor='black', fontsize=30, loc='lower right', title='Degree Tier\nObjective')
+        legend.get_title().set_fontsize('30')
+
+    elif function == "Utility":
+        if segment is None:
+            segment = 1
+        measure = 'Cadet Utility'
+        title = 'utility_value_function_' + str(segment)
+        rho = {1: 0.5, 2: 0.3, 3: 0.1}
+        colors = {1: 'red', 2: 'blue', 3: 'black'}
+        linestyles = {1: 'dashed', 2: 'dotted', 3: 'solid'}
+        vf_string = "Min Increasing|" + str(rho[segment])
+
+        segment_dict = create_segment_dict_from_string(vf_string, 1)
+
+        # Grab function points
+        a, f_a = value_function_builder(segment_dict, num_breakpoints=100)
+
+        # Plot graph
+        ax.plot(a, f_a, color=colors[segment], linewidth=4, label=rho[segment], linestyle=linestyles[segment])
+
+        # Tick marks
+        x_ticks = [0, 1]
+        y_ticks = [1]
+
+        # Legend
+        legend = ax.legend(edgecolor='black', fontsize=30, loc='lower right', title='Function Rho\nParameter')
         legend.get_title().set_fontsize('30')
 
     elif function == 'measure':
