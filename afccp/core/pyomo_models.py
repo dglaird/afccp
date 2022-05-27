@@ -94,9 +94,10 @@ def old_original_pyomo_model_build(printing=False):
     return model
 
 
-def solve_original_pyomo_model(parameters, value_parameters, max_time=None, printing=False):
+def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solver_name="cbc", printing=False):
     """
     Converts the parameters and value parameters to the pyomo data structure
+    :param solver_name: name of solver
     :param max_time: max time
     :param parameters: fixed cadet/AFSC parameters
     :param value_parameters: user defined parameters
@@ -104,14 +105,14 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, prin
     :return: pyomo data
     """
     if printing:
-        print("Converting parameters to Original Model Pyomo Inputs...")
+        print("Building original model...")
 
     # Shorthand
     p = parameters
     vp = value_parameters
 
     # Utility Matrix
-    C = np.zeros([p['N'], p['M']])
+    c = np.zeros([p['N'], p['M']])
     for i in range(p['N']):
         for j in range(p['M']):
 
@@ -119,43 +120,125 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, prin
             if p['utility'][i, j] > 0:
 
                 if p['mandatory'][i, j] == 1:
-                    C[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 250
-                elif parameters['desired'][i, j] == 1:
-                    C[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 150
-                elif parameters['permitted'][i, j] == 1:
-                    C[i, j] = 10 * p['merit'][i] * p['utility'][i, j]
+                    c[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 250
+                elif p['desired'][i, j] == 1:
+                    c[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 150
+                elif p['permitted'][i, j] == 1:
+                    c[i, j] = 10 * p['merit'][i] * p['utility'][i, j]
                 else:
-                    C[i, j] = -50000
+                    c[i, j] = -50000
 
             # If it is not a preference for cadet i
             else:
 
                 if p['mandatory'][i, j] == 1:
-                    C[i, j] = 100 * p['merit'][i]
+                    c[i, j] = 100 * p['merit'][i]
                 elif p['desired'][i, j] == 1:
-                    C[i, j] = 50 * p['merit'][i]
+                    c[i, j] = 50 * p['merit'][i]
                 elif p['permitted'][i, j] == 1:
-                    C[i, j] = 0
+                    c[i, j] = 0
                 else:
-                    C[i, j] = -50000
+                    c[i, j] = -50000
+
+    # Build Model
+    m = ConcreteModel()
 
     # ___________________________________VARIABLE DEFINITION_________________________________
     m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
 
-    # _____________________________________OBJECTIVE FUNCTION__________________________________
+    # ___________________________________OBJECTIVE FUNCTION__________________________________
     def objective_function(m):
-        return np.sum(np.sum(c[i, j] * m.x[i, j] for i in p["I"]) for j in p["J^E"][i])
+        return np.sum(np.sum(c[i, j] * m.x[i, j] for j in p["J^E"][i]) for i in p["I"])
 
     m.objective = Objective(rule=objective_function, sense=maximize)
 
     # ________________________________________CONSTRAINTS_____________________________________
     pass
 
-    # Loop through each AFSC and add constraints if they need it
-    for j, afsc in enumerate(p["afsc_vector"]):
-        pass
+    # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
+    m.one_afsc_constraints = ConstraintList()
+    for i in p['I']:
+        m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
 
-    return None
+    # Loop through each AFSC and add constraints if they need it
+    m.measure_constraints = ConstraintList()
+    for j in p["J"]:
+
+        # Get count variables for this AFSC
+        count = np.sum(m.x[i, j] for i in p['I^E'][j])
+
+        # Loop through the objectives/constraints we care about
+        for objective in ["Combined Quota", "Merit", "USAFA Proportion", "Mandatory"]:
+            k = np.where(vp["objectives"] == objective)[0]
+
+            # If the constraint is turned on
+            if vp["constraint_type"][j, k] == 3 or vp['constraint_type'][j, k] == 4:
+
+                # Get the lower and upper bounds
+                try:
+                    value_list = vp['objective_value_min'][j, k].split(",")
+                except:
+                    value_list = vp['objective_value_min'][j, k][0].split(",")
+                min_value = float(value_list[0].strip())
+                max_value = float(value_list[1].strip())
+
+                # Calculate Objective Measure
+                if objective in vp['K^D']:
+                    numerator = np.sum(m.x[i, j] for i in p['I^D'][objective][j])
+                elif objective == "Merit":
+                    numerator = np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j])
+                else:  # Combined Quota
+                    measure_jk = count
+
+                # Add the right kind of constraint
+                if objective == 'Combined Quota':
+                    m.measure_constraints.add(expr=measure_jk >= min_value)
+                    m.measure_constraints.add(expr=measure_jk <= max_value)
+                else:
+
+                    # Constrained Approximate Measure
+                    if vp['constraint_type'][j, k] == 3:
+                        m.measure_constraints.add(expr=numerator - min_value * p['quota'][j] >= 0)
+                        m.measure_constraints.add(expr=numerator - max_value * p['quota'][j] <= 0)
+
+                    # Constrained Exact Measure  (type = 4)
+                    else:
+                        m.measure_constraints.add(expr=numerator - min_value * count >= 0)
+                        m.measure_constraints.add(expr=numerator - max_value * count <= 0)
+
+    if printing:
+        print("Done. Solving original model...")
+    model = solve_pyomo_model(m, solver_name=solver_name, max_time=max_time)
+
+    # Initialize solution
+    solution = np.zeros(p['N'])
+
+    # Create solution X Matrix
+    x = np.zeros([p['N'], p['M']])
+    for i in p['I']:
+        found = False
+        for j in p['J^E'][i]:
+            x[i, j] = model.x[i, j].value
+            try:
+                if round(x[i, j]):
+                    solution[i] = int(j)
+                    found = True
+            except:
+                raise ValueError("Solution didn't come out right, likely model is infeasible.")
+
+        # For some reason we may not have assigned a cadet to an AFSC in which case we just give them to one
+        # they're eligible for and want
+        if not found:
+            if len(p["J^P"][i]) != 0:
+                solution[i] = int(p["J^P"][i][0])  # Try to give them an AFSC they wanted
+            else:
+                solution[i] = int(p["J^E"][i][0])  # Just give them an AFSC they're eligible for
+
+            afsc = p["afsc_vector"][int(solution[i])]
+
+            if printing:
+                print("Cadet " + str(i) + " was not assigned by the model for some reason. We assigned them to", afsc)
+    return solution
 
 
 def old_solve_original_pyomo_model(data, model, model_name='Original Model', solver_name="cbc",

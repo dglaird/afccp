@@ -47,6 +47,9 @@ elif 'griffenlaird' in dir_path:
     # If I'm on my Mac, I don't want to add ".exe" to the solver path
     exe_extension = False
 
+    # # Pyomo global variables
+    # provide_executable = False
+
     # Import and export to my folder
     input_folder = dir_path + 'afccp/resources/laird/'
     output_folder = dir_path + 'afccp/resources/laird/'

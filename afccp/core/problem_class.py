@@ -1310,15 +1310,15 @@ class CadetCareerProblem:
         else:
             raise ValueError('Pyomo not available')
 
-        # # Set the solution attribute
-        # if set_to_instance:
-        #     self.solution = solution
-        #     self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-        #                                             printing=printing)
-        #
-        # # Add solution to solution dictionary
-        # if add_to_dict:
-        #     self.add_solution_to_dictionary(solution, solution_method="AFPC")
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_method="OG")
 
     def solve_gp_pyomo_model(self, max_time=60, solver_name='cbc', add_to_dict=True, set_to_instance=True,
                              con_term=None, get_reward=False, printing=None):
@@ -1369,8 +1369,6 @@ class CadetCareerProblem:
         :param ga_max_time: the genetic algorithm's time to solve
         :param pyomo_max_time: max time to solve the pyomo model
         :param return_z: If the method should return the z value or the solution itself
-        :param executable: optional path to solver
-        :param provide_executable: if we want to directly provide an executable path
         :param printing: Whether the procedure should print something
         :param percent_step: what percent checkpoints we should display updates for the GA
         :param ga_printing: If we want to print status updates during the genetic algorithm
@@ -1382,8 +1380,7 @@ class CadetCareerProblem:
         if printing:
             now = datetime.datetime.now()
             print('Solving VFT Model for ' + str(pyomo_max_time) + ' seconds at ' + now.strftime('%H:%M:%S') + '...')
-        self.solve_vft_pyomo_model(max_time=pyomo_max_time, add_to_dict=False, executable=executable,
-                                   provide_executable=provide_executable, printing=False)
+        self.solve_vft_pyomo_model(max_time=pyomo_max_time, add_to_dict=False, printing=False)
 
         if printing:
             now = datetime.datetime.now()
