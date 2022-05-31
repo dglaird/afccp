@@ -89,7 +89,7 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
     # Load Instance Parameters (may or may not be included in this dataset)
     cadet_parameter_dictionary = {'USAFA': 'usafa', 'Male': 'male', 'Minority': 'minority', 'ASC1': 'asc1',
                                   'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit',
-                                  'percentile_all': 'merit_all', 'Race': 'race'}
+                                  'percentile_all': 'merit_all', 'Race': 'race', "Ethnicity": "ethnicity"}
     for col_name in cadet_parameter_dictionary:
         if col_name in columns:
             parameters[cadet_parameter_dictionary[col_name]] = np.array(cadets_fixed.loc[:, col_name])
@@ -136,9 +136,9 @@ def model_data_frame_from_fixed_parameters(parameters):
         {'Cadet': parameters['ID'], 'Assigned': parameters['assigned']})
 
     # Load Instance Parameters (may or may not be included)
-    cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'Race': 'race', 'USAFA': 'usafa',
-                                  'ASC1': 'asc1', 'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2', 'percentile': 'merit',
-                                  'percentile_all': 'merit_all'}
+    cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'Race': 'race', "Ethnicity": "ethnicity",
+                                  'USAFA': 'usafa', 'ASC1': 'asc1', 'ASC2': 'asc2', 'CIP1': 'cip1', 'CIP2': 'cip2',
+                                  'percentile': 'merit', 'percentile_all': 'merit_all'}
     for col_name in cadet_parameter_dictionary:
         if cadet_parameter_dictionary[col_name] in parameters:
             cadets_fixed[col_name] = parameters[cadet_parameter_dictionary[col_name]]
