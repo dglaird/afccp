@@ -30,12 +30,12 @@ agg = DataAggregator(cy='2023', re_compile=True)
 agg.compile_problem_instance_file(re_compile=True, to_instance_folder=True)
 
 # Import problem class
-from afccp.core.problem_class import CadetCareerProblem
-instance = CadetCareerProblem("2023", printing=True)
-instance.import_default_value_parameters(no_constraints=True)
-instance.stable_matching()
+# from afccp.core.problem_class import CadetCareerProblem
+# instance = CadetCareerProblem("2023", printing=True)
+# instance.import_default_value_parameters(no_constraints=True)
+# instance.stable_matching()
 # instance.export_to_excel()
 
 # See if we can solve it without any constraints
-instance.solve_vft_pyomo_model(max_time=10, provide_executable=False)
-instance.export_to_excel()
+# instance.solve_vft_pyomo_model(max_time=10)
+# instance.export_to_excel()
