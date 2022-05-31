@@ -1421,6 +1421,7 @@ class CadetCareerProblem:
 
         if set_new_constraint_type:
             self.value_parameters["constraint_type"] = constraint_type
+            self.save_new_value_parameters_to_dict()
 
         constraint_type_df = pd.DataFrame({'AFSC': self.parameters['afsc_vector']})
         for k, objective in enumerate(self.value_parameters['objectives']):
