@@ -242,7 +242,7 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solv
 
 
 def old_solve_original_pyomo_model(data, model, model_name='Original Model', solver_name="cbc",
-                               max_time=None, printing=False):
+                                   max_time=None, printing=False):
     """
     Solves the pyomo model and returns the solution
     :param max_time: max time allowed
@@ -383,6 +383,22 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
             for k in vp['K^A'][j]:
                 for l in range(r[j, k] - 1):
                     m.y[j, k, l] = initial['y'][j, k, l]
+
+    # Fixing variables if necessary
+    for i, afsc in enumerate(p["assigned"]):
+        j = np.where(p["afsc_vector"] == afsc)[0]  # AFSC index
+
+        # Check if the cadet is actually assigned an AFSC already (it's not blank)
+        if len(j) != 0:
+            j = j[0]  # Actual index
+
+            # Check if the cadet is assigned to an AFSC they're not eligible for
+            if j not in p["J^E"][i]:
+                raise ValueError("Cadet " + str(i) + " assigned to '" + afsc + "' but is not eligible for it. "
+                                                                               "Adjust the qualification matrix!")
+
+            # Fix the variable
+            m.x[i, j].fix(1)
 
     # _________________________________OBJECTIVE FUNCTION_________________________________
     pass

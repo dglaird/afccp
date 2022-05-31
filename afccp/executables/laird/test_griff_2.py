@@ -13,6 +13,6 @@ os.chdir(dir_path)
 from afccp.core.problem_class import CadetCareerProblem
 
 instance = CadetCareerProblem('2023', printing=True)
-instance.set_instance_value_parameters()
-instance.full_vft_model_solve(ga_printing=True, percent_step=5)
+# instance.solve_vft_pyomo_model(max_time=10)
+# instance.full_vft_model_solve(ga_printing=True, percent_step=10, ga_max_time=60 * 2)
 instance.export_to_excel()

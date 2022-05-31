@@ -461,8 +461,9 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
         num_solutions = len(solution_names)
 
         # Create solutions dataframe
-        solutions_df = pd.DataFrame({})
+        solutions_df = pd.DataFrame({"Cadet": parameters["ID"]})
         for solution_name in solution_names:
+
             # Translate AFSC indices into the AFSCs themselves
             solution = solution_dict[solution_name]
             solutions_df[solution_name] = [afscs[int(solution[i])] for i in parameters['I']]
@@ -561,7 +562,9 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
 
         # Solution dictionary
         solutions_df = import_data(filepath, sheet_name="Solutions")
-        solution_names = solutions_df.columns
+        solution_names = list(solutions_df.keys())
+        if "Cadet" in solution_names:
+            solution_names.remove("Cadet")
         solution_dict = {}
         for solution_name in solution_names:
             afsc_solution = np.array(solutions_df[solution_name])

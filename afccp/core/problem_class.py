@@ -110,7 +110,7 @@ class CadetCareerProblem:
         main_file = False  # if there is a "data_type data_name.xlsx" file
         self.instance_files = []
         for file_name in glob.iglob(directory + '*.xlsx', recursive=True):
-            start_index = file_name.find(paths_in['instances']) + len(paths_in['instances']) + 1
+            start_index = file_name.find(paths_in['instances']) + len(paths_in['instances'])
             end_index = len(file_name) - 5
             full_name = file_name[start_index:end_index]
             sections = full_name.split(' ')
