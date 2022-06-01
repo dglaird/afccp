@@ -1401,7 +1401,7 @@ class CadetCareerProblem:
         else:
             return self.solution
 
-    def solve_for_constraints(self, export_report=True, set_new_constraint_type=False):
+    def solve_for_constraints(self, export_report=True, set_new_constraint_type=False, skip_quota=False):
         """
         This method iteratively adds constraints to the model to find which ones should be included based on
         feasibility and in order of importance
@@ -1417,7 +1417,7 @@ class CadetCareerProblem:
                              "make sure the current set of value parameters has active constraints.")
 
         # Run the function!
-        constraint_type, solutions_df, report_df = determine_model_constraints(self)
+        constraint_type, solutions_df, report_df = determine_model_constraints(self, skip_quota=skip_quota)
 
         if set_new_constraint_type:
             self.value_parameters["constraint_type"] = constraint_type

@@ -714,7 +714,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
 
 
 # Other Solving Functions
-def determine_model_constraints(instance, printing=True):
+def determine_model_constraints(instance, skip_quota=True, printing=True):
     """
     Iteratively evaluate the VFT model by adding on constraints until we get to a feasible solution
     in order of importance
@@ -769,6 +769,7 @@ def determine_model_constraints(instance, printing=True):
     afsc_solution = np.array([p["afsc_vector"][int(j)] for j in solutions[0]])
     afsc_solutions = {0: afsc_solution}
     metrics = measure_solution_quality(solutions[0], p, vp)
+    current_solution = solutions[0]
 
     # Add first solution to report
     report["Solution"].append(0)
@@ -832,8 +833,10 @@ def determine_model_constraints(instance, printing=True):
                     new_model.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
                     new_model.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
                 else:
-                    new_model.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
-                    new_model.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
+                    new_model.measure_constraints.add(
+                        expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
+                    new_model.measure_constraints.add(
+                        expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
 
             # Constrained Exact Measure  (type = 4)
             else:
@@ -844,13 +847,23 @@ def determine_model_constraints(instance, printing=True):
                     new_model.measure_constraints.add(expr=numerator - objective_min_value[j, k] * count >= 0)
                     new_model.measure_constraints.add(expr=numerator - objective_max_value[j, k] * count <= 0)
 
-            # Dictionary of solutions with different constraints!
-            try:
-                solutions[cons] = vft_model_solve(new_model, p, vp, approximate=True, max_time=10)
+            # We can skip the quota constraint and just turn it on
+            if objective == "Combined Quota" and skip_quota:
+                solutions[cons] = current_solution
                 failed = False
-            except:
-                solutions[cons] = np.zeros(p["N"]).astype(int)
-                failed = True
+                quota_obj = True
+
+            else:
+
+                quota_obj = False
+                # Dictionary of solutions with different constraints!
+                try:
+                    solutions[cons] = vft_model_solve(new_model, p, vp, approximate=True, max_time=10)
+                    failed = False
+
+                except:
+                    solutions[cons] = current_solution
+                    failed = True
 
             # Dictionary of solution arrays in AFSC format (not indices of AFSCs)
             afsc_solutions[cons] = np.array([p["afsc_vector"][int(j)] for j in solutions[cons]])
@@ -866,7 +879,11 @@ def determine_model_constraints(instance, printing=True):
                 report["Failed"].append(1)
             else:
                 report["Objective Value"].append(round(metrics["z"], 4))
-                print("Done. New solution objective value:", str(report["Objective Value"][cons]))
+
+                if quota_obj:
+                    print("Skipped this constraint, it will be included in the model moving forward.")
+                else:
+                    print("Done. New solution objective value:", str(report["Objective Value"][cons]))
                 report["Failed"].append(0)
 
                 # Save constraint as active
