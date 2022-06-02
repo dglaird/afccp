@@ -168,13 +168,22 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
                                        'AFSC Weight Function': [value_parameters['afsc_weight_function']],
                                        'Cadet Weight Function': [value_parameters['cadet_weight_function']]})
 
+    # Check if other columns are present (phasing these in)
+    more_vp_columns = ["USAFA-Constrained AFSCs", "Similarity Constraint"]
+    for col in more_vp_columns:
+        if col in value_parameters:
+            overall_weights_df[col] = [value_parameters[col]]
+        else:
+            overall_weights_df[col] = [""]
+
     return overall_weights_df, cadet_weights_df, afsc_weights_df
 
 
-def model_value_parameters_set_additions(value_parameters, printing=False):
+def model_value_parameters_set_additions(parameters, value_parameters, printing=False):
     """
     Creates subsets for AFSCs and objectives to distinguish which AFSCs care about which objectives so that we don't
     have to calculate every value only to multiply them by zero.
+    :param parameters: model fixed parameters
     :param value_parameters: model weight/value parameters
     :param printing: whether the procedure should print something
     :return: updated value parameters with sets
@@ -195,6 +204,23 @@ def model_value_parameters_set_additions(value_parameters, printing=False):
             value_parameters['objective_weight'][j, :] > 0)[0].astype(int)
         value_parameters['K^C'][j] = np.where(
             value_parameters['constraint_type'][j, :] > 0)[0].astype(int)
+
+    # 5% of total USAFA graduating class set
+    value_parameters["J^USAFA"] = None
+
+    # Add the AFSC indices to the set
+    if "," in value_parameters["USAFA-Constrained AFSCs"]:
+        value_parameters["J^USAFA"] = np.array([])
+        usafa_afscs = value_parameters["USAFA-Constrained AFSCs"].split(",")
+        for afsc in usafa_afscs:
+            afsc = afsc.strip()
+            j = np.where(parameters["afsc_vector"] == afsc)[0]
+            if len(j) == 0:
+                print("WARNING: Something is wrong with the USAFA-Constrained AFSCs! "
+                      "'" + afsc + "' is not in the list of AFSCs.")
+            else:
+                value_parameters["J^USAFA"] = np.hstack((value_parameters["J^USAFA"], j))
+        value_parameters["J^USAFA"] = value_parameters["J^USAFA"].astype(int)
 
     # Set of objectives that seek to balance some cadet demographic
     value_parameters['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority']
@@ -375,7 +401,8 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                         'objective_weight': np.zeros([M, O]), 'afsc_weight': np.zeros(M), "M": M,
                         'objective_target': np.zeros([M, O]), 'objectives': objectives, 'O': O,
                         'objective_value_min': np.array([[" " * 20 for _ in range(O)] for _ in range(M)]),
-                        'constraint_type': np.zeros([M, O]).astype(int)}
+                        'constraint_type': np.zeros([M, O]).astype(int),
+                        "USAFA-Constrained AFSCs": "", "Similarity Constraint": ""}
 
     if num_breakpoints is None:
         num_breakpoints = default_value_parameters['num_breakpoints']

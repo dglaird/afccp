@@ -608,6 +608,17 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                                 "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
                                 'objectives': np.array(afsc_weights.loc[:int(len(afsc_weights) / M - 1), 'Objective'])}
 
+            # Check if other columns are present (phasing these in)
+            more_vp_columns = ["USAFA-Constrained AFSCs", "Similarity Constraint"]
+            for col in more_vp_columns:
+                if col in overall_weights:
+                    element = str(np.array(overall_weights[col])[v])
+                    if element == "nan":
+                        element = ""
+                    value_parameters[col] = element
+                else:
+                    value_parameters[col] = ""
+
             # Determine weights on cadets
             if 'merit_all' in parameters:
                 value_parameters['cadet_weight'] = cadet_weight_function(parameters['merit_all'],
@@ -684,9 +695,9 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
             value_parameters["afsc_weight"] = value_parameters["afsc_weight"] / sum(value_parameters["afsc_weight"])
 
             # Load value_parameter dictionary
-            value_parameters = model_value_parameters_set_additions(value_parameters)
+            value_parameters = model_value_parameters_set_additions(parameters, value_parameters)
             value_parameters = condense_value_functions(parameters, value_parameters)
-            value_parameters = model_value_parameters_set_additions(value_parameters)
+            value_parameters = model_value_parameters_set_additions(parameters, value_parameters)
             vp_dict[vp_name] = copy.deepcopy(value_parameters)
             vp_dict[vp_name]['vp_weight'] = vp_weights[v]
             vp_dict[vp_name]['vp_local_weight'] = vp_weights[v] / sum(vp_weights)
@@ -752,7 +763,7 @@ def determine_model_constraints(instance, skip_quota=True, printing=True):
 
     # Initially, we'll start with no constraints turned on
     vp["constraint_type"] = np.zeros([p["M"], vp["O"]])
-    model_value_parameters_set_additions(vp)
+    model_value_parameters_set_additions(parameters, vp)
 
     # Build the model
     vft_model = vft_model_build(p, vp, convex=True, add_breakpoints=True, initial=None)

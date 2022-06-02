@@ -388,7 +388,7 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
         x = solution
 
     # Create metrics dictionary
-    metrics = {'objective_measure': np.zeros([p['M'], vp['O']]), 'objective_value': np.zeros([p['M'], vp['O']]),
+    metrics = {'objective_measure': np.zeros([p['M'], vp['O']]), 'objective_value': np.ones([p['M'], vp['O']]),
                'afsc_value': np.zeros(p['M']), 'cadet_value': np.zeros(p['N']),
                'cadet_constraint_fail': np.zeros(p['N']), 'afsc_constraint_fail': np.zeros(p['M']),
                'objective_score': np.zeros(vp['O']), 'total_failed_constraints': 0, 'x': x,

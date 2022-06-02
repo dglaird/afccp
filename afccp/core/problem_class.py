@@ -12,7 +12,7 @@ import copy
 class CadetCareerProblem:
     def __init__(self, data_name=None, N=1600, M=32, P=6, num_breakpoints=None, printing=False):
         """
-        This is the initialization function for the AFSC/Cadet problem. We can import data using the data_name.
+        This is the AFSC/Cadet problem object. We can import data using the data_name (must be the instance folder!).
         We can also generate data by providing a data_name that contains "Random", "Realistic",
         or "Perfect" in the name.
         :param data_name: name of the data set. If we want to import data using the data_name, this needs to be
@@ -23,6 +23,22 @@ class CadetCareerProblem:
         :param num_breakpoints: Number of breakpoints to use for AFSC value functions
         :param printing: Whether we should print status updates or not
         """
+
+        #  Define these helper functions (Meant to break apart what I'm doing)
+        def initialize_model_parameters():
+            """
+            This function initializes all the various instance parameters including graphs,
+            solving the different models, and much more. If the analyst wants to change the defaults, they just need
+            to specify the new parameter in this initialization function or when passed in the method it is need
+            """
+
+            # Parameters for the graph
+            self.plt_p = 4
+
+            # Parameters to solve the models
+            self.mdl_p = 22
+
+        initialize_model_parameters()
 
         # Find out if we're dealing with "scrubbed" information or not
         if data_name is None:  # we're going to generate random data
@@ -382,9 +398,9 @@ class CadetCareerProblem:
         except:
             raise ValueError('Filepath invalid for this particular problem instance.')
 
-        value_parameters = model_value_parameters_set_additions(value_parameters)
+        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
-        value_parameters = model_value_parameters_set_additions(value_parameters, printing)
+        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters, printing)
 
         if set_value_parameters:
             self.value_parameters = value_parameters
@@ -561,9 +577,9 @@ class CadetCareerProblem:
 
         if no_constraints:
             value_parameters['constraint_type'] = np.zeros([self.parameters['M'], value_parameters['O']])
-        value_parameters = model_value_parameters_set_additions(value_parameters)
+        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
-        value_parameters = model_value_parameters_set_additions(value_parameters)
+        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
         value_parameters['vp_weight'] = vp_weight
 
         # Set value parameters to instance attribute
@@ -640,9 +656,9 @@ class CadetCareerProblem:
                                                                constraints_df, deterministic=deterministic,
                                                                constrain_merit=constrain_merit,
                                                                data_name=data_type)
-        value_parameters = model_value_parameters_set_additions(value_parameters)
+        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
         value_parameters = condense_value_functions(self.parameters, value_parameters)
-        value_parameters = model_value_parameters_set_additions(value_parameters)
+        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
         value_parameters['vp_weight'] = vp_weight
 
         # Set value parameters to instance attribute

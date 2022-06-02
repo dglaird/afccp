@@ -12,88 +12,6 @@ logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 warnings.filterwarnings('ignore')
 
 
-def old_original_pyomo_model_build(printing=False):
-    """
-    Builds the original AFPC model
-    :param printing: Whether the procedure should print something
-    :return: pyomo model as object
-    """
-    if printing:
-        print('Building Original Pyomo Model...')
-
-    # Build Model
-    model = AbstractModel()
-
-    # Define sets
-    model.I = Set(doc='Cadets')  # range of N
-    model.J = Set(doc='AFSCs')  # range of M
-    model.L = Set(doc='Large AFSCs')  # range of G
-    model.R = Set(doc='AFSCs with Mandatory Requirements')  # Range of M_R
-
-    # Define Parameters
-    model.N = Param(doc='Number of Cadets')
-    model.M = Param(doc='Number of AFSCs')
-    model.M_R = Param(doc='Number of AFSCs with Mandatory Requirements')
-    model.G = Param(doc='Number of Large AFSCs')
-    model.merit = Param(model.I, doc='percentile for cadet i')
-    model.usafa = Param(model.I, doc='1 if cadet i is a usafa graduate, 0 o/w')
-    model.target = Param(model.J, doc='target for AFSC j')
-    model.over = Param(model.J, doc='amount by which AFSC j can be over-classified')
-    model.eduM = Param(model.J, doc='target accession rate for mandatory degrees for AFSC j')
-    model.tierM = Param(model.I, model.J, doc='1 if cadet i has a mandatory degree for AFSC j, 0 o/w')
-    model.C = Param(model.I, model.J, doc='utility of assigning cadet i to AFSC j')
-
-    # Define variables
-    model.x = Var(model.I, model.J, within=Binary, doc='1 if cadet i is assigned to AFSC j, 0 o/w')
-
-    def one_afsc_rule(model, i):
-        return sum(model.x[i, j] for j in model.J) == 1
-
-    model.con_one_afsc = Constraint(model.I, rule=one_afsc_rule)
-
-    def min_target_rule(model, j):
-        return sum(model.x[i, j] for i in model.I) >= model.target[j]
-
-    model.con_min_target = Constraint(model.J, rule=min_target_rule)
-
-    def max_target_rule(model, j):
-        return sum(model.x[i, j] for i in model.I) <= model.over[j]
-
-    model.con_max_target = Constraint(model.J, rule=max_target_rule)
-
-    def min_mandatory_rule(model, j):  # arbitrary constraint bound extension
-        return sum(model.tierM[i, j] * model.x[i, j] for i in model.I) >= (model.eduM[j] * model.target[j]) - 30
-
-    model.con_min_mandatory = Constraint(model.R, rule=min_mandatory_rule)
-
-    def min_usafa_rule(model, j):  # arbitrary constraint bound extension
-        return sum(model.usafa[i] * model.x[i, j] for i in model.I) >= (0.2 * model.target[j]) - 20
-
-    model.con_min_usafa = Constraint(model.L, rule=min_usafa_rule)
-
-    def max_usafa_rule(model, j):  # arbitrary constraint bound extension
-        return sum(model.usafa[i] * model.x[i, j] for i in model.I) <= (0.4 * model.target[j]) + 20
-
-    model.con_min_usafa = Constraint(model.L, rule=max_usafa_rule)
-
-    def min_percentile_rule(model, j):  # arbitrary constraint bound extension
-        return sum(model.merit[i] * model.x[i, j] for i in model.I) >= (0.35 * model.target[j]) - 20
-
-    model.con_min_percentile = Constraint(model.L, rule=min_percentile_rule)
-
-    def max_percentile_rule(model, j):  # arbitrary constraint bound extension
-        return sum(model.merit[i] * model.x[i, j] for i in model.I) <= (0.65 * model.target[j]) + 20
-
-    model.con_max_percentile = Constraint(model.L, rule=max_percentile_rule)
-
-    def objective_rule(model):
-        return sum(sum(model.C[i, j] * model.x[i, j] for i in model.I) for j in model.J)
-
-    model.objective = Objective(rule=objective_rule, sense=maximize, doc='Objective Function')
-
-    return model
-
-
 def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solver_name="cbc", printing=False):
     """
     Converts the parameters and value parameters to the pyomo data structure
@@ -241,36 +159,6 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solv
     return solution
 
 
-def old_solve_original_pyomo_model(data, model, model_name='Original Model', solver_name="cbc",
-                                   max_time=None, printing=False):
-    """
-    Solves the pyomo model and returns the solution
-    :param max_time: max time allowed
-    :param solver_name: which solver to use
-    :param model_name: kind of model we're solving
-    :param data: pyomo model parameters
-    :param model: abstract model
-    :param printing: Whether the procedure should print something
-    :return: solution (vector), X (matrix)
-    """
-    if printing:
-        print('Creating ' + model_name + ' instance...')
-
-    instance = model.create_instance(data)
-
-    if printing:
-        print('Solving ' + model_name + ' instance with solver ' + solver_name + '...')
-
-    instance = solve_pyomo_model(instance, solver_name, max_time=max_time)
-    solution = np.zeros(instance.N.value)
-    for i in range(instance.N.value):
-        for j in range(instance.M.value):
-            if round(instance.x[i, j].value):
-                solution[i] = int(j)
-
-    return solution
-
-
 def vft_model_build(parameters, value_parameters, initial=None, convex=True, add_breakpoints=True,
                     printing=False):
     """
@@ -415,6 +303,23 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
     # ____________________________________CONSTRAINTS_____________________________________
     pass
 
+    # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
+    m.one_afsc_constraints = ConstraintList()
+    for i in p['I']:
+        m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
+
+    # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
+    if vp["J^USAFA"] is not None:
+
+        # This is a pretty arbitrary constraint and will only be used for real class years
+        real_n = 960  # Total number of USAFA cadets (NonRated, Rated, and SF)
+        cap = 0.05 * real_n
+
+        # USAFA 5% Cap Constraint
+        def usafa_afscs_rule(m):
+            return np.sum(np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j]) for j in vp["J^USAFA"]) <= cap
+        m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
+
     # Value Function Constraints: Linking main methodology with value function methodology
     m.measure_vf_constraints = ConstraintList()  # 20a in Thesis
     m.value_vf_constraints = ConstraintList()  # 20b in Thesis
@@ -435,11 +340,6 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
     # AFSC Objective Measure/Value Constraints (Optional decision-maker constraints)
     m.measure_constraints = ConstraintList()
     m.value_constraints = ConstraintList()
-
-    # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
-    m.one_afsc_constraints = ConstraintList()
-    for i in p['I']:
-        m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
 
     # Loop through all AFSCs
     for j in p['J']:
