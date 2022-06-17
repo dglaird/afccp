@@ -1,9 +1,12 @@
 # Import libraries
+from typing import Any
+
 import os
 
 import pandas as pd
 
 from afccp.core.comprehensive_functions import *
+from afccp.core.processing.ccp_helping_functions import *
 import datetime
 import glob
 import copy
@@ -23,22 +26,6 @@ class CadetCareerProblem:
         :param num_breakpoints: Number of breakpoints to use for AFSC value functions
         :param printing: Whether we should print status updates or not
         """
-
-        #  Define these helper functions (Meant to break apart what I'm doing)
-        def initialize_model_parameters():
-            """
-            This function initializes all the various instance parameters including graphs,
-            solving the different models, and much more. If the analyst wants to change the defaults, they just need
-            to specify the new parameter in this initialization function or when passed in the method it is need
-            """
-
-            # Parameters for the graph
-            self.plt_p = 4
-
-            # Parameters to solve the models
-            self.mdl_p = 22
-
-        initialize_model_parameters()
 
         # Find out if we're dealing with "scrubbed" information or not
         if data_name is None:  # we're going to generate random data
@@ -115,7 +102,7 @@ class CadetCareerProblem:
                     self.data_variant = data_variant
 
         # Create the "full name" which we piece together all the current available information
-        self.full_name = self.data_type + ' ' + self.data_name   # "Real A" for example
+        self.full_name = self.data_type + ' ' + self.data_name  # "Real A" for example
         self.data_instance_name = copy.deepcopy(self.full_name)
 
         # Get correct filepath  (for loading in the instance right now)
@@ -199,6 +186,9 @@ class CadetCareerProblem:
             self.info_df, self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df = \
                 import_aggregate_instance_file(filepath, num_breakpoints=num_breakpoints)
 
+        # Initialize more "functional" parameters
+        self.plt_p, self.mdl_p = initialize_instance_functional_parameters(self.parameters["N"])
+
         if printing:
             if generate:
                 print('Generated.')
@@ -206,80 +196,32 @@ class CadetCareerProblem:
                 print('Imported.')
 
     # Observe "Fixed" Data
-    def display_data_graph(self, graph='Average Merit', save=False, printing=None, facecolor='white', title=None,
-                           figsize=(16, 10), display_title=True, num=None, eligibility=False, thesis_chart=False,
-                           label_size=35, afsc_tick_size=30, yaxis_tick_size=30, afsc_rotation=None, alpha=0.5,
-                           dpi=100, title_size=None, legend_size=None, bar_color='black', skip_afscs=None):
+    def display_data_graph(self, p_dict={}, printing=None):
         """
         This method plots different aspects of the fixed parameters of the problem instance.
-        :param graph: which data element to visualize (Average Merit, USAFA Proportion, Eligible Quota, AFOCD Data,
-        Average Utility)
-        :param save: if we should save the graph
-        :param printing: Whether we should print status updates or not
-        :param facecolor: color of the figure
-        :param title: title of the figure
-        :param figsize: size of the figure
-        :param display_title: Whether we should put a title on the figure or not
-        :param num: Maximum number of eligible cadets for each AFSC to show
-        :param eligibility: This applies to the Average Utility chart. This determines if we should calculate the
-        average utility across the eligible cadets (True) or all cadets (False)
-        :param thesis_chart: If this chart is used in the thesis document (determines some of these parameters)
-        :param label_size: size of the labels
-        :param afsc_tick_size: size of the x axis AFSC tick labels
-        :param yaxis_tick_size: size of the y axis ticks
-        :param afsc_rotation: how much the AFSC tick labels should be rotated
-        :param alpha: alpha used on the bar plots
-        :param dpi: dots per inch for figure
-        :param title_size: size of the title
-        :param legend_size: size of the legend
-        :param bar_color: color of the bars
-        :param skip_afscs: if we should have every other AFSC shown (useful for letter class years)
-        :return: chart
         """
 
-        # Find number of AFSCs to show
-        if num is not None:
-            num_afscs = sum([1 if len(self.parameters['I^E'][j]) < num else 0 for j in self.parameters['J']])
-        else:
-            num_afscs = self.parameters['M']
+        # Reset title and filename
+        self.plt_p["title"], self.plt_p["filename"] = None, None
 
-        if skip_afscs is None:
-            if self.data_variant == "Year":
-                skip_afscs = False
+        # Update plot parameters if necessary
+        for key in p_dict:
+            if key in self.plt_p:
+                self.plt_p[key] = p_dict[key]
             else:
-                if num_afscs < self.parameters['M']:
-                    skip_afscs = False
+
+                # Exception
+                if key == "graph":
+                    self.plt_p["results_graph"] = p_dict["graph"]
+
                 else:
-                    skip_afscs = True
+                    # If the parameter doesn't exist, we warn the user
+                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
-        if afsc_rotation is None:
-            if skip_afscs:
-                afsc_rotation = 0
-            else:
-                if self.data_variant == "Year":
-                    if num_afscs > 18:
-                        afsc_rotation = 45
-                    else:
-                        afsc_rotation = 0
-                else:
-                    if num_afscs < 25:
-                        afsc_rotation = 0
-                    else:
-                        afsc_rotation = 45
+        self.plt_p = determine_afsc_plot_details(self)
 
-        if thesis_chart:
-            figsize = (16, 10)
-            display_title = False
-            save = True
-            label_size = 35
-            afsc_tick_size = 30
-            yaxis_tick_size = 30
-
-        chart = data_graph(self.parameters, save=save, figsize=figsize, facecolor=facecolor, eligibility=eligibility,
-                           title=title, display_title=display_title, num=num, label_size=label_size,
-                           afsc_tick_size=afsc_tick_size, graph=graph, yaxis_tick_size=yaxis_tick_size,
-                           afsc_rotation=afsc_rotation, dpi=dpi, bar_color=bar_color, alpha=alpha,
-                           title_size=title_size, legend_size=legend_size, skip_afscs=skip_afscs)
+        # Create the chart
+        chart = data_graph(self)
 
         if printing is None:
             printing = self.printing
@@ -303,10 +245,10 @@ class CadetCareerProblem:
         if solution is None:
             solution = self.solution
 
-        find_original_solution_ineligibility(self.parameters, solution)
+        find_solution_ineligibility(self.parameters, solution)
 
     # Adjust Data
-    def adjust_qualification_matrix(self, printing=None, report_cips_not_found=False, use_matrix=True):
+    def adjust_qualification_matrix(self, printing=None, report_cips_not_found=False, use_matrix=False):
         """
         This procedure simply re-runs the CIP to Qual function in case I change qualifications or I
         identify errors since some cadets in the AFPC solution may receive AFSCs for which they
@@ -330,7 +272,8 @@ class CadetCareerProblem:
 
                 if use_matrix:
                     if report_cips_not_found:
-                        qual_matrix, unknown_cips = cip_to_qual(parameters['afsc_vector'], parameters['cip1'].astype(str),
+                        qual_matrix, unknown_cips = cip_to_qual(parameters['afsc_vector'],
+                                                                parameters['cip1'].astype(str),
                                                                 cip2=parameters['cip2'].astype(str),
                                                                 report_cips_not_found=True)
                     else:
@@ -366,54 +309,6 @@ class CadetCareerProblem:
                 df.to_excel(writer, sheet_name="Unknown CIPs", index=False)
 
     # Specify Value Parameters
-    def import_value_parameters(self, filepath=None, vp_name=None, num_breakpoints=None, set_value_parameters=True,
-                                printing=None):
-        """
-        Imports weight and value parameters from a problem instance excel file
-        :param vp_name: name of value parameters
-        :param set_value_parameters: if we want to set these value parameters as our object attribute
-        :param filepath: filepath to import from (if none specified, will use filepath attribute)
-        :param num_breakpoints: Number of breakpoints to use for the value functions
-        :param printing: Whether we should print status updates or not
-        """
-        if filepath is None and len(self.instance_files) == 0:
-            raise ValueError('No instance files found that contain value parameters (besides aggregate file). '
-                             'Either generate new ones or load them in from the value parameters dictionary.')
-        if vp_name is not None:
-            full_name = self.data_type + " " + self.data_name + " " + vp_name
-            if filepath is None:
-                filepath = [file_name for file_name in self.instance_files if full_name in file_name][0]
-        else:
-            if filepath is None:
-                filepath = self.instance_files[0]
-            vp_name = self.instance_files[0].split(' ')[2]
-
-        if printing is None:
-            printing = self.printing
-
-        # Import value parameters
-        try:
-            value_parameters = model_value_parameters_from_excel(self.parameters, filepath, printing=printing,
-                                                                 num_breakpoints=num_breakpoints)
-        except:
-            raise ValueError('Filepath invalid for this particular problem instance.')
-
-        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
-        value_parameters = condense_value_functions(self.parameters, value_parameters)
-        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters, printing)
-
-        if set_value_parameters:
-            self.value_parameters = value_parameters
-
-            # Set correct names
-            self.vp_name = vp_name
-            self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name
-
-        if printing:
-            print('Imported.')
-
-        return value_parameters
-
     def set_instance_value_parameters(self, vp_name=None):
         """
         Sets the current instance value parameters to a specified set based on the vp_name. This vp_name must be
@@ -714,48 +609,31 @@ class CadetCareerProblem:
             if function is None:
                 function = 'Linear'
 
+            if "merit_all" in self.parameters:  # The cadets' real order of merit
+                merit = self.parameters["merit_all"]
+            else:  # The cadets' scaled order of merit (based solely on Non-Rated cadets)
+                merit = self.parameters["merit"]
+
             # Update weight function
             self.value_parameters['cadet_weight_function'] = function
 
-            # Update Cadet Weights
-            if function == 'Linear':
-                self.value_parameters['cadet_weight'] = self.parameters['merit'] / np.sum(self.parameters['merit'])
-            else:  # Equal
-                self.value_parameters['cadet_weight'] = np.repeat(1 / self.parameters['N'], self.parameters['N'])
+            # Update weights
+            self.value_parameters["cadet_weight"] = cadet_weight_function(merit, function)
+
         else:
             if function is None:
-                function = "Piece"
+                function = "Curve_2"
+
+            if "pgl" in self.parameters:  # The actual PGL target
+                quota = self.parameters["pgl"]
+            else:  # The "Real" Target based on surplus and such
+                quota = self.parameters["quota"]
 
             # Update weight function
             self.value_parameters['afsc_weight_function'] = function
 
-            # Update AFSC Weights
-            if function == 'Size':
-                self.value_parameters['afsc_weight'] = self.parameters['quota'] / np.sum(self.parameters['quota'])
-
-            elif function == 'Equal':
-                self.value_parameters['afsc_weight'] = np.repeat(1 / self.parameters['M'], self.parameters['M'])
-
-            else:  # Piece
-
-                # Update Swing Weights
-                swing_weights = np.zeros(self.parameters['M'])
-                for j, quota in enumerate(self.parameters['quota']):
-                    if quota >= 200:
-                        swing_weights[j] = 1
-                    elif 150 <= quota < 200:
-                        swing_weights[j] = 0.9
-                    elif 100 <= quota < 150:
-                        swing_weights[j] = 0.8
-                    elif 50 <= quota < 100:
-                        swing_weights[j] = 0.7
-                    elif 25 <= quota < 50:
-                        swing_weights[j] = 0.6
-                    else:
-                        swing_weights[j] = 0.5
-
-                # Update Local Weights
-                self.value_parameters['afsc_weight'] = swing_weights / sum(swing_weights)
+            # Update weights
+            self.value_parameters["afsc_weight"] = afsc_weight_function(quota, function)
 
     # Translate Parameters
     def vft_to_gp_parameters(self, use_gp_df=True, get_new_rewards_penalties=False, solver_name='cbc', printing=None):
@@ -825,9 +703,9 @@ class CadetCareerProblem:
                                                             use_gp_df, printing=printing)
 
     # Observe Value Parameters
-    def show_value_function(self, afsc='13N', objective='Combined Quota', printing=None, label_size=25,
+    def show_value_function(self, afsc=None, objective=None, printing=None, label_size=25, x_point=None,
                             yaxis_tick_size=25, xaxis_tick_size=25, figsize=(12, 10), facecolor='white',
-                            thesis_chart=False, title=None, save=False, display_title=True):
+                            title=None, save=False, display_title=True):
         """
         This method plots a specific AFSC objective value function
         :param afsc: AFSC to show the function for
@@ -838,7 +716,7 @@ class CadetCareerProblem:
         :param xaxis_tick_size: size of the x axis ticks
         :param figsize: size of the figure
         :param facecolor: color of the figure
-        :param thesis_chart: If this chart is used in the thesis document (determines some of these parameters)
+        :param x_point: Optional point to plot to draw attention to (x, y coordinate)
         :param title: title of the figure
         :param save: if we should save the graph
         :param display_title: Whether we should put a title on the figure or not
@@ -851,22 +729,14 @@ class CadetCareerProblem:
         if afsc is None:
             afsc = self.parameters['afsc_vector'][0]
         if objective is None:
-            objective = self.value_parameters['objectives'][0]
-
-        if thesis_chart:
-            figsize = (12, 10)
-            display_title = False
-            save = True
-            label_size = 35
-            xaxis_tick_size = 30
-            yaxis_tick_size = 30
-            title = 'Value_Function_' + afsc + '_' + objective
+            k = self.value_parameters["K^A"][0][0]
+            objective = self.value_parameters['objectives'][k]
 
         value_function_chart = plot_value_function(afsc, objective, self.parameters, self.value_parameters,
                                                    printing=printing, label_size=label_size,
                                                    yaxis_tick_size=yaxis_tick_size, facecolor=facecolor,
                                                    xaxis_tick_size=xaxis_tick_size, figsize=figsize, save=save,
-                                                   display_title=display_title, title=title)
+                                                   display_title=display_title, title=title, x_point=x_point)
 
         if printing:
             value_function_chart.show()
@@ -1160,81 +1030,79 @@ class CadetCareerProblem:
 
         return solution
 
-    def genetic_algorithm(self, initialize=True, pop_size=10, stopping_time=60, num_crossover_points=3,
-                          initial_solutions=None, mutation_rate=0.05, num_time_points=100, constraints="None",
-                          penalty_scale=10, time_eval=False, num_mutations=None, percent_step=10, add_to_dict=True,
-                          con_tolerance=0.95, printing=None, con_fail_dict=None, set_to_instance=True):
+    def genetic_algorithm(self, p_dict={}, printing=None):
         """
         This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
         solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve
         from there
-        :param set_to_instance: if we want to set this solution to the instance's solution attribute
-        :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param initialize: if we want to initialize the algorithm with solutions
-        :param con_fail_dict: dictionary of failed constraints in the approximate model that we adhere to
-        :param con_tolerance: constraint fail tolerance (we can meet X % of the constraint or above and be ok)
-        :param penalty_scale: how to scale the penalties to further decrease the fitness value
-        :param constraints: how we handle fitness in terms of constraints (penalty, fail, or other)
-        :param pop_size: population size
-        :param stopping_time: how long to run the GA for
-        :param num_crossover_points: k for multi-point crossover
-        :param initial_solutions: solutions to initialize the population with
-        :param mutation_rate: how likely a gene is to mutate
-        :param num_time_points: how many observations to collect for the time evaluation df
-        :param time_eval: if we should get a time evaluation df
-        :param num_mutations: how many genes are up for mutation
-        :param percent_step: what percent checkpoints we should display updates
-        :param printing: if we should display updates
         """
 
         if printing is None:
             printing = self.printing
 
-        if time_eval:
-            start_time = time.perf_counter()
+        # Reset certain plot parameters
+        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
 
-        if initialize:
-            if initial_solutions is None:
-                if self.solution is not None:
-                    solution1 = self.stable_matching(set_to_instance=False, add_to_dict=False, printing=printing)
-                    solution2 = self.greedy_method(set_to_instance=False, add_to_dict=False, printing=printing)
-                    initial_solutions = np.array([self.solution, solution1, solution2])
-                    con_fail_dict = self.get_constraint_fail_dictionary()
-                else:
-                    solution1 = self.stable_matching(set_to_instance=False, add_to_dict=False, printing=printing)
-                    solution2 = self.greedy_method(set_to_instance=False, add_to_dict=False, printing=printing)
-                    initial_solutions = np.array([solution1, solution2])
+        # Update model parameters if necessary
+        for key in p_dict:
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
             else:
-                if con_fail_dict is None and self.solution is not None:
-                    con_fail_dict = self.get_constraint_fail_dictionary()
 
-        result = genetic_algorithm(self.parameters, self.value_parameters, pop_size=pop_size,
-                                   stopping_time=stopping_time,
-                                   num_crossover_points=num_crossover_points, initial_solutions=initial_solutions,
-                                   mutation_rate=mutation_rate, num_time_points=num_time_points,
-                                   constraints=constraints, con_fail_dict=con_fail_dict,
-                                   penalty_scale=penalty_scale, time_eval=time_eval, num_mutations=num_mutations,
-                                   percent_step=percent_step, con_tolerance=con_tolerance, printing=printing)
-        if time_eval:
-            solve_time = time.perf_counter() - start_time
-            time_eval_df = result[1]
-            solution = result[0]
-            return_object = time_eval_df, solve_time
+                # If the parameter doesn't exist, we warn the user
+                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        # Make sure we have selected a set of value parameters
+        if self.value_parameters is None:
+            raise ValueError("Error. No instance value parameters set.")
+
+        # Dictionary of failed constraints across all solutions
+        # (should be off by *no more than* one cadet due to rounding)
+        con_fail_dict = None
+
+        # Get a starting population of solutions if applicable!
+        if self.mdl_p["initialize"]:
+
+            if self.mdl_p["initial_solutions"] is None:
+
+                if self.solution_dict is None:
+                    raise ValueError("Error. No solutions in dictionary.")
+
+                else:
+                    if self.mdl_p["solution_names"] is None:
+                        initial_solutions = np.array(
+                            [self.solution_dict[solution_name] for solution_name in self.solution_dict])
+                    else:
+                        initial_solutions = np.array(
+                            [self.solution_dict[solution_name] for solution_name in self.mdl_p["solution_names"]])
+
+            else:
+                initial_solutions = self.mdl_p["initial_solutions"]
+
+            # Get dictionary of failed constraints
+            if self.mdl_p["pyomo_constraint_based"]:
+                con_fail_dict = self.get_full_constraint_fail_dictionary(initial_solutions, printing=True)
         else:
-            solution = result
-            return_object = solution
+            initial_solutions = None
 
-        # Set the solution attribute
-        if set_to_instance:
+        if self.mdl_p["time_eval"]:
+            start_time = time.perf_counter()  # Start the timer
+            solution, time_eval_df = genetic_algorithm(self, initial_solutions, con_fail_dict, printing)
+            solve_time = time.perf_counter() - start_time
+        else:
+            solution = genetic_algorithm(self, initial_solutions, con_fail_dict, printing)
+
+        if self.mdl_p["set_to_instance"]:
             self.solution = solution
             self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
                                                     printing=printing)
 
         # Add solution to solution dictionary
-        if add_to_dict:
+        if self.mdl_p["add_to_dict"]:
             self.add_solution_to_dictionary(solution, solution_method="Genetic")
 
-        return return_object
+        # Return the final solution
+        return solution
 
     def solve_vft_pyomo_model(self, solver_name="cbc", approximate=True, max_time=10, report=False, timing=False,
                               add_breakpoints=True, initial=None, init_from_X=False, set_to_instance=True,
@@ -1266,8 +1134,8 @@ class CadetCareerProblem:
                 initial = self.init_exact_solution_from_x()
 
         if use_pyomo:
-            model = vft_model_build(self.parameters, self.value_parameters, convex=approximate,
-                                    add_breakpoints=add_breakpoints, initial=initial, printing=printing)
+            model = vft_model_build(self, convex=approximate, add_breakpoints=add_breakpoints,
+                                    initial=initial, printing=printing)
             if report:
                 if timing:
                     solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = vft_model_solve(
@@ -1640,6 +1508,131 @@ class CadetCareerProblem:
 
         return con_fail_dict
 
+    def get_full_constraint_fail_dictionary(self, solutions, printing=None):
+        """
+        Get a dictionary of failed constraints. This is used since the Approximate model initial solution must be
+        rounded, and we may miss a few constraints by 1 cadet each. This allows the GA to not reject the solution
+        initially. This is done for all solutions and we assume that they are all "feasible" (DM feasible)
+        """
+        if printing is None:
+            printing = self.printing
+
+        con_fail_dict = {}
+        quota_k = np.where(self.value_parameters['objectives'] == 'Combined Quota')[0][0]
+        for s, solution in enumerate(solutions):
+
+            # Measure the solution
+            metrics = self.measure_solution(solution=solution, set_solution=False, return_z=False,
+                                            printing=False)
+            for j in self.parameters['J']:
+
+                afsc = self.parameters["afsc_vector"][j]
+
+                for k, objective in enumerate(self.value_parameters['objectives']):
+
+                    if k in self.value_parameters['K^C'][j]:
+
+                        measure = metrics['objective_measure'][j, k]
+                        count = metrics['objective_measure'][j, quota_k]
+                        target_quota = self.parameters['quota'][j]
+
+                        # Constrained Approximate Measure
+                        if self.value_parameters['constraint_type'][j, k] == 3:
+                            value_list = self.value_parameters['objective_value_min'][j, k].split(",")
+                            min_measure = float(value_list[0].strip())
+                            max_measure = float(value_list[1].strip())
+
+                            # Get correct measure constraint
+                            if objective not in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+                                if (measure * count) / target_quota < min_measure:
+                                    new_min = floor(1000 * (measure * count) / target_quota) / 1000
+
+                                    if (j, k) in con_fail_dict:
+                                        current_val = float(con_fail_dict[(j, k)].split(' ')[1])
+                                        if new_min < current_val:
+
+                                            if printing:
+                                                print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
+                                                      " Objective " + objective + " Current Constraint:",
+                                                      con_fail_dict[(j, k)], "New Constraint:", '> ' + str(new_min))
+                                            con_fail_dict[(j, k)] = '> ' + str(new_min)
+                                    else:
+                                        con_fail_dict[(j, k)] = '> ' + str(new_min)
+                                elif (measure * count) / target_quota > max_measure:
+                                    new_max = ceil(1000 * (measure * count) / target_quota) / 1000
+
+                                    if (j, k) in con_fail_dict:
+                                        current_val = float(con_fail_dict[(j, k)].split(' ')[1])
+                                        if new_max > current_val:
+
+                                            if printing:
+                                                print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
+                                                      " Objective " + objective + " Current Constraint:",
+                                                      con_fail_dict[(j, k)], "New Constraint:", '< ' + str(new_max))
+                                            con_fail_dict[(j, k)] = '< ' + str(new_max)
+                                    else:
+                                        con_fail_dict[(j, k)] = '< ' + str(new_max)
+                            else:
+                                if measure < min_measure:
+                                    if (j, k) in con_fail_dict:
+                                        current_val = float(con_fail_dict[(j, k)].split(' ')[1])
+                                        if measure < current_val:
+
+                                            if printing:
+                                                print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
+                                                      " Objective " + objective + " Current Constraint:",
+                                                      con_fail_dict[(j, k)], "New Constraint:", '> ' + str(measure))
+                                            con_fail_dict[(j, k)] = '> ' + str(measure)
+                                    else:
+                                        con_fail_dict[(j, k)] = '> ' + str(measure)
+                                elif measure > max_measure:
+                                    if (j, k) in con_fail_dict:
+                                        current_val = float(con_fail_dict[(j, k)].split(' ')[1])
+                                        if measure > current_val:
+
+                                            if printing:
+                                                print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
+                                                      " Objective " + objective + " Current Constraint:",
+                                                      con_fail_dict[(j, k)], "New Constraint:", '< ' + str(measure))
+                                            con_fail_dict[(j, k)] = '< ' + str(measure)
+                                    else:
+                                        con_fail_dict[(j, k)] = '< ' + str(measure)
+
+                        # Constrained Exact Measure
+                        elif self.value_parameters['constraint_type'][j, k] == 4:
+
+                            value_list = self.value_parameters['objective_value_min'][j, k].split(",")
+                            min_measure = float(value_list[0].strip())
+                            max_measure = float(value_list[1].strip())
+
+                            if measure < min_measure:
+                                if (j, k) in con_fail_dict:
+                                    current_val = float(con_fail_dict[(j, k)].split(' ')[1])
+                                    if measure < current_val:
+
+                                        if printing:
+                                            print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
+                                                  " Objective " + objective + " Current Constraint:",
+                                                  con_fail_dict[(j, k)], "New Constraint:", '> ' + str(measure))
+                                        con_fail_dict[(j, k)] = '> ' + str(measure)
+                                else:
+                                    con_fail_dict[(j, k)] = '> ' + str(measure)
+                            elif measure > max_measure:
+                                if (j, k) in con_fail_dict:
+                                    current_val = float(con_fail_dict[(j, k)].split(' ')[1])
+                                    if measure > current_val:
+
+                                        if printing:
+                                            print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
+                                                  " Objective " + objective + " Current Constraint:",
+                                                  con_fail_dict[(j, k)], "New Constraint:", '< ' + str(measure))
+                                        con_fail_dict[(j, k)] = '< ' + str(measure)
+                                else:
+                                    con_fail_dict[(j, k)] = '< ' + str(measure)
+
+        # print(con_fail_dict)
+        return con_fail_dict
+
     def measure_solution(self, solution=None, value_parameters=None, approximate=False, matrix=False,
                          printing=None, set_solution=True, return_z=True):
         """
@@ -1734,192 +1727,171 @@ class CadetCareerProblem:
                 self.vp_dict[vp_name]['vp_local_weight'] = self.vp_dict[vp_name]['vp_weight'] / sum_weights
 
     # Observe Results
-    def display_results_graph(self, graph='Average Merit', title=None, save=None, printing=None, facecolor='white',
-                              figsize=(19, 7), display_title=True, metrics_dict=None, thesis_chart=False,
-                              degree='Mandatory', label_size=35, afsc_tick_size=30, yaxis_tick_size=30,
-                              afsc_rotation=None, xaxis_tick_size=30, dpi=100, gui_chart=False, value_type="Overall",
-                              afsc='14N', title_size=None, legend_size=None, y_max=1.1, bar_color='black',
-                              alpha=0.5, dot_size=100, skip_afscs=None, colors=None):
+    def display_all_results_graphs(self, p_dict={}, printing=None):
         """
-        Builds the AFSC Results graphs
-        :param graph: kind of results graph to show
-        :param printing: whether or not to print status updates
-        :param thesis_chart: if this is meant to go in the thesis document
-        :param degree: which degree to show if necessary
-        :param xaxis_tick_size: x axis tick sizes
-        :param afsc: which AFSC to show if necessary
-        :param y_max: multiplier of the maximum y value for the graph to extend the window above
-        :param value_type: type of value objective to show (overall for AFSC, or can specify each AFSC objective)
-        :param gui_chart: if this graph is used in the GUI
-        :param colors: colors of the different solutions
-        :param dot_size: size of the scatter points
-        :param afsc_rotation: rotation of the AFSCs
-        :param yaxis_tick_size: y axis tick sizes
-        :param afsc_tick_size: x axis tick sizes for AFSCs
-        :param label_size: size of labels
-        :param title: title of chart
-        :param display_title: if we should show the title
-        :param metrics_dict: dictionary of solution metrics
-        :param facecolor: color of the background of the graph
-        :param figsize: size of the figure
-        :param save: Whether we should save the graph
-        :param skip_afscs:  Whether we should label every other AFSC
-        :param dpi: dots per inch for figure
-        :param bar_color: color of bars for figure (for certain kinds of graphs)
-        :param alpha: alpha parameter for the bars of the figure
-        :param title_size: font size of the title
-        :param legend_size: font size of the legend
-        :return: figure
+        Saves all charts for the current solution and for the solutions in the solution names list if specified
         """
 
-        if metrics_dict is None:
-            metrics = self.metrics
-        else:
-            metrics = None
-
-        if afsc_rotation is None:
-            if self.data_variant == "Year":
-                afsc_rotation = 45
-            else:
-                afsc_rotation = 0
-
-        if skip_afscs is None:
-            if self.data_variant == "Year":
-                skip_afscs = False
-            else:
-                skip_afscs = True
-
-        if self.data_variant == 'Year' and afsc_tick_size == 30:
-            if self.parameters['M'] > 33:
-                afsc_tick_size = 20
-                afsc_rotation = 60
-            else:
-                afsc_tick_size = 25
-
-        if thesis_chart:
-            if figsize == (19, 7):
-                figsize = (16, 10)
-            display_title = False
-            save = True
-            label_size = 35
-            afsc_tick_size = 30
-            yaxis_tick_size = 30
-            afsc_rotation = 0
-            xaxis_tick_size = 30
-
-        if graph == 'Average Merit':
-            if thesis_chart and title is None:
-                title = 'Results_Merit'
-            chart = average_merit_results_graph(self.parameters, self.value_parameters, metrics=metrics,
-                                                metrics_dict=metrics_dict, save=save, figsize=figsize,
-                                                facecolor=facecolor, title=title, display_title=display_title,
-                                                label_size=label_size, afsc_tick_size=afsc_tick_size,
-                                                yaxis_tick_size=yaxis_tick_size, y_max=y_max, title_size=title_size,
-                                                legend_size=legend_size, afsc_rotation=afsc_rotation, alpha=alpha,
-                                                skip_afscs=skip_afscs, dot_size=dot_size)
-
-        elif graph == 'AFSC Value':
-            if thesis_chart and title is None:
-                title = 'Results_AFSC'
-            chart = afsc_value_results_graph(self.parameters, self.value_parameters, metrics=metrics,
-                                             metrics_dict=metrics_dict, save=save, figsize=figsize, dpi=dpi,
-                                             facecolor=facecolor, title=title, display_title=display_title,
-                                             label_size=label_size, afsc_tick_size=afsc_tick_size, y_max=y_max,
-                                             yaxis_tick_size=yaxis_tick_size, value_type=value_type,
-                                             afsc_rotation=afsc_rotation, gui_chart=gui_chart, bar_color=bar_color,
-                                             alpha=alpha, dot_size=dot_size, title_size=title_size,
-                                             legend_size=legend_size, skip_afscs=skip_afscs, colors=colors)
-        elif graph == 'Combined Quota':
-            if thesis_chart and title is None:
-                title = 'Results_Quota'
-            dot_size = int(4 * dot_size / 5)
-            chart = quota_fill_results_graph(self.parameters, self.value_parameters, metrics=metrics,
-                                             metrics_dict=metrics_dict, save=save, figsize=figsize,
-                                             facecolor=facecolor, title=title, display_title=display_title,
-                                             label_size=label_size, afsc_tick_size=afsc_tick_size,
-                                             yaxis_tick_size=yaxis_tick_size, y_max=y_max, skip_afscs=skip_afscs,
-                                             afsc_rotation=afsc_rotation, dot_size=dot_size, title_size=title_size,
-                                             legend_size=legend_size)
-        elif graph == 'USAFA Proportion':
-            if thesis_chart and title is None:
-                title = 'Results_USAFA'
-            chart = usafa_proportion_results_graph(self.parameters, self.value_parameters, metrics=metrics,
-                                                   metrics_dict=metrics_dict, save=save, figsize=figsize,
-                                                   facecolor=facecolor, title=title, display_title=display_title,
-                                                   label_size=label_size, afsc_tick_size=afsc_tick_size,
-                                                   yaxis_tick_size=yaxis_tick_size, y_max=y_max, skip_afscs=skip_afscs,
-                                                   afsc_rotation=afsc_rotation, dot_size=dot_size,
-                                                   title_size=title_size, legend_size=legend_size)
-        elif graph == 'AFOCD Proportion':
-            if thesis_chart and title is None:
-                title = 'Results_' + degree
-            chart = afocd_degree_proportions_results_graph(self.parameters, self.value_parameters, metrics=metrics,
-                                                           metrics_dict=metrics_dict, save=save, figsize=figsize,
-                                                           facecolor=facecolor, title=title,
-                                                           display_title=display_title, degree=degree,
-                                                           label_size=label_size, afsc_tick_size=afsc_tick_size,
-                                                           yaxis_tick_size=yaxis_tick_size, y_max=y_max,
-                                                           afsc_rotation=afsc_rotation, dot_size=dot_size,
-                                                           title_size=title_size, legend_size=legend_size)
-        elif graph == 'Average Utility':
-            if thesis_chart and title is None:
-                title = 'Results_Utility'
-            chart = average_utility_results_graph(self.parameters, self.value_parameters, metrics=metrics,
-                                                  metrics_dict=metrics_dict, save=save, figsize=figsize,
-                                                  facecolor=facecolor, title=title, display_title=display_title,
-                                                  label_size=label_size, afsc_tick_size=afsc_tick_size,
-                                                  yaxis_tick_size=yaxis_tick_size, y_max=y_max,
-                                                  afsc_rotation=afsc_rotation, bar_color=bar_color, alpha=alpha,
-                                                  dot_size=dot_size, skip_afscs=skip_afscs, title_size=title_size,
-                                                  legend_size=legend_size)
-        elif graph == 'Cadet Utility':
-            if thesis_chart and title is None:
-                title = 'Results_Cadet_Utility'
-            chart = cadet_utility_histogram(metrics=metrics, metrics_dict=metrics_dict, save=save, figsize=figsize,
-                                            facecolor=facecolor, title=title, display_title=display_title,
-                                            label_size=label_size, xaxis_tick_size=xaxis_tick_size,
-                                            yaxis_tick_size=yaxis_tick_size, dpi=dpi, gui_chart=gui_chart,
-                                            title_size=title_size, legend_size=legend_size)
-        elif graph == 'Objective Values':
-            if thesis_chart and title is None:
-                title = 'Results_Objective_Values_' + afsc
-            chart = afsc_objective_values_graph(self.parameters, self.value_parameters, metrics=metrics, save=save,
-                                                figsize=figsize, facecolor=facecolor, title=title,
-                                                display_title=display_title, label_size=label_size, y_max=y_max,
-                                                xaxis_tick_size=xaxis_tick_size, afsc=afsc, metrics_dict=metrics_dict,
-                                                yaxis_tick_size=yaxis_tick_size, dpi=dpi, gui_chart=gui_chart,
-                                                bar_color=bar_color, alpha=alpha, dot_size=dot_size,
-                                                title_size=title_size, legend_size=legend_size)
         if printing is None:
             printing = self.printing
 
-        if printing:
-            chart.show()
+        # Force certain parameters
+        p_dict["save"], p_dict["graph"] = True, "Measure"
 
-        return chart
+        # If we specify the solution names, that means we want to view all of their individual charts as well
+        # as the comparison charts
+        if "solution_names" in p_dict:
+
+            # Show both comparison charts and regular ones
+            for compare_solutions in [False, True]:
+                p_dict["compare_solutions"] = compare_solutions
+
+                if not compare_solutions:
+
+                    # Loop through all solutions and display their charts
+                    for solution_name in p_dict["solution_names"]:
+
+                        if printing:
+                            print("Saving charts for solution '" + solution_name + "'...")
+                        self.set_instance_solution(solution_name)
+
+                        for obj in self.plt_p["afsc_chart_versions"]:
+                            p_dict["objective"] = obj
+                            for version in self.plt_p["afsc_chart_versions"][obj]:
+                                p_dict["version"] = version
+                                self.display_results_graph(p_dict)
+
+                else:
+
+                    if printing:
+                        print("Saving charts to compare the solutions...")
+
+                    # Loop through each objective
+                    for obj in self.value_parameters["objectives"]:
+
+                        if obj in self.plt_p["afsc_chart_versions"]:
+                            p_dict["objective"] = obj
+                            self.display_results_graph(p_dict)
+
+        else:
+
+            if printing:
+                print("Saving charts for solution '" + self.solution_name + "'...")
+
+            # Loop through each objective and version
+            for obj in self.plt_p["afsc_chart_versions"]:
+
+                if printing:
+                    print("<Charts for objective '" + obj + "'>")
+                p_dict["objective"] = obj
+                for version in self.plt_p["afsc_chart_versions"][obj]:
+                    p_dict["version"] = version
+                    self.display_results_graph(p_dict)
+
+    def display_results_graph(self, p_dict={}, printing=None):
+        """
+        Builds the AFSC Results graphs
+        """
+
+        # Reset chart functional parameters
+        self.plt_p, _ = initialize_instance_functional_parameters(self.parameters["N"])
+
+        # Make sure we have a solution and a set of value parameters activated
+        if self.value_parameters is None:
+            raise ValueError("Error. No value parameters selected")
+        elif self.solution is None:
+            raise ValueError("Error. No solution selected")
+
+        # Update plot parameters if necessary
+        for key in p_dict:
+            if key in self.plt_p:
+                self.plt_p[key] = p_dict[key]
+            else:
+
+                # Exception
+                if key == "graph":
+                    self.plt_p["results_graph"] = p_dict["graph"]
+
+                else:
+                    # If the parameter doesn't exist, we warn the user
+                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        # Update plot parameters
+        self.plt_p = determine_afsc_plot_details(self, results_chart=True)
+
+        # Determine which chart to show
+        if self.plt_p["results_graph"] in ["Measure", "Value"]:
+            afsc_results_graph(self)
+        elif self.plt_p["results_graph"] == "Cadet Utility":
+            cadet_utility_histogram(self)
+        elif self.plt_p["results_graph"] == "Utility vs. Merit":
+            cadet_utility_merit_scatter(self)
+
+        # Get necessary conditions for the multi-criteria chart
+        elif self.plt_p["results_graph"] == "Multi-Criteria Comparison":
+            if self.plt_p["compare_solutions"]:
+                if self.plt_p["solution_names"] is None:
+
+                    # Pick all of the solutions in the dictionary
+                    self.plt_p["solution_names"] = list(self.solution_dict.keys())
+
+                # Determine AFSCs to show
+                if self.plt_p["comparison_afscs"] is None:
+
+                    # Run through an algorithm to pick the AFSCs to show based on which ones change the most
+                    self.plt_p["comparison_afscs"] = pick_most_changed_afscs(self)
+
+                # Get correct y-axis scale (scale to most cadets in biggest AFSC!)
+                quota_k = np.where(self.value_parameters["objectives"] == "Combined Quota")[0][0]
+                max_num = max([max(self.metrics_dict[self.vp_name][solution_name]["objective_measure"][
+                                   :, quota_k]) for solution_name in self.plt_p["solution_names"]])
+
+                # Loop through each solution and generate the charts
+                for solution_name in self.plt_p["solution_names"]:
+
+                    # Get correct title and filename
+                    self.plt_p["title"] = solution_name + ": Multi-Criteria Results Across Certain AFSCs"
+                    self.plt_p["filename"] = "Multi_Criteria_Chart_" + solution_name + "_AFSCs"
+                    for afsc in self.plt_p["comparison_afscs"]:
+                        self.plt_p["filename"] += "_" + afsc
+
+                    # Set the correct solution
+                    self.set_instance_solution(solution_name)
+
+                    # Generate chart
+                    afsc_multi_criteria_graph(self, max_num=max_num)
+            else:
+
+                # Determine AFSCs to show
+                if self.plt_p["comparison_afscs"] is None:
+                    raise ValueError("No AFSCs specified to compare")
+                else:  # AFSCs are specified
+
+                    # Get correct title and filename
+                    self.plt_p["title"] = self.solution_name + ": Multi-Criteria Results Across Certain AFSCs"
+                    self.plt_p["filename"] = "Multi_Criteria_Chart_" + self.solution_name + "_AFSCs"
+                    for afsc in self.plt_p["comparison_afscs"]:
+                        self.plt_p["filename"] += "_" + afsc
+
+                    # Generate chart
+                    afsc_multi_criteria_graph(self)
+
+        else:
+            raise ValueError("Graph '" + self.plt_p["results_graph"] + "' does not exist.")
 
     # Sensitivity Analysis
-    def overall_weights_pareto_analysis(self, step=10, full_solve=True, ga_max_time=60 * 2,
-                                        printing=None, filepath=None, import_df=False, thesis_chart=False, save=False,
-                                        figsize=(16, 10), facecolor='white', display_title=True):
+    def initial_overall_weights_pareto_analysis(self, p_dict={}, printing=None):
         """
-        This procedure conducts the pareto analysis and builds the chart
-        :param step: percent step between different overall cadet weights
-        :param full_solve: if we want to solve the full VFT model or just the approximate model
-        :param ga_max_time: max time for the GA to solve
-        :param printing: if we want to print status updates or not
-        :param filepath: file path
-        :param import_df: if we want to import the dataframe or not
-        :param thesis_chart: if this is meant to go into the thesis
-        :param save: if we want to save the chart
-        :param figsize: size of the figure
-        :param facecolor: color of the figure
-        :param display_title: if we're displaying a title or not
-        :return: chart
+        Takes the current set of value parameters and solves the VFT approximate model solution multiple times
+        given different overall weights on AFSCs and cadets. Once these solutions are determined, we can then
+        run the other method "final overall_weights_pareto_analysis" to evolve all the solutions together
+        given the different overall weights on cadets
+        :param p_dict: more model parameters
+        :param printing: whether to print something
         """
 
-        if filepath is None:
-            filepath = paths_in['results'] + self.data_name + '_Pareto_Analysis.xlsx'
+        # File we import and export to
+        filepath = paths_in['results'] + self.data_name + '_Pareto_Analysis.xlsx'
 
         if printing is None:
             printing = self.printing
@@ -1927,62 +1899,178 @@ class CadetCareerProblem:
         if printing:
             print("Conducting pareto analysis on problem...")
 
-        if import_df:
-            pareto_df = import_data(filepath, sheet_name='Pareto Chart')
-            chart = pareto_graph(pareto_df, dimensions=(self.parameters['N'], self.parameters['M']), save=save,
-                                 figsize=figsize, facecolor=facecolor, thesis_chart=thesis_chart,
-                                 display_title=display_title)
-            if printing:
-                chart.show()
+        # Update plot parameters if necessary
+        for key in p_dict:
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
+            else:
 
-        elif use_pyomo:
+                # Exception
+                if key == "step":
+                    self.mdl_p["pareto_step"] = p_dict["step"]
 
-            # Initialize arrays
-            num_points = int(100 / step + 1)
-            cadet_overall_values = np.zeros(num_points)
-            afsc_overall_values = np.zeros(num_points)
-            cadet_overall_weights = np.arange(1, 0, -(step / 100))
-            cadet_overall_weights = np.append(cadet_overall_weights, 0)
-
-            # Iterate over the number of points needed for the Pareto Chart
-            for point in range(num_points):
-                self.value_parameters['cadets_overall_weight'] = cadet_overall_weights[point]
-                self.value_parameters['afscs_overall_weight'] = 1 - cadet_overall_weights[point]
-
-                if printing:
-                    print("Calculating point " + str(point + 1) + " out of " + str(num_points) + "...")
-
-                if full_solve:
-                    self.full_vft_model_solve(ga_max_time=ga_max_time)
                 else:
-                    self.solve_vft_pyomo_model(max_time=10)
+                    # If the parameter doesn't exist, we warn the user
+                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
-                cadet_overall_values[point] = self.metrics['cadets_overall_value']
-                afsc_overall_values[point] = self.metrics['afscs_overall_value']
+        # Initialize arrays
+        num_points = int(100 / self.mdl_p["pareto_step"] + 1)
+        cadet_overall_values = np.zeros(num_points)
+        afsc_overall_values = np.zeros(num_points)
+        cadet_overall_weights = np.arange(1, 0, -(self.mdl_p["pareto_step"] / 100))
+        cadet_overall_weights = np.append(cadet_overall_weights, 0)
+        solutions = {}
 
-                if printing:
-                    print('For an overall weight on cadets of ' + str(cadet_overall_weights[point]) +
-                          ', calculated value on cadets: ' + str(round(cadet_overall_values[point], 2)) +
-                          ', value on afscs: ' + str(round(afsc_overall_values[point], 2)) +
-                          ', and a Z of ' + str(round(self.metrics['z'], 2)) + '.')
-
-            pareto_df = pd.DataFrame(
-                {'Weight on Cadets': cadet_overall_weights, 'Value on Cadets': cadet_overall_values,
-                 'Value on AFSCs': afsc_overall_values})
-
-            with pd.ExcelWriter(filepath) as writer:  # Export to excel
-                pareto_df.to_excel(writer, sheet_name="Pareto Chart", index=False)
-
-            chart = pareto_graph(pareto_df, dimensions=(self.parameters['N'], self.parameters['M']), save=save,
-                                 figsize=figsize, facecolor=facecolor, thesis_chart=thesis_chart,
-                                 display_title=display_title)
+        # Iterate over the number of points needed for the Pareto Chart
+        for point in range(num_points):
+            self.value_parameters['cadets_overall_weight'] = cadet_overall_weights[point]
+            self.value_parameters['afscs_overall_weight'] = 1 - cadet_overall_weights[point]
 
             if printing:
-                chart.show()
+                print("Calculating point " + str(point + 1) + " out of " + str(num_points) + "...")
 
-        else:
+            solution = self.solve_vft_pyomo_model(max_time=10, printing=False)
+            solution_name = str(round(cadet_overall_weights[point], 4))
+            afsc_solution = np.array([self.parameters["afsc_vector"][int(j)] for j in solution])
+            solutions[solution_name] = afsc_solution
+
+            cadet_overall_values[point] = self.metrics['cadets_overall_value']
+            afsc_overall_values[point] = self.metrics['afscs_overall_value']
+
             if printing:
-                print("Pyomo not available")
+                print('For an overall weight on cadets of ' + str(cadet_overall_weights[point]) +
+                      ', calculated value on cadets: ' + str(round(cadet_overall_values[point], 2)) +
+                      ', value on afscs: ' + str(round(afsc_overall_values[point], 2)) +
+                      ', and a Z of ' + str(round(self.metrics['z'], 2)) + '.')
+
+        # Obtain Dataframes
+        pareto_df = pd.DataFrame(
+            {'Weight on Cadets': cadet_overall_weights, 'Value on Cadets': cadet_overall_values,
+             'Value on AFSCs': afsc_overall_values})
+        solutions_df = pd.DataFrame(solutions)
+
+        with pd.ExcelWriter(filepath) as writer:  # Export to excel
+            pareto_df.to_excel(writer, sheet_name="Approximate Pareto Results", index=False)
+            solutions_df.to_excel(writer, sheet_name="Initial Solutions", index=False)
+
+    def genetic_overall_weights_pareto_analysis(self, p_dict={}, printing=None):
+        """
+        Takes the current set of value parameters and loads in a dataframe of solutions found using the VFT Approximate
+        model. These solutions are the initial population for the GA that evolves them all together using different sets
+        of value parameters (different overall weights on cadets)
+        :param p_dict: more model parameters
+        :param printing: whether to print something
+        """
+
+        # File we import and export to
+        filepath = paths_in['results'] + self.data_name + '_Pareto_Analysis.xlsx'
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Conducting 'final' pareto analysis on problem...")
+
+        # Solutions Dataframe
+        solutions_df = import_data(filepath, sheet_name='Initial Solutions')
+        approximate_results_df = import_data(filepath, sheet_name='Approximate Pareto Results')
+
+        # Update plot parameters if necessary
+        for key in p_dict:
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
+            else:
+
+                # Exception
+                if key == "step":
+                    self.mdl_p["pareto_step"] = p_dict["step"]
+
+                else:
+                    # If the parameter doesn't exist, we warn the user
+                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        # Load in the initial solutions
+        initial_afsc_solutions = np.array([np.array(solutions_df[col]) for col in solutions_df])
+        initial_solutions = np.array([])
+        for i, afsc_solution in enumerate(initial_afsc_solutions):
+            solution = np.array([np.where(self.parameters["afsc_vector"] == afsc)[0][0] for afsc in afsc_solution])
+            if i == 0:
+                initial_solutions = solution
+            else:
+                initial_solutions = np.vstack((initial_solutions, solution))
+
+        # Initialize arrays
+        num_points = int(100 / self.mdl_p["pareto_step"] + 1)
+        cadet_overall_values = np.zeros(num_points)
+        afsc_overall_values = np.zeros(num_points)
+        cadet_overall_weights = np.arange(1, 0, -(self.mdl_p["pareto_step"] / 100))
+        cadet_overall_weights = np.append(cadet_overall_weights, 0)
+        solutions = {}
+
+        # Iterate over the number of points needed for the Pareto Chart
+        for point in range(num_points):
+
+            # Current list of initial solutions gets used by the Genetic Algorithm
+            self.mdl_p["initial_solutions"] = initial_solutions
+
+            # Change Overall Weights
+            self.value_parameters['cadets_overall_weight'] = cadet_overall_weights[point]
+            self.value_parameters['afscs_overall_weight'] = 1 - cadet_overall_weights[point]
+
+            if printing:
+                print("Calculating point " + str(point + 1) + " out of " + str(num_points) + "...")
+
+            solution = self.genetic_algorithm(self.mdl_p)
+            solution_name = str(round(cadet_overall_weights[point], 4))
+            afsc_solution = np.array([self.parameters["afsc_vector"][int(j)] for j in solution])
+            solutions[solution_name] = afsc_solution
+
+            cadet_overall_values[point] = self.metrics['cadets_overall_value']
+            afsc_overall_values[point] = self.metrics['afscs_overall_value']
+
+            # We add this solution to our initial solutions too
+            initial_solutions = np.vstack((initial_solutions, solution))
+
+            if printing:
+                print('For an overall weight on cadets of ' + str(cadet_overall_weights[point]) +
+                      ', calculated value on cadets: ' + str(round(cadet_overall_values[point], 2)) +
+                      ', value on afscs: ' + str(round(afsc_overall_values[point], 2)) +
+                      ', and a Z of ' + str(round(self.metrics['z'], 2)) + '.')
+
+        # Obtain Dataframes
+        pareto_df = pd.DataFrame(
+            {'Weight on Cadets': cadet_overall_weights, 'Value on Cadets': cadet_overall_values,
+             'Value on AFSCs': afsc_overall_values})
+        ga_solutions_df = pd.DataFrame(solutions)
+
+        with pd.ExcelWriter(filepath) as writer:  # Export to excel
+            approximate_results_df.to_excel(writer, sheet_name="Approximate Pareto Results", index=False)
+            solutions_df.to_excel(writer, sheet_name="Initial Solutions", index=False)
+            pareto_df.to_excel(writer, sheet_name="GA Pareto Results", index=False)
+            ga_solutions_df.to_excel(writer, sheet_name="GA Solutions", index=False)
+
+    def show_pareto_chart(self, printing=None):
+        """
+        Saves the pareto chart to the figures folder
+        """
+        # File we import and export to
+        filepath = paths_in['results'] + self.data_name + '_Pareto_Analysis.xlsx'
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Creating Pareto Chart...")
+
+        try:
+            pareto_df = import_data(filepath, sheet_name='GA Pareto Results')
+        except:
+            try:
+                pareto_df = import_data(filepath, sheet_name='Approximate Pareto Results')
+            except:
+                raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
+
+        pareto_graph(pareto_df)
 
     def least_squares_procedure(self, t_solution, delta=0, printing=None, show_graph=True, names=None, afsc=None,
                                 colors=None, save=False, figsize=(19, 7), facecolor="white", title=None,

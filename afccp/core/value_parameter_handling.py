@@ -209,18 +209,19 @@ def model_value_parameters_set_additions(parameters, value_parameters, printing=
     value_parameters["J^USAFA"] = None
 
     # Add the AFSC indices to the set
-    if "," in value_parameters["USAFA-Constrained AFSCs"]:
-        value_parameters["J^USAFA"] = np.array([])
-        usafa_afscs = value_parameters["USAFA-Constrained AFSCs"].split(",")
-        for afsc in usafa_afscs:
-            afsc = afsc.strip()
-            j = np.where(parameters["afsc_vector"] == afsc)[0]
-            if len(j) == 0:
-                print("WARNING: Something is wrong with the USAFA-Constrained AFSCs! "
-                      "'" + afsc + "' is not in the list of AFSCs.")
-            else:
-                value_parameters["J^USAFA"] = np.hstack((value_parameters["J^USAFA"], j))
-        value_parameters["J^USAFA"] = value_parameters["J^USAFA"].astype(int)
+    if "USAFA-Constrained AFSCs" in value_parameters:
+        if "," in value_parameters["USAFA-Constrained AFSCs"]:
+            value_parameters["J^USAFA"] = np.array([])
+            usafa_afscs = value_parameters["USAFA-Constrained AFSCs"].split(",")
+            for afsc in usafa_afscs:
+                afsc = afsc.strip()
+                j = np.where(parameters["afsc_vector"] == afsc)[0]
+                if len(j) == 0:
+                    print("WARNING: Something is wrong with the USAFA-Constrained AFSCs! "
+                          "'" + afsc + "' is not in the list of AFSCs.")
+                else:
+                    value_parameters["J^USAFA"] = np.hstack((value_parameters["J^USAFA"], j))
+            value_parameters["J^USAFA"] = value_parameters["J^USAFA"].astype(int)
 
     # Set of objectives that seek to balance some cadet demographic
     value_parameters['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority']
@@ -354,6 +355,17 @@ def default_value_parameters_from_excel(filepath, num_breakpoints=24, printing=F
                                 'objectives': objectives,
                                 'complete_afsc_vector': np.array(afsc_weights_df['AFSC']),
                                 'num_breakpoints': num_breakpoints}
+
+    # Check if other columns are present (phasing these in)
+    more_vp_columns = ["USAFA-Constrained AFSCs", "Similarity Constraint", "Cadets Top 3 Constraint"]
+    for col in more_vp_columns:
+        if col in overall_weights_df:
+            element = str(np.array(overall_weights_df[col])[0])
+            if element == "nan":
+                element = ""
+            default_value_parameters[col] = element
+        else:
+            default_value_parameters[col] = ""
     return default_value_parameters
 
 
@@ -402,7 +414,8 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                         'objective_target': np.zeros([M, O]), 'objectives': objectives, 'O': O,
                         'objective_value_min': np.array([[" " * 20 for _ in range(O)] for _ in range(M)]),
                         'constraint_type': np.zeros([M, O]).astype(int),
-                        "USAFA-Constrained AFSCs": "", "Similarity Constraint": ""}
+                        "USAFA-Constrained AFSCs": default_value_parameters["USAFA-Constrained AFSCs"],
+                        "Similarity Constraint": default_value_parameters["Similarity Constraint"]}
 
     if num_breakpoints is None:
         num_breakpoints = default_value_parameters['num_breakpoints']
@@ -419,32 +432,15 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
     # Determine weights on AFSCs
     if generate_afsc_weights:
-        if value_parameters['afsc_weight_function'] == 'Equal':
-            value_parameters['afsc_weight'] = np.repeat(1 / M, M)
-        elif value_parameters['afsc_weight_function'] == 'Linear':
-            value_parameters['afsc_weight'] = parameters['quota'] / sum(parameters['quota'])
-        elif value_parameters['afsc_weight_function'] == 'Piece':
-
-            # Generate AFSC weights
-            swing_weights = np.zeros(M)
-            for j, quota in enumerate(parameters['quota']):
-                if quota >= 200:
-                    swing_weights[j] = 1
-                elif 150 <= quota < 200:
-                    swing_weights[j] = 0.9
-                elif 100 <= quota < 150:
-                    swing_weights[j] = 0.8
-                elif 50 <= quota < 100:
-                    swing_weights[j] = 0.7
-                elif 25 <= quota < 50:
-                    swing_weights[j] = 0.6
-                else:
-                    swing_weights[j] = 0.5
-
-            # Load weights
-            value_parameters['afsc_weight'] = np.around(swing_weights / sum(swing_weights), 4)
+        func = value_parameters['afsc_weight_function']
+        if func == 'Custom':  # We take the AFSC weights directly from excel
+            generate_afsc_weights = False
         else:
-            value_parameters['afsc_weight'] = parameters['quota'] / sum(parameters['quota'])
+            if "pgl" in parameters:
+                quota = parameters["pgl"]
+            else:
+                quota = parameters["quota"]
+            value_parameters['afsc_weight'] = afsc_weight_function(quota, func)
 
     # Initialize breakpoints
     value_parameters['a'] = [[[] for _ in range(O)] for _ in range(M)]
@@ -472,7 +468,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
             default_value_parameters['constraint_type'][loc, objective_indices]
 
         # If we're not generating afsc weights using the specified weight function...
-        if not generate_afsc_weights:
+        if not generate_afsc_weights:  # Also, if the weight function is "Custom"
             value_parameters['afsc_weight'][j] = default_value_parameters['afsc_weight'][loc]
 
         # Loop through each objective to load their targets
@@ -502,9 +498,13 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
             elif objective == 'USAFA Quota' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['usafa_quota'][j]
+                value_parameters['objective_value_min'][j, k] = str(int(parameters['usafa_quota'][j])) + ", " + \
+                                                                str(int(parameters['quota_max'][j]))
 
             elif objective == 'ROTC Quota' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['quota'][j] - parameters['usafa_quota'][j]
+                value_parameters['objective_value_min'][j, k] = str(int(parameters['rotc_quota'][j])) + ", " + \
+                                                                str(int(parameters['quota_max'][j]))
 
             elif objective == 'Male' and value_parameters['objective_weight'][j, k] != 0:
                 value_parameters['objective_target'][j, k] = parameters['male_proportion']
@@ -605,7 +605,7 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
     return identical
 
 
-def cadet_weight_function(merit, func="Curve"):
+def cadet_weight_function(merit, func="Curve_1"):
     """
     Take in a merit array and generate cadet weights depending on function specified
     """
@@ -629,6 +629,52 @@ def cadet_weight_function(merit, func="Curve"):
         swing_weights = np.array([(1 - exp(-x / rho)) / (1 - exp(-1 / rho)) for x in merit])
 
     # Normalize weights and return them
+    weights = swing_weights / sum(swing_weights)
+    return weights
+
+
+def afsc_weight_function(quota, func="Curve"):
+    """
+    Take in an AFSC quota array and generate AFSC weights depending on function specified
+    """
+
+    # Number of AFSCs
+    M = len(quota)
+
+    # Scale quota to be 0-1 (referencing biggest AFSC)
+    quota_scale = quota / np.max(quota)
+
+    # Generate Swing Weights based on function
+    if func == 'Linear':
+        swing_weights = np.array([1 + (10 * x) for x in quota_scale])
+    elif func in ["Direct", "Size"]:  # Direct relationship between size and importance
+        swing_weights = quota
+    elif func == "Piece":
+        swing_weights = np.zeros(M)
+        for x, j in enumerate(quota):
+            if x >= 200:
+                swing_weights[j] = 1
+            elif 150 <= x < 200:
+                swing_weights[j] = 0.9
+            elif 100 <= x < 150:
+                swing_weights[j] = 0.8
+            elif 50 <= x < 100:
+                swing_weights[j] = 0.7
+            elif 25 <= x < 50:
+                swing_weights[j] = 0.6
+            else:
+                swing_weights[j] = 0.5
+    elif func == 'Curve_1':  # Sigmoid Function
+        swing_weights = np.array([1 + 10 / (1 + exp(-5 * (x - 0.5))) for x in quota_scale])
+    elif func == 'Curve_2':  # Sigmoid Function
+        swing_weights = np.array([1 + 12 / (1 + exp(-20 * (x - 0.5))) for x in quota_scale])
+    elif func == 'Equal':  # They're all the same
+        swing_weights = np.ones(M)
+    else:  # Exponential Function
+        rho = -0.3
+        swing_weights = np.array([(1 - exp(-x / rho)) / (1 - exp(-1 / rho)) for x in quota_scale])
+
+    # Scale weights and return them
     weights = swing_weights / sum(swing_weights)
     return weights
 

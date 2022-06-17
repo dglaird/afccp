@@ -62,6 +62,10 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
                   'M': M, 'qual': qual, 'quota_max': np.array(afscs_fixed.loc[:, 'Max']),
                   'quota_min': np.array(afscs_fixed.loc[:, 'Min']), 'utility': np.zeros([N, M])}
 
+    # PGL target (Used for graphs)
+    if "PGL Target" in afsc_columns:
+        parameters["pgl"] = np.array(afscs_fixed.loc[:, "PGL Target"])
+
     # Phasing out the old ID
     if "Cadet" in columns:
         parameters["ID"] = np.array(cadets_fixed.loc[:, 'Cadet'])
@@ -163,6 +167,10 @@ def model_data_frame_from_fixed_parameters(parameters):
         afscs_fixed['USAFA Target'] = parameters['usafa_quota']
         afscs_fixed['ROTC Target'] = parameters['rotc_quota']
 
+    # PGL target (Used for graphs)
+    if "pgl" in parameters:
+        afscs_fixed["PGL Target"] = parameters["pgl"]
+
     afscs_fixed['Real Target'] = parameters['quota']
     afscs_fixed['Min'] = parameters['quota_min']
     afscs_fixed['Max'] = parameters['quota_max']
@@ -175,6 +183,11 @@ def model_data_frame_from_fixed_parameters(parameters):
         afscs_fixed['Mandatory Cadets'] = [len(parameters['I^D']['Mandatory'][j]) for j in range(M)]
         afscs_fixed['Desired Cadets'] = [len(parameters['I^D']['Desired'][j]) for j in range(M)]
         afscs_fixed['Permitted Cadets'] = [len(parameters['I^D']['Permitted'][j]) for j in range(M)]
+
+    c_d = {"1st": 0, "2nd": 1, "3rd": 2, "4th": 3, "5th": 4, "6th": 5}
+    for c in c_d:
+        afscs_fixed[c + " Choice Cadets"] = [
+            len(np.where(preferences[:, c_d[c]] == afsc)[0]) for afsc in parameters["afsc_vector"]]
 
     return cadets_fixed, afscs_fixed
 
@@ -231,6 +244,28 @@ def model_fixed_parameters_set_additions(parameters, printing=False):
     # Merit
     if 'merit' in parameters:
         parameters['sum_merit'] = parameters['merit'].sum()  # should be close to N/2
+
+    # Already Assigned cadets
+    if "assigned" in parameters:
+        parameters["J^Fixed"] = {}
+
+        for i, afsc in enumerate(parameters["assigned"]):
+            j = np.where(parameters["afsc_vector"] == afsc)[0]  # AFSC index
+
+            # Check if the cadet is actually assigned an AFSC already (it's not blank)
+            if len(j) != 0:
+                j = j[0]  # Actual index
+
+                # Check if the cadet is assigned to an AFSC they're not eligible for
+                if j not in parameters["J^E"][i]:
+                    id = str(parameters["ID"][i])
+                    raise ValueError("Cadet " + id + " assigned to '" +
+                                     afsc + "' but is not eligible for it. Adjust the qualification matrix!")
+
+                parameters["J^Fixed"][i] = j
+    else:
+        parameters["J^Fixed"] = None
+
     return parameters
 
 
@@ -397,9 +432,12 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
     # Get certain objective indices
     if 'merit' in p:
         merit_k = np.where(vp['objectives'] == 'Merit')[0][0]
-
     if 'usafa' in p:
         usafa_k = np.where(vp['objectives'] == 'USAFA Proportion')[0][0]
+    if 'male' in p:
+        male_k = np.where(vp['objectives'] == 'Male')[0][0]
+    if 'minority' in p:
+        minority_k = np.where(vp['objectives'] == 'Minority')[0][0]
 
     # Loop through all AFSCs to assign their individual values
     for j in p['J']:
@@ -462,23 +500,29 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
 
                     # Constrained Approximate Measure
                     elif vp['constraint_type'][j, k] == 3:
+
+                        # PGL should be more "forgiving" as a constraint
+                        if "pgl" in p:
+                            quota_j = p["pgl"][j]
+                        else:
+                            quota_j = p["quota"][j]
                         value_list = vp['objective_value_min'][j, k].split(",")
                         min_measure = float(value_list[0].strip())
                         max_measure = float(value_list[1].strip())
 
                         # Get correct measure constraint
                         if objective not in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                            if numerator / p['quota'][j] < min_measure:
+                            if numerator / quota_j < min_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
-                                    round(numerator / p['quota'][j], 3)) + ' < ' + str(
-                                    min_measure) + '. ' + str(round(100 * (numerator / p['quota'][j]) /
+                                    round(numerator / quota_j, 3)) + ' < ' + str(
+                                    min_measure) + '. ' + str(round(100 * (numerator / quota_j) /
                                                                     min_measure, 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
-                            elif numerator / p['quota'][j] > max_measure:
+                            elif numerator / quota_j > max_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
-                                    round(numerator / p['quota'][j], 3)) + ' > ' + str(
+                                    round(numerator / quota_j, 3)) + ' > ' + str(
                                     max_measure) + '. ' + str(round(100 * max_measure /
-                                                                    (numerator / p['quota'][j]), 2)) + '% Met.'
+                                                                    (numerator / quota_j), 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
                         else:
                             if metrics['objective_measure'][j, k] < min_measure:
@@ -542,6 +586,14 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                 if usafa_k not in vp['K^A'][j]:
                     numerator = np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j])
                     metrics['objective_measure'][j, usafa_k] = numerator / num_cadets
+            if 'male' in p:
+                if male_k not in vp['K^A'][j]:
+                    numerator = np.sum(x[i, j] for i in p['I^D']['Male'][j])
+                    metrics['objective_measure'][j, male_k] = numerator / num_cadets
+            if 'minority' in p:
+                if minority_k not in vp['K^A'][j]:
+                    numerator = np.sum(x[i, j] for i in p['I^D']['Minority'][j])
+                    metrics['objective_measure'][j, minority_k] = numerator / num_cadets
 
     # Loop through all cadets to assign their values
     for i in p['I']:
@@ -807,7 +859,7 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
         return metrics
 
 
-def find_original_solution_ineligibility(parameters, solution=None, printing=True):
+def find_solution_ineligibility(parameters, solution=None, printing=True):
     """
     This procedure takes a solution, presumably an original AFPC solution, and finds the cadets that were matched
     to an ineligible AFSC

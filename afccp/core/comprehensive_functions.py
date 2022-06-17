@@ -224,7 +224,7 @@ def value_function_points(a, fhat):
 
 def plot_value_function(afsc, objective, parameters, value_parameters, title=None, printing=False,
                         label_size=25, yaxis_tick_size=25, xaxis_tick_size=25, figsize=(12, 10),
-                        facecolor='white', display_title=True, save=False):
+                        facecolor='white', display_title=True, save=False, x_point=None):
     """
     This procedure takes a set of value parameters, as well as a specific afsc's objective and then plots
     the value function for that objective.
@@ -279,10 +279,17 @@ def plot_value_function(afsc, objective, parameters, value_parameters, title=Non
 
     a = value_parameters['a'][j][k]
     fhat = value_parameters['f^hat'][j][k]
+    r = value_parameters['r'][j][k]
+
+    if x_point is not None:
+        f_x_point = value_function(a, fhat, r, x_point)
+    else:
+        f_x_point = None
     x, y = value_function_points(a, fhat)
     chart = value_function_graph(x, y, title=title, label_size=label_size, yaxis_tick_size=yaxis_tick_size,
                                  xaxis_tick_size=xaxis_tick_size, figsize=figsize, facecolor=facecolor,
-                                 display_title=display_title, save=save, x_label=x_label)
+                                 display_title=display_title, save=save, x_label=x_label, x_point=x_point,
+                                 f_x_point=f_x_point)
     return chart
 
 
@@ -413,13 +420,13 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
                                    gp_df=None, info_df=None, printing=False):
     """
     This file takes all of the relevant data for a particular fixed instance and exports it to excel
+    :param info_df: Optional "All Cadet Info" dataframe to export
     :param gp_df: dataframe of goal programming parameters
     :param full_name: name of the instance
     :param parameters: fixed cadet/afsc parameters
     :param solution_dict: dictionary of solutions
     :param vp_dict: dictionary of value parameters
     :param metrics_dict: dictionary of solution metrics
-    :param sensitive: if we have sensitive data or not
     :param printing: whether to print status updates or not
     """
     if printing:
@@ -434,6 +441,7 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
     # Just so pycharm doesn't yell at me
     solutions_df, metrics_df, vp_overall_df, vp_afscs_df_dict = None, None, None, None
     num_solutions, vp_names, solution_names, num_vps = None, None, None, None
+    vp_cadet_df = None
 
     if vp_dict is not None:
         vp_names = list(vp_dict.keys())
@@ -455,6 +463,17 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
         # Add columns
         vp_overall_df.insert(loc=0, column='VP Name', value=vp_names)
         vp_overall_df['VP Weight'] = vp_weights
+
+        # Grab the correct variable indicator
+        if "merit_all" in parameters:
+            merit = parameters["merit_all"]
+        else:
+            merit = parameters["merit"]
+
+        # Build the cadet constraints dataframe
+        vp_cadet_df = pd.DataFrame({"Cadet": parameters["ID"], "Merit": merit})
+        for vp_name in vp_names:
+            vp_cadet_df[vp_name] = vp_dict[vp_name]["cadet_value_min"]
 
     if solution_dict is not None:
         solution_names = list(solution_dict.keys())
@@ -526,6 +545,7 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
             metrics_df.to_excel(writer, sheet_name="Results", index=False)
         if vp_overall_df is not None:
             vp_overall_df.to_excel(writer, sheet_name="VP Overall", index=False)
+            vp_cadet_df.to_excel(writer, sheet_name="VP Cadet Constraints", index=False)
             for vp_name in vp_names:
                 vp_afscs_df_dict[vp_name].to_excel(writer, sheet_name=vp_name, index=False)
 
@@ -577,6 +597,12 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
     # Try to import value parameter information (may not exist)
     try:
 
+        # Try to import the cadet constraint dataframe! (May not exist-> I'm phasing this in)
+        try:
+            vp_cadet_df = import_data(filepath, sheet_name="VP Cadet Constraints")
+        except:
+            vp_cadet_df = None
+
         # Value Parameter Dictionary
         overall_weights = import_data(filepath, sheet_name="VP Overall")
         vp_names = np.array(overall_weights['VP Name'])
@@ -607,6 +633,9 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                                 "objective_target": np.zeros([M, O]), 'f^hat': [[[] for _ in range(O)] for _ in range(M)],
                                 "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
                                 'objectives': np.array(afsc_weights.loc[:int(len(afsc_weights) / M - 1), 'Objective'])}
+
+            if vp_cadet_df is not None:
+                value_parameters["cadet_value_min"] = np.array(vp_cadet_df[vp_name]).astype(float)
 
             # Check if other columns are present (phasing these in)
             more_vp_columns = ["USAFA-Constrained AFSCs", "Similarity Constraint"]

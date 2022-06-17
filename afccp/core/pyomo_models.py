@@ -64,6 +64,22 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solv
     # ___________________________________VARIABLE DEFINITION_________________________________
     m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
 
+    # Fixing variables if necessary
+    for i, afsc in enumerate(p["assigned"]):
+        j = np.where(p["afsc_vector"] == afsc)[0]  # AFSC index
+
+        # Check if the cadet is actually assigned an AFSC already (it's not blank)
+        if len(j) != 0:
+            j = j[0]  # Actual index
+
+            # Check if the cadet is assigned to an AFSC they're not eligible for
+            if j not in p["J^E"][i]:
+                raise ValueError("Cadet " + str(i) + " assigned to '" + afsc + "' but is not eligible for it. "
+                                                                               "Adjust the qualification matrix!")
+
+            # Fix the variable
+            m.x[i, j].fix(1)
+
     # ___________________________________OBJECTIVE FUNCTION__________________________________
     def objective_function(m):
         return np.sum(np.sum(c[i, j] * m.x[i, j] for j in p["J^E"][i]) for i in p["I"])
@@ -77,6 +93,18 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solv
     m.one_afsc_constraints = ConstraintList()
     for i in p['I']:
         m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
+
+    # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
+    if vp["J^USAFA"] is not None:
+        # This is a pretty arbitrary constraint and will only be used for real class years
+        real_n = 960  # Total number of USAFA cadets (NonRated, Rated, and SF)
+        cap = 0.05 * real_n
+
+        # USAFA 5% Cap Constraint
+        def usafa_afscs_rule(m):
+            return np.sum(np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j]) for j in vp["J^USAFA"]) <= cap
+
+        m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
 
     # Loop through each AFSC and add constraints if they need it
     m.measure_constraints = ConstraintList()
@@ -159,15 +187,13 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solv
     return solution
 
 
-def vft_model_build(parameters, value_parameters, initial=None, convex=True, add_breakpoints=True,
-                    printing=False):
+def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, printing=False):
     """
     Builds the VFT optimization model using pyomo
+    :param instance: problem instance object
     :param add_breakpoints: if we should add breakpoints to adjust the approximate model
     :param initial: if this model has a warm start or not
     :param convex: if we use the target quota instead of summation of cadets to calculate proportions/averages
-    :param value_parameters: weight and value parameters
-    :param parameters: fixed cadet/afsc data
     :param printing: Whether the procedure should print something
     :return: pyomo model as object
     """
@@ -178,8 +204,8 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
     m = ConcreteModel()
 
     # Shorthand
-    p = parameters
-    vp = value_parameters
+    p = instance.parameters
+    vp = instance.value_parameters
 
     # _________________________________PARAMETER ADJUSTMENTS_________________________________
     pass
@@ -296,7 +322,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
         return vp['afscs_overall_weight'] * np.sum(vp['afsc_weight'][j] * np.sum(
             vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) for j in p['J']) + \
                vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * np.sum(
-            parameters['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+            p['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
     m.objective = Objective(rule=objective_function, sense=maximize)
 
@@ -310,10 +336,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if vp["J^USAFA"] is not None:
-
-        # This is a pretty arbitrary constraint and will only be used for real class years
-        real_n = 960  # Total number of USAFA cadets (NonRated, Rated, and SF)
-        cap = 0.05 * real_n
+        cap = 0.05 * instance.mdl_p["real_usafa_n"]  # Total number of USAFA cadets (Rated, SF, and NonRated)
 
         # USAFA 5% Cap Constraint
         def usafa_afscs_rule(m):
@@ -346,7 +369,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
 
         # Get count variables for this AFSC
         count = np.sum(m.x[i, j] for i in p['I^E'][j])
-        if 'usafa' in parameters:
+        if 'usafa' in p:
 
             # Number of USAFA cadets assigned to the AFSC
             usafa_count = np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
@@ -377,7 +400,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
             elif objective == "ROTC Quota":
                 measure_jk = count - usafa_count
             else:  # Utility
-                numerator = np.sum(parameters['utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
+                numerator = np.sum(p['utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
                 measure_jk = numerator / num_cadets
 
             # Add Linear Value Function Constraints
@@ -413,14 +436,19 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
                     # The formulation only lists "objective_min, objective_max" since I no longer want value constraints
                     m.value_constraints.add(expr=m.f_value[j, k] >= objective_min_value[j, k])
 
-                # Constrained Approximate Measure
+                # Constrained PGL/Approximate Measure
                 elif vp['constraint_type'][j, k] == 3:
                     if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
                         m.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
                         m.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
                     else:
-                        m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
-                        m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
+
+                        if "pgl" in p:  # PGL should be more "forgiving" as a constraint
+                            m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['pgl'][j] >= 0)
+                            m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['pgl'][j] <= 0)
+                        else:
+                            m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
+                            m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
 
                 # Constrained Exact Measure  (type = 4)
                 else:
@@ -440,7 +468,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
     for i in p['I']:
         if vp['cadet_value_min'][i] != 0:
             m.min_cadet_value_constraints.add(expr=np.sum(
-                parameters['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) >= vp['cadet_value_min'][i])
+                p['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) >= vp['cadet_value_min'][i])
 
     # AFSCs Overall Min Value
     def afsc_min_value_constraint(m):
@@ -453,7 +481,7 @@ def vft_model_build(parameters, value_parameters, initial=None, convex=True, add
     # Cadets Overall Min Value
     def cadet_min_value_constraint(m):
         return vp['cadets_overall_value_min'] <= np.sum(vp['cadet_weight'][i] * np.sum(
-            parameters['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+            p['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
     if vp['cadets_overall_value_min'] != 0:
         m.cadet_min_value_constraint = Constraint(rule=cadet_min_value_constraint)
@@ -517,12 +545,26 @@ def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", appr
                 raise ValueError("Solution didn't come out right, likely model is infeasible.")
 
         # For some reason we may not have assigned a cadet to an AFSC in which case we just give them to one
-        # they're eligible for and want
+        # they're eligible for and want  (happens usually to only 1-3 people through VFT model)
         if not found:
+
+            # Try to give the cadet their top choice AFSC for which they're eligible
             if len(p["J^P"][i]) != 0:
-                solution[i] = int(p["J^P"][i][0])  # Try to give them an AFSC they wanted
+                max_util = 0
+                max_j = 0
+                for j in p["J^P"][i]:
+                    if p["utility"][i, j] >= max_util:
+                        max_j = j
+                        max_util = max_util
+                solution[i] = int(max_j)
+
+            # If we don't have any eligible preferences from the cadet, they get Needs of the Air Force
             else:
-                solution[i] = int(p["J^E"][i][0])  # Just give them an AFSC they're eligible for
+
+                if len(p["J^E"][i]) >= 2:
+                    solution[i] = int(p["J^E"][i][1])
+                else:
+                    solution[i] = int(p["J^E"][i][0])
 
             afsc = p["afsc_vector"][int(solution[i])]
 
@@ -774,7 +816,7 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
     return m
 
 
-def gp_model_solve(model, gp, solver_name="gurobi", max_time=None, con_term=None, printing=False):
+def gp_model_solve(model, gp, solver_name="cbc", max_time=None, con_term=None, printing=False):
     """
     This procedure solves Rebecca's model.
     :param con_term: constraint to solve the model for
@@ -919,7 +961,7 @@ def lsp_model_build(printing=False):
     return model
 
 
-def x_to_solution_initialization(parameters, value_parameters, measures, values, solver_name="gurobi"):
+def x_to_solution_initialization(parameters, value_parameters, measures, values, solver_name="cbc"):
     """
     This procedure takes the values and measures of a solution, along with other model parameters, and then returns
     the value function variables used to initialize a VFT pyomo model. This is meant to
