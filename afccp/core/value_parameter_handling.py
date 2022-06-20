@@ -651,7 +651,7 @@ def afsc_weight_function(quota, func="Curve"):
         swing_weights = quota
     elif func == "Piece":
         swing_weights = np.zeros(M)
-        for x, j in enumerate(quota):
+        for j, x in enumerate(quota):
             if x >= 200:
                 swing_weights[j] = 1
             elif 150 <= x < 200:

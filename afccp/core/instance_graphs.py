@@ -53,17 +53,17 @@ def data_graph(instance):
             metric = np.array([len(p['I^D'][ip['data_graph']][j]) / len(p['I^E'][j]) for j in indices])
             target = p['usafa_proportion']
         else:
-            if eligibility:
+            if ip["eligibility"]:
                 metric = np.array([np.mean(p['utility'][p['I^E'][j], j]) for j in indices])
             else:
                 metric = np.array([np.mean(p['utility'][:, j]) for j in indices])
             target = None
 
         # Bar Chart
-        ax.bar(afscs, metric, color=bar_color, alpha=alpha, edgecolor='black')
+        ax.bar(afscs, metric, color=ip["bar_color"], alpha=ip["alpha"], edgecolor='black')
 
         if target is not None:
-            ax.axhline(y=target, color='black', linestyle='--', alpha=alpha)
+            ax.axhline(y=target, color='black', linestyle='--', alpha=ip["alpha"])
 
         # Get correct text
         y_label = ip['data_graph']

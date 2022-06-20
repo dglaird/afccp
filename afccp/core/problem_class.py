@@ -212,7 +212,7 @@ class CadetCareerProblem:
 
                 # Exception
                 if key == "graph":
-                    self.plt_p["results_graph"] = p_dict["graph"]
+                    self.plt_p["data_graph"] = p_dict["graph"]
 
                 else:
                     # If the parameter doesn't exist, we warn the user

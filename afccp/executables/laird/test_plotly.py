@@ -17,7 +17,7 @@ except:
 
     # Add afccp to path
     import sys
-    sys.path.insert(0,dir_path)
+    sys.path.insert(0, dir_path)
 
     # Import main problem class
     from afccp.core.problem_class import CadetCareerProblem
