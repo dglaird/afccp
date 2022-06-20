@@ -215,8 +215,8 @@ sensitive/
 processing/
 
 # Laird Folder
-afccp/resources/laird/
-afccp/executables/laird/
+# afccp/resources/laird/
+# afccp/executables/laird/
 laird/
 
 # Macdonald Folder
