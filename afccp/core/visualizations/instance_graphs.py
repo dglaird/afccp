@@ -5,7 +5,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.lines as mlines
 import numpy as np
 from afccp.core.globals import *
-from afccp.core.data_handling import get_utility_preferences
+from afccp.core.handling.data_handling import get_utility_preferences
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl

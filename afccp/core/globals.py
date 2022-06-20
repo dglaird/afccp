@@ -65,6 +65,16 @@ elif 'griff007' in dir_path:
     output_folder = dir_path + 'afccp/resources/laird/'
     support_folder = dir_path + 'afccp/resources/shared/'
 
+elif 'ianmacdonald' in dir_path:
+
+    # We're on my old macbook
+    print("Running on Ian's macbook")
+
+    # Import and export to my folder
+    input_folder = dir_path + 'afccp/resources/macdonald/'
+    output_folder = dir_path + 'afccp/resources/macdonald/'
+    support_folder = dir_path + 'afccp/resources/shared/'
+
 else:
 
     # Running somewhere else

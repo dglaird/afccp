@@ -216,6 +216,12 @@ processing/
 
 # Laird Folder
 afccp/resources/laird/
+afccp/executables/laird/
+laird/
+
+# Macdonald Folder
+macdonald/
+afccp/executables/macdonald/
 
 # Solvers
 # afccp/resources/shared/solvers/

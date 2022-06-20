@@ -2,7 +2,7 @@
 import time
 import numpy as np
 from afccp.core.globals import *
-from afccp.core.data_handling import value_function
+from afccp.core.handling.data_handling import value_function
 
 
 def stable_marriage_model_solve(parameters, value_parameters, printing=False):

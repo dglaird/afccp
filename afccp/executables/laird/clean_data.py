@@ -22,7 +22,7 @@ except:
     # Import main problem class
     from afccp.processing.compiler import DataAggregator
 
-# from afccp.core.preprocessing import generate_cip_to_qual_matrix
+# from afccp.core.handling import generate_cip_to_qual_matrix
 # generate_cip_to_qual_matrix()
 
 # # Compile the data

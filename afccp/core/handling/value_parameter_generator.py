@@ -3,7 +3,7 @@ import numpy as np
 import random
 from math import *
 from afccp.core.globals import *
-from afccp.core.value_parameter_handling import *
+from afccp.core.handling.value_parameter_handling import *
 
 
 # Value Parameter Generator

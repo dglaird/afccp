@@ -6,7 +6,7 @@ import os
 import pandas as pd
 
 from afccp.core.comprehensive_functions import *
-from afccp.core.processing.ccp_helping_functions import *
+from afccp.core.handling.ccp_helping_functions import *
 import datetime
 import glob
 import copy

@@ -186,8 +186,11 @@ def model_data_frame_from_fixed_parameters(parameters):
 
     c_d = {"1st": 0, "2nd": 1, "3rd": 2, "4th": 3, "5th": 4, "6th": 5}
     for c in c_d:
-        afscs_fixed[c + " Choice Cadets"] = [
-            len(np.where(preferences[:, c_d[c]] == afsc)[0]) for afsc in parameters["afsc_vector"]]
+
+        # Some years have less than 6 preferences I believe...
+        if c_d[c] < parameters["P"]:
+            afscs_fixed[c + " Choice Cadets"] = [
+                len(np.where(preferences[:, c_d[c]] == afsc)[0]) for afsc in parameters["afsc_vector"]]
 
     return cadets_fixed, afscs_fixed
 

@@ -2,17 +2,17 @@
 import numpy as np
 import pandas as pd
 
-from afccp.core.data_handling import *
-from afccp.core.value_parameter_handling import *
-from afccp.core.simulation_functions import *
-from afccp.core.value_parameter_generator import *
-from afccp.core.instance_graphs import *
-from afccp.core.heuristic_solvers import *
-from afccp.core.more_graphs import *
+from afccp.core.handling.data_handling import *
+from afccp.core.handling.value_parameter_handling import *
+from afccp.core.handling.simulation_functions import *
+from afccp.core.handling.value_parameter_generator import *
+from afccp.core.visualizations.instance_graphs import *
+from afccp.core.solutions.heuristic_solvers import *
+from afccp.core.visualizations.more_graphs import *
 import copy
 
 if use_pyomo:
-    from afccp.core.pyomo_models import *
+    from afccp.core.solutions.pyomo_models import *
 
 
 # Sensitivity Analysis Functions
