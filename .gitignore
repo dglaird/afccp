@@ -208,8 +208,8 @@ docs/_build/
 # Sensitive
 sensitive/
 
-# Real  (Later on, we will want to ignore this)
-# real/
+# Real  (we want to ignore this)
+real/
 
 # Processing  (Very import .gitignore)
 processing/
