@@ -136,6 +136,7 @@ class CadetCareerProblem:
         self.solution = None
         self.gp_parameters = None
         self.gp_df = None
+        self.info_df = None
         self.solution_dict = None
         self.metrics_dict = None
         self.solution_name = None
@@ -2260,7 +2261,7 @@ class CadetCareerProblem:
 
 
 try:
-    from afccp.core.problem_class_add import MoreCCPMethods
+    from afccp.core.macdonald.problem_class_add import MoreCCPMethods
 
     # Load in the methods from the other sheet and attach them to CadetCareerProblem
     for method_name in dir(MoreCCPMethods):

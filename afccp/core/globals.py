@@ -11,6 +11,14 @@ exe_extension = True  # specific variable relating to pyomo solver paths
 databricks = False  # initially assume we're not running on databricks
 provide_executable, executable = True, None  # Global variables to determine how to work with pyomo
 
+# This determines how we import data from excel!
+global specify_engine
+if version.parse(pd.__version__) > version.parse("1.2.1"):
+    specify_engine = True
+else:
+    # specify_engine = False  # Looks like we need to specify engine all the time! (databricks issue)
+    specify_engine = True
+
 # Figure out where this directory is running from
 if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working directory
 
@@ -75,6 +83,9 @@ elif 'ianmacdonald' in dir_path:
     output_folder = dir_path + 'afccp/resources/macdonald/'
     support_folder = dir_path + 'afccp/resources/shared/'
 
+    # Turn this back to True if you use ", engine='openpyxl'" in your pd.read_excel() statements
+    specify_engine = False
+
 else:
 
     # Running somewhere else
@@ -120,14 +131,6 @@ else:
 
 # Additional sensitive folder path (for the original thesis data cleaning)
 sensitive_path = dir_path + 'afccp/sensitive/raw/'
-
-# This determines how we import data from excel!
-global specify_engine
-if version.parse(pd.__version__) > version.parse("1.2.1"):
-    specify_engine = True
-else:
-    # specify_engine = False  # Looks like we need to specify engine all the time! (databricks issue)
-    specify_engine = True
 
 # Only use pyomo script if we have pyomo
 global use_pyomo
