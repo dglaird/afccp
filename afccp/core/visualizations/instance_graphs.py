@@ -78,9 +78,9 @@ def data_graph(instance):
 
         # Legend
         add_legend = True
-        legend_elements = [Patch(facecolor='yellow', label='Permitted', edgecolor='black'),
-                           Patch(facecolor='green', label='Desired', edgecolor='black'),
-                           Patch(facecolor='blue', label='Mandatory', edgecolor='black')]
+        legend_elements = [Patch(facecolor=ip["bar_colors"]["Permitted"], label='Permitted', edgecolor='black'),
+                           Patch(facecolor=ip["bar_colors"]["Desired"], label='Desired', edgecolor='black'),
+                           Patch(facecolor=ip["bar_colors"]["Mandatory"], label='Mandatory', edgecolor='black')]
 
         # Get metrics
         mandatory_count = np.array([np.sum(p['mandatory'][:, j]) for j in indices])
@@ -88,9 +88,10 @@ def data_graph(instance):
         permitted_count = np.array([np.sum(p['permitted'][:, j]) for j in indices])
 
         # Bar Chart
-        ax.bar(afscs, mandatory_count, color='blue', edgecolor='black')
-        ax.bar(afscs, desired_count, bottom=mandatory_count, color='green', edgecolor='black')
-        ax.bar(afscs, permitted_count, bottom=mandatory_count + desired_count, color='yellow', edgecolor='black')
+        ax.bar(afscs, mandatory_count, color=ip["bar_colors"]["Mandatory"], edgecolor='black')
+        ax.bar(afscs, desired_count, bottom=mandatory_count, color=ip["bar_colors"]["Desired"], edgecolor='black')
+        ax.bar(afscs, permitted_count, bottom=mandatory_count + desired_count, color=ip["bar_colors"]["Permitted"],
+               edgecolor='black')
 
         # Axis Adjustments
         ax.set(ylim=(0, ip['eligibility_limit'] + ip['eligibility_limit'] / 100))
@@ -100,6 +101,246 @@ def data_graph(instance):
         if ip['title'] is None:
             ip['title'] = 'AFOCD Degree Tier Breakdown for AFSCs with less than ' + \
                           str(ip['eligibility_limit']) + ' Eligible Cadets'
+
+    elif ip['data_graph'] == 'Cadet Preference':
+
+        # Legend
+        add_legend = True
+
+        # Convert utility matrix to utility columns
+        preferences, utilities_array = get_utility_preferences(p)
+
+        # Counts
+        top_3_count = np.zeros(M)
+        bottom_3_count = np.zeros(M)
+
+        for i in p["I"]:
+            for j in p["J"]:
+                afsc = p["afsc_vector"][j]
+                if afsc in preferences[i, 0:3]:
+                    top_3_count[j] += 1
+                elif afsc in preferences[i, 3:6]:
+                    bottom_3_count[j] += 1
+
+        # Get the title and filename
+        ip["title"] = "Cadet Preferences Placed on Each AFSC (Before Match)"
+        ip["filename"] = "1_Cadet_Preference_Choices_Placed_Across_AFSCs"
+
+        # Legend
+        if ip["version"] is None:
+            legend_elements = [Patch(facecolor=ip['bar_colors']["top_3_choices"], label='Top 3 Choices',
+                                     edgecolor='black'),
+                               Patch(facecolor=ip['bar_colors']["bottom_3_choices"],
+                                     label='Bottom 3 Choices', edgecolor='black')]
+
+            # Bar Chart
+            ax.bar(afscs, bottom_3_count, color=ip['bar_colors']["bottom_3_choices"], edgecolor='black')
+            ax.bar(afscs, top_3_count, bottom=bottom_3_count, color=ip['bar_colors']["top_3_choices"],
+                   edgecolor='black')
+
+            y_axis_count = top_3_count + bottom_3_count
+            y_max = np.max(y_axis_count)
+
+        elif ip["version"] == "Top 3":
+            legend_elements = [Patch(facecolor=ip['bar_colors']["top_3_choices"], label='Top 3 Choices',
+                                     edgecolor='black')]
+            ip["title"] = "Cadet Top 3 Preferences Placed on Each AFSC (Before Match)"
+            ip["filename"] = "2_Cadet_Preference_Top3_Choices_Placed_Across_AFSCs"
+
+            # Bar Chart
+            ax.bar(afscs, top_3_count, color=ip['bar_colors']["top_3_choices"], edgecolor='black')
+
+            y_axis_count = top_3_count
+            y_max = np.max(y_axis_count)
+
+        else:
+            raise ValueError("Version '" + str(ip["version"]) + "' is not valid for Preference Data graph.")
+
+        # Axis Adjustments
+        print(ip["y_max"], y_max, ip["y_max"] * y_max)
+        ax.set(ylim=(0, ip["y_max"] * y_max))
+
+        # Get correct text
+        y_label = "Number of Cadets"
+        if ip["solution_in_title"]:
+            ip['title'] = ip['title']
+
+    elif ip['data_graph'] == 'Cadet Preference Analysis':
+
+        # Legend
+        add_legend = True
+
+        # Convert utility matrix to utility columns
+        preferences, utilities_array = get_utility_preferences(p)
+
+        # Counts
+        top_3_count = np.zeros(M)
+        eligible_pref_count = np.zeros(M)
+        pref_cadets = {}
+        cadets = {}
+        for j in p["J"]:
+
+            afsc = p["afsc_vector"][j]
+            pref_cadets[j] = []  # List of cadets that have this AFSC in their top 3 choices
+            cadets[j] = []  # List of cadets that have this AFSC in their top 3 choices and are also eligible for it
+            for i in p["I"]:
+                if afsc in preferences[i, 0:3]:
+                    top_3_count[j] += 1
+                    pref_cadets[j].append(i)
+
+                    # If the cadet is eligible for the AFSC, we add them to this list
+                    if p["ineligible"][i, j] == 0:
+                        cadets[j].append(i)
+
+            # Convert to numpy arrays
+            pref_cadets[j] = np.array(pref_cadets[j])
+            cadets[j] = np.array(cadets[j])
+            eligible_pref_count[j] = len(cadets[j])
+
+        # Used for the y-axis
+        y_max = np.max(top_3_count)
+
+        # Get the title and filename
+        ip["title"] = "Cadet Degree Eligibility of Preferred Cadets on Each AFSC (Before Match)"
+        ip["filename"] = "3_Cadet_Degree_Eligibility_Preference_Cadets_Across_AFSCs"
+
+        # Get metrics
+        mandatory_count = np.array([np.sum(p['mandatory'][pref_cadets[j], j]) for j in p["J"]])
+        desired_count = np.array([np.sum(p['desired'][pref_cadets[j], j]) for j in p["J"]])
+        permitted_count = np.array([np.sum(p['permitted'][pref_cadets[j], j]) for j in p["J"]])
+        ineligible_count = np.array([np.sum(p['ineligible'][pref_cadets[j], j]) for j in p["J"]])
+
+        # Legend
+        if ip["version"] is None:
+
+            # Legend
+            legend_elements = [Patch(facecolor=ip['bar_colors'][objective], label=objective) for
+                               objective in ["Ineligible", "Permitted", "Desired", "Mandatory"]]
+
+            # Bar Chart
+            ax.bar(afscs, mandatory_count, color=ip['bar_colors']["Mandatory"], edgecolor='black')
+            ax.bar(afscs, desired_count, bottom=mandatory_count, color=ip['bar_colors']["Desired"],
+                   edgecolor='black')
+            ax.bar(afscs, permitted_count, bottom=desired_count + mandatory_count, color=ip['bar_colors']["Permitted"],
+                   edgecolor='black')
+            ax.bar(afscs, ineligible_count, bottom=permitted_count + desired_count + mandatory_count,
+                   color=ip['bar_colors']["Ineligible"], edgecolor='black')
+
+        elif ip["version"] == "AFOCD_Eligible":
+
+            # Legend
+            legend_elements = [Patch(facecolor=ip['bar_colors'][objective], label=objective) for
+                               objective in ["Permitted", "Desired", "Mandatory"]]
+
+            # Bar Chart
+            ax.bar(afscs, mandatory_count, color=ip['bar_colors']["Mandatory"], edgecolor='black')
+            ax.bar(afscs, desired_count, bottom=mandatory_count, color=ip['bar_colors']["Desired"],
+                   edgecolor='black')
+            ax.bar(afscs, permitted_count, bottom=desired_count + mandatory_count, color=ip['bar_colors']["Permitted"],
+                   edgecolor='black')
+
+            ip["filename"] = "4_Cadet_Degree_Preference_Cadets_Across_AFSCs"
+
+        elif ip["version"] == "Merit":
+
+            add_legend = False
+
+            for j in p["J"]:
+                merit = p["merit"][cadets[j]]
+                uq = np.unique(merit)
+                count_sum = 0
+                for val in uq:
+                    count = len(np.where(merit == val)[0])
+                    c = str(val)  # Grayscale
+                    ax.bar([j], count, bottom=count_sum, color=c, zorder=2)
+                    count_sum += count
+
+                # Add the text and an outline
+                ax.text(j - 0.3, eligible_pref_count[j] + 2, round(np.mean(merit), 2))
+                ax.bar([j], eligible_pref_count[j], color="black", zorder=1, edgecolor="black")
+
+            # DIY Colorbar
+            h = (100 / 245) * y_max
+            w1 = 0.8
+            w2 = 0.74
+            vals = np.arange(101) / 100
+            current_height = (150 / 245) * y_max
+            ax.add_patch(Rectangle((M - 2, current_height), w1, h, edgecolor='black', facecolor='black',
+                                   fill=True, lw=2))
+            ax.text(M - 3.3, (245 / 245) * y_max, '100%', fontsize=ip["xaxis_tick_size"])
+            ax.text(M - 2.8, current_height, '0%', fontsize=ip["xaxis_tick_size"])
+            ax.text((M - 0.95), (166 / 245) * y_max, 'Cadet Percentile', fontsize=ip["xaxis_tick_size"],
+                    rotation=270)
+            for val in vals:
+                c = str(val)  # Grayscale
+                ax.add_patch(Rectangle((M - 1.95, current_height), w2, h / 101, color=c, fill=True))
+                current_height += h / 101
+
+            ip["title"] = "Merit of Preferred Cadets on Each AFSC (Before Match)"
+            ip["filename"] = "5_Cadet_Merit_Preference_Cadets_Across_AFSCs"
+
+        elif ip["version"] == "USAFA":
+
+            # Legend
+            legend_elements = [Patch(facecolor=ip['bar_colors']["usafa"], label='USAFA'),
+                               Patch(facecolor=ip['bar_colors']["rotc"], label='ROTC'),
+                               mlines.Line2D([], [], color="red", linestyle='-', linewidth=3, label="Baseline")]
+
+            rotc_baseline = eligible_pref_count - (eligible_pref_count * p["usafa_proportion"])
+
+            usafa_count = np.array([np.sum(p['usafa'][cadets[j]]) for j in p["J"]])
+            rotc_count = np.array([eligible_pref_count[j] - usafa_count[j] for j in p["J"]])
+
+            # Bar Chart
+            ax.bar(afscs, rotc_count, color=ip['bar_colors']["rotc"], edgecolor='black')
+            ax.bar(afscs, usafa_count, bottom=rotc_count, color=ip['bar_colors']["usafa"],
+                   edgecolor='black')
+
+            for j in p["J"]:
+
+                # Add the PGL lines
+                ax.plot((j - 0.4, j + 0.4), (rotc_baseline[j], rotc_baseline[j]),
+                        color="red", linestyle="-", zorder=2, linewidth=3)
+
+            ip["title"] = "USAFA/ROTC Breakdown of Preferred Cadets on Each AFSC (Before Match)"
+            ip["filename"] = "6_Cadet_USAFA_Preference_Cadets_Across_AFSCs"
+
+        elif ip["version"] == "Gender":
+
+            # Legend
+            legend_elements = [Patch(facecolor=ip['bar_colors']["male"], label='Male'),
+                               Patch(facecolor=ip['bar_colors']["female"], label='Female'),
+                               mlines.Line2D([], [], color="red", linestyle='-', linewidth=3, label="Baseline")]
+
+            female_baseline = eligible_pref_count - (eligible_pref_count * p["male_proportion"])
+
+            male_count = np.array([np.sum(p['male'][cadets[j]]) for j in p["J"]])
+            female_count = np.array([eligible_pref_count[j] - male_count[j] for j in p["J"]])
+
+            # Bar Chart
+            ax.bar(afscs, female_count, color=ip['bar_colors']["female"], edgecolor='black')
+            ax.bar(afscs, male_count, bottom=female_count, color=ip['bar_colors']["male"],
+                   edgecolor='black')
+
+            for j in p["J"]:
+
+                # Add the PGL lines
+                ax.plot((j - 0.4, j + 0.4), (female_baseline[j], female_baseline[j]),
+                        color="red", linestyle="-", zorder=2, linewidth=3)
+
+            ip["title"] = "Male/Female Breakdown of Preferred Cadets on Each AFSC (Before Match)"
+            ip["filename"] = "7_Cadet_Male_Preference_Cadets_Across_AFSCs"
+
+        else:
+            raise ValueError("Version '" + str(ip["version"]) + "' is not valid for Preference Analysis Data graph.")
+
+        # Axis Adjustments
+        ax.set(ylim=(0, ip["y_max"] * y_max))
+
+        # Get correct text
+        y_label = "Number of Cadets"
+        if ip["solution_in_title"]:
+            ip['title'] = ip['title']
 
     elif ip['data_graph'] == 'Eligible Quota':
 

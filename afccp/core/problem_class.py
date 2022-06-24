@@ -7,6 +7,7 @@ import pandas as pd
 
 from afccp.core.comprehensive_functions import *
 from afccp.core.handling.ccp_helping_functions import *
+from afccp.core.visualizations.slides import generate_results_slides
 import datetime
 import glob
 import copy
@@ -1879,6 +1880,40 @@ class CadetCareerProblem:
 
         else:
             raise ValueError("Graph '" + self.plt_p["results_graph"] + "' does not exist.")
+
+    def generate_slides(self, p_dict={}, printing=None):
+        """
+        Method to generate the results slides for a particular problem instance with solution
+        """
+
+        # Reset chart functional parameters
+        self.plt_p, _ = initialize_instance_functional_parameters(self.parameters["N"])
+
+        # Make sure we have a solution and a set of value parameters activated
+        if self.value_parameters is None:
+            raise ValueError("Error. No value parameters selected")
+        elif self.solution is None:
+            raise ValueError("Error. No solution selected")
+
+        # Update plot parameters if necessary
+        for key in p_dict:
+            if key in self.plt_p:
+                self.plt_p[key] = p_dict[key]
+            else:
+
+                # Exception
+                if key == "graph":
+                    self.plt_p["results_graph"] = p_dict["graph"]
+
+                else:
+                    # If the parameter doesn't exist, we warn the user
+                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        # Save all the figures first
+        # self.display_all_results_graphs(p_dict)
+
+        # Call the function to generate the slides
+        generate_results_slides(self)
 
     # Sensitivity Analysis
     def initial_overall_weights_pareto_analysis(self, p_dict={}, printing=None):

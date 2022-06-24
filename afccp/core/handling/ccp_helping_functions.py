@@ -139,8 +139,8 @@ def initialize_instance_functional_parameters(N):
     # Colors for the various bar types:
     colors = {"top_3_choices": "#5490f0", "bottom_3_choices": "#eef09e", "non_volunteer": "#f25d50",
               "quartile_1": "#373aed", "quartile_2": "#0b7532", "quartile_3": "#d1bd4d", "quartile_4": "#cc1414",
-              "Mandatory": "#311cd4", "Desired": "#085206", "Permitted": "#bda522", "male": "#6531d6",
-              "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "large_afscs": "#060d47",
+              "Mandatory": "#311cd4", "Desired": "#085206", "Permitted": "#bda522", "Ineligible": "#f25d50",
+              "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "large_afscs": "#060d47",
               "small_afscs": "#cdddf7", "merit_above": "#c7b93a", "merit_within": "#3d8ee0",
               "merit_below": "#bf4343", "large_within": "#3d8ee0", "large_else": "#c7b93a", "pgl": "#5490f0",
               "surplus": "#eef09e", "failed_pgl": "#f25d50"}
