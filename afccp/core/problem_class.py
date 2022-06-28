@@ -14,7 +14,7 @@ import copy
 
 
 class CadetCareerProblem:
-    def __init__(self, data_name=None, N=1600, M=32, P=6, num_breakpoints=None, printing=False):
+    def __init__(self, data_name=None, N=1600, M=32, P=6, num_breakpoints=None, printing=True):
         """
         This is the AFSC/Cadet problem object. We can import data using the data_name (must be the instance folder!).
         We can also generate data by providing a data_name that contains "Random", "Realistic",

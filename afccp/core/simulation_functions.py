@@ -111,7 +111,7 @@ def simulate_model_fixed_parameters(N=1600, P=6, M=32, printing=False):
     parameters['merit'] = np.append(np.round(1 - np.arange(usafa_num) / (usafa_num - 1), 4),
                                     np.round(1 - np.arange(N - usafa_num) / (N - usafa_num - 1), 4))
     parameters['sum_merit'] = parameters['merit'].sum()
-    parameters['SS_encrypt'] = np.arange(N)
+    parameters['ID'] = np.arange(N)
     parameters['P'] = P
 
     # Specify AFSC targets

@@ -136,8 +136,14 @@ def model_data_frame_from_fixed_parameters(parameters):
     preferences, utilities_array = get_utility_preferences(parameters)
 
     # Build Cadets Fixed data frame
-    cadets_fixed = pd.DataFrame(
-        {'Cadet': parameters['ID'], 'Assigned': parameters['assigned']})
+    if "assigned" in parameters:
+        cadets_fixed = pd.DataFrame(
+            {'Cadet': parameters['ID'], 'Assigned': parameters['assigned']})
+    else:
+        cadets_fixed = pd.DataFrame(
+            {'Cadet': parameters['ID'], 'Assigned': np.array([" " for _ in range(parameters["N"])])})
+
+
 
     # Load Instance Parameters (may or may not be included)
     cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'Race': 'race', "Ethnicity": "ethnicity",
