@@ -1462,7 +1462,7 @@ def afsc_results_graph(instance):
                         elif ip["objective"] == "Minority":
                             ip["title"] = "Minority/Non-Minority Breakdown Across Each AFSC"
                             ip["filename"] = instance.solution_name + " Minority_Sorted_Proportion"
-                            label_dict["USAFA Proportion"] = "Number of Cadets"
+                            label_dict["Minority"] = "Number of Cadets"
 
                             class_1_color = ip['bar_colors']["minority"]
                             class_2_color = ip['bar_colors']["non-minority"]
@@ -1835,9 +1835,10 @@ def afsc_results_graph(instance):
                             indices = np.argsort(total_count)[::-1]
 
                         afscs = afscs[indices]
-                        top_3_count, bottom_3_count, non_vol_count, total_count = \
-                            top_3_count[indices], bottom_3_count[indices], non_vol_count[indices], total_count[
-                                indices]
+                        counts = {"non_volunteer": non_vol_count[indices],
+                                  "bottom_3_choices": bottom_3_count[indices],
+                                  "top_3_choices": top_3_count[indices]}
+                        total_count = total_count[indices]
 
                         # Y max
                         y_max = max(total_count)
@@ -1855,47 +1856,29 @@ def afsc_results_graph(instance):
                         else:
                             y_ticks = [50]
 
-                        # Bar Chart
-                        ax.bar(afscs, non_vol_count, color=ip['bar_colors']["non_volunteer"], edgecolor='black')
-                        ax.bar(afscs, bottom_3_count, bottom=non_vol_count,
-                               color=ip['bar_colors']["bottom_3_choices"], edgecolor='black')
-                        ax.bar(afscs, top_3_count, bottom=non_vol_count + bottom_3_count,
-                               color=ip['bar_colors']["top_3_choices"], edgecolor='black')
-
                         # Loop through each AFSC to plot the bars
                         for index, afsc in enumerate(afscs):
 
-                            # Plot the preference bars
                             count_sum = 0
-                            for cls in classes[::-1]:
-                                for cat in categories[::-1]:
+                            for cat in counts:
+                                text_color = "black"
 
-                                    if cat == "Volunteer":
-                                        color = ip["bar_colors"][cls.lower()]
-                                    else:
-                                        color = ip['bar_colors'][cat]
+                                # Plot the bars
+                                count = counts[cat][index]
+                                ax.bar([index], count, bottom=count_sum, edgecolor="black",
+                                       color=ip['bar_colors'][cat])
+                                count_sum += count
 
-                                    # Plot the bars
-                                    count = counts[cls][cat][index]
-                                    ax.bar([index], count, bottom=count_sum, edgecolor="black",
-                                           color=color)
-                                    count_sum += count
+                                # Put a number on the bar
+                                if count >= 10:
 
-                                    # Put a number on the bar
-                                    if count >= 10:
-
-                                        if cls in ["Male", "USAFA", "Minority"]:
-                                            color = "white"
-                                        else:
-                                            color = "black"
-                                        ax.text(index, (count_sum - count / 2 - 2),
-                                                int(count), color=color, zorder=2, fontsize=ip["bar_text_size"],
-                                                horizontalalignment='center')
+                                    ax.text(index, (count_sum - count / 2 - 2),
+                                            int(count), color=text_color, zorder=2, fontsize=ip["bar_text_size"],
+                                            horizontalalignment='center')
 
                             # Add the text
                             ax.text(index, total_count[index] + 2, int(total_count[index]),
                                     fontsize=ip["text_size"], horizontalalignment='center')
-
 
                     elif ip["version"] == "bar":
 
@@ -2140,7 +2123,7 @@ def afsc_results_graph(instance):
 
                     # Create the legend
                     legend_elements = [Patch(facecolor=ip['bar_colors'][cls.lower()], label=cls) for cls in classes]
-                    legend_elements.append(Patch(facecolor=ip['bar_colors'][cat], label=cat) for cat in categories[1])
+                    legend_elements.append(Patch(facecolor=ip['bar_colors'][categories[1]], label=categories[1]))
 
                     # Labels and tick marks
                     y_max = max(total_count)

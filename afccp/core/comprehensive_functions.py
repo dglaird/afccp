@@ -593,6 +593,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
             solution_dict[solution_name] = solution
 
     except:
+
         solution_dict = None
 
     # Try to import value parameter information (may not exist)
