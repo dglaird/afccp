@@ -9,7 +9,12 @@ from afccp.core.handling.value_parameter_generator import *
 from afccp.core.visualizations.instance_graphs import *
 from afccp.core.solutions.heuristic_solvers import *
 from afccp.core.visualizations.more_graphs import *
-from afccp.core.macdonald.functions import *  # Import Ian's functions
+
+try:
+    from afccp.core.macdonald.functions import *  # Import Ian's functions
+except:
+    pass  # We may not have Ian's functions
+
 import copy
 
 if use_pyomo:
