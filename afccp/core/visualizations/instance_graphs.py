@@ -953,6 +953,7 @@ def afsc_results_graph(instance):
         else:
 
             legend_elements = None  # Assume there is no legend until there is one
+            use_calculated_y_max = False
             if ip["objective"] != "Extra":
 
                 label_dict = {"Merit": "Average Merit", "USAFA Proportion": "USAFA Proportion",
@@ -1001,7 +1002,8 @@ def afsc_results_graph(instance):
                             ip['title'] = instance.solution_name + ": " + ip['title']
 
                         # Set the max for the y-axis
-                        ip["y_max"] = ip["y_max"] * np.max(measure)
+                        use_calculated_y_max = True
+                        ip["y_max"] = ip["y_max"]  # * np.max(measure)
 
                         # Merit elements
                         y_ticks = [0, 0.35, 0.50, 0.65, 0.80, 1]
@@ -1038,7 +1040,8 @@ def afsc_results_graph(instance):
                             ip['title'] = instance.solution_name + ": " + ip['title']
 
                         # Set the max for the y-axis
-                        ip["y_max"] = ip["y_max"] * np.max(measure)
+                        use_calculated_y_max = True
+                        ip["y_max"] = ip["y_max"]  # * np.max(measure)
 
                         # Merit elements
                         y_ticks = [0, 0.35, 0.50, 0.65, 0.80, 1]
@@ -1052,6 +1055,10 @@ def afsc_results_graph(instance):
                                 colors[j] = ip['bar_colors']["large_afscs"]
                             else:
                                 colors[j] = ip['bar_colors']["small_afscs"]
+
+                            # Add the text
+                            ax.text(j, measure[j] + 0.013, round(measure[j], 2),
+                                    fontsize=ip["text_size"], horizontalalignment='center')
 
                         # Add lines for the ranges
                         ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.5)
@@ -1122,9 +1129,12 @@ def afsc_results_graph(instance):
                                 ax.bar([index], count, bottom=count_sum, color=c, zorder=2)
                                 count_sum += count
 
-                            # Add the text and an outline
-                            ax.text(index - 0.3, total_count[index] + 2, round(measure[index], 2))
+                            # Add an outline
                             ax.bar([index], total_count[index], color="black", zorder=1, edgecolor="black")
+
+                            # Add the text
+                            ax.text(index, total_count[index] + 2, int(total_count[index]),
+                                    fontsize=ip["text_size"], horizontalalignment='center')
 
                         # DIY Colorbar
                         h = (100 / 245) * y_max
@@ -1222,8 +1232,8 @@ def afsc_results_graph(instance):
                                             zorder=3, fontsize=ip["bar_text_size"])
 
                             # Add the text and an outline
-                            ax.text(index - 0.3, total_count[index] + 2, int(total_count[index]),
-                                    fontsize=ip["bar_text_size"])
+                            ax.text(index, total_count[index] + 2, int(total_count[index]),
+                                    fontsize=ip["text_size"], horizontalalignment='center')
                             ax.bar([index], total_count[index], color="black", zorder=1, edgecolor="black")
 
                 elif ip["objective"] in ["USAFA Proportion", "Male", "Minority"]:
@@ -1253,7 +1263,8 @@ def afsc_results_graph(instance):
                             ip['title'] = instance.solution_name + ": " + ip['title']
 
                         # Set the max for the y-axis
-                        ip["y_max"] = ip["y_max"] * np.max(measure)
+                        use_calculated_y_max = True
+                        ip["y_max"] = ip["y_max"]  # * np.max(measure)
 
                         # Assign the right color to the AFSCs
                         for j in range(len(afscs)):
@@ -1281,7 +1292,8 @@ def afsc_results_graph(instance):
                             ip['title'] = instance.solution_name + ": " + ip['title']
 
                         # Set the max for the y-axis
-                        ip["y_max"] = ip["y_max"] * np.max(measure)
+                        use_calculated_y_max = True
+                        ip["y_max"] = ip["y_max"]  # * np.max(measure)
 
                         # Merit elements
                         y_ticks = [0, up_lb, up, up_ub, 1]
@@ -1295,6 +1307,10 @@ def afsc_results_graph(instance):
                                 colors[j] = ip['bar_colors']["large_afscs"]
                             else:
                                 colors[j] = ip['bar_colors']["small_afscs"]
+
+                            # Add the text
+                            ax.text(j, measure[j] + 0.013, round(measure[j], 2),
+                                    fontsize=ip["text_size"], horizontalalignment='center')
 
                         # Add lines for the ranges
                         ax.axhline(y=up, color='black', linestyle='--', alpha=0.5)
@@ -1553,6 +1569,7 @@ def afsc_results_graph(instance):
                         ip['title'] = instance.solution_name + ": " + ip['title']
 
                     # Degree Tier elements
+                    use_calculated_y_max = True
                     y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
                     minimums = np.zeros(M)
                     maximums = np.zeros(M)
@@ -1618,6 +1635,7 @@ def afsc_results_graph(instance):
                             ip['title'] = instance.solution_name + ": " + ip['title']
 
                         # Degree Tier elements
+                        use_calculated_y_max = True
                         y_ticks = [0, 0.5, 1, 1.5, 2]
                         x_under = []
                         x_over = []
@@ -1747,18 +1765,10 @@ def afsc_results_graph(instance):
 
                         # Add the text and quota lines
                         for j in range(M):
-                            if int(measure[j]) >= 100:
-                                ax.text(j - 0.35, measure[j] + 2, int(measure[j]),
-                                        fontsize=ip["bar_text_size"],
-                                        multialignment='right')
-                            elif int(measure[j]) >= 10:
-                                ax.text(j - 0.27, measure[j] + 2, int(measure[j]),
-                                        fontsize=ip["bar_text_size"],
-                                        multialignment='right')
-                            else:
-                                ax.text(j - 0.2, measure[j] + 2, int(measure[j]),
-                                        fontsize=ip["bar_text_size"],
-                                        multialignment='right')
+
+                            # Add the text
+                            ax.text(j, measure[j] + 2, int(measure[j]),
+                                    fontsize=ip["text_size"], horizontalalignment='center')
 
                             # Determine which category the AFSC falls into
                             line_color = "black"
@@ -1890,7 +1900,14 @@ def afsc_results_graph(instance):
 
                         # Average Utility Chart (simple)
                         y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
+                        use_calculated_y_max = True
                         ax.bar(afscs, measure, color="black", edgecolor='black', alpha=ip["alpha"])
+
+                        for j in range(M):
+
+                            # Add the text
+                            ax.text(j, measure[j] + 0.013, round(measure[j], 2),
+                                    fontsize=ip["text_size"], horizontalalignment='center')
 
                     elif ip["version"] == "quantity_bar_gradient":
 
@@ -1921,6 +1938,7 @@ def afsc_results_graph(instance):
                             indices = np.argsort(total_count)[::-1]
 
                         afscs = afscs[indices]
+                        total_count = total_count[indices]
 
                         # Y max
                         y_max = max(total_count)
@@ -2194,7 +2212,11 @@ def afsc_results_graph(instance):
     ax.tick_params(axis="y", labelsize=ip["yaxis_tick_size"])
     ax.set_yticklabels(y_ticks)
     ax.margins(y=0)
-    ax.set(ylim=(0, ip["y_max"]))
+
+    if ip["y_exact_max"] is None or use_calculated_y_max:
+        ax.set(ylim=(0, ip["y_max"]))
+    else:
+        ax.set(ylim=(0, ip["y_exact_max"]))
 
     # X ticks
     ax.set_xticklabels(afscs[tick_indices], rotation=ip["afsc_rotation"])

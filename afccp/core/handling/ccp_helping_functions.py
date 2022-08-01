@@ -118,7 +118,7 @@ def initialize_instance_functional_parameters(N):
              "filename": None, "display_title": True, "eligibility_limit": None, "label_size": 25,
              "afsc_tick_size": 20, "data_graph": "AFOCD Data", "yaxis_tick_size": 25, "bar_text_size": 15,
              "xaxis_tick_size": 20, "afsc_rotation": None, "dpi": 100, "bar_color": "black", "alpha": 1,
-             "legend_size": 25, "skip_afscs": None, "results_graph": "Measure", "y_max": 1.1,
+             "legend_size": 25, "skip_afscs": None, "results_graph": "Measure", "y_max": 1.1, "y_exact_max": None,
              "objective": "Merit", "compare_solutions": False, "solution_names": None, "vp_name": None,
              "color_choices": ["red", "blue", "green", "orange"], "marker_choices": ['o', 'D', '^', 'P'],
              "dot_size": 100, "marker_size": 20, "all_afscs": True, "title_size": 25, "comparison_afscs": None,
