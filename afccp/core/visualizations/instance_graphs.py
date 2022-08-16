@@ -112,7 +112,7 @@ def data_graph(instance):
 
         # Counts
         top_3_count = np.zeros(M)
-        bottom_3_count = np.zeros(M)
+        next_3_count = np.zeros(M)
 
         for i in p["I"]:
             for j in p["J"]:
@@ -120,7 +120,7 @@ def data_graph(instance):
                 if afsc in preferences[i, 0:3]:
                     top_3_count[j] += 1
                 elif afsc in preferences[i, 3:6]:
-                    bottom_3_count[j] += 1
+                    next_3_count[j] += 1
 
         # Get the title and filename
         ip["title"] = "Cadet Preferences Placed on Each AFSC (Before Match)"
@@ -130,15 +130,15 @@ def data_graph(instance):
         if ip["version"] is None:
             legend_elements = [Patch(facecolor=ip['bar_colors']["top_3_choices"], label='Top 3 Choices',
                                      edgecolor='black'),
-                               Patch(facecolor=ip['bar_colors']["bottom_3_choices"],
-                                     label='Bottom 3 Choices', edgecolor='black')]
+                               Patch(facecolor=ip['bar_colors']["next_3_choices"],
+                                     label='Next 3 Choices', edgecolor='black')]
 
             # Bar Chart
-            ax.bar(afscs, bottom_3_count, color=ip['bar_colors']["bottom_3_choices"], edgecolor='black')
-            ax.bar(afscs, top_3_count, bottom=bottom_3_count, color=ip['bar_colors']["top_3_choices"],
+            ax.bar(afscs, next_3_count, color=ip['bar_colors']["next_3_choices"], edgecolor='black')
+            ax.bar(afscs, top_3_count, bottom=next_3_count, color=ip['bar_colors']["top_3_choices"],
                    edgecolor='black')
 
-            y_axis_count = top_3_count + bottom_3_count
+            y_axis_count = top_3_count + next_3_count
             y_max = np.max(y_axis_count)
 
         elif ip["version"] == "Top 3":
@@ -157,7 +157,6 @@ def data_graph(instance):
             raise ValueError("Version '" + str(ip["version"]) + "' is not valid for Preference Data graph.")
 
         # Axis Adjustments
-        print(ip["y_max"], y_max, ip["y_max"] * y_max)
         ax.set(ylim=(0, ip["y_max"] * y_max))
 
         # Get correct text
@@ -1806,7 +1805,7 @@ def afsc_results_graph(instance):
 
                         # Counts
                         top_3_count = np.zeros(M)
-                        bottom_3_count = np.zeros(M)
+                        next_3_count = np.zeros(M)
                         non_vol_count = np.zeros(M)
 
                         for i, j in enumerate(instance.solution):
@@ -1814,15 +1813,15 @@ def afsc_results_graph(instance):
                             if afsc in preferences[i, 0:3]:
                                 top_3_count[j] += 1
                             elif afsc in preferences[i, 3:6]:
-                                bottom_3_count[j] += 1
+                                next_3_count[j] += 1
                             else:
                                 non_vol_count[j] += 1
 
                         # Legend
                         legend_elements = [Patch(facecolor=ip['bar_colors']["top_3_choices"], label='Top 3 Choices',
                                                  edgecolor='black'),
-                                           Patch(facecolor=ip['bar_colors']["bottom_3_choices"],
-                                                 label='Bottom 3 Choices', edgecolor='black'),
+                                           Patch(facecolor=ip['bar_colors']["next_3_choices"],
+                                                 label='Next 3 Choices', edgecolor='black'),
                                            Patch(facecolor=ip['bar_colors']["non_volunteer"], label='Non-Volunteer',
                                                  edgecolor='black')]
 
@@ -1846,7 +1845,7 @@ def afsc_results_graph(instance):
 
                         afscs = afscs[indices]
                         counts = {"non_volunteer": non_vol_count[indices],
-                                  "bottom_3_choices": bottom_3_count[indices],
+                                  "next_3_choices": next_3_count[indices],
                                   "top_3_choices": top_3_count[indices]}
                         total_count = total_count[indices]
 
@@ -2321,7 +2320,7 @@ def afsc_multi_criteria_graph(instance, max_num=None):
 
     # Counts
     top_3_count = np.zeros(p["M"])
-    bottom_3_count = np.zeros(p["M"])
+    next_3_count = np.zeros(p["M"])
     non_vol_count = np.zeros(p["M"])
     for i, j in enumerate(instance.solution):
 
@@ -2330,12 +2329,12 @@ def afsc_multi_criteria_graph(instance, max_num=None):
         if afsc in preferences[i, 0:3]:
             top_3_count[j] += 1
         elif afsc in preferences[i, 3:6]:
-            bottom_3_count[j] += 1
+            next_3_count[j] += 1
         else:
             non_vol_count[j] += 1
 
     # Re-sort preferences
-    top_3_count, bottom_3_count = top_3_count[indices], bottom_3_count[indices]
+    top_3_count, next_3_count = top_3_count[indices], next_3_count[indices]
     non_vol_count = non_vol_count[indices]
 
     # Percentile
@@ -2354,11 +2353,11 @@ def afsc_multi_criteria_graph(instance, max_num=None):
                 # Plot preference bars
                 ax.bar(label_locations[index] + bar_width * c, non_vol_count[index], bar_width,
                        edgecolor='black', color=ip['bar_colors']["non_volunteer"])
-                ax.bar(label_locations[index] + bar_width * c, bottom_3_count[index], bar_width,
+                ax.bar(label_locations[index] + bar_width * c, next_3_count[index], bar_width,
                        bottom=non_vol_count[index], edgecolor='black',
-                       color=ip['bar_colors']["bottom_3_choices"])
+                       color=ip['bar_colors']["next_3_choices"])
                 ax.bar(label_locations[index] + bar_width * c, top_3_count[index], bar_width,
-                       bottom=non_vol_count[index] + bottom_3_count[index], edgecolor='black',
+                       bottom=non_vol_count[index] + next_3_count[index], edgecolor='black',
                        color=ip['bar_colors']["top_3_choices"])
 
             elif obj == "Merit":
