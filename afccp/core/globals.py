@@ -4,7 +4,7 @@ import pandas as pd
 import openpyxl
 from packaging import version
 
-# Get directory path
+# Get directory path here
 global dir_path, exe_extension, databricks, paths_in, paths_out, support_paths, provide_executable, executable
 dir_path = os.getcwd() + '/'
 exe_extension = True  # specific variable relating to pyomo solver paths
