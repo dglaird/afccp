@@ -128,6 +128,7 @@ def simulate_model_fixed_parameters(N=1600, P=6, M=32, printing=False):
     usafa_quota = np.floor(usafa_proportions * combined_quota).astype(int)
     rotc_quota = combined_quota - usafa_quota
     parameters['quota'] = combined_quota
+    parameters['pgl'] = combined_quota
     parameters['usafa_quota'] = usafa_quota
     parameters['rotc_quota'] = rotc_quota
     parameters['quota_max'] = np.around(over[:M] * combined_quota)
