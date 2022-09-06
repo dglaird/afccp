@@ -5,6 +5,7 @@ import os
 
 import pandas as pd
 
+import afccp.core.handling.value_parameter_handling
 from afccp.core.comprehensive_functions import *
 from afccp.core.handling.ccp_helping_functions import *
 from afccp.core.visualizations.slides import generate_results_slides
@@ -309,6 +310,19 @@ class CadetCareerProblem:
             df = pd.DataFrame({"Unknown CIP": cips, "Occurrences": counts})
             with pd.ExcelWriter(paths_out["tables"] + self.data_name + "_CIP_Report.xlsx") as writer:  # Export to excel
                 df.to_excel(writer, sheet_name="Unknown CIPs", index=False)
+
+    def convert_utilities_to_preferences(self):
+        """
+        Converts the utility matrices to preferences
+        """
+        self.parameters = convert_utility_matrices_preferences(self.parameters)
+
+    def generate_fake_afsc_preferences(self):
+        """
+        Uses the VFT parameters to generate simulated AFSC preferences
+        :return:
+        """
+        self.parameters = generate_fake_afsc_preferences(self.parameters, self.value_parameters)
 
     # Specify Value Parameters
     def set_instance_value_parameters(self, vp_name=None):
@@ -994,6 +1008,31 @@ class CadetCareerProblem:
             printing = self.printing
 
         solution = stable_marriage_model_solve(self.parameters, self.value_parameters, printing=printing)
+
+        # Set the solution attribute
+        if set_to_instance:
+            self.solution = solution
+            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+                                                    printing=printing)
+
+        # Add solution to solution dictionary
+        if add_to_dict:
+            self.add_solution_to_dictionary(solution, solution_method='Stable')
+
+        return solution
+
+    def matching_algorithm_1(self, set_to_instance=True, add_to_dict=True, printing=None):
+        """
+        This method solves the problem instance using "Matching Algorithm 1"
+        :param printing: Whether or not to print status updates
+        :param set_to_instance: if we want to set this solution to the instance's solution attribute
+        :param add_to_dict: if we want to add this solution to the solution dictionary
+        :return: solution vector
+        """
+        if printing is None:
+            printing = self.printing
+
+        solution = matching_algorithm_1(self, printing=printing)
 
         # Set the solution attribute
         if set_to_instance:

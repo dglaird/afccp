@@ -25,10 +25,15 @@ def import_fixed_cadet_afsc_data_from_excel(filepath, printing=False):
     return info_df, cadets_fixed, afscs_fixed
 
 
-def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=False):
+def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_df=None, a_utility_df=None,
+                                           c_pref_df=None, a_pref_df=None, printing=False):
     """
     This procedure takes in fixed cadet/AFSC data frames, then converts them into the parameters structure for the
     model
+    :param c_pref_df: Cadet preference dataframe
+    :param a_pref_df: AFSC preference dataframe
+    :param a_utility_df: AFSC utility dataframe
+    :param c_utility_df: Cadet utility dataframe
     :param printing: Whether the procedure should print something
     :param cadets_fixed: data frame of cadet data
     :param afscs_fixed: data frame of AFSC data
@@ -107,20 +112,40 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, printing=F
         parameters['usafa_quota'] = np.array(afscs_fixed.loc[:, 'USAFA Target'])
         parameters['rotc_quota'] = np.array(afscs_fixed.loc[:, 'ROTC Target'])
 
-    # Create utility matrix from preference columns
-    try:  # Phasing out "NRat"
-        preferences_array = np.array(cadets_fixed.loc[:, 'NR_Pref_' + str(1):'NR_Pref_' + str(parameters['P'])])
-    except:
-        preferences_array = np.array(cadets_fixed.loc[:, 'NRat' + str(1):'NRat' + str(parameters['P'])])
-    try:  # Phasing out "NrWgt"
-        utilities_array = np.array(cadets_fixed.loc[:, 'NR_Util_' + str(1):'NR_Util_' + str(parameters['P'])])
-    except:
-        utilities_array = np.array(cadets_fixed.loc[:, 'NrWgt' + str(1):'NrWgt' + str(parameters['P'])])
-    for i in range(N):
-        for p in range(parameters['P']):
-            j = np.where(preferences_array[i, p] == afsc_vector)[0]
-            if len(j) != 0:
-                parameters['utility'][i, j[0]] = utilities_array[i, p]
+    # Cadet Utility dataframe (do we pull the cadet utility matrix from the preference columns or from the dataframe)?
+    if c_utility_df is None:
+
+        # Create utility matrix from preference columns
+        try:  # Phasing out "NRat"
+            preferences_array = np.array(cadets_fixed.loc[:, 'NR_Pref_' + str(1):'NR_Pref_' + str(parameters['P'])])
+        except:
+            preferences_array = np.array(cadets_fixed.loc[:, 'NRat' + str(1):'NRat' + str(parameters['P'])])
+        try:  # Phasing out "NrWgt"
+            utilities_array = np.array(cadets_fixed.loc[:, 'NR_Util_' + str(1):'NR_Util_' + str(parameters['P'])])
+        except:
+            utilities_array = np.array(cadets_fixed.loc[:, 'NrWgt' + str(1):'NrWgt' + str(parameters['P'])])
+        for i in range(N):
+            for p in range(parameters['P']):
+                j = np.where(preferences_array[i, p] == afsc_vector)[0]
+                if len(j) != 0:
+                    parameters['utility'][i, j[0]] = utilities_array[i, p]
+
+    else:
+
+        parameters["utility"] = np.array(c_utility_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
+
+    # AFSC Utility Dataframe
+    if a_utility_df is None:
+        parameters["afsc_utility"] = np.zeros([N, M])
+
+    else:
+        parameters["afsc_utility"] = np.array(a_utility_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
+
+    # Preference Dataframes
+    if c_pref_df is not None:
+        parameters["c_pref_matrix"] = np.array(c_pref_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
+    if c_pref_df is not None:
+        parameters["a_pref_matrix"] = np.array(a_pref_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
 
     return parameters
 
@@ -142,8 +167,6 @@ def model_data_frame_from_fixed_parameters(parameters):
     else:
         cadets_fixed = pd.DataFrame(
             {'Cadet': parameters['ID'], 'Assigned': np.array([" " for _ in range(parameters["N"])])})
-
-
 
     # Load Instance Parameters (may or may not be included)
     cadet_parameter_dictionary = {'Male': 'male', 'Minority': 'minority', 'Race': 'race', "Ethnicity": "ethnicity",
@@ -291,13 +314,82 @@ def get_utility_preferences(parameters):
         # Sort indices of nonzero utilities
         indices = parameters['utility'][i, :].nonzero()[0]
         sorted_init = np.argsort(parameters['utility'][i, :][indices])[::-1]
-        sorted_indices = indices[sorted_init]
+        sorted_indices = indices[sorted_init][:6]  # Just take the top 6 preferences for now
 
         # Put the utilities and preferences in the correct spots
         np.put(utilities_array[i, :], np.arange(len(sorted_indices)), parameters['utility'][i, :][sorted_indices])
         np.put(preferences[i, :], np.arange(len(sorted_indices)), parameters['afsc_vector'][sorted_indices])
 
     return preferences, utilities_array
+
+
+def convert_utility_matrices_preferences(parameters):
+    """
+    This function converts the cadet and AFSC utility matrices into the preference dataframes
+    :param parameters: fixed parameters
+    :return: parameters
+    """
+    p = parameters
+
+    # Loop through each cadet to get their preferences
+    p["c_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
+    for i in p["I"]:
+
+        # Sort the utilities to get the preference list
+        utilities = p["utility"][i, :]
+        sorted_indices = np.argsort(utilities)[::-1]
+        preferences = np.argsort(sorted_indices)
+        p["c_pref_matrix"][i, :] = preferences
+
+        # This would sort the preferences
+        # sort_preferences = np.argsort(preferences)
+        # print(p["afsc_vector"][sort_preferences])
+
+    # Loop through each AFSC to get their preferences
+    p["a_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
+    for j in p["J"]:
+
+        # Sort the utilities to get the preference list
+        utilities = p["afsc_utility"][:, j]
+        sorted_indices = np.argsort(utilities)[::-1]
+        preferences = np.argsort(sorted_indices)
+        p["a_pref_matrix"][:, j] = preferences
+    return p
+
+
+def generate_fake_afsc_preferences(parameters, value_parameters):
+    """
+    This function generates fake AFSC utilities/preferences using AFOCD, merit, cadet preferences etc.
+    :param value_parameters: set of cadet/AFSC weight and value parameters
+    :param parameters: cadet/AFSC fixed data
+    :return: parameters
+    """
+    p, vp = parameters, value_parameters
+    N, M = p["N"], p["M"]
+
+    # Create AFSC Utility Matrix
+    p["afsc_utility"] = np.zeros([N, M])
+    for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
+        if objective in vp['objectives']:
+            k = np.where(vp['objectives'] == objective)[0][0]
+            if objective == "Merit":
+                merit = np.tile(parameters['merit'], [M, 1]).T
+                p["afsc_utility"] += merit * vp['objective_weight'][:, k].T
+            else:
+                p["afsc_utility"] += parameters[objective.lower()] * vp['objective_weight'][:, k].T
+    p["afsc_utility"] *= p["eligible"]  # They have to be eligible!
+
+    # Create AFSC Preference Matrix
+    p["a_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
+    for j in p["J"]:
+
+        # Sort the utilities to get the preference list
+        utilities = p["afsc_utility"][:, j]
+        sorted_indices = np.argsort(utilities)[::-1]
+        preferences = np.argsort(sorted_indices)
+        p["a_pref_matrix"][:, j] = preferences
+
+    return p
 
 
 # Solution Handling Procedures

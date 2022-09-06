@@ -441,6 +441,33 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
     # Get fixed dataframes
     cadets_fixed, afscs_fixed = model_data_frame_from_fixed_parameters(parameters)
 
+    # Get the Utility Dataframes
+    cadets_utility = pd.DataFrame({"Cadet": parameters["ID"]})
+    for j, afsc in enumerate(parameters["afsc_vector"]):
+        cadets_utility[afsc] = parameters["utility"][:, j]
+
+    if "afsc_utility" in parameters:
+        afscs_utility = pd.DataFrame({"Cadet": parameters["ID"]})
+        for j, afsc in enumerate(parameters["afsc_vector"]):
+            afscs_utility[afsc] = parameters["afsc_utility"][:, j]
+    else:
+        afscs_utility = None
+
+    # Get the preference dataframes
+    if "c_pref_matrix" in parameters:
+        cadets_pref = pd.DataFrame({"Cadet": parameters["ID"]})
+        for j, afsc in enumerate(parameters["afsc_vector"]):
+            cadets_pref[afsc] = parameters["c_pref_matrix"][:, j]
+    else:
+        cadets_pref = None
+
+    if "a_pref_matrix" in parameters:
+        afscs_pref = pd.DataFrame({"Cadet": parameters["ID"]})
+        for j, afsc in enumerate(parameters["afsc_vector"]):
+            afscs_pref[afsc] = parameters["a_pref_matrix"][:, j]
+    else:
+        afscs_pref = None
+
     # Get other information
     afscs = parameters['afsc_vector']
 
@@ -543,6 +570,13 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
             info_df.to_excel(writer, sheet_name="All Cadet Info", index=False)
         cadets_fixed.to_excel(writer, sheet_name="Cadets Fixed", index=False)
         afscs_fixed.to_excel(writer, sheet_name="AFSCs Fixed", index=False)
+        cadets_utility.to_excel(writer, sheet_name="Cadets Utility", index=False)
+        if afscs_utility is not None:
+            afscs_utility.to_excel(writer, sheet_name="AFSCs Utility", index=False)
+        if cadets_pref is not None:
+            cadets_pref.to_excel(writer, sheet_name="Cadets Preferences", index=False)
+        if afscs_pref is not None:
+            afscs_pref.to_excel(writer, sheet_name="AFSCs Preferences", index=False)
         if gp_df is not None:
             gp_df.to_excel(writer, sheet_name="GP Parameters", index=False)
         if solutions_df is not None:
@@ -571,7 +605,29 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
 
     # Import fixed parameters
     info_df, cadets_fixed, afscs_fixed = import_fixed_cadet_afsc_data_from_excel(filepath)
-    parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
+
+    # Try to import the Cadet/AFSC utility matrix
+    try:
+        cadets_utility = import_data(filepath, sheet_name="Cadets Utility")
+        afscs_utility = import_data(filepath, sheet_name="AFSCs Utility")
+
+    except:
+
+        cadets_utility = None
+        afscs_utility = None
+
+    # Try to import the Cadet/AFSC preference matrix
+    try:
+        cadets_pref = import_data(filepath, sheet_name="Cadets Preferences")
+        afscs_pref = import_data(filepath, sheet_name="AFSCs Preferences")
+
+    except:
+
+        cadets_pref = None
+        afscs_pref = None
+
+    parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, cadets_utility, afscs_utility,
+                                                        cadets_pref, afscs_pref)
     parameters = model_fixed_parameters_set_additions(parameters)
 
     # Try to import GP parameter dataframe (may not exist)

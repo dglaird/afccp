@@ -64,7 +64,7 @@ def stable_marriage_model_solve(parameters, value_parameters, printing=False):
     afsc_matches = [[] for _ in range(M)]  # list of matched cadets to AFSC j
 
     # Begin Stable Marriage Algorithm
-    for iteration in range(M):
+    for _ in range(M):
         afsc_proposal_lists = [[] for _ in range(M)]  # list of list of cadets proposing to AFSCs
         afsc_proposal_ranks = [[] for _ in range(M)]  # rank associated with the cadets that are proposing to AFSC j
         afsc_proposal_indices = [[] for _ in range(M)]  # index associated with the cadets that are proposing to AFSC j
@@ -133,6 +133,36 @@ def stable_marriage_model_solve(parameters, value_parameters, printing=False):
         matches[i] = np.argmax(overall_utility[i, :])
 
     return matches
+
+
+def matching_algorithm_1(instance, printing=True):
+    """
+    This is my (Lt. Laird)'s first attempt at a working matching algorithm using the preference lists
+    :param instance: problem instance to solve
+    :return: solution
+    """
+    if printing:
+        print("Solving the deferred acceptance algorithm (1)...")
+
+    # Load parameters
+    p = instance.parameters
+
+    if "c_pref_matrix" not in p or "a_pref_matrix" not in p:
+        raise ValueError("No preference matrices found in the parameters. Cannot run the algorithm.")
+
+    # Sort the preferences for cadets and remove AFSCs they're not eligible for
+    c_preferences = [[] for _ in p["I"]]
+    for i in p["I"]:
+        sorted_preferences = np.argsort(p["c_pref_matrix"][i, :])
+        c_preferences[i] = [j for j in sorted_preferences if j in p["J^E"][i]]
+
+    # Sort the preferences for AFSCs and remove cadets that aren't eligible for them
+    a_preferences = [[] for _ in p["J"]]
+    for j in p["J"]:
+        sorted_preferences = np.argsort(p["a_pref_matrix"][:, j])
+        a_preferences[j] = [i for i in sorted_preferences if i in p["I^E"][j]]
+
+    return np.zeros(p["N"]).astype(int)
 
 
 def greedy_model_solve(parameters, value_parameters, printing=False):
