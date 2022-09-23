@@ -1042,7 +1042,7 @@ class CadetCareerProblem:
 
         # Add solution to solution dictionary
         if add_to_dict:
-            self.add_solution_to_dictionary(solution, solution_method='Stable')
+            self.add_solution_to_dictionary(solution, solution_method='MA1')
 
         return solution
 
