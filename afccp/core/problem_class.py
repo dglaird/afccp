@@ -320,9 +320,15 @@ class CadetCareerProblem:
     def generate_fake_afsc_preferences(self):
         """
         Uses the VFT parameters to generate simulated AFSC preferences
-        :return:
         """
         self.parameters = generate_fake_afsc_preferences(self.parameters, self.value_parameters)
+
+    def convert_afsc_preferences_to_percentiles(self):
+        """
+        This method takes the AFSC preference lists and turns them into normalized percentiles for each cadet for each
+        AFSC.
+        """
+        self.parameters = convert_afsc_preferences_to_percentiles(self.parameters)
 
     # Specify Value Parameters
     def set_instance_value_parameters(self, vp_name=None):

@@ -138,6 +138,7 @@ def stable_marriage_model_solve(parameters, value_parameters, printing=False):
 def matching_algorithm_1(instance, printing=True):
     """
     This is my (Lt. Laird)'s first attempt at a working matching algorithm using the preference lists
+    :param printing: whether to print something out or not
     :param instance: problem instance to solve
     :return: solution
     """

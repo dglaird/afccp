@@ -388,6 +388,25 @@ def generate_fake_afsc_preferences(parameters, value_parameters):
     return p
 
 
+def convert_afsc_preferences_to_percentiles(parameters):
+    """
+    This method takes the AFSC preference lists and turns them into normalized percentiles for each cadet for each
+    AFSC.
+    :param parameters: cadet/AFSC fixed data
+    :return: parameters
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Get normalized percentiles (Average of 0.5)
+    p["afsc_utility"] = (p["N"] - p["a_pref_matrix"]) / p["N"]
+
+    # All ineligible cadets are given percentiles of 0
+    p["afsc_utility"] *= p["eligible"]
+
+    return p
+
 # Solution Handling Procedures
 def import_solution_from_excel(filepath, solution_name=None, afsc_vector=None, excel_format='Specific',
                                printing=False):
