@@ -1099,7 +1099,7 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, use
                 'R_under': large_afscs,  # Percentile constrained AFSCs
                 'R_over': large_afscs,  # Percentile constrained AFSCs
                 'W': A}  # Subset of AFSCs with a cadet preference constraint: assumed all AFSCs
-    print(gp["A^"]["M"])
+
     # Subset of AFSCs for which each cadet is eligible (Replaced A | A^I)
     gp['A^']['E'] = p['J^E']
 
