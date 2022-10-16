@@ -387,9 +387,9 @@ def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, pri
                                           'Weight': value_parameters['cadet_weight'],
                                           'Value Fail': metrics['cadet_constraint_fail']})
 
-        objective_measures = pd.DataFrame({'AFSC': parameters['afsc_vector']})
-        objective_values = pd.DataFrame({'AFSC': parameters['afsc_vector']})
-        afsc_constraints_df = pd.DataFrame({'AFSC': parameters['afsc_vector']})
+        objective_measures = pd.DataFrame({'AFSC': parameters['afsc_vector'][:parameters["M"]]})
+        objective_values = pd.DataFrame({'AFSC': parameters['afsc_vector'][:parameters["M"]]})
+        afsc_constraints_df = pd.DataFrame({'AFSC': parameters['afsc_vector'][:parameters["M"]]})
         for k in range(value_parameters['O']):
             objective_measures[value_parameters['objectives'][k]] = metrics['objective_measure'][:, k]
             objective_values[value_parameters['objectives'][k]] = metrics['objective_value'][:, k]
@@ -443,12 +443,12 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
 
     # Get the Utility Dataframes
     cadets_utility = pd.DataFrame({"Cadet": parameters["ID"]})
-    for j, afsc in enumerate(parameters["afsc_vector"]):
+    for j, afsc in enumerate(parameters["afsc_vector"][:parameters["M"]]):
         cadets_utility[afsc] = parameters["utility"][:, j]
 
     if "afsc_utility" in parameters:
         afscs_utility = pd.DataFrame({"Cadet": parameters["ID"]})
-        for j, afsc in enumerate(parameters["afsc_vector"]):
+        for j, afsc in enumerate(parameters["afsc_vector"][:parameters["M"]]):
             afscs_utility[afsc] = parameters["afsc_utility"][:, j]
     else:
         afscs_utility = None
@@ -456,14 +456,14 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
     # Get the preference dataframes
     if "c_pref_matrix" in parameters:
         cadets_pref = pd.DataFrame({"Cadet": parameters["ID"]})
-        for j, afsc in enumerate(parameters["afsc_vector"]):
+        for j, afsc in enumerate(parameters["afsc_vector"][:parameters["M"]]):
             cadets_pref[afsc] = parameters["c_pref_matrix"][:, j]
     else:
         cadets_pref = None
 
     if "a_pref_matrix" in parameters:
         afscs_pref = pd.DataFrame({"Cadet": parameters["ID"]})
-        for j, afsc in enumerate(parameters["afsc_vector"]):
+        for j, afsc in enumerate(parameters["afsc_vector"][:parameters["M"]]):
             afscs_pref[afsc] = parameters["a_pref_matrix"][:, j]
     else:
         afscs_pref = None
@@ -650,7 +650,8 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
         solution_dict = {}
         for solution_name in solution_names:
             afsc_solution = np.array(solutions_df[solution_name])
-            solution = np.array([np.where(parameters['afsc_vector'] == afsc)[0][0] for afsc in afsc_solution])
+            solution = np.array([np.where(
+                parameters['afsc_vector'] == afsc)[0][0] for afsc in afsc_solution])
             solution_dict[solution_name] = solution
 
     except:
@@ -807,7 +808,8 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
             for solution_name in solution_names:
                 solution = solution_dict[solution_name]
                 value_parameters = copy.deepcopy(vp_dict[vp_name])
-                metrics_dict[vp_name][solution_name] = measure_solution_quality(solution, parameters, value_parameters)
+                if solution_name == "MA1":
+                    metrics_dict[vp_name][solution_name] = measure_solution_quality(solution, parameters, value_parameters)
 
     else:
         metrics_dict = None

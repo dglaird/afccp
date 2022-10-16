@@ -45,7 +45,7 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
     # Get info from dataframes
     N = int(len(cadets_fixed))
     M = int(len(afscs_fixed))
-    afsc_vector = np.array(afscs_fixed['AFSC'])
+    afsc_vector = np.hstack((np.array(afscs_fixed['AFSC']), "*"))
     qual = np.array(cadets_fixed.loc[:, 'qual_' + afsc_vector[0]:'qual_' + afsc_vector[M - 1]])
     columns = list(cadets_fixed.keys())
     afsc_columns = list(afscs_fixed.keys())
@@ -187,11 +187,11 @@ def model_data_frame_from_fixed_parameters(parameters):
 
     # Loop through all the AFSCs
     for j, afsc in enumerate(parameters['afsc_vector']):
-        cadets_fixed['qual_' + afsc] = parameters['qual'][:, j]
+        if afsc != "*":
+            cadets_fixed['qual_' + afsc] = parameters['qual'][:, j]
 
     # Build AFSCs Fixed data frame
-    afscs_fixed = pd.DataFrame({'AFSC': parameters['afsc_vector']})
-
+    afscs_fixed = pd.DataFrame({'AFSC': parameters['afsc_vector'][:M]})
     if 'usafa' in parameters:
         afscs_fixed['USAFA Target'] = parameters['usafa_quota']
         afscs_fixed['ROTC Target'] = parameters['rotc_quota']
@@ -219,7 +219,7 @@ def model_data_frame_from_fixed_parameters(parameters):
         # Some years have less than 6 preferences I believe...
         if c_d[c] < parameters["P"]:
             afscs_fixed[c + " Choice Cadets"] = [
-                len(np.where(preferences[:, c_d[c]] == afsc)[0]) for afsc in parameters["afsc_vector"]]
+                len(np.where(preferences[:, c_d[c]] == afsc)[0]) for afsc in parameters["afsc_vector"] if afsc != "*"]
 
     return cadets_fixed, afscs_fixed
 
@@ -340,10 +340,6 @@ def convert_utility_matrices_preferences(parameters):
         sorted_indices = np.argsort(utilities)[::-1]
         preferences = np.argsort(sorted_indices)
         p["c_pref_matrix"][i, :] = preferences
-
-        # This would sort the preferences
-        # sort_preferences = np.argsort(preferences)
-        # print(p["afsc_vector"][sort_preferences])
 
     # Loop through each AFSC to get their preferences
     p["a_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
@@ -712,12 +708,16 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
     # Solution Matched Vector
     metrics['afsc_solution'] = np.array([" " * 10 for _ in p['I']])
 
-    # turns the x matrix back into a vector of AFSC indices
-    solution = np.where(x)[1]
-
-    # Translate AFSC indices into the AFSCs themselves
+    # Get the AFSC solution (Modified to support "unmatched" cadets)
+    metrics["num_unmatched"] = 0
     for i in p['I']:
-        metrics['afsc_solution'][i] = p['afsc_vector'][int(solution[i])]
+        index = np.where(x[i, :])[0]
+        if len(index) != 0:
+            afsc_index = int(index[0])
+        else:
+            metrics["num_unmatched"] += 1
+            afsc_index = 32
+        metrics['afsc_solution'][i] = p['afsc_vector'][afsc_index]
 
     # Define overall metrics
     metrics['cadets_overall_value'] = np.dot(vp['cadet_weight'], metrics['cadet_value'])
@@ -738,7 +738,8 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
             solution_type = 'vector'
 
         print("Measured " + model_type + " solution " + solution_type +
-              " objective value: " + str(round(metrics['z'], 4)))
+              " objective value: " + str(round(metrics['z'], 4)) +
+              ". Unmatched cadets: " + str(metrics["num_unmatched"]))
 
     return metrics
 

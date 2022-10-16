@@ -116,7 +116,7 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
     O = len(value_parameters['objectives'])
     a_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
     fhat_strings = np.array([[" " * 400 for _ in range(O)] for _ in range(M)])
-    for j, afsc in enumerate(parameters['afsc_vector']):
+    for j, afsc in enumerate(parameters['afsc_vector'][:parameters["M"]]):
         for k, objective in enumerate(value_parameters['objectives']):
             string_list = [str(x) for x in value_parameters['a'][j][k]]
             a_strings[j, k] = ",".join(string_list)

@@ -628,7 +628,7 @@ def afsc_results_graph(instance):
     fig, ax = plt.subplots(figsize=ip['figsize'], facecolor=ip['facecolor'], tight_layout=True, dpi=ip['dpi'])
 
     # Initially assume we have a tick mark for every AFSC (unless we're skipping them)
-    afscs = p["afsc_vector"]
+    afscs = p["afsc_vector"][:len(p["afsc_vector"]) - 1]  # Remove the * unmatched cadets
     M = len(afscs)
     indices = np.arange(M)  # Indices of AFSCs we will plot
     if ip["skip_afscs"]:  # Indices of AFSCs we will label (can skip sometimes)
@@ -1810,12 +1810,13 @@ def afsc_results_graph(instance):
 
                         for i, j in enumerate(instance.solution):
                             afsc = p["afsc_vector"][j]
-                            if afsc in preferences[i, 0:3]:
-                                top_3_count[j] += 1
-                            elif afsc in preferences[i, 3:6]:
-                                next_3_count[j] += 1
-                            else:
-                                non_vol_count[j] += 1
+                            if afsc != "*":
+                                if afsc in preferences[i, 0:3]:
+                                    top_3_count[j] += 1
+                                elif afsc in preferences[i, 3:6]:
+                                    next_3_count[j] += 1
+                                else:
+                                    non_vol_count[j] += 1
 
                         # Legend
                         legend_elements = [Patch(facecolor=ip['bar_colors']["top_3_choices"], label='Top 3 Choices',
