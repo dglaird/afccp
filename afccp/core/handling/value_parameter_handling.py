@@ -382,14 +382,14 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     """
     if printing:
         print('Generating value parameters from defaults...')
-    M = len(parameters['afsc_vector'])
+    M = parameters['M']
     N = parameters['N']
 
     # Add the AFSC objectives that are included in this instance
-    objective_lookups = {'Merit': 'merit', 'USAFA Proportion': 'usafa', 'Combined Quota': 'quota',
-                         'USAFA Quota': 'usafa_quota', 'ROTC Quota': 'rotc_quota', 'Mandatory': 'mandatory',
-                         'Desired': 'desired', 'Permitted': 'permitted', 'Utility': 'utility', 'Male': 'male',
-                         'Minority': 'minority'}
+    objective_lookups = {'Norm Score': 'a_pref_matrix', 'Merit': 'merit', 'USAFA Proportion': 'usafa',
+                         'Combined Quota': 'quota', 'USAFA Quota': 'usafa_quota', 'ROTC Quota': 'rotc_quota',
+                         'Mandatory': 'mandatory', 'Desired': 'desired', 'Permitted': 'permitted',
+                         'Utility': 'utility', 'Male': 'male', 'Minority': 'minority'}
     objectives = []
     objective_indices = []
     for k, objective in enumerate(list(objective_lookups.keys())):
@@ -453,82 +453,84 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
     for j, afsc in enumerate(parameters['afsc_vector']):
 
-        # Get location of afsc in the default value parameters (matters if this set of afscs does not match)
-        loc = np.where(default_value_parameters['complete_afsc_vector'] == afsc)[0][0]
+        if afsc != "*":
 
-        # Initially assign all default weights, targets, etc.
-        value_parameters['objective_weight'][j, :] = default_value_parameters['objective_weight'][loc,
-                                                                                                  objective_indices]
-        value_parameters['objective_target'][j] = default_value_parameters['objective_target'][loc,
-                                                                                               objective_indices]
-        value_parameters['objective_value_min'][j] = default_value_parameters['objective_value_min'][loc,
-                                                                                                     objective_indices]
-        value_parameters['afsc_value_min'][j] = default_value_parameters['afsc_value_min'][loc]
-        value_parameters['constraint_type'][j] = \
-            default_value_parameters['constraint_type'][loc, objective_indices]
+            # Get location of afsc in the default value parameters (matters if this set of afscs does not match)
+            loc = np.where(default_value_parameters['complete_afsc_vector'] == afsc)[0][0]
 
-        # If we're not generating afsc weights using the specified weight function...
-        if not generate_afsc_weights:  # Also, if the weight function is "Custom"
-            value_parameters['afsc_weight'][j] = default_value_parameters['afsc_weight'][loc]
+            # Initially assign all default weights, targets, etc.
+            value_parameters['objective_weight'][j, :] = default_value_parameters['objective_weight'][loc,
+                                                                                                      objective_indices]
+            value_parameters['objective_target'][j] = default_value_parameters['objective_target'][loc,
+                                                                                                   objective_indices]
+            value_parameters['objective_value_min'][j] = default_value_parameters['objective_value_min'][loc,
+                                                                                                         objective_indices]
+            value_parameters['afsc_value_min'][j] = default_value_parameters['afsc_value_min'][loc]
+            value_parameters['constraint_type'][j] = \
+                default_value_parameters['constraint_type'][loc, objective_indices]
 
-        # Loop through each objective to load their targets
-        for k, objective in enumerate(value_parameters['objectives']):
+            # If we're not generating afsc weights using the specified weight function...
+            if not generate_afsc_weights:  # Also, if the weight function is "Custom"
+                value_parameters['afsc_weight'][j] = default_value_parameters['afsc_weight'][loc]
 
-            maximum, minimum, actual = None, None, None
-            if objective == 'Merit' and value_parameters['objective_weight'][j, k] != 0:
-                value_parameters['objective_target'][j, k] = parameters['sum_merit'] / parameters['N']
-                actual = np.mean(parameters['merit'][parameters['I^E'][j]])
+            # Loop through each objective to load their targets
+            for k, objective in enumerate(value_parameters['objectives']):
 
-            elif objective == 'USAFA Proportion' and value_parameters['objective_weight'][j, k] != 0:
-                if parameters['usafa_quota'][j] == 0:
-                    value_parameters['objective_target'][j, k] = 0
+                maximum, minimum, actual = None, None, None
+                if objective == 'Merit' and value_parameters['objective_weight'][j, k] != 0:
+                    value_parameters['objective_target'][j, k] = parameters['sum_merit'] / parameters['N']
+                    actual = np.mean(parameters['merit'][parameters['I^E'][j]])
 
-                elif parameters['usafa_quota'][j] == parameters['quota'][j]:
-                    value_parameters['objective_target'][j, k] = 1
-                else:
-                    value_parameters['objective_target'][j, k] = parameters['usafa_proportion']
-                actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
+                elif objective == 'USAFA Proportion' and value_parameters['objective_weight'][j, k] != 0:
+                    if parameters['usafa_quota'][j] == 0:
+                        value_parameters['objective_target'][j, k] = 0
 
-            elif objective == 'Combined Quota' and value_parameters['objective_weight'][j, k] != 0:
-                value_parameters['objective_target'][j, k] = parameters['quota'][j]
+                    elif parameters['usafa_quota'][j] == parameters['quota'][j]:
+                        value_parameters['objective_target'][j, k] = 1
+                    else:
+                        value_parameters['objective_target'][j, k] = parameters['usafa_proportion']
+                    actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
 
-                # Get bounds
-                minimum, maximum = parameters['quota_min'][j], parameters['quota_max'][j]
-                value_parameters['objective_value_min'][j, k] = str(int(minimum)) + ", " + str(int(maximum))
+                elif objective == 'Combined Quota' and value_parameters['objective_weight'][j, k] != 0:
+                    value_parameters['objective_target'][j, k] = parameters['quota'][j]
 
-            elif objective == 'USAFA Quota' and value_parameters['objective_weight'][j, k] != 0:
-                value_parameters['objective_target'][j, k] = parameters['usafa_quota'][j]
-                value_parameters['objective_value_min'][j, k] = str(int(parameters['usafa_quota'][j])) + ", " + \
-                                                                str(int(parameters['quota_max'][j]))
+                    # Get bounds
+                    minimum, maximum = parameters['quota_min'][j], parameters['quota_max'][j]
+                    value_parameters['objective_value_min'][j, k] = str(int(minimum)) + ", " + str(int(maximum))
 
-            elif objective == 'ROTC Quota' and value_parameters['objective_weight'][j, k] != 0:
-                value_parameters['objective_target'][j, k] = parameters['quota'][j] - parameters['usafa_quota'][j]
-                value_parameters['objective_value_min'][j, k] = str(int(parameters['rotc_quota'][j])) + ", " + \
-                                                                str(int(parameters['quota_max'][j]))
+                elif objective == 'USAFA Quota' and value_parameters['objective_weight'][j, k] != 0:
+                    value_parameters['objective_target'][j, k] = parameters['usafa_quota'][j]
+                    value_parameters['objective_value_min'][j, k] = str(int(parameters['usafa_quota'][j])) + ", " + \
+                                                                    str(int(parameters['quota_max'][j]))
 
-            elif objective == 'Male' and value_parameters['objective_weight'][j, k] != 0:
-                value_parameters['objective_target'][j, k] = parameters['male_proportion']
-                actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
+                elif objective == 'ROTC Quota' and value_parameters['objective_weight'][j, k] != 0:
+                    value_parameters['objective_target'][j, k] = parameters['quota'][j] - parameters['usafa_quota'][j]
+                    value_parameters['objective_value_min'][j, k] = str(int(parameters['rotc_quota'][j])) + ", " + \
+                                                                    str(int(parameters['quota_max'][j]))
 
-            elif objective == 'Minority' and value_parameters['objective_weight'][j, k] != 0:
-                value_parameters['objective_target'][j, k] = parameters['minority_proportion']
-                actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
+                elif objective == 'Male' and value_parameters['objective_weight'][j, k] != 0:
+                    value_parameters['objective_target'][j, k] = parameters['male_proportion']
+                    actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
 
-            # If we care about this objective, we load in its value function breakpoints
-            if value_parameters['objective_weight'][j, k] != 0:
+                elif objective == 'Minority' and value_parameters['objective_weight'][j, k] != 0:
+                    value_parameters['objective_target'][j, k] = parameters['minority_proportion']
+                    actual = len(parameters['I^D'][objective][j]) / len(parameters['I^E'][j])
 
-                # Create the non-linear piecewise exponential segment dictionary
-                segment_dict = create_segment_dict_from_string(value_functions[j, k],
-                                                               value_parameters['objective_target'][j, k],
-                                                               minimum=minimum, maximum=maximum, actual=actual)
+                # If we care about this objective, we load in its value function breakpoints
+                if value_parameters['objective_weight'][j, k] != 0:
 
-                # Linearize the non-linear function using the specified number of breakpoints
-                value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
-                    segment_dict, num_breakpoints=num_breakpoints)
+                    # Create the non-linear piecewise exponential segment dictionary
+                    segment_dict = create_segment_dict_from_string(value_functions[j, k],
+                                                                   value_parameters['objective_target'][j, k],
+                                                                   minimum=minimum, maximum=maximum, actual=actual)
 
-        # Scale the weights for this AFSC, so they sum to 1
-        value_parameters['objective_weight'][j] = value_parameters['objective_weight'][j] / \
-                                                  sum(value_parameters['objective_weight'][j])
+                    # Linearize the non-linear function using the specified number of breakpoints
+                    value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
+                        segment_dict, num_breakpoints=num_breakpoints)
+
+            # Scale the weights for this AFSC, so they sum to 1
+            value_parameters['objective_weight'][j] = value_parameters['objective_weight'][j] / \
+                                                      sum(value_parameters['objective_weight'][j])
     # Scale the weights across all AFSCs, so they sum to 1
     if not generate_afsc_weights:
         value_parameters['afsc_weight'] = value_parameters['afsc_weight'] / \
@@ -553,6 +555,12 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
     # Loop through each value parameter key
     for key in vp1:
 
+        if np.shape(vp1[key]) != np.shape(vp2[key]):
+            if printing:
+                print('VPs not the same. ' + key + ' is a different size.')
+            identical = False
+            break
+
         if key in ['afscs_overall_weight', 'cadets_overall_weight', 'cadet_weight_function', 'afsc_weight_function',
                    'cadets_overall_value_min', 'afscs_overall_value_min']:
             if vp1[key] != vp2[key]:
@@ -567,6 +575,7 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
                 vp_1_arr, vp_2_arr = np.ravel(np.around(vp1[key], 4)), np.ravel(np.around(vp2[key], 4))
             else:
                 vp_1_arr, vp_2_arr = np.ravel(vp1[key]), np.ravel(vp2[key])
+
             diff_arr = np.array([vp_1_arr[i] != vp_2_arr[i] for i in range(len(vp_1_arr))])
             if sum(diff_arr) != 0 and (vp1[key] != [] or vp2[key] != []):
                 if printing:

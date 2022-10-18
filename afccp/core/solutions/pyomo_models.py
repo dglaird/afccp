@@ -399,6 +399,19 @@ def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, p
                 measure_jk = usafa_count
             elif objective == "ROTC Quota":
                 measure_jk = count - usafa_count
+            elif objective == "Norm Score":
+
+                if convex:
+                    best_range = range(num_cadets)
+                    best_sum = np.sum(c for c in best_range)
+                    worst_range = range(p["num_eligible"][j] - num_cadets, p["num_eligible"][j])
+                    worst_sum = np.sum(c for c in worst_range)
+                    achieved_sum = np.sum(p["a_pref_matrix"][i, j] * m.x[i, j] for i in p["I^E"][j])
+                    measure_jk = 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
+                else:
+                    numerator = np.sum(p['afsc_utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
+                    measure_jk = numerator / num_cadets
+
             else:  # Utility
                 numerator = np.sum(p['utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
                 measure_jk = numerator / num_cadets

@@ -248,6 +248,9 @@ def model_fixed_parameters_set_additions(parameters, printing=False):
     parameters['I^E'] = [np.where(
         parameters['ineligible'][:, j] == 0)[0] for j in parameters['J']]  # set of cadets that are eligible for AFSC j
 
+    # Number of eligible cadets for each AFSC
+    parameters["num_eligible"] = [len(parameters['I^E'][j]) for j in parameters['J']]
+
     # set of cadets that have placed a preference for AFSC j and are eligible for AFSC j
     util_j = [np.where(parameters['utility'][:, j] > 0)[0] for j in parameters['J']]
     parameters["I^P"] = [np.intersect1d(parameters['I^E'][j], util_j[j]) for j in parameters['J']]
@@ -594,6 +597,13 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                 elif objective in vp['K^D']:
                     numerator = np.sum(x[i, j] for i in p['I^D'][objective][j])
                     metrics['objective_measure'][j, k] = numerator / num_cadets
+                elif objective == "Norm Score":
+                    best_range = range(count)
+                    best_sum = np.sum(c for c in best_range)
+                    worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
+                    worst_sum = np.sum(c for c in worst_range)
+                    achieved_sum = np.sum(p["a_pref_matrix"][i, j] * x[i, j] for i in p["I^E"][j])
+                    metrics['objective_measure'][j, k] = 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
 
                 # Get the correct value for this objective
                 metrics['objective_value'][j, k] = value_function(a=vp['a'][j][k],

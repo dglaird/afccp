@@ -287,6 +287,12 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
                         measure[k] = count - usafa_count
                     elif objective in vp['K^D']:
                         measure[k] = len(np.intersect1d(p['I^D'][objective][j], cadets)) / count
+                    elif objective == "Norm Score":
+                        best_sum = np.sum(c for c in range(count))
+                        worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
+                        worst_sum = np.sum(c for c in worst_range)
+                        achieved_sum = np.sum(p["a_pref_matrix"][cadets, j])
+                        measure[k] = 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
 
                     # Assign AFSC objective value
                     value[k] = value_function(vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k], measure[k])
