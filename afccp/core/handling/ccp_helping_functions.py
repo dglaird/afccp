@@ -157,7 +157,9 @@ def initialize_instance_functional_parameters(N):
              "mutation_rate": 0.05, "num_time_points": 100, "time_eval": False, "real_usafa_n": 960,
              "num_mutations": int(np.ceil(N / 75)), "percent_step": 10, "pareto_step": 10,
              "add_to_dict": True, "constraint_tolerance": 0.95, "ga_constrain_first_only": False,
-             "pyomo_constraint_based": True, "set_to_instance": True, "initialize_new_heuristics": False}
+             "pyomo_constraint_based": True, "set_to_instance": True, "initialize_new_heuristics": False,
+             "solver_name": "cbc", "approximate": True, "pyomo_max_time": 10, "warm_start": None, "init_from_X": False,
+             "report": False, "add_breakpoints": True}
 
     return plt_p, mdl_p
 

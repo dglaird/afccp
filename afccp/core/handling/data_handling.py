@@ -276,6 +276,10 @@ def model_fixed_parameters_set_additions(parameters, printing=False):
         parameters['I^D']['Minority'] = [np.intersect1d(parameters['I^E'][j], minority) for j in parameters['J']]
         parameters['minority_proportion'] = np.mean(parameters['minority'])
 
+    # Add an extra column to the utility matrix for cadets who are unmatched
+    zeros_vector = np.array([[0] for _ in range(parameters["N"])])
+    parameters["utility"] = np.hstack((parameters["utility"], zeros_vector))
+
     # Merit
     if 'merit' in parameters:
         parameters['sum_merit'] = parameters['merit'].sum()  # should be close to N/2
@@ -409,6 +413,7 @@ def convert_afsc_preferences_to_percentiles(parameters):
     p["afsc_utility"] *= p["eligible"]
 
     return p
+
 
 # Solution Handling Procedures
 def import_solution_from_excel(filepath, solution_name=None, afsc_vector=None, excel_format='Specific',

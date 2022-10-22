@@ -250,6 +250,25 @@ class CadetCareerProblem:
 
         find_solution_ineligibility(self.parameters, solution)
 
+    def display_all_data_graphs(self, p_dict={}, printing=None):
+        """
+        This method runs through all the different versions of graphs we have and saves
+        them to the corresponding folder.
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Saving all data results graphs to the corresponding folder...")
+
+        # Loop through each version of each graph
+        version_list = {"Cadet Preference": [None, "Top 3"], "Cadet Preference Analysis": [None, "AFOCD_Eligible", "Merit",
+                                                                                           "USAFA", "Gender"]}
+        for graph in version_list:
+            for version in version_list[graph]:
+                p_dict["data_graph"], p_dict["version"] = graph, version
+                self.display_data_graph(p_dict, printing=printing)
+
     # Adjust Data
     def adjust_qualification_matrix(self, printing=None, report_cips_not_found=False, use_matrix=False):
         """
@@ -1134,10 +1153,10 @@ class CadetCareerProblem:
 
         if self.mdl_p["time_eval"]:
             start_time = time.perf_counter()  # Start the timer
-            solution, time_eval_df = genetic_algorithm(self, initial_solutions, con_fail_dict, printing)
+            solution, time_eval_df = genetic_algorithm(self, initial_solutions, con_fail_dict, printing=printing)
             solve_time = time.perf_counter() - start_time
         else:
-            solution = genetic_algorithm(self, initial_solutions, con_fail_dict, printing)
+            solution = genetic_algorithm(self, initial_solutions, con_fail_dict, printing=printing)
 
         if self.mdl_p["set_to_instance"]:
             self.solution = solution
@@ -1151,74 +1170,70 @@ class CadetCareerProblem:
         # Return the final solution
         return solution
 
-    def solve_vft_pyomo_model(self, solver_name="cbc", approximate=True, max_time=10, report=False, timing=False,
-                              add_breakpoints=True, initial=None, init_from_X=False, set_to_instance=True,
-                              add_to_dict=True, printing=None):
+    def solve_vft_pyomo_model(self, p_dict={}, printing=None):
         """
         Solve the VFT model using pyomo
-        :param set_to_instance: if we want to set this solution to the instance's solution attribute
-        :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param init_from_X: if we have an X matrix to initialize the solution with
-        :param initial: if this model has a warm start or not
-        :param add_breakpoints: if we should add breakpoints to adjust the approximate model
-        :param timing: If we want to time the model
-        :param max_time: max time in seconds the solver is allowed to solve
-        :param approximate: if the model is convex or not
-        :param report: if we want to grab all the information to sanity check the solution
-        :param solver_name: name of solver
-        :param printing: if we should print something
-        :return: solution
         """
         if printing is None:
             printing = self.printing
 
-        if not approximate:
-            if solver_name == 'cbc':
-                solver_name = 'ipopt'
+        # Reset certain plot parameters
+        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
 
-        if initial is None:
-            if init_from_X:
-                initial = self.init_exact_solution_from_x()
+        # Update model parameters if necessary
+        for key in p_dict:
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
+            else:
+
+                # If the parameter doesn't exist, we warn the user
+                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        # Make sure we have selected a set of value parameters
+        if self.value_parameters is None:
+            raise ValueError("Error. No instance value parameters set.")
+
+        if not self.mdl_p["approximate"]:
+            if self.mdl_p["solver_name"] == 'cbc':
+                self.mdl_p["solver_name"] = 'ipopt'
+
+        if self.mdl_p["warm_start"] is None:
+            if self.mdl_p["init_from_X"]:
+                self.mdl_p["warm_start"] = self.init_exact_solution_from_x()
 
         if use_pyomo:
-            model = vft_model_build(self, convex=approximate, add_breakpoints=add_breakpoints,
-                                    initial=initial, printing=printing)
-            if report:
-                if timing:
+            model = vft_model_build(self, printing=printing)
+            if self.mdl_p["report"]:
+                if self.mdl_p["time_eval"]:
                     solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = vft_model_solve(
-                        model, self.parameters, self.value_parameters, solver_name=solver_name, approximate=approximate,
-                        max_time=max_time, report=True, timing=True, printing=printing)
+                        self, model, printing=printing)
                 else:
                     solution, self.x, self.measure, self.value, self.pyomo_z = vft_model_solve(
-                        model, self.parameters, self.value_parameters, solver_name=solver_name, approximate=approximate,
-                        max_time=max_time, report=True, printing=printing)
+                        self, model, printing=printing)
             else:
-                if timing:
-                    solution, solve_time = vft_model_solve(model, self.parameters, self.value_parameters,
-                                                           solver_name=solver_name, approximate=approximate,
-                                                           max_time=max_time, timing=True, printing=printing)
+                if self.mdl_p["time_eval"]:
+                    solution, solve_time = vft_model_solve(self, model, printing=printing)
                 else:
-                    solution = vft_model_solve(model, self.parameters, self.value_parameters, solver_name=solver_name,
-                                               approximate=approximate, max_time=max_time, printing=printing)
+                    solution = vft_model_solve(self, model, printing=printing)
         else:
             if printing:
                 raise ValueError('Pyomo not available')
 
         # Set the solution attribute
-        if set_to_instance:
+        if self.mdl_p["set_to_instance"]:
             self.solution = solution
             self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
                                                     printing=printing)
 
         # Add solution to solution dictionary
-        if add_to_dict:
-            if approximate:
+        if self.mdl_p["add_to_dict"]:
+            if self.mdl_p["approximate"]:
                 solution_method = "A-VFT"
             else:
                 solution_method = "E-VFT"
             self.add_solution_to_dictionary(solution, solution_method=solution_method)
 
-        if timing:
+        if self.mdl_p["time_eval"]:
             return solve_time
         else:
             return solution
@@ -1291,46 +1306,54 @@ class CadetCareerProblem:
         else:
             return gp_var
 
-    def full_vft_model_solve(self, ga_max_time=60 * 10, pyomo_max_time=10, add_to_dict=True, return_z=True,
-                             printing=None, percent_step=10, ga_printing=False):
+    def full_vft_model_solve(self, p_dict={}, printing=None):
         """
         This is the main method to solve the problem instance. We first solve the pyomo Approximate model, and then
         evolve it using the GA
-        :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param ga_max_time: the genetic algorithm's time to solve
-        :param pyomo_max_time: max time to solve the pyomo model
-        :param return_z: If the method should return the z value or the solution itself
-        :param printing: Whether the procedure should print something
-        :param percent_step: what percent checkpoints we should display updates for the GA
-        :param ga_printing: If we want to print status updates during the genetic algorithm
-        :return: solution z
         """
         if printing is None:
             printing = self.printing
 
+        # Reset certain plot parameters
+        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = False, True
+
+        # Update model parameters if necessary
+        for key in p_dict:
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
+            else:
+
+                # If the parameter doesn't exist, we warn the user
+                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        # Get p_dict with adjustments
+        p_dict = self.mdl_p
+        p_dict["add_to_dict"] = False
+
+        # Make sure we have selected a set of value parameters
+        if self.value_parameters is None:
+            raise ValueError("Error. No instance value parameters set.")
+
         if printing:
             now = datetime.datetime.now()
-            print('Solving VFT Model for ' + str(pyomo_max_time) + ' seconds at ' + now.strftime('%H:%M:%S') + '...')
-        self.solve_vft_pyomo_model(max_time=pyomo_max_time, add_to_dict=False, printing=False)
+            print('Solving VFT Model for ' + str(
+                self.mdl_p["pyomo_max_time"]) + ' seconds at ' + now.strftime('%H:%M:%S') + '...')
+        self.solve_vft_pyomo_model(p_dict, printing=False)
 
         if printing:
             now = datetime.datetime.now()
             print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
-            print('Solving Genetic Algorithm for ' + str(ga_max_time) + ' seconds at ' +
+            print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
                   now.strftime('%H:%M:%S') + '...')
-        self.genetic_algorithm(initialize=True, add_to_dict=False, stopping_time=ga_max_time, printing=ga_printing,
-                               constraints='Fail', percent_step=percent_step)
+        self.genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
         if printing:
             print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
 
-        # Add solution to solution dictionary
-        if add_to_dict:
-            self.add_solution_to_dictionary(self.solution, solution_method="AG-VFT")
+        # Add solution to solution dictionary (We just assume that we add it to the dictionary
+        self.add_solution_to_dictionary(self.solution, solution_method="AG-VFT")
 
-        if return_z:
-            return round(self.metrics['z'], 4)
-        else:
-            return self.solution
+        # Return solution
+        return self.solution
 
     def solve_for_constraints(self, export_report=True, set_new_constraint_type=False, skip_quota=False):
         """

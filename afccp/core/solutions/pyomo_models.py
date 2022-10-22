@@ -187,13 +187,10 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solv
     return solution
 
 
-def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, printing=False):
+def vft_model_build(instance, printing=False):
     """
     Builds the VFT optimization model using pyomo
     :param instance: problem instance object
-    :param add_breakpoints: if we should add breakpoints to adjust the approximate model
-    :param initial: if this model has a warm start or not
-    :param convex: if we use the target quota instead of summation of cadets to calculate proportions/averages
     :param printing: Whether the procedure should print something
     :return: pyomo model as object
     """
@@ -227,7 +224,7 @@ def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, p
         for k in vp['K^A'][j]:
 
             # We need to add an extra breakpoint to effectively extend the domain
-            if add_breakpoints:
+            if instance.mdl_p["add_breakpoints"]:
 
                 # We add an extra breakpoint far along the x-axis with the same y value as the previous one
                 last_a = a[j][k][r[j][k] - 1]
@@ -259,7 +256,7 @@ def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, p
     pass
 
     # If we don't initialize variables
-    if initial is None:
+    if instance.mdl_p["warm_start"] is None:
 
         # If we don't use a warm-start, we don't initialize starting values for the variables
         m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
@@ -275,13 +272,13 @@ def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, p
         m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
         for i in p['I']:
             for j in p['J^E'][i]:
-                m.x[i, j] = round(initial['X'][i, j])
+                m.x[i, j] = round(instance.mdl_p["warm_start"]['X'][i, j])
 
         # f^hat: value for AFSC j objective k
         m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)
         for j in p['J']:
             for k in vp['K^A'][j]:
-                m.f_value[j, k] = initial['F_X'][j, k]
+                m.f_value[j, k] = instance.mdl_p["warm_start"]['F_X'][j, k]
 
         # lambda: % between breakpoint l and l + 1 that the measure for AFSC j objective k "has yet to travel"
         m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in L[j, k]), within=NonNegativeReals,
@@ -289,14 +286,14 @@ def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, p
         for j in p['J']:
             for k in vp['K^A'][j]:
                 for l in L[j, k]:
-                    m.lam[j, k, l] = initial['lam'][j, k, l]
+                    m.lam[j, k, l] = instance.mdl_p["warm_start"]['lam'][j, k, l]
 
         # y: 1 if the objective measure for AFSC j objective k is along line segment between breakpoints l and l + 1
         m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
         for j in p['J']:
             for k in vp['K^A'][j]:
                 for l in range(r[j, k] - 1):
-                    m.y[j, k, l] = initial['y'][j, k, l]
+                    m.y[j, k, l] = instance.mdl_p["warm_start"]['y'][j, k, l]
 
     # Fixing variables if necessary
     for i, afsc in enumerate(p["assigned"]):
@@ -375,7 +372,7 @@ def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, p
             usafa_count = np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
 
         # Are we using approximate measures or not
-        if convex:
+        if instance.mdl_p["approximate"]:
             num_cadets = p['quota'][j]  # Approximate
         else:
             num_cadets = count  # Exact
@@ -401,7 +398,7 @@ def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, p
                 measure_jk = count - usafa_count
             elif objective == "Norm Score":
 
-                if convex:
+                if instance.mdl_p["approximate"]:
                     best_range = range(num_cadets)
                     best_sum = np.sum(c for c in best_range)
                     worst_range = range(p["num_eligible"][j] - num_cadets, p["num_eligible"][j])
@@ -502,44 +499,38 @@ def vft_model_build(instance, initial=None, convex=True, add_breakpoints=True, p
     return m
 
 
-def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", approximate=True, report=False,
-                    max_time=None, timing=False, printing=False):
+def vft_model_solve(instance, model, printing=False):
     """
     Solve VFT Model
-    :param timing: If we want to time the model
-    :param max_time: max time in seconds the solver is allowed to solve
-    :param approximate: if the model is convex or not
-    :param value_parameters: model value parameters
-    :param report: if we want to grab all the information to sanity check the solution
-    :param parameters: fixed parameters
+    :param instance: problem instance to solve
     :param model: pyomo model
-    :param solver_name: name of solver
     :param printing: if we should print something
     :return: solution
     """
 
+    # Shorthand
+    p = instance.parameters
+    vp = instance.value_parameters
+    mdl_p = instance.mdl_p
+
     # Print what we're solving
     if printing:
-        if approximate:
+        if mdl_p["approximate"]:
             model_str = 'Approximate'
         else:
             model_str = 'Exact'
-        print('Solving ' + model_str + ' VFT Model instance with solver ' + solver_name + '...')
+        print('Solving ' + model_str + ' VFT Model instance with solver ' + mdl_p["solver_name"] + '...')
 
     # Start Time
-    if timing:
+    if mdl_p["time_eval"]:
         start_time = time.perf_counter()
 
     # Solve the model
-    model = solve_pyomo_model(model, solver_name, max_time=max_time)
+    model = solve_pyomo_model(model, mdl_p["solver_name"], max_time=mdl_p["pyomo_max_time"])
 
     # Stop Time
-    if timing:
+    if mdl_p["time_eval"]:
         solve_time = round(time.perf_counter() - start_time, 2)
-
-    # Shorthand
-    p = parameters
-    vp = value_parameters
 
     # Initialize solution
     solution = np.zeros(p['N'])
@@ -583,10 +574,10 @@ def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", appr
 
             if printing:
                 print("Cadet " + str(i) + " was not assigned by the model for some reason. We assigned them to", afsc)
-    if report:
+    if mdl_p["report"]:
         obj = model.objective()
         if printing:
-            if approximate:
+            if mdl_p["approximate"]:
                 print("Approximate Pyomo Model Objective Value: " + str(round(obj, 4)))
             else:
                 print("Exact Pyomo Model Objective Value: " + str(round(obj, 4)))
@@ -604,7 +595,7 @@ def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", appr
                 usafa_count = np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j])
 
             # Are we using approximate measures or not
-            if approximate:
+            if mdl_p["approximate"]:
                 num_cadets = p['quota'][j]
             else:
                 num_cadets = count
@@ -633,12 +624,12 @@ def vft_model_solve(model, parameters, value_parameters, solver_name="cbc", appr
                 # Value of measure
                 value[j, k] = model.f_value[j, k].value
 
-        if timing:
+        if mdl_p["time_eval"]:
             return solution, x, measure, value, obj, solve_time
         else:
             return solution, x, measure, value, obj
     else:
-        if timing:
+        if mdl_p["time_eval"]:
             return solution, solve_time
         else:
             return solution
