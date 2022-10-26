@@ -999,3 +999,130 @@ def determine_model_constraints(instance, skip_quota=True, printing=True):
     solutions_df = pd.DataFrame(afsc_solutions)
     report_df = pd.DataFrame(report)
     return vp["constraint_type"], solutions_df, report_df
+
+
+def scrub_real_afscs_from_instance(instance, new_letter="H"):
+    """
+    This function takes in a problem instance and scrubs the AFSC names by sorting them by their PGL targets.
+    """
+
+    # Load parameters
+    p = copy.deepcopy(instance.parameters)
+    real_afscs = p["afsc_vector"][:p["M"]]
+
+    # Get the quota array
+    if "pgl" in p:
+        quota = p["pgl"]
+    else:
+        quota = p["quota"]
+
+    # Sort indices
+    t_indices = np.argsort(quota)[::-1]
+
+    # Translate parameters
+    new_p = copy.deepcopy(p)
+    new_p["afsc_vector"] = np.array([new_letter + str(i + 1) for i in p["J"]])
+    new_p["afsc_vector"] = np.hstack((new_p["afsc_vector"], "*"))
+    new_p["quota"] = quota[t_indices]
+    sorted_real_afscs = copy.deepcopy(real_afscs[t_indices])
+
+    # Loop through each one dimensional array of length M and translate it
+    for key in ["quota_min", "pgl", "usafa_quota", "rotc_quota"]:
+
+        if key in p:
+            new_p[key] = p[key][t_indices]
+
+    # Loop through each two dimensional array of size (N, M) and translate it
+    for key in ["qual", "utility", "ineligible", "eligible", "mandatory", "desired",
+                "permitted", "afsc_utility", "c_pref_matrix", "a_pref_matrix"]:
+
+        if key in p:
+            new_p[key] = p[key][:, t_indices]
+
+    # Get assigned AFSC vector
+    for i, real_afsc in enumerate(p["assigned"]):
+        if real_afsc in real_afscs:
+            j = np.where(sorted_real_afscs == real_afsc)[0][0]
+            new_p["assigned"][i] = new_p["afsc_vector"][j]
+
+    # Set additions, and add to the instance
+    instance.parameters = model_fixed_parameters_set_additions(new_p)
+
+    # Translate value parameters
+    new_vp_dict = {}
+    for vp_name in instance.vp_dict:
+        vp = copy.deepcopy(instance.vp_dict[vp_name])
+        new_vp = copy.deepcopy(vp)
+        new_vp["afsc_value_min"] = vp["afsc_value_min"][t_indices]
+        new_vp["afsc_weight"] = vp["afsc_weight"][t_indices]
+
+        # Loop through each two dimensional array of size (M, O) and translate it
+        for key in ["objective_value_min", "value_functions", "constraint_type", "objective_target",
+                    "objective_weight"]:
+            new_vp[key] = vp[key][t_indices, :]
+
+        # USAFA-constrained AFSCs
+        if "USAFA-Constrained AFSCs" in vp:
+            usafa_afscs = vp["USAFA-Constrained AFSCs"].split(", ")
+            new_str = ""
+            for index, real_afsc in enumerate(usafa_afscs):
+                real_afsc = str(real_afsc.strip())
+                j = np.where(sorted_real_afscs == real_afsc)[0][0]
+                usafa_afscs[index] = new_p["afsc_vector"][j]
+                if index == len(usafa_afscs) - 1:
+                    new_str += usafa_afscs[index]
+                else:
+                    new_str += usafa_afscs[index] + ", "
+
+            new_vp["USAFA-Constrained AFSCs"] = new_str
+
+        for j, old_j in enumerate(t_indices):
+            for k in vp["K"]:
+                for key in ["a", "f^hat"]:
+                    new_vp[key][j][k] = vp[key][old_j][k]
+
+        # Set value parameters to dict
+        new_vp_dict[vp_name] = new_vp
+
+    # Set it to the instance
+    instance.vp_dict = new_vp_dict
+
+    # Loop through each set of value parameters again
+    for vp_name in instance.vp_dict:
+        # Set additions
+        instance.vp_dict[vp_name] = model_value_parameters_set_additions(instance.parameters,
+                                                                         instance.vp_dict[vp_name])
+
+    # Grab the first set of value parameters for the instance
+    instance.set_instance_value_parameters()
+
+    # Translate solutions
+    new_solutions_dict = {}
+
+    # Loop through each solution
+    for solution_name in instance.solution_dict:
+        real_solution = copy.deepcopy(instance.solution_dict[solution_name])
+        new_solutions_dict[solution_name] = copy.deepcopy(real_solution)
+
+        # Loop through each assigned AFSC for the cadets
+        for i, j in enumerate(real_solution):
+            if j != p["M"]:
+                real_afsc = p["afsc_vector"][j]
+                j = np.where(sorted_real_afscs == real_afsc)[0][0]
+                new_solutions_dict[solution_name][i] = j
+
+    # Set it to the instance
+    instance.solution_dict = new_solutions_dict
+    instance.set_instance_solution()
+
+    # Instance Variables
+    instance.scrubbed = True
+    instance.data_name = new_letter
+    instance.data_variant = "Scrubbed"
+    instance.full_name = "Real " + new_letter
+    instance.data_instance_name = copy.deepcopy(instance.full_name)
+
+    # Get correct filepath
+    instance.filepath_in = paths_in['instances'] + instance.data_instance_name + '.xlsx'
+
+    return instance

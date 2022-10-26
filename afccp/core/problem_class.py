@@ -349,6 +349,20 @@ class CadetCareerProblem:
         """
         self.parameters = convert_afsc_preferences_to_percentiles(self.parameters)
 
+    def convert_to_scrubbed_instance(self, new_letter, printing=None):
+        """
+        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
+        :param printing: If we should print status update
+        :param new_letter: New letter to assign to this problem instance
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Converting problem instance '" + self.data_name + "' to new instance '" + new_letter + "'...")
+
+        return scrub_real_afscs_from_instance(self, new_letter)
+
     # Specify Value Parameters
     def set_instance_value_parameters(self, vp_name=None):
         """
