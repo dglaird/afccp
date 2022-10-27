@@ -1126,3 +1126,85 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
     instance.filepath_in = paths_in['instances'] + instance.data_instance_name + '.xlsx'
 
     return instance
+
+
+def populate_initial_ga_solutions(instance, printing=True):
+    """
+    This function takes a problem instance and creates several initial solutions for the genetic algorithm to evolve
+    from
+    :param instance: problem instance
+    :param printing: whether to print something or not
+    :return: initial population
+    """
+
+    if printing:
+        print("Generating initial population of solutions for Genetic Algorithm...")
+
+    # Load parameters/variables
+    p = instance.parameters
+    vp = copy.deepcopy(instance.value_parameters)
+    initial_solutions = []
+
+    if instance.mdl_p["iterate_from_quota"]:
+
+        # Initialize variables
+        deviations = np.ones(p["M"])
+        quota_k = np.where(vp["objectives"] == 'Combined Quota')[0][0]
+        i = 1
+        while sum(deviations) > 0:
+
+            if printing:
+                print("\nSolving VFT model... (" + str(i) + ")")
+
+            # Set old quota
+            old_quota = p["quota"]
+
+            # Solve model
+            model = vft_model_build(instance, printing=False)
+            solution = vft_model_solve(instance, model, printing=False)
+            metrics = measure_solution_quality(solution, p, vp)
+            initial_solutions.append(solution)
+
+            # Update new quota information
+            instance.parameters["quota"] = metrics["objective_measure"][:, quota_k].astype(int)
+            p = instance.parameters
+            deviations = [abs(p["quota"][j] - old_quota[j]) for j in p["J"]]
+            i += 1
+
+            if printing:
+                print("Current Number of Quota Differences:", sum(deviations), "with objective value of",
+                      round(metrics["z"], 4))
+
+
+    # Solve for different overall weights on cadets/AFSCs
+    weights = np.arange(instance.mdl_p["population_additions"])
+    weights = weights / np.max(weights)
+    for w in weights:
+
+        if printing:
+            print("\nSolving VFT model with 'w' of ", str(round(w, 2)) + "...")
+
+        # Update overall weights
+        instance.value_parameters["cadets_overall_weight"] = w
+        instance.value_parameters["afscs_overall_weight"] = 1 - w
+
+        # Solve model
+        model = vft_model_build(instance, printing=False)
+        solution = vft_model_solve(instance, model, printing=False)
+        metrics = measure_solution_quality(solution, p, vp)
+        initial_solutions.append(solution)
+
+        if printing:
+            print("Objective value of", round(metrics["z"], 4), "obtained")
+
+    instance.value_parameters = vp
+
+    return np.array(initial_solutions)
+
+
+
+
+
+
+
+

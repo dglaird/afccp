@@ -152,14 +152,15 @@ def initialize_instance_functional_parameters(N):
     plt_p["bar_colors"] = colors
 
     # Parameters to solve the models
-    mdl_p = {"pop_size": 12, "ga_max_time": 60 * 10, "num_crossover_points": 3, "initialize": True,
+    mdl_p = {"pop_size": 12, "ga_max_time": 60, "num_crossover_points": 3, "initialize": True,
              "initial_solutions": None, "solution_names": None, "ga_printing": True,
              "mutation_rate": 0.05, "num_time_points": 100, "time_eval": False, "real_usafa_n": 960,
              "num_mutations": int(np.ceil(N / 75)), "percent_step": 10, "pareto_step": 10,
              "add_to_dict": True, "constraint_tolerance": 0.95, "ga_constrain_first_only": False,
              "pyomo_constraint_based": True, "set_to_instance": True, "initialize_new_heuristics": False,
              "solver_name": "cbc", "approximate": True, "pyomo_max_time": 10, "warm_start": None, "init_from_X": False,
-             "report": False, "add_breakpoints": True}
+             "report": False, "add_breakpoints": True, "populate": False, "iterate_from_quota": True,
+             "population_additions": 3}
 
     return plt_p, mdl_p
 

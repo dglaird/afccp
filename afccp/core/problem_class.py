@@ -1351,20 +1351,35 @@ class CadetCareerProblem:
         if self.value_parameters is None:
             raise ValueError("Error. No instance value parameters set.")
 
-        if printing:
-            now = datetime.datetime.now()
-            print('Solving VFT Model for ' + str(
-                self.mdl_p["pyomo_max_time"]) + ' seconds at ' + now.strftime('%H:%M:%S') + '...')
-        self.solve_vft_pyomo_model(p_dict, printing=False)
+        # Determine population for the genetic algorithm if necessary
+        if p_dict["populate"]:
+            p_dict["initial_solutions"] = populate_initial_ga_solutions(self, printing)
+            p_dict["initialize"] = True
 
-        if printing:
-            now = datetime.datetime.now()
-            print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
-            print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
-                  now.strftime('%H:%M:%S') + '...')
-        self.genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
-        if printing:
-            print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
+            if printing:
+                now = datetime.datetime.now()
+                print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
+                      now.strftime('%H:%M:%S') + '...')
+            self.genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
+            if printing:
+                print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
+
+        else:
+
+            if printing:
+                now = datetime.datetime.now()
+                print('Solving VFT Model for ' + str(
+                    self.mdl_p["pyomo_max_time"]) + ' seconds at ' + now.strftime('%H:%M:%S') + '...')
+            self.solve_vft_pyomo_model(p_dict, printing=False)
+
+            if printing:
+                now = datetime.datetime.now()
+                print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
+                print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
+                      now.strftime('%H:%M:%S') + '...')
+            self.genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
+            if printing:
+                print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
 
         # Add solution to solution dictionary (We just assume that we add it to the dictionary
         self.add_solution_to_dictionary(self.solution, solution_method="AG-VFT")
