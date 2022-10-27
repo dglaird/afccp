@@ -556,8 +556,9 @@ def individual_weight_graph(parameters, value_parameters, cadets=True, save=Fals
 
         # Get data
         weights = value_parameters['afsc_weight']
-        afscs = parameters['afsc_vector']
+
         M = parameters['M']
+        afscs = parameters['afsc_vector'][:M]
 
         # Labels
         ax.set_ylabel('AFSC Weight')
