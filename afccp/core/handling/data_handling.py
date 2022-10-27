@@ -374,12 +374,13 @@ def generate_fake_afsc_preferences(parameters, value_parameters):
     p["afsc_utility"] = np.zeros([N, M])
     for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
         if objective in vp['objectives']:
+
             k = np.where(vp['objectives'] == objective)[0][0]
             if objective == "Merit":
-                merit = np.tile(parameters['merit'], [M, 1]).T
+                merit = np.tile(p['merit'], [M, 1]).T
                 p["afsc_utility"] += merit * vp['objective_weight'][:, k].T
             else:
-                p["afsc_utility"] += parameters[objective.lower()] * vp['objective_weight'][:, k].T
+                p["afsc_utility"] += p[objective.lower()][:, :M] * vp['objective_weight'][:, k].T
     p["afsc_utility"] *= p["eligible"]  # They have to be eligible!
 
     # Create AFSC Preference Matrix
@@ -554,14 +555,13 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                'objective_constraint_fail': np.array([[" " * 30 for _ in range(vp['O'])] for _ in range(p['M'])])}
 
     # Get certain objective indices
-    if 'merit' in p:
-        merit_k = np.where(vp['objectives'] == 'Merit')[0][0]
-    if 'usafa' in p:
-        usafa_k = np.where(vp['objectives'] == 'USAFA Proportion')[0][0]
-    if 'male' in p:
-        male_k = np.where(vp['objectives'] == 'Male')[0][0]
-    if 'minority' in p:
-        minority_k = np.where(vp['objectives'] == 'Minority')[0][0]
+    obj_indices = {}
+    p_lookup_dict = {"Norm Score": "a_pref_matrix", "Merit": "merit", "Male": "male", "Minority": "minority",
+                     "Mandatory": "mandatory", "Desired": "desired", "Permitted": "permitted",
+                     "USAFA Proportion": "usafa", "Utility": "utility"}
+    for objective in p_lookup_dict:
+        if p_lookup_dict[objective] in p:
+            obj_indices[objective] = np.where(vp['objectives'] == objective)[0][0]
 
     # Loop through all AFSCs to assign their individual values
     for j in p['J']:
@@ -708,23 +708,41 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                 metrics['afsc_constraint_fail'][j] = 1
                 metrics['total_failed_constraints'] += 1
 
-            # Also calculate Average Merit and USAFA proportion even if not in the AFSC's objectives
-            if 'merit' in p:
-                if merit_k not in vp['K^A'][j]:
-                    numerator = np.sum(p['merit'][i] * x[i, j] for i in p['I^E'][j])
-                    metrics['objective_measure'][j, merit_k] = numerator / num_cadets
-            if 'usafa' in p:
-                if usafa_k not in vp['K^A'][j]:
-                    numerator = np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j])
-                    metrics['objective_measure'][j, usafa_k] = numerator / num_cadets
-            if 'male' in p:
-                if male_k not in vp['K^A'][j]:
-                    numerator = np.sum(x[i, j] for i in p['I^D']['Male'][j])
-                    metrics['objective_measure'][j, male_k] = numerator / num_cadets
-            if 'minority' in p:
-                if minority_k not in vp['K^A'][j]:
-                    numerator = np.sum(x[i, j] for i in p['I^D']['Minority'][j])
-                    metrics['objective_measure'][j, minority_k] = numerator / num_cadets
+            # Loop through each objective that we want to calculate objective measures for
+            for objective in p_lookup_dict:
+                if p_lookup_dict[objective] in p:
+                    if obj_indices[objective] not in vp['K^A'][j]:
+
+                        # Merit
+                        if objective == "Merit":
+                            numerator = np.sum(p['merit'][i] * x[i, j] for i in p['I^E'][j])
+                            metrics['objective_measure'][j, obj_indices[objective]] = numerator / num_cadets
+
+                        # Demographics
+                        elif objective in ['USAFA Proportion', 'Male', 'Minority']:
+                            numerator = np.sum(x[i, j] for i in p['I^D'][objective][j])
+                            metrics['objective_measure'][j, obj_indices[objective]] = numerator / num_cadets
+
+                        # Check to see if we determined a value function for these objectives
+                        elif objective in ["Mandatory", "Desired", "Permitted"]:
+                            if len(vp["f^hat"][j][obj_indices[objective]]) != 0:
+                                numerator = np.sum(x[i, j] for i in p['I^D'][objective][j])
+                                metrics['objective_measure'][j, obj_indices[objective]] = numerator / num_cadets
+
+                        # Utility
+                        elif objective == "Utility":
+                            numerator = np.sum(p['utility'][i, j] * x[i, j] for i in p['I^E'][j])
+                            metrics['objective_measure'][j, obj_indices[objective]] = numerator / num_cadets
+
+                        # Norm Score
+                        else:
+                            best_range = range(count)
+                            best_sum = np.sum(c for c in best_range)
+                            worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
+                            worst_sum = np.sum(c for c in worst_range)
+                            achieved_sum = np.sum(p["a_pref_matrix"][i, j] * x[i, j] for i in p["I^E"][j])
+                            metrics['objective_measure'][j, obj_indices[objective]] = 1 - (achieved_sum - best_sum) / \
+                                                                                      (worst_sum - best_sum)
 
     # Loop through all cadets to assign their values
     for i in p['I']:

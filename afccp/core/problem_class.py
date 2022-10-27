@@ -262,12 +262,15 @@ class CadetCareerProblem:
             print("Saving all data results graphs to the corresponding folder...")
 
         # Loop through each version of each graph
+        charts = []
         version_list = {"Cadet Preference": [None, "Top 3"], "Cadet Preference Analysis": [None, "AFOCD_Eligible", "Merit",
                                                                                            "USAFA", "Gender"]}
         for graph in version_list:
             for version in version_list[graph]:
                 p_dict["data_graph"], p_dict["version"] = graph, version
-                self.display_data_graph(p_dict, printing=printing)
+                charts.append(self.display_data_graph(p_dict, printing=printing))
+
+        return charts
 
     # Adjust Data
     def adjust_qualification_matrix(self, printing=None, report_cips_not_found=False, use_matrix=False):
@@ -1824,6 +1827,7 @@ class CadetCareerProblem:
 
         # If we specify the solution names, that means we want to view all of their individual charts as well
         # as the comparison charts
+        charts = []
         if "solution_names" in p_dict:
 
             # Show both comparison charts and regular ones
@@ -1843,7 +1847,7 @@ class CadetCareerProblem:
                             p_dict["objective"] = obj
                             for version in self.plt_p["afsc_chart_versions"][obj]:
                                 p_dict["version"] = version
-                                self.display_results_graph(p_dict)
+                                charts.append(self.display_results_graph(p_dict))
 
                 else:
 
@@ -1855,7 +1859,7 @@ class CadetCareerProblem:
 
                         if obj in self.plt_p["afsc_chart_versions"]:
                             p_dict["objective"] = obj
-                            self.display_results_graph(p_dict)
+                            charts.append(self.display_results_graph(p_dict))
 
         else:
 
@@ -1870,7 +1874,9 @@ class CadetCareerProblem:
                 p_dict["objective"] = obj
                 for version in self.plt_p["afsc_chart_versions"][obj]:
                     p_dict["version"] = version
-                    self.display_results_graph(p_dict)
+                    charts.append(self.display_results_graph(p_dict))
+
+        return charts
 
     def display_results_graph(self, p_dict={}, printing=None):
         """
@@ -1905,11 +1911,11 @@ class CadetCareerProblem:
 
         # Determine which chart to show
         if self.plt_p["results_graph"] in ["Measure", "Value"]:
-            afsc_results_graph(self)
+            chart = afsc_results_graph(self)
         elif self.plt_p["results_graph"] == "Cadet Utility":
-            cadet_utility_histogram(self)
+            chart = cadet_utility_histogram(self)
         elif self.plt_p["results_graph"] == "Utility vs. Merit":
-            cadet_utility_merit_scatter(self)
+            chart = cadet_utility_merit_scatter(self)
 
         # Get necessary conditions for the multi-criteria chart
         elif self.plt_p["results_graph"] == "Multi-Criteria Comparison":
@@ -1943,7 +1949,7 @@ class CadetCareerProblem:
                     self.set_instance_solution(solution_name)
 
                     # Generate chart
-                    afsc_multi_criteria_graph(self, max_num=max_num)
+                    chart = afsc_multi_criteria_graph(self, max_num=max_num)
             else:
 
                 # Determine AFSCs to show
@@ -1958,10 +1964,12 @@ class CadetCareerProblem:
                         self.plt_p["filename"] += "_" + afsc
 
                     # Generate chart
-                    afsc_multi_criteria_graph(self)
+                    chart = afsc_multi_criteria_graph(self)
 
         else:
             raise ValueError("Graph '" + self.plt_p["results_graph"] + "' does not exist.")
+
+        return chart
 
     def generate_slides(self, p_dict={}, printing=None):
         """
@@ -2188,7 +2196,7 @@ class CadetCareerProblem:
             except:
                 raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
 
-        pareto_graph(pareto_df)
+        return pareto_graph(pareto_df)
 
     def least_squares_procedure(self, t_solution, delta=0, printing=None, show_graph=True, names=None, afsc=None,
                                 colors=None, save=False, figsize=(19, 7), facecolor="white", title=None,
