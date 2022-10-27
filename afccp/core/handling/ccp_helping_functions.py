@@ -160,7 +160,7 @@ def initialize_instance_functional_parameters(N):
              "pyomo_constraint_based": True, "set_to_instance": True, "initialize_new_heuristics": False,
              "solver_name": "cbc", "approximate": True, "pyomo_max_time": 10, "warm_start": None, "init_from_X": False,
              "report": False, "add_breakpoints": True, "populate": False, "iterate_from_quota": True,
-             "population_additions": 3}
+             "population_additions": 7}
 
     return plt_p, mdl_p
 
