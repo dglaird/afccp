@@ -19,74 +19,72 @@ def stable_marriage_model_solve(parameters, value_parameters, printing=False):
         print('Solving stable marriage model...')
 
     # Load Parameters
-    N = parameters['N']
-    M = parameters['M']
-    objectives = value_parameters['objectives']
-    objective_weight = value_parameters['objective_weight']
+    p, vp = parameters, value_parameters
 
     # Create AFSC Utility Matrix
-    afsc_utility = np.zeros([N, M])
-    for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
-        if objective in objectives:
-            k = np.where(objectives == objective)[0][0]
-            if objective == 'Merit':
-                merit = np.tile(np.where(parameters['merit'] > parameters['sum_merit'], 1,
-                                         parameters['merit'] / parameters['sum_merit']), [M, 1]).T
-                afsc_utility += merit * objective_weight[:, k].T
-            else:
-                afsc_utility += parameters[objective.lower()] * objective_weight[:, k].T
+    if "afsc_utility" in p:
+        afsc_utility = p["afsc_utility"]
+    else:
+        afsc_utility = np.zeros([p["N"], p["M"]])
+        for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
+            if objective in vp["objectives"]:
+                k = np.where(vp["objectives"] == objective)[0][0]
+                if objective == 'Merit':
+                    merit = np.tile(np.where(p['merit'] > p['sum_merit'], 1,
+                                             p['merit'] / p['sum_merit']), [p["M"], 1]).T
+                    afsc_utility += merit * vp["objective_weight"][:, k].T
+                else:
+                    afsc_utility += p[objective.lower()][:, :p["M"]] * vp["objective_weight"][:, k].T
 
     # Overall Utility Matrix
-    overall_utility = value_parameters['afscs_overall_weight'] * \
-                      (afsc_utility.T * value_parameters['afsc_weight'][:, np.newaxis]).T + \
-                      value_parameters['cadets_overall_weight'] * \
-                      parameters['utility'] * value_parameters['cadet_weight'][:, np.newaxis] + \
-                      parameters['ineligible'] * -100
+    overall_utility = vp['afscs_overall_weight'] * (afsc_utility.T * vp['afsc_weight'][:, np.newaxis]).T + \
+                      vp['cadets_overall_weight'] * p['utility'][:, :p["M"]] * vp['cadet_weight'][:, np.newaxis] + \
+                      p['ineligible'] * -100
 
     # Calculate AFSC preferences
-    afsc_preference_lists = [[] for _ in range(M)]
-    for j in range(M):
+    afsc_preference_lists = [[] for _ in p["J"]]
+    for j in p["J"]:
 
         # Sort AFSC utility column j in descending order
         afsc_preference_lists[j] = np.argsort(afsc_utility[:, j])[::-1]
 
         # Calculate number of eligible cadets
-        num_eligible = len(np.where(parameters['ineligible'][:, j] == 0)[0])
+        num_eligible = len(np.where(p['ineligible'][:, j] == 0)[0])
 
         # Create incomplete preference list using only eligible cadets
         afsc_preference_lists[j] = afsc_preference_lists[j][:num_eligible]
 
     # Calculate Cadet preferences
-    cadet_preference_list = np.argsort(-parameters['utility'], axis=-1)
-    matches = np.zeros(N) - 1  # 1-D array of matched AFSC indices (initially -1 indicating no match)
-    rejections = np.zeros([N, M])  # matrix indicating if cadet i has been rejected by their p preference
-    pref_proposals = np.zeros(N) - 1  # 1-D array of cadet preference indices indicating proposal preference p
-    afsc_matches = [[] for _ in range(M)]  # list of matched cadets to AFSC j
+    cadet_preference_list = np.argsort(-p['utility'], axis=-1)
+    matches = np.zeros(p["N"]) - 1  # 1-D array of matched AFSC indices (initially -1 indicating no match)
+    rejections = np.zeros([p["N"], p["M"]])  # matrix indicating if cadet i has been rejected by their p preference
+    pref_proposals = np.zeros(p["N"]) - 1  # 1-D array of cadet preference indices indicating proposal preference p
+    afsc_matches = [[] for _ in p["J"]]  # list of matched cadets to AFSC j
 
     # Begin Stable Marriage Algorithm
-    for _ in range(M):
-        afsc_proposal_lists = [[] for _ in range(M)]  # list of list of cadets proposing to AFSCs
-        afsc_proposal_ranks = [[] for _ in range(M)]  # rank associated with the cadets that are proposing to AFSC j
-        afsc_proposal_indices = [[] for _ in range(M)]  # index associated with the cadets that are proposing to AFSC j
+    for _ in p["J"]:
+        afsc_proposal_lists = [[] for _ in p["J"]]  # list of list of cadets proposing to AFSCs
+        afsc_proposal_ranks = [[] for _ in p["J"]]  # rank associated with the cadets that are proposing to AFSC j
+        afsc_proposal_indices = [[] for _ in p["J"]]  # index associated with the cadets that are proposing to AFSC j
 
         # cadets propose to their highest choice AFSC that has not rejected them
-        for i in range(N):
+        for i in p["I"]:
 
             rejected = True  # initially rejected until accepted
-            p = 0  # start with first choice
+            x = 0  # start with first choice
             while rejected:
-                if rejections[i, p] == 0:
+                if rejections[i, x] == 0:
                     rejected = False
-                    pref_proposals[i] = p
-                    afsc_proposal_lists[cadet_preference_list[i, p]] = \
-                        np.append(afsc_proposal_lists[cadet_preference_list[i, p]], int(i))  # Add cadet i to list of
+                    pref_proposals[i] = x
+                    afsc_proposal_lists[cadet_preference_list[i, x]] = \
+                        np.append(afsc_proposal_lists[cadet_preference_list[i, x]], int(i))  # Add cadet i to list of
                     # cadets proposing to that particular AFSC (obtained through looking up the index of cadet i's
-                    # p choice)
+                    # x choice)
                 else:
-                    p += 1
+                    x += 1
 
         # AFSCs accept their best offers as long as they're under their quotas, and reject others
-        for j in range(M):
+        for j in p["J"]:
 
             # Loop through all cadets that are proposing to AFSC j
             for i in afsc_proposal_lists[j]:
@@ -98,16 +96,16 @@ def stable_marriage_model_solve(parameters, value_parameters, printing=False):
                 else:
                     rejections[int(i), int(pref_proposals[int(i)])] = 1  # This cadet has been rejected by the AFSC
 
-            if len(afsc_proposal_lists[j]) > parameters['quota'][j]:
+            if len(afsc_proposal_lists[j]) > p['quota'][j]:
 
                 if len(afsc_proposal_ranks[j]) != 0:
                     # This line sorts the indices of cadets who are proposing to AFSC j according to AFSC j's ordinal
                     # preference for them
                     sorted_indices = afsc_proposal_indices[j][afsc_proposal_ranks[j].argsort()]
-                    afsc_matches[j] = sorted_indices[0:int(parameters['quota'][j])]
+                    afsc_matches[j] = sorted_indices[0:int(p['quota'][j])]
 
                     # reject excess cadets above quota
-                    rejected_cadets = sorted_indices[int(parameters['quota'][j]):len(sorted_indices)]
+                    rejected_cadets = sorted_indices[int(p['quota'][j]):len(sorted_indices)]
                     for r in rejected_cadets:
                         rejections[int(r), int(pref_proposals[int(r)])] = 1  # This cadet has been rejected by the AFSC
 
@@ -121,7 +119,7 @@ def stable_marriage_model_solve(parameters, value_parameters, printing=False):
                 else:
                     afsc_matches[j] = []
 
-    for j in range(M):
+    for j in p["J"]:
         for i in afsc_matches[j]:
             matches[int(i)] = int(j)
 
@@ -179,33 +177,32 @@ def greedy_model_solve(parameters, value_parameters, printing=False):
         print('Solving Greedy Model...')
 
     # Load Parameters
-    N = parameters['N']
-    M = parameters['M']
-    objectives = value_parameters['objectives']
-    objective_weight = value_parameters['objective_weight']
+    p = parameters
+    vp = value_parameters
 
     # Create AFSC Utility Matrix
-    afsc_utility = np.zeros([N, M])
-    for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
-        if objective in objectives:
-            k = np.where(objectives == objective)[0][0]
-            if objective == 'Merit':
-                merit = np.tile(np.where(parameters['merit'] > parameters['sum_merit'], 1,
-                                         parameters['merit'] / parameters['sum_merit']), [M, 1]).T
-                afsc_utility += merit * objective_weight[:, k].T
-            else:
-                afsc_utility += parameters[objective.lower()] * objective_weight[:, k].T
+    if "afsc_utility" in p:
+        afsc_utility = p["afsc_utility"]
+    else:
+        afsc_utility = np.zeros([p["N"], p["M"]])
+        for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
+            if objective in vp["objectives"]:
+                k = np.where(vp["objectives"] == objective)[0][0]
+                if objective == 'Merit':
+                    merit = np.tile(np.where(p['merit'] > p['sum_merit'], 1,
+                                             p['merit'] / p['sum_merit']), [p["M"], 1]).T
+                    afsc_utility += merit * vp["objective_weight"][:, k].T
+                else:
+                    afsc_utility += p[objective.lower()][:, :p["M"]] * vp["objective_weight"][:, k].T
 
     # Overall Utility Matrix
-    overall_utility = value_parameters['afscs_overall_weight'] * \
-                      (afsc_utility.T * value_parameters['afsc_weight'][:, np.newaxis]).T + \
-                      value_parameters['cadets_overall_weight'] * \
-                      parameters['utility'] * value_parameters['cadet_weight'][:, np.newaxis] + \
-                      parameters['ineligible'] * -100
+    overall_utility = vp['afscs_overall_weight'] * (afsc_utility.T * vp['afsc_weight'][:, np.newaxis]).T + \
+                      vp['cadets_overall_weight'] * p['utility'][:, :p["M"]] * vp['cadet_weight'][:, np.newaxis] + \
+                      p['ineligible'] * -100
 
     # Begin Greedy Algorithm to match the cadets using overall utility matrix
-    solution = np.zeros(N)
-    for i in range(N):
+    solution = np.zeros(p["N"])
+    for i in p["I"]:
 
         # Match cadet to AFSC which adds the highest overall value
         solution[i] = np.argmax(overall_utility[i, :])

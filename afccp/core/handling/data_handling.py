@@ -560,7 +560,7 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                      "Mandatory": "mandatory", "Desired": "desired", "Permitted": "permitted",
                      "USAFA Proportion": "usafa", "Utility": "utility"}
     for objective in p_lookup_dict:
-        if p_lookup_dict[objective] in p:
+        if p_lookup_dict[objective] in p and objective in vp["objectives"]:
             obj_indices[objective] = np.where(vp['objectives'] == objective)[0][0]
 
     # Loop through all AFSCs to assign their individual values
@@ -710,7 +710,7 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
 
             # Loop through each objective that we want to calculate objective measures for
             for objective in p_lookup_dict:
-                if p_lookup_dict[objective] in p:
+                if p_lookup_dict[objective] in p and objective in vp["objectives"]:
                     if obj_indices[objective] not in vp['K^A'][j]:
 
                         # Merit
