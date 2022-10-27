@@ -1171,6 +1171,10 @@ def populate_initial_ga_solutions(instance, printing=True):
             deviations = [abs(p["quota"][j] - old_quota[j]) for j in p["J"]]
             i += 1
 
+            # Don't solve this thing too many times
+            if i > 6:
+                break
+
             if printing:
                 print("Current Number of Quota Differences:", sum(deviations), "with objective value of",
                       round(metrics["z"], 4))
