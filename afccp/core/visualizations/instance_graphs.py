@@ -157,7 +157,7 @@ def data_graph(instance):
             raise ValueError("Version '" + str(ip["version"]) + "' is not valid for Preference Data graph.")
 
         # Axis Adjustments
-        ax.set(ylim=(0, ip["y_max"] * y_max))
+        ax.set(ylim=(0, y_max * ip["y_max"]))
 
         # Get correct text
         y_label = "Number of Cadets"
@@ -332,7 +332,7 @@ def data_graph(instance):
             raise ValueError("Version '" + str(ip["version"]) + "' is not valid for Preference Analysis Data graph.")
 
         # Axis Adjustments
-        ax.set(ylim=(0, ip["y_max"] * y_max))
+        ax.set(ylim=(0, y_max * ip["y_max"]))
 
         # Get correct text
         y_label = "Number of Cadets"
@@ -624,6 +624,7 @@ def afsc_results_graph(instance):
     ip = instance.plt_p
     p = instance.parameters
     vp = instance.value_parameters
+    y_max = ip["y_max"]
 
     # Create figure
     fig, ax = plt.subplots(figsize=ip['figsize'], facecolor=ip['facecolor'], tight_layout=True, dpi=ip['dpi'])
@@ -827,7 +828,7 @@ def afsc_results_graph(instance):
                 ax.plot((-1, 50), (0.35, 0.35), color='black', linestyle='-', zorder=1, alpha=1, linewidth=1.5)
 
                 # Set the max for the y-axis
-                ip["y_max"] = ip["y_max"] * np.max(max_measure)
+                y_max = y_max * np.max(max_measure)
 
             elif ip["objective"] in ["USAFA Proportion", "Male", "Minority"]:
 
@@ -845,7 +846,7 @@ def afsc_results_graph(instance):
                 ax.axhline(y=up_ub, color='blue', linestyle='-', alpha=0.5)
 
                 # Set the max for the y-axis
-                ip["y_max"] = ip["y_max"] * np.max(max_measure)
+                y_max = y_max * np.max(max_measure)
 
             elif ip["objective"] in ["Mandatory", "Desired", "Permitted"]:
 
@@ -883,7 +884,7 @@ def afsc_results_graph(instance):
 
                 # Y axis adjustments
                 y_ticks = [0, 0.5, 1, 1.5, 2]
-                ip["y_max"] = ip["y_max"] * y_top
+                y_max = y_max * y_top
 
                 # Lines
                 y_mins = np.repeat(1, M)
@@ -1003,7 +1004,7 @@ def afsc_results_graph(instance):
 
                         # Set the max for the y-axis
                         use_calculated_y_max = True
-                        ip["y_max"] = ip["y_max"]  # * np.max(measure)
+                        y_max = y_max  # * np.max(measure)
 
                         # Merit elements
                         y_ticks = [0, 0.35, 0.50, 0.65, 0.80, 1]
@@ -1041,7 +1042,7 @@ def afsc_results_graph(instance):
 
                         # Set the max for the y-axis
                         use_calculated_y_max = True
-                        ip["y_max"] = ip["y_max"]  # * np.max(measure)
+                        y_max = y_max  # * np.max(measure)
 
                         # Merit elements
                         y_ticks = [0, 0.35, 0.50, 0.65, 0.80, 1]
@@ -1101,8 +1102,7 @@ def afsc_results_graph(instance):
                         total_count = total_count[indices]
 
                         # Y max
-                        y_max = max(total_count)
-                        ip["y_max"] = ip["y_max"] * y_max
+                        y_max = y_max * max(total_count)
                         if 100 <= y_max < 150:
                             y_ticks = [50, 100, 150]
                         elif 150 <= y_max < 200:
@@ -1192,8 +1192,7 @@ def afsc_results_graph(instance):
                         total_count = total_count[indices]
 
                         # Y max
-                        y_max = max(total_count)
-                        ip["y_max"] = ip["y_max"] * y_max
+                        y_max = y_max * max(total_count)
                         if 100 <= y_max < 150:
                             y_ticks = [50, 100, 150]
                         elif 150 <= y_max < 200:
@@ -1264,7 +1263,7 @@ def afsc_results_graph(instance):
 
                         # Set the max for the y-axis
                         use_calculated_y_max = True
-                        ip["y_max"] = ip["y_max"]  # * np.max(measure)
+                        y_max = y_max  # * np.max(measure)
 
                         # Assign the right color to the AFSCs
                         for j in range(len(afscs)):
@@ -1293,7 +1292,7 @@ def afsc_results_graph(instance):
 
                         # Set the max for the y-axis
                         use_calculated_y_max = True
-                        ip["y_max"] = ip["y_max"]  # * np.max(measure)
+                        y_max = y_max  # * np.max(measure)
 
                         # Merit elements
                         y_ticks = [0, up_lb, up, up_ub, 1]
@@ -1411,8 +1410,7 @@ def afsc_results_graph(instance):
                                                      label="Non-Volunteer"))
 
                         # Labels and tick marks
-                        y_max = max(total_count)
-                        ip["y_max"] = ip["y_max"] * y_max
+                        y_max = y_max * max(total_count)
                         if 100 <= y_max < 150:
                             y_ticks = [50, 100, 150]
                         elif 150 <= y_max < 200:
@@ -1526,8 +1524,7 @@ def afsc_results_graph(instance):
                         measure = measure[indices]
 
                         # Y max
-                        y_max = max(total_count)
-                        ip["y_max"] = ip["y_max"] * y_max
+                        y_max = y_max * max(total_count)
                         if 100 <= y_max < 150:
                             y_ticks = [50, 100, 150]
                         elif 150 <= y_max < 200:
@@ -1671,7 +1668,7 @@ def afsc_results_graph(instance):
                         ax.scatter(afscs, quota_percent_filled, c=colors, linewidths=4, s=ip["dot_size"], zorder=3)
 
                         # Set the max for the y-axis
-                        ip["y_max"] = ip["y_max"] * np.max(quota_percent_filled)
+                        y_max = y_max * np.max(quota_percent_filled)
 
                         # Lines
                         y_mins = np.repeat(1, M)
@@ -1748,8 +1745,7 @@ def afsc_results_graph(instance):
                                                  edgecolor="black")]
 
                         # Y max
-                        y_max = max(measure)
-                        ip["y_max"] = ip["y_max"] * y_max
+                        y_max = y_max * max(measure)
                         if 100 <= y_max < 150:
                             y_ticks = [50, 100, 150]
                         elif 150 <= y_max < 200:
@@ -1852,8 +1848,7 @@ def afsc_results_graph(instance):
                         total_count = total_count[indices]
 
                         # Y max
-                        y_max = max(total_count)
-                        ip["y_max"] = ip["y_max"] * y_max
+                        y_max = y_max * max(total_count)
                         if 100 <= y_max < 150:
                             y_ticks = [50, 100, 150]
                         elif 150 <= y_max < 200:
@@ -1942,8 +1937,7 @@ def afsc_results_graph(instance):
                         total_count = total_count[indices]
 
                         # Y max
-                        y_max = max(total_count)
-                        ip["y_max"] = ip["y_max"] * y_max
+                        y_max = y_max * max(total_count)
                         if 100 <= y_max < 150:
                             y_ticks = [50, 100, 150]
                         elif 150 <= y_max < 200:
@@ -2038,8 +2032,7 @@ def afsc_results_graph(instance):
                                        objective in ["Permitted", "Desired", "Mandatory"]]
 
                     # Labels and tick marks
-                    y_max = max(total_count)
-                    ip["y_max"] = ip["y_max"] * y_max
+                    y_max = y_max * max(total_count)
                     if 100 <= y_max < 150:
                         y_ticks = [50, 100, 150]
                     elif 150 <= y_max < 200:
@@ -2145,8 +2138,7 @@ def afsc_results_graph(instance):
                     legend_elements.append(Patch(facecolor=ip['bar_colors'][categories[1]], label=categories[1]))
 
                     # Labels and tick marks
-                    y_max = max(total_count)
-                    ip["y_max"] = ip["y_max"] * y_max
+                    y_max = y_max * max(total_count)
                     if 100 <= y_max < 150:
                         y_ticks = [50, 100, 150]
                     elif 150 <= y_max < 200:
@@ -2215,7 +2207,7 @@ def afsc_results_graph(instance):
     ax.margins(y=0)
 
     if ip["y_exact_max"] is None or use_calculated_y_max:
-        ax.set(ylim=(0, ip["y_max"]))
+        ax.set(ylim=(0, y_max))
     else:
         ax.set(ylim=(0, ip["y_exact_max"]))
 
@@ -2604,7 +2596,7 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
     # Y ticks
     ax.tick_params(axis='y', labelsize=yaxis_tick_size)
     ax.margins(y=0)
-    ax.set(ylim=(0, y_max))
+    ax.set(ylim=(0, ip["y_max"]))
 
     # GUI Chart
     if gui_chart:
