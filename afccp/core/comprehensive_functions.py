@@ -11,7 +11,7 @@ from afccp.core.solutions.heuristic_solvers import *
 from afccp.core.visualizations.more_graphs import *
 
 try:
-    from afccp.core.macdonald.functions import *  # Import Ian's functions
+    from afccp.core.matching.functions import *  # Import Ian's functions
 except:
     pass  # We may not have Ian's functions
 

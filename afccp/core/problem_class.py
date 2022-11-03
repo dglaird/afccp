@@ -2401,7 +2401,7 @@ class CadetCareerProblem:
 
 
 try:
-    from afccp.core.macdonald.problem_class_add import MoreCCPMethods
+    from afccp.core.matching.problem_class_add import MoreCCPMethods
 
     # Load in the methods from the other sheet and attach them to CadetCareerProblem
     for method_name in dir(MoreCCPMethods):
