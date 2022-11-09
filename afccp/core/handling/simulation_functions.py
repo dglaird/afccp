@@ -7,13 +7,12 @@ from afccp.core.handling.preprocessing import cip_to_qual, cip_to_qual_direct
 
 if use_sdv:
     from sdv.evaluation import evaluate
+    from sdv.constraints import GreaterThan
+    from sdv.constraints import CustomConstraint
 
-    if 'workspace' in dir_path:  # Newer version!
-        from sdv.constraints import Inequality
-        from sdv.constraints import create_custom_constraint
-    else:
-        from sdv.constraints import GreaterThan
-        from sdv.constraints import CustomConstraint
+    # if 'workspace' in dir_path:  # Newer version!
+    #     from sdv.constraints import Inequality
+    #     from sdv.constraints import create_custom_constraint
     
     from sdv.tabular import CTGAN
 
@@ -540,33 +539,31 @@ if use_sdv:
         print(data)
         print('')
 
-        if 'workspace' in dir_path:  # Newer version!
+        # Constraints to ensure utilities descend across the columns from left to right (or are equal)  (DEPRECATED)
+        three_two_constraint = GreaterThan(low='NrWgt3', high='NrWgt2', handling_strategy='reject_sampling')
+        four_three_constraint = GreaterThan(low='NrWgt4', high='NrWgt3', handling_strategy='reject_sampling')
+        five_four_constraint = GreaterThan(low='NrWgt5', high='NrWgt4', handling_strategy='reject_sampling')
+        six_five_constraint = GreaterThan(low='NrWgt6', high='NrWgt5', handling_strategy='reject_sampling')
 
-            # Updated version
-            three_two_constraint = Inequality(low_column_name='NrWgt3', high_column_name='NrWgt2',
-                                              handling_strategy='reject_sampling')
-            four_three_constraint = Inequality(low_column_name='NrWgt4', high_column_name='NrWgt3',
-                                               handling_strategy='reject_sampling')
-            five_four_constraint = Inequality(low_column_name='NrWgt5', high_column_name='NrWgt4',
-                                              handling_strategy='reject_sampling')
-            six_five_constraint = Inequality(low_column_name='NrWgt6', high_column_name='NrWgt5',
-                                             handling_strategy='reject_sampling')
+        # Custom constraints defined in this script
+        unique_AFSC_constraint = CustomConstraint(is_valid=afscs_unique)
+        utilities_pref_constraint = CustomConstraint(is_valid=utilities_match)
 
-            # Custom Constraints
-            unique_AFSC_constraint = create_custom_constraint(is_valid_fn=afscs_unique)
-            utilities_pref_constraint = create_custom_constraint(is_valid_fn=utilities_match)
-
-        else:  # Older version
-
-            # Constraints to ensure utilities descend across the columns from left to right (or are equal)  (DEPRECATED)
-            three_two_constraint = GreaterThan(low='NrWgt3', high='NrWgt2', handling_strategy='reject_sampling')
-            four_three_constraint = GreaterThan(low='NrWgt4', high='NrWgt3', handling_strategy='reject_sampling')
-            five_four_constraint = GreaterThan(low='NrWgt5', high='NrWgt4', handling_strategy='reject_sampling')
-            six_five_constraint = GreaterThan(low='NrWgt6', high='NrWgt5', handling_strategy='reject_sampling')
-
-            # Custom constraints defined in this script
-            unique_AFSC_constraint = CustomConstraint(is_valid=afscs_unique)
-            utilities_pref_constraint = CustomConstraint(is_valid=utilities_match)
+        # if 'workspace' in dir_path:  # Newer version!
+        #
+        #     # Updated version
+        #     three_two_constraint = Inequality(low_column_name='NrWgt3', high_column_name='NrWgt2',
+        #                                       handling_strategy='reject_sampling')
+        #     four_three_constraint = Inequality(low_column_name='NrWgt4', high_column_name='NrWgt3',
+        #                                        handling_strategy='reject_sampling')
+        #     five_four_constraint = Inequality(low_column_name='NrWgt5', high_column_name='NrWgt4',
+        #                                       handling_strategy='reject_sampling')
+        #     six_five_constraint = Inequality(low_column_name='NrWgt6', high_column_name='NrWgt5',
+        #                                      handling_strategy='reject_sampling')
+        #
+        #     # Custom Constraints
+        #     unique_AFSC_constraint = create_custom_constraint(is_valid_fn=afscs_unique)
+        #     utilities_pref_constraint = create_custom_constraint(is_valid_fn=utilities_match)
 
         constraints = [three_two_constraint, four_three_constraint, five_four_constraint, six_five_constraint,
                        unique_AFSC_constraint, utilities_pref_constraint]
