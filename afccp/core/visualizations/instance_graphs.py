@@ -128,27 +128,27 @@ def data_graph(instance):
 
         # Legend
         if ip["version"] is None:
-            legend_elements = [Patch(facecolor=ip['bar_colors']["top_3_choices"], label='Top 3 Choices',
+            legend_elements = [Patch(facecolor=ip['bar_colors']["top_choices"], label='Top 3 Choices',
                                      edgecolor='black'),
-                               Patch(facecolor=ip['bar_colors']["next_3_choices"],
+                               Patch(facecolor=ip['bar_colors']["mid_choices"],
                                      label='Next 3 Choices', edgecolor='black')]
 
             # Bar Chart
-            ax.bar(afscs, next_3_count, color=ip['bar_colors']["next_3_choices"], edgecolor='black')
-            ax.bar(afscs, top_3_count, bottom=next_3_count, color=ip['bar_colors']["top_3_choices"],
+            ax.bar(afscs, next_3_count, color=ip['bar_colors']["mid_choices"], edgecolor='black')
+            ax.bar(afscs, top_3_count, bottom=next_3_count, color=ip['bar_colors']["top_choices"],
                    edgecolor='black')
 
             y_axis_count = top_3_count + next_3_count
             y_max = np.max(y_axis_count)
 
         elif ip["version"] == "Top 3":
-            legend_elements = [Patch(facecolor=ip['bar_colors']["top_3_choices"], label='Top 3 Choices',
+            legend_elements = [Patch(facecolor=ip['bar_colors']["top_choices"], label='Top 3 Choices',
                                      edgecolor='black')]
             ip["title"] = "Cadet Top 3 Preferences Placed on Each AFSC (Before Match)"
             ip["filename"] = "2_Cadet_Preference_Top3_Choices_Placed_Across_AFSCs"
 
             # Bar Chart
-            ax.bar(afscs, top_3_count, color=ip['bar_colors']["top_3_choices"], edgecolor='black')
+            ax.bar(afscs, top_3_count, color=ip['bar_colors']["top_choices"], edgecolor='black')
 
             y_axis_count = top_3_count
             y_max = np.max(y_axis_count)
@@ -719,7 +719,8 @@ def afsc_results_graph(instance):
                           "ROTC Quota": "Number of ROTC Cadets", "Mandatory": "Mandatory Degree Tier Proportion",
                           "Desired": "Desired Degree Tier Proportion", "Permitted":
                               "Permitted Degree Tier Proportion", "Male": "Proportion of Male Cadets",
-                          "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility"}
+                          "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility",
+                          "Norm Score": "Normalized Preference Score"}
 
             # Get the correct objective elements
             k = np.where(vp["objectives"] == ip["objective"])[0][0]
@@ -910,7 +911,7 @@ def afsc_results_graph(instance):
                 # Quota Line
                 ax.axhline(y=1, color='black', linestyle='-', alpha=0.5, zorder=1)
 
-            elif ip["objective"] == "Utility":
+            elif ip["objective"] in ["Utility", "Norm Score"]:
 
                 # Tick marks and extra lines
                 y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
@@ -962,7 +963,8 @@ def afsc_results_graph(instance):
                               "ROTC Quota": "Number of ROTC Cadets", "Mandatory": "Mandatory Degree Tier Proportion",
                               "Desired": "Desired Degree Tier Proportion", "Permitted":
                                   "Permitted Degree Tier Proportion", "Male": "Proportion of Male Cadets",
-                              "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility"}
+                              "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility",
+                              "Norm Score": "Normalized Preference Score"}
 
                 # Get the correct objective elements
                 k = np.where(vp["objectives"] == ip["objective"])[0][0]
@@ -1008,12 +1010,6 @@ def afsc_results_graph(instance):
 
                         # Merit elements
                         y_ticks = [0, 0.35, 0.50, 0.65, 0.80, 1]
-
-                        # I commented this out because the large AFSCs are going to meet these requirements most likely
-                        # legend_elements = [Patch(facecolor=ip['bar_colors']["merit_below"], label='Merit < 0.35'),
-                        #                    Patch(facecolor=ip['bar_colors']["merit_within"],
-                        #                          label='0.35 < Merit < 0.65'),
-                        #                    Patch(facecolor=ip['bar_colors']["merit_above"], label='Merit > 0.65')]
 
                         # Assign the right color to the AFSCs
                         for j in range(len(afscs)):
@@ -1785,43 +1781,72 @@ def afsc_results_graph(instance):
                             # Add the PGL lines
                             ax.plot((j - 0.4, j + 0.4), (quota[j], quota[j]), color=line_color, linestyle="-", zorder=2)
 
-                elif ip["objective"] == "Utility":
+                elif ip["objective"] in ["Utility", "Norm Score"]:
 
                     if ip["version"] == "quantity_bar_proportion":
 
-                        # Get the title and filename
-                        ip["title"] = "Cadet Preference Breakdown Across Each AFSC"
-                        ip["filename"] = instance.solution_name + " Cadet_Preference_Sorted"
+                        # Counts
+                        counts = {"bottom_choices": np.zeros(M), "mid_choices": np.zeros(M), "top_choices": np.zeros(M)}
+
+                        if ip["objective"] == "Utility":
+
+                            # Get the title and filename
+                            ip["title"] = "Cadet Preference Breakdown Across Each AFSC"
+                            ip["filename"] = instance.solution_name + " Cadet_Preference_Sorted"
+
+                            # Legend
+                            legend_elements = [Patch(facecolor=ip['bar_colors']["top_choices"], label='Top 3 Choices',
+                                                     edgecolor='black'),
+                                               Patch(facecolor=ip['bar_colors']["mid_choices"],
+                                                     label='Next 3 Choices', edgecolor='black'),
+                                               Patch(facecolor=ip['bar_colors']["bottom_choices"],
+                                                     label='Non-Volunteer',
+                                                     edgecolor='black')]
+
+                            # Convert utility matrix to utility columns
+                            preferences, utilities_array = get_utility_preferences(p)
+
+                            # Get cadet preference counts
+                            for i, j in enumerate(instance.solution):
+                                afsc = p["afsc_vector"][j]
+                                if afsc != "*":
+                                    if afsc in preferences[i, 0:3]:
+                                        counts["top_choices"][j] += 1
+                                    elif afsc in preferences[i, 3:6]:
+                                        counts["mid_choices"][j] += 1
+                                    else:
+                                        counts["bottom_choices"][j] += 1
+                        else:
+
+                            # Get the title and filename
+                            ip["title"] = "AFSC Preference Breakdown"
+                            ip["filename"] = instance.solution_name + " AFSC_Preference_Sorted"
+
+                            # Legend
+                            legend_elements = [Patch(facecolor=ip['bar_colors']["top_choices"], label='Top Third',
+                                                     edgecolor='black'),
+                                               Patch(facecolor=ip['bar_colors']["mid_choices"],
+                                                     label='Middle Third', edgecolor='black'),
+                                               Patch(facecolor=ip['bar_colors']["bottom_choices"],
+                                                     label='Bottom Third',
+                                                     edgecolor='black')]
+
+                            # Find each cadet's percentile relative to their assigned AFSC
+                            for i, j in enumerate(instance.solution):
+
+                                afsc = p["afsc_vector"][j]
+                                if afsc != "*":
+                                    if p["afsc_utility"][i, j] < 1/3:
+                                        counts["bottom_choices"][j] += 1
+                                    elif p["afsc_utility"][i, j] < 2/3:
+                                        counts["mid_choices"][j] += 1
+                                    else:
+                                        counts["top_choices"][j] += 1
+
+                        # Set title and label
                         if ip["solution_in_title"]:
                             ip['title'] = instance.solution_name + ": " + ip['title']
-                        label_dict["Utility"] = "Number of Cadets"
-                        y_label = label_dict[ip["objective"]]
-
-                        # Convert utility matrix to utility columns
-                        preferences, utilities_array = get_utility_preferences(p)
-
-                        # Counts
-                        top_3_count = np.zeros(M)
-                        next_3_count = np.zeros(M)
-                        non_vol_count = np.zeros(M)
-
-                        for i, j in enumerate(instance.solution):
-                            afsc = p["afsc_vector"][j]
-                            if afsc != "*":
-                                if afsc in preferences[i, 0:3]:
-                                    top_3_count[j] += 1
-                                elif afsc in preferences[i, 3:6]:
-                                    next_3_count[j] += 1
-                                else:
-                                    non_vol_count[j] += 1
-
-                        # Legend
-                        legend_elements = [Patch(facecolor=ip['bar_colors']["top_3_choices"], label='Top 3 Choices',
-                                                 edgecolor='black'),
-                                           Patch(facecolor=ip['bar_colors']["next_3_choices"],
-                                                 label='Next 3 Choices', edgecolor='black'),
-                                           Patch(facecolor=ip['bar_colors']["non_volunteer"], label='Non-Volunteer',
-                                                 edgecolor='black')]
+                        y_label = "Number of Cadets"
 
                         # Need to know number of cadets assigned
                         quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
@@ -1841,10 +1866,11 @@ def afsc_results_graph(instance):
                         else:
                             indices = np.argsort(total_count)[::-1]
 
+                        # Re-sort the stuff we care about
                         afscs = afscs[indices]
-                        counts = {"non_volunteer": non_vol_count[indices],
-                                  "next_3_choices": next_3_count[indices],
-                                  "top_3_choices": top_3_count[indices]}
+                        for cat in counts:
+                            counts[cat] = counts[cat][indices]
+                        # counts = {counts[cat][indices] for cat in counts}  # Why doesn't this work????
                         total_count = total_count[indices]
 
                         # Y max
@@ -1886,11 +1912,11 @@ def afsc_results_graph(instance):
                             ax.text(index, total_count[index] + 2, int(total_count[index]),
                                     fontsize=ip["text_size"], horizontalalignment='center')
 
-                    elif ip["version"] == "bar":
+                    elif ip["version"] in ["dot", "bar"]:
 
                         # Get the title and filename
-                        ip["title"] = "Average Utility Across Each AFSC"
-                        ip["filename"] = instance.solution_name + " Utility_Average_AFSC"
+                        ip["title"] = label_dict[ip["objective"]] + " Across Each AFSC"
+                        ip["filename"] = instance.solution_name +  ip["objective"] + " _Average_AFSC"
                         if ip["solution_in_title"]:
                             ip['title'] = instance.solution_name + ": " + ip['title']
 
@@ -2346,13 +2372,13 @@ def afsc_multi_criteria_graph(instance, max_num=None):
 
                 # Plot preference bars
                 ax.bar(label_locations[index] + bar_width * c, non_vol_count[index], bar_width,
-                       edgecolor='black', color=ip['bar_colors']["non_volunteer"])
+                       edgecolor='black', color=ip['bar_colors']["bottom_choices"])
                 ax.bar(label_locations[index] + bar_width * c, next_3_count[index], bar_width,
                        bottom=non_vol_count[index], edgecolor='black',
-                       color=ip['bar_colors']["next_3_choices"])
+                       color=ip['bar_colors']["mid_choices"])
                 ax.bar(label_locations[index] + bar_width * c, top_3_count[index], bar_width,
                        bottom=non_vol_count[index] + next_3_count[index], edgecolor='black',
-                       color=ip['bar_colors']["top_3_choices"])
+                       color=ip['bar_colors']["top_choices"])
 
             elif obj == "Merit":
 
@@ -3125,195 +3151,44 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
     return fig
 
 
-def solution_similarity_graph(coords, solution_names, title=None, colors=None, figsize=(10, 7), thesis_chart=False,
-                              display_title=True, use_models=False, facecolor='white', save=False, year=None,
-                              _plt=None):
+def solution_similarity_graph(instance, coords):
     """
     This is the chart that compares the approximate and exact models (with genetic algorithm) in solve time and
     objective value
-    :param _plt: this was used for the defense slides to add some connecting red lines for some slides
-    :param year: year of the data
-    :param thesis_chart: if this is for the thesis paper or not
-    :param use_models: if we want to take advantage of value parameters/models and plot using colors
-    and markers (colors for VPs, markers for models)
-    :param coords: coordinates to plot
-    :param solution_names: names of the solutions
-    :param display_title: if we want to display a title or not for the chart
-    :param colors: colors of problem instances
-    :param title: the title of the chart
-    :param save: If we should save the figure
-    :param facecolor: color of the background of the graph
-    :param figsize: size of the figure
-    :return: figure
     """
-    if thesis_chart:
-        figsize = (12.5, 10)
-        display_title = False
-        if title is None:
-            if _plt is not None:
-                title = 'Similarity_' + str(year) + '_' + str(_plt)
-            else:
-                title = 'Similarity_' + str(year)
-        save = True
-        use_models = False
-    size = 220
-    fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, tight_layout=True)
+
+    # Load in plot parameters
+    ip = instance.plt_p
+    ip["figsize"] = (10, 10)
+
+    if ip["title"] is None:
+        ip["title"] = instance.data_name + " Solution Similarity"
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=ip["figsize"], facecolor=ip["facecolor"], tight_layout=True)
     ax.set_aspect('equal', adjustable='box')
 
-    if colors is None:
-        colors = ['green', 'blue', 'orange', 'purple', 'red', 'cyan', 'magenta', 'lime', 'pink', 'yellow',
-                  'deepskyblue', 'gold', 'deeppink', 'sandybrown', 'olive', 'maroon', 'navy', 'coral', 'teal',
-                  'darkorange']
-        colors = colors[:len(coords)]
+    # Plot the solution dot
+    legend_elements = []
+    for i, solution_name in enumerate(ip["solution_names"]):
+        x, y = coords[i, 0], coords[i, 1]
+        ax.scatter(x, y, c=ip["color_choices"][i], marker=ip["marker_choices"][i], edgecolor="black",
+                   s=ip["sim_dot_size"], zorder=2)
 
-    if thesis_chart:
-        for i, solution_name in enumerate(solution_names):
-            x, y = coords[i, 0], coords[i, 1]
-            if solution_name == 'Original':
-                ax.scatter(x, y, c='red', marker='X', edgecolor='black', s=size, zorder=2)
-            elif solution_name == 'VFT New':
-                ax.scatter(x, y, c='green', marker='s', edgecolor='black', s=size, zorder=2)
-            else:
-                ax.scatter(x, y, c='blue', marker='o', edgecolor='black', s=size, zorder=2)
+        # Add legend element
+        legend_elements.append(mlines.Line2D([], [], color=ip["color_choices"][i], marker=ip["marker_choices"][i],
+                                             linestyle='None', markeredgecolor='black', markersize=20,
+                                             label=solution_name))
 
-        solution_1 = '2018_VP_30'
-        if _plt == 1:
-            solutions = ['2018_VP_14']
-        elif _plt == 2:
-            solutions = ['2018_VP_14', '2018_VP_13']
-        elif _plt == 3:
-            solutions = ['2018_VP_14', '2018_VP_13', '2018_VP_20']
-        elif _plt == 4:
-            solutions = ['2018_VP_14', '2018_VP_13', '2018_VP_20', '2018_VP_9']
-        elif _plt == 5:
-            solutions = solution_names
-        elif _plt == 6:
-            solution_1 = '2018_VP_14'
-            solutions = solution_names
-        elif _plt == 7:
-            solution_1 = '2018_VP_13'
-            solutions = solution_names
-        elif _plt == 8:
-            solution_1 = 'Original'
-            solutions = solution_names
 
-        if _plt is not None:
-            for solution in solutions:
-                if solution != solution_1:
-                    s_1 = np.where(solution_names == solution_1)[0][0]
-                    s_2 = np.where(solution_names == solution)[0][0]
-                    x1, x2 = coords[s_1, 0], coords[s_2, 0]
-                    y1, y2 = coords[s_1, 1], coords[s_2, 1]
-                    ax.plot((x1, x2), (y1, y2), linestyle='-', linewidth=3, color='red', zorder=1)
+    ax.legend(handles=legend_elements, edgecolor='black', fontsize=ip["legend_size"], loc='upper left',
+              ncol=len(legend_elements), columnspacing=0.4, handletextpad=0.1, borderaxespad=0.5, borderpad=0.2)
 
-        # Create legend
-        if 'VFT New' in solution_names:
-            legend_elements = [mlines.Line2D([], [], color='black', marker='X', linestyle='None',
-                                             markeredgecolor='black', markersize=20, label='Original'),
-                               mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
-                                             markeredgecolor='black', markersize=20, label='VFT'),
-                               mlines.Line2D([], [], color='green', marker='s', linestyle='None',
-                                             markeredgecolor='black', markersize=20, label='VFT New')]
-        else:
-            legend_elements = [mlines.Line2D([], [], color='red', marker='X', linestyle='None',
-                                             markeredgecolor='black', markersize=20, label='Original'),
-                               mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
-                                             markeredgecolor='black', markersize=20, label='VFT')]
+    # Remove tick marks
+    ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
-        legend = ax.legend(handles=legend_elements, edgecolor='black', fontsize=35, loc='upper left',
-                           ncol=len(legend_elements),
-                           columnspacing=0.4, handletextpad=0.1, borderaxespad=0.5, borderpad=0.2)
-        legend.get_title().set_fontsize('35')
+    if ip["save"]:
+        fig.savefig(paths_out['figures'] + instance.data_name + "/results/" + ip['title'] + '.png',
+                    bbox_inches='tight')
 
-        # Remove tick marks
-        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-
-        if save:
-            fig.savefig(paths_out['figures'] + title + '.png')
-
-        return fig
-    if use_models:
-        markers = {'Original': 'X', 'Approximate': 'o', 'Approximate_GA': '^', 'Exact': 's',
-                   'Full_GA': 'v', 'VFT': 'o'}
-        colors = {'A': 'blue', 'B': 'green', 'C': 'orange', 'D': 'magenta', 'E': 'yellow',
-                  'F': 'cyan', 'G': 'red', 'H': 'lime', 'I': 'deeppink', 'J': 'purple', 'Original': 'black'}
-        vps = []
-        models = []
-        vp_legend = []
-        model_legend = []
-        for i, solution_name in enumerate(solution_names):
-
-            # Get correct model and vp
-            if thesis_chart:
-
-                # Get names
-                if len(solution_name) == 1:
-                    vp = solution_name
-                    model = 'VFT'
-                else:
-                    vp = 'Original'
-                    model = 'Original'
-
-                # Add legend elements
-                element = mlines.Line2D([], [], color=colors[vp], marker=markers[model], linestyle='None',
-                                        markeredgecolor='black', markersize=20, label=vp)
-                vp_legend.append(element)
-
-            else:
-
-                # Get names
-                name_split = solution_name.split('_')
-                if len(name_split) == 1:
-                    model = name_split[0]
-                    vp = None
-                elif len(name_split) == 2:
-                    model = name_split[0]
-                    vp = name_split[1]
-                else:
-                    model = name_split[0] + '_' + name_split[1]
-                    vp = name_split[2]
-
-                # Add legend elements
-                if vp not in vps:
-                    if vp is not None:
-                        vps.append(vp)
-                        vp_legend.append(Patch(facecolor=colors[vp], label=vp, edgecolor='black'))
-                if model not in models:
-                    models.append(model)
-                    if model == 'Original':
-                        fill_color = 'black'
-                    else:
-                        fill_color = facecolor
-                    element = mlines.Line2D([], [], color=fill_color, marker=markers[model], linestyle='None',
-                                            markeredgecolor='black', markersize=20, label=model)
-                    model_legend.append(element)
-
-            # Plot solution
-            x = coords[i, 0]
-            y = coords[i, 1]
-            ax.scatter(x, y, c=colors[vp], marker=markers[model], edgecolor='black', s=size)
-
-        if title is None:
-            title = 'Solution Similarity Graph'
-
-        # Remove tick marks
-        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-
-        # Create legend
-        if thesis_chart:
-            legend = ax.legend(handles=vp_legend, edgecolor='black', fontsize=25, title='Solutions', loc='upper left',
-                               ncol=2)
-            legend.get_title().set_fontsize('25')
-        # else:
-        #     ax2.scatter(np.NaN, np.NaN)
-        #     ax2.get_yaxis().set_visible(False)
-        #     ax.legend(handles=vp_legend, edgecolor='black', loc=2)
-        #     ax2.legend(handles=model_legend, edgecolor='black', loc=4)
-
-        if display_title:
-            ax.set_title(title)
-
-        if save:
-            fig.savefig(paths_out['figures'] + title + '.png')
-
-        return fig
+    return fig

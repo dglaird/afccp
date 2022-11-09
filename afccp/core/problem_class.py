@@ -144,6 +144,7 @@ class CadetCareerProblem:
         self.solution_name = None
         self.vp_dict = None
         self.vp_name = None
+        self.similarity_matrix = None
 
         # Check if we're generating data, and the data variant
         if self.data_variant == 'Random' and generate:
@@ -186,8 +187,8 @@ class CadetCareerProblem:
                 except:
                     raise ValueError("Instance '" + self.data_name + "' not found at path " + paths_in['instances'])
 
-            self.info_df, self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df = \
-                import_aggregate_instance_file(filepath, num_breakpoints=num_breakpoints)
+            self.info_df, self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df, \
+            self.similarity_matrix = import_aggregate_instance_file(filepath, num_breakpoints=num_breakpoints)
 
         # Initialize more "functional" parameters
         self.plt_p, self.mdl_p = initialize_instance_functional_parameters(self.parameters["N"])
@@ -1354,6 +1355,13 @@ class CadetCareerProblem:
         # Determine population for the genetic algorithm if necessary
         if p_dict["populate"]:
             p_dict["initial_solutions"] = populate_initial_ga_solutions(self, printing)
+
+            # Add additional solutions if necessary
+            if p_dict["solution_names"] is not None:
+                for solution_name in p_dict["solution_names"]:
+                    solution = self.solution_dict[solution_name]
+                    p_dict["initial_solutions"] = np.vstack((p_dict["initial_solutions"], solution))
+
             p_dict["initialize"] = True
 
             if printing:
@@ -1498,36 +1506,76 @@ class CadetCareerProblem:
                 self.solution_dict[solution_name] = solution
                 self.solution_name = solution_name
 
-    # TODO: This method is irrelevant now
-    def afsc_solution_to_solution(self, afsc_solution, set_to_instance=True, add_to_dict=True, solution_name=None,
-                                  printing=None):
+    def compute_similarity_matrix(self, solution_names=None, set_to_instance=True):
         """
-        Simply converts a vector of labeled AFSCs to a vector of AFSC indices
-        :param solution_name: name of the solution
-        :param set_to_instance: if we want to set this solution to the instance's solution attribute
-        :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param afsc_solution: solution vector of AFSC names (strings)
-        :param printing: Whether or not we should print status updates
-        :return: solution vector of AFSC indices
+        Generates the similarity matrix for a given set of solutions
+        """
+
+        if solution_names is None:
+            solution_names = list(self.solution_dict.keys())
+
+        # Create the matrix
+        num_solutions = len(solution_names)
+        similarity_matrix = np.zeros((num_solutions, num_solutions))
+        for row, sol_1_name in enumerate(solution_names):
+            for col, sol_2_name in enumerate(solution_names):
+                sol_1 = self.solution_dict[sol_1_name]
+                sol_2 = self.solution_dict[sol_2_name]
+                similarity_matrix[row, col] = np.sum(sol_1 == sol_2) / self.parameters["N"]  # % similarity!
+
+        # Set this similarity matrix to be the instance attribute
+        if set_to_instance:
+            self.similarity_matrix = similarity_matrix
+
+        return similarity_matrix
+
+    def similarity_plot(self, p_dict={}, set_to_instance=True, printing=None):
+        """
+        Creates the solution similarity plot for the solutions specified
         """
         if printing is None:
             printing = self.printing
 
-        solution = np.zeros(len(afsc_solution))
-        for i in range(self.parameters['N']):
-            solution[i] = np.where(self.parameters['afsc_vector'] == afsc_solution[i])[0]
+        if printing:
+            print("Creating solution similarity plot...")
 
-        # Set the solution attribute
-        if set_to_instance:
-            self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
+        # Update plot parameters if necessary
+        for key in p_dict:
+            if key in self.plt_p:
+                self.plt_p[key] = p_dict[key]
+            else:
 
-        # Add solution to solution dictionary
-        if add_to_dict:
-            self.add_solution_to_dictionary(solution, solution_name=solution_name)
+                # Exception
+                if key == "graph":
+                    self.plt_p["results_graph"] = p_dict["graph"]
 
-        return solution
+                else:
+                    # If the parameter doesn't exist, we warn the user
+                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        # Get our similarity matrix from somewhere
+        if self.plt_p["new_similarity_matrix"]:
+            similarity_matrix = self.compute_similarity_matrix(solution_names=self.plt_p["solution_names"],
+                                                               set_to_instance=set_to_instance)
+        else:
+            if self.similarity_matrix is None:
+                similarity_matrix = self.compute_similarity_matrix(solution_names=self.plt_p["solution_names"],
+                                                                   set_to_instance=set_to_instance)
+            else:
+                similarity_matrix = self.similarity_matrix
+
+        # Get the right solution names
+        if self.plt_p["solution_names"] is None:
+            self.plt_p["solution_names"] = list(self.solution_dict.keys())
+
+        # Get coordinates
+        coords = solution_similarity_coordinates(similarity_matrix)
+
+        # Plot similarity
+        chart = solution_similarity_graph(self, coords)
+
+        if printing:
+            chart.show()
 
     # TODO: Need to fix this method (doesn't work right now)
     def init_exact_solution_from_x(self, printing=None):
@@ -1840,10 +1888,26 @@ class CadetCareerProblem:
         # Force certain parameters
         p_dict["save"], p_dict["graph"] = True, "Measure"
 
+        # Update plot parameters if necessary
+        for key in p_dict:
+            if key in self.plt_p:
+                self.plt_p[key] = p_dict[key]
+            else:
+
+                # Exception
+                if key == "graph":
+                    self.plt_p["results_graph"] = p_dict["graph"]
+
+                else:
+                    # If the parameter doesn't exist, we warn the user
+                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        p_dict = copy.deepcopy(self.plt_p)
+
         # If we specify the solution names, that means we want to view all of their individual charts as well
         # as the comparison charts
         charts = []
-        if "solution_names" in p_dict:
+        if p_dict["solution_names"] is not None:
 
             # Show both comparison charts and regular ones
             for compare_solutions in [False, True]:
@@ -1862,7 +1926,11 @@ class CadetCareerProblem:
                             p_dict["objective"] = obj
                             for version in self.plt_p["afsc_chart_versions"][obj]:
                                 p_dict["version"] = version
-                                charts.append(self.display_results_graph(p_dict))
+
+                                try:
+                                    charts.append(self.display_results_graph(p_dict))
+                                except:
+                                    pass
 
                 else:
 
@@ -1874,22 +1942,46 @@ class CadetCareerProblem:
 
                         if obj in self.plt_p["afsc_chart_versions"]:
                             p_dict["objective"] = obj
-                            charts.append(self.display_results_graph(p_dict))
+
+                            try:
+                                charts.append(self.display_results_graph(p_dict))
+                            except:
+                                pass
 
         else:
 
             if printing:
                 print("Saving charts for solution '" + self.solution_name + "'...")
 
-            # Loop through each objective and version
-            for obj in self.plt_p["afsc_chart_versions"]:
+            if p_dict["use_useful_charts"]:
 
-                if printing:
-                    print("<Charts for objective '" + obj + "'>")
-                p_dict["objective"] = obj
-                for version in self.plt_p["afsc_chart_versions"][obj]:
+                # Loop through the subset of charts that I actually care about
+                for obj, version in p_dict["desired_charts"]:
+
+                    if printing:
+                        print("<Objective '" + obj + "' version '" + version + "'>")
+                    p_dict["objective"] = obj
                     p_dict["version"] = version
-                    charts.append(self.display_results_graph(p_dict))
+
+                    try:
+                        charts.append(self.display_results_graph(p_dict))
+                    except:
+                        pass
+            else:
+
+                # Loop through each objective and version
+                for obj in self.plt_p["afsc_chart_versions"]:
+
+                    if printing:
+                        print("<Charts for objective '" + obj + "'>")
+                    p_dict["objective"] = obj
+                    for version in self.plt_p["afsc_chart_versions"][obj]:
+                        p_dict["version"] = version
+
+                        try:
+                            charts.append(self.display_results_graph(p_dict))
+                        except:
+                            pass
 
         return charts
 
@@ -2351,7 +2443,7 @@ class CadetCareerProblem:
             vp_dict = self.vp_dict
 
         create_aggregate_instance_file(self.data_instance_name, self.parameters, solution_dict, vp_dict, metrics_dict,
-                                       self.gp_df, info_df=self.info_df)
+                                       self.gp_df, info_df=self.info_df, similarity_matrix=self.similarity_matrix)
 
     def export_to_excel(self, aggregate=True, printing=None):
         """

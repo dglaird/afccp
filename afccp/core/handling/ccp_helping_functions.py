@@ -67,11 +67,20 @@ def determine_afsc_plot_details(instance, results_chart=False):
                     raise ValueError("Objective '" + instance.plt_p["objective"] +
                                      "' does not have chart version '" + instance.plt_p["version"] + "'.")
 
+            if instance.plt_p["objective"] == "Norm Score" and instance.plt_p["version"] == "quantity_bar_proportion":
+                if "afsc_utility" not in instance.parameters:
+                    raise ValueError("The AFSC Utility matrix is needed for the Norm Score "
+                                     "'quantity_bar_proportion' chart. ")
+
         if instance.plt_p["solution_names"] is None:
 
             # Default to the current active solutions
             instance.plt_p["solution_names"] = list(instance.solution_dict.keys())
             num_solutions = len(instance.plt_p["solution_names"])  # Number of solutions in dictionary
+
+            # Get number of solutions
+            if instance.plt_p["num_solutions"] is None:
+                instance.plt_p["num_solutions"] = num_solutions
 
             # Can't have more than 4 solutions
             if num_solutions > 4:
@@ -99,9 +108,9 @@ def determine_afsc_plot_details(instance, results_chart=False):
             else:
                 instance.plt_p["all_afscs"] = True
 
-            # Value Parameters
-            if instance.plt_p["vp_name"] is None:
-                instance.plt_p["vp_name"] = instance.vp_name
+        # Value Parameters
+        if instance.plt_p["vp_name"] is None:
+            instance.plt_p["vp_name"] = instance.vp_name
 
     return instance.plt_p
 
@@ -120,11 +129,16 @@ def initialize_instance_functional_parameters(N):
              "xaxis_tick_size": 20, "afsc_rotation": None, "dpi": 100, "bar_color": "black", "alpha": 1,
              "legend_size": 25, "skip_afscs": None, "results_graph": "Measure", "y_max": 1.1, "y_exact_max": None,
              "objective": "Merit", "compare_solutions": False, "solution_names": None, "vp_name": None,
-             "color_choices": ["red", "blue", "green", "orange"], "marker_choices": ['o', 'D', '^', 'P'],
+             "color_choices": ["red", "blue", "green", "orange", "purple", "black", "magenta"],
+             "marker_choices": ['o', 'D', '^', 'P', 'v', '*', 'h'], "sim_dot_size": 220,
              "dot_size": 100, "marker_size": 20, "all_afscs": True, "title_size": 25, "comparison_afscs": None,
-             "zorder_choices": [2, 3, 2, 2], "preference_chart": False, "preference_proportion": False,
+             "zorder_choices": [2, 3, 2, 2, 2, 2, 2], "preference_chart": False, "preference_proportion": False,
              "dot_chart": False, "sort_by_pgl": True, "version": None, "solution_in_title": True, "afsc": None,
-             "num_afscs_to_compare": 8, "comparison_criteria": ["Utility", "Merit", "AFOCD"], "text_size": 20}
+             "num_afscs_to_compare": 8, "comparison_criteria": ["Utility", "Merit", "AFOCD"], "text_size": 20,
+             "num_solutions": None, "use_useful_charts": True, "new_similarity_matrix": True,
+             "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
+                                ("Utility", "quantity_bar_proportion"), ("Extra", "AFOCD_proportion"),
+                                ("USAFA Proportion", "bar"), ("Merit", "bar")]}
 
     # AFSC Measure Chart Versions
     afsc_chart_versions = {"Merit": ["large_only_bar", "bar", "quantity_bar_gradient",
@@ -135,10 +149,11 @@ def initialize_instance_functional_parameters(N):
                                                                                    "quantity_bar_proportion"],
                            "Utility": ["bar", "quantity_bar_gradient", "quantity_bar_proportion"],
                            "Mandatory": ["dot"], "Desired": ["dot"], "Permitted": ["dot"],
+                           "Norm Score": ["dot", "quantity_bar_proportion"],
                            "Extra": ["AFOCD_proportion", "gender_preference"]}
 
     # Colors for the various bar types:
-    colors = {"top_3_choices": "#5490f0", "next_3_choices": "#eef09e", "non_volunteer": "#f25d50",
+    colors = {"top_choices": "#5490f0", "mid_choices": "#eef09e", "bottom_choices": "#f25d50",
               "quartile_1": "#373aed", "quartile_2": "#0b7532", "quartile_3": "#d1bd4d", "quartile_4": "#cc1414",
               "Mandatory": "#311cd4", "Desired": "#085206", "Permitted": "#bda522", "Ineligible": "#f25d50",
               "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "large_afscs": "#060d47",

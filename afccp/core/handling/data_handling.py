@@ -408,10 +408,21 @@ def convert_afsc_preferences_to_percentiles(parameters):
     p = parameters
 
     # Get normalized percentiles (Average of 0.5)
-    p["afsc_utility"] = (p["N"] - p["a_pref_matrix"]) / p["N"]
+    p["afsc_utility"] = (p["N"] - p["a_pref_matrix"]) / p["N"]  # Too simple!
 
+    # First weed out all those who are ineligible for each AFSC
+    # p["afsc_utility"] = np.ones((p["N"], p["M"]))
+    #
+    # print(p["afsc_utility"])
+    # for j in p["J"]:
+    #
+    #     p["afsc_utility"][:, j] = (p["num_eligible"][j] - p["a_pref_matrix"][:, j]) / p["num_eligible"][j]
+    #
+    #
     # All ineligible cadets are given percentiles of 0
     p["afsc_utility"] *= p["eligible"]
+    #
+    # print(p["afsc_utility"])
 
     return p
 

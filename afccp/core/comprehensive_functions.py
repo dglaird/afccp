@@ -105,7 +105,6 @@ def plot_solution_similarity(similarity_matrix, solution_names=None, instance_na
     if printing:
         chart.show()
 
-
 # Value Function Visualizations
 def exponential_value_function_example(rho=-0.3, target=0.5):
     """
@@ -423,9 +422,10 @@ def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, pri
 
 
 def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp_dict=None, metrics_dict=None,
-                                   gp_df=None, info_df=None, printing=False):
+                                   gp_df=None, info_df=None, similarity_matrix=None, printing=False):
     """
     This file takes all of the relevant data for a particular fixed instance and exports it to excel
+    :param similarity_matrix: solution similarity matrix
     :param info_df: Optional "All Cadet Info" dataframe to export
     :param gp_df: dataframe of goal programming parameters
     :param full_name: name of the instance
@@ -474,7 +474,7 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
     # Just so pycharm doesn't yell at me
     solutions_df, metrics_df, vp_overall_df, vp_afscs_df_dict = None, None, None, None
     num_solutions, vp_names, solution_names, num_vps = None, None, None, None
-    vp_cadet_df = None
+    vp_cadet_df, similarity_df = None, None
 
     if vp_dict is not None:
         vp_names = list(vp_dict.keys())
@@ -519,6 +519,17 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
             # Translate AFSC indices into the AFSCs themselves
             solution = solution_dict[solution_name]
             solutions_df[solution_name] = [afscs[int(solution[i])] for i in parameters['I']]
+
+    if similarity_matrix is not None:
+        solution_names = list(solution_dict.keys())
+        num_solutions = len(solution_names)
+
+        # Create solution similarity dataframe
+        similarity_df = pd.DataFrame({"Solution": solution_names})
+        for col, solution_name in enumerate(solution_names):
+
+            # Load the dataframe
+            similarity_df[solution_name] = similarity_matrix[:, col]
 
     if metrics_dict is not None:
         metric_names = {'Z': 'z', 'Cadet Value': 'cadets_overall_value', 'AFSC Value': 'afscs_overall_value'}
@@ -581,6 +592,8 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
             gp_df.to_excel(writer, sheet_name="GP Parameters", index=False)
         if solutions_df is not None:
             solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
+        if similarity_df is not None:
+            similarity_df.to_excel(writer, sheet_name="Similarity", index=False)
         if metrics_df is not None:
             metrics_df.to_excel(writer, sheet_name="Results", index=False)
         if vp_overall_df is not None:
@@ -657,6 +670,17 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
     except:
 
         solution_dict = None
+
+    # Try to import similarity matrix (may not exist)
+    try:
+
+        # Similarity Matrix
+        similarity_df = import_data(filepath, sheet_name="Similarity")
+        similarity_matrix = np.array(similarity_df.loc[:, 1:])
+
+    except:
+
+        similarity_matrix = None
 
     # Try to import value parameter information (may not exist)
     try:
@@ -808,14 +832,13 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
             for solution_name in solution_names:
                 solution = solution_dict[solution_name]
                 value_parameters = copy.deepcopy(vp_dict[vp_name])
-                if solution_name == "MA1":
-                    metrics_dict[vp_name][solution_name] = measure_solution_quality(solution, parameters, value_parameters)
+                metrics_dict[vp_name][solution_name] = measure_solution_quality(solution, parameters, value_parameters)
 
     else:
         metrics_dict = None
 
     # return instance data
-    return info_df, parameters, vp_dict, solution_dict, metrics_dict, gp_df
+    return info_df, parameters, vp_dict, solution_dict, metrics_dict, gp_df, similarity_matrix
 
 
 # Other Solving Functions
