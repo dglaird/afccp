@@ -4,7 +4,6 @@ import numpy as np
 import logging
 import warnings
 
-import afccp.core.globals
 from afccp.core.globals import *
 
 # Ignore warnings
@@ -12,13 +11,10 @@ logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 warnings.filterwarnings('ignore')
 
 
-def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solver_name="cbc", printing=False):
+def solve_original_pyomo_model(instance, printing=False):
     """
     Converts the parameters and value parameters to the pyomo data structure
-    :param solver_name: name of solver
-    :param max_time: max time
-    :param parameters: fixed cadet/AFSC parameters
-    :param value_parameters: user defined parameters
+    :param instance: problem instance object
     :param printing: Whether the procedure should print something
     :return: pyomo data
     """
@@ -26,8 +22,9 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solv
         print("Building original model...")
 
     # Shorthand
-    p = parameters
-    vp = value_parameters
+    p = instance.parameters
+    vp = instance.value_parameters
+    mdl_p = instance.mdl_p
 
     # Utility Matrix
     c = np.zeros([p['N'], p['M']])
@@ -154,7 +151,9 @@ def solve_original_pyomo_model(parameters, value_parameters, max_time=None, solv
 
     if printing:
         print("Done. Solving original model...")
-    model = solve_pyomo_model(m, solver_name=solver_name, max_time=max_time)
+
+    # Solve the model
+    model = solve_pyomo_model(instance, model)
 
     # Initialize solution
     solution = np.zeros(p['N'])
@@ -526,7 +525,7 @@ def vft_model_solve(instance, model, printing=False):
         start_time = time.perf_counter()
 
     # Solve the model
-    model = solve_pyomo_model(model, mdl_p["solver_name"], max_time=mdl_p["pyomo_max_time"])
+    model = solve_pyomo_model(instance, model)
 
     # Stop Time
     if mdl_p["time_eval"]:
@@ -635,59 +634,55 @@ def vft_model_solve(instance, model, printing=False):
             return solution
 
 
-def solve_pyomo_model(model, solver_name, max_time=None):
+def solve_pyomo_model(instance, model):
     """
     Simple function that calls the pyomo solver using the specified model and max_time
-    :param model: model (or instance) to solve
-    :param solver_name: name of solver
-    :param max_time: max time parameter
-    :return:
     """
 
-    # Not sure what's going on (why won't this import properly?)
-    executable, provide_executable = afccp.core.globals.executable, afccp.core.globals.provide_executable
+    # Shorthand
+    mdl_p = instance.mdl_p
 
     # Determine how the solver is called
-    if executable is None:
-        if provide_executable:
-            if exe_extension:  # (global variable <- see "globals.py")
-                executable = support_paths['solvers'] + solver_name + '.exe'
+    if mdl_p["executable"] is None:
+        if mdl_p["provide_executable"]:
+            if mdl_p["exe_extension"]:
+                mdl_p["executable"] = paths['solvers'] + mdl_p["solver_name"] + '.exe'
             else:
-                executable = support_paths['solvers'] + solver_name
+                mdl_p["executable"] = paths['solvers'] + mdl_p["solver_name"]
     else:
-        provide_executable = True
+        mdl_p["provide_executable"] = True
 
     # Get correct solver
-    if provide_executable:
-        if solver_name == 'gurobi':
-            solver = SolverFactory(solver_name, solver_io='python', executable=executable)
+    if mdl_p["provide_executable"]:
+        if mdl_p["solver_name"] == 'gurobi':
+            solver = SolverFactory(mdl_p["solver_name"], solver_io='python', executable=mdl_p["executable"])
         else:
-            solver = SolverFactory(solver_name, executable=executable)
+            solver = SolverFactory(mdl_p["solver_name"], executable=mdl_p["executable"])
     else:
-        if solver_name == 'gurobi':
-            solver = SolverFactory(solver_name, solver_io='python')
+        if mdl_p["solver_name"] == 'gurobi':
+            solver = SolverFactory(mdl_p["solver_name"], solver_io='python')
         else:
-            solver = SolverFactory(solver_name)
+            solver = SolverFactory(mdl_p["solver_name"])
 
     # Solve Model
-    if max_time is not None:
-        if solver_name == 'mindtpy':
-            solver.solve(model, time_limit=max_time,
+    if mdl_p["max_time"] is not None:
+        if mdl_p["solver_name"] == 'mindtpy':
+            solver.solve(model, time_limit=mdl_p["max_time"],
                          mip_solver='cplex_persistent', nlp_solver='ipopt')
-        elif solver_name == 'gurobi':
-            solver.solve(model, options={'TimeLimit': max_time, 'IntFeasTol': 0.05})
-        elif solver_name == 'ipopt':
-            solver.options['max_cpu_time'] = max_time
+        elif mdl_p["solver_name"] == 'gurobi':
+            solver.solve(model, options={'TimeLimit': mdl_p["max_time"], 'IntFeasTol': 0.05})
+        elif mdl_p["solver_name"] == 'ipopt':
+            solver.options['max_cpu_time'] = mdl_p["max_time"]
             solver.solve(model)
-        elif solver_name == 'cbc':
-            solver.options['seconds'] = max_time
+        elif mdl_p["solver_name"] == 'cbc':
+            solver.options['seconds'] = mdl_p["max_time"]
             solver.solve(model)
-        elif solver_name == 'baron':
-            solver.solve(model, options={'MaxTime': max_time})
+        elif mdl_p["solver_name"] == 'baron':
+            solver.solve(model, options={'MaxTime': mdl_p["max_time"]})
         else:
             solver.solve(model)
     else:
-        if solver_name == 'mindtpy':
+        if mdl_p["solver_name"] == 'mindtpy':
             solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
         else:
             solver.solve(model)
@@ -695,17 +690,19 @@ def solve_pyomo_model(model, solver_name, max_time=None):
     return model
 
 
-def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
+def gp_model_build(instance, printing=False):
     """
     This is Rebecca's model. We've incorporated her parameters and are building that model
-    :param con_term: constraint to solve the model for (if none, it's the regular model)
-    :param get_reward: if we want to solve for the reward (lambda) or penalty (mu) term
-    :param gp: goal programming model parameters
-    :param printing: Whether or not to print something
+    :param instance: problem instance to solve
+    :param printing: Whether to print something
     :return: pyomo model
     """
     if printing:
         print('Building GP Model...')
+
+    # Shorthand
+    gp = instance.gp_parameters
+    mdl_p = instance.mdl_p
 
     # Create model
     m = ConcreteModel()
@@ -736,17 +733,17 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
                 gp['utility'][c, a] * m.x[c, a] for a in gp['A^']['W^E'][c]) for c in gp['C'])
 
     def penalty_objective_function(m):
-        return np.sum(m.Y[con_term, a] for a in gp['A^'][con_term])
+        return np.sum(m.Y[mdl_p["con_term"], a] for a in gp['A^'][mdl_p["con_term"]])
 
     def reward_objective_function(m):
-        if con_term == 'S':
+        if mdl_p["con_term"] == 'S':
             return np.sum(np.sum(gp['utility'][c, a] * m.x[c, a] for a in gp['A^']['W^E'][c]) for c in gp['C'])
         else:
-            return np.sum(m.Z[con_term, a] for a in gp['A^'][con_term])
+            return np.sum(m.Z[mdl_p["con_term"], a] for a in gp['A^'][mdl_p["con_term"]])
 
     # Define model objective function
-    if con_term is not None:  # Reward/Penalty specific objective function to get raw rewards/penalties
-        if get_reward:
+    if mdl_p["con_term"] is not None:  # Reward/Penalty specific objective function to get raw rewards/penalties
+        if mdl_p["get_reward"]:
             m.objective = Objective(rule=reward_objective_function, sense=maximize)
         else:
             m.objective = Objective(rule=penalty_objective_function, sense=maximize)
@@ -820,26 +817,25 @@ def gp_model_build(gp, get_reward=False, con_term=None, printing=False):
     return m
 
 
-def gp_model_solve(model, gp, solver_name="cbc", max_time=None, con_term=None, printing=False):
+def gp_model_solve(instance, model, printing=False):
     """
     This procedure solves Rebecca's model.
-    :param con_term: constraint to solve the model for
-    :param gp: goal programming model parameters
-    :param max_time: maximum time to solve
+    :param instance: problem instance to solve
     :param model: the instantiated model
-    :param solver_name: solver name
-    :param printing: Whether or not to print something
+    :param printing: Whether to print something
     :return: solution vector
     """
     if printing:
         print('Solving GP Model...')
 
-    # Solve the model
-    model = solve_pyomo_model(model, solver_name, max_time=max_time)
+    # Shorthand
+    mdl_p = instance.mdl_p
 
-    if con_term is not None:
-        gp_var = model.objective()
-        return gp_var
+    # Solve the model
+    model = solve_pyomo_model(instance, model)
+
+    if mdl_p["con_term"] is not None:
+        return model.objective()
     else:
 
         # Get solution

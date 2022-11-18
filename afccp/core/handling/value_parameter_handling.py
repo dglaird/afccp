@@ -267,13 +267,9 @@ def model_value_parameters_to_defaults(parameters, value_parameters, filepath=No
         print('Exporting value parameters as defaults to excel...')
 
     if filepath is None:
-        if len(parameters['afsc_vector'][0]) == 2:  # Letter + "1"  (A1, B1, etc.)
-            folder_out = 'scrubbed'
-        else:
-            folder_out = 'real'
 
         # Will have to change the name to the specific scrubbed letter if applicable
-        filepath = support_paths[folder_out] + 'Value_Parameters_Default_New.xlsx'
+        filepath = paths["support"] + 'Value_Parameters_Default_New.xlsx'
 
     overall_weights_df = pd.DataFrame({'Cadets Overall': [value_parameters['cadets_overall_weight']],
                                        'AFSCs Overall': [value_parameters['afscs_overall_weight']],
@@ -1059,7 +1055,7 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, use
 
     if use_gp_df:
         if gp_df is None:
-            filepath = support_paths['scrubbed'] + 'gp_parameters.xlsx'
+            filepath = paths["support"] + 'gp_parameters.xlsx'
             gp_df = import_data(filepath=filepath, sheet_name='Weights and Scaling')
 
     # Shorthand
