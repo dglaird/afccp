@@ -1,136 +1,32 @@
 # Import libraries
+print("Importing 'afccp' module...")  # I just like to see that something is happening...
 import os
 import pandas as pd
 import openpyxl
 from packaging import version
 
 # Get directory path here
-global dir_path, exe_extension, databricks, paths_in, paths_out, support_paths, provide_executable, executable
+global dir_path, paths_in, paths_out, support_paths
 dir_path = os.getcwd() + '/'
-exe_extension = True  # specific variable relating to pyomo solver paths
-databricks = False  # initially assume we're not running on databricks
-provide_executable, executable = True, None  # Global variables to determine how to work with pyomo
 
-# This determines how we import data from excel!
-global specify_engine
-if version.parse(pd.__version__) > version.parse("1.2.1"):
-    specify_engine = True
+# Check to see if we already have the data folders we need in our working directory
+for folder in ["figures", "instances", "results", "solvers", "support"]:
+    folder_exists = os.path.exists(folder)
+
+    # If we don't have the folder, we make one
+    if not folder_exists:
+        os.makedirs(folder)
+
+# Print update
+if folder_exists:
+    print("Data folders found.")
 else:
-    # specify_engine = False  # Looks like we need to specify engine all the time! (databricks issue)
-    specify_engine = True
+    print("Data folders not found. Creating folders in working directory...")
 
-# Figure out where this directory is running from
-if 'databricks' in dir_path:  # '/databricks/driver/' is the databricks working directory
-
-    # Databricks
-    print('Running on databricks.')
-    databricks = True
-
-    # Decided to use databricks in a more generalized fashion
-    input_folder = dir_path + 'afccp/resources/shared/'
-    output_folder = dir_path + 'afccp/resources/shared/'
-    support_folder = dir_path + 'afccp/resources/shared/'
-
-    # Pyomo global variables
-    provide_executable = False
-
-elif 'workspace' in dir_path:  # We're running this from plotly!
-
-    # We're on my macbook
-    print("Running on plotly enterprise")
-
-    # Import and export to my folder
-    input_folder = dir_path + 'afccp/resources/laird/'
-    output_folder = dir_path + 'afccp/resources/laird/'
-    support_folder = dir_path + 'afccp/resources/shared/'
-
-    # Pyomo global variables
-    provide_executable = False
-
-elif 'griffenlaird' in dir_path:
-
-    # We're on my macbook
-    print("Running on Griffen's Macbook")
-
-    # If I'm on my Mac, I don't want to add ".exe" to the solver path
-    exe_extension = False
-
-    # # Pyomo global variables
-    # provide_executable = False
-
-    # Import and export to my folder
-    input_folder = dir_path + 'afccp/resources/laird/'
-    output_folder = dir_path + 'afccp/resources/laird/'
-    support_folder = dir_path + 'afccp/resources/shared/'
-
-elif 'griff007' in dir_path:
-
-    # We're on my old macbook
-    print("Running on Griffen's old macbook")
-
-    # Import and export to my folder
-    input_folder = dir_path + 'afccp/resources/laird/'
-    output_folder = dir_path + 'afccp/resources/laird/'
-    support_folder = dir_path + 'afccp/resources/shared/'
-
-elif 'ianmacdonald' in dir_path:
-
-    # We're on my old macbook
-    print("Running on Ian's macbook")
-
-    # Import and export to my folder
-    input_folder = dir_path + 'afccp/resources/macdonald/'
-    output_folder = dir_path + 'afccp/resources/macdonald/'
-    support_folder = dir_path + 'afccp/resources/shared/'
-
-    # Turn this back to True if you use ", engine='openpyxl'" in your pd.read_excel() statements
-    specify_engine = False
-
-else:
-
-    # Running somewhere else
-    print("Running elsewhere")
-
-    # Import and export to shared folder
-    input_folder = dir_path + 'afccp/resources/shared/'
-    output_folder = dir_path + 'afccp/resources/shared/'
-    support_folder = dir_path + 'afccp/resources/shared/'
-
-
-# Need different sets of paths (data to import from and to export to)
-paths_in = {}  # Path to the folders we want to import data from
-paths_out = {}  # Path to the folders we want to export data to
-support_paths = {}  # Path to the folders we want to import supporting material from (and potentially export to)
-
-# Paths "in"
-paths_in = {}
-for folder in ['figures', 'instances', 'results', 'tables']:
-    paths_in[folder] = input_folder + folder + '/'
-
-# Paths "out"
-paths_out = {}
-for folder in ['figures', 'instances', 'results', 'tables']:
-
-    if output_folder == "":
-        paths_out[folder] = ""  # Just want to export to the working directory
-    else:
-        paths_out[folder] = output_folder + folder + '/'
-
-# Support paths
-for folder in ['real', 'scrubbed', 'solvers']:
-    support_paths[folder] = support_folder + folder + '/'
-
-# sensitive information
-global sensitive_folder, sensitive_folder
-sensitive_folder = os.path.exists(dir_path + 'afccp/sensitive')
-
-if sensitive_folder:
-    print('Sensitive data folder found.')
-else:
-    print('Sensitive data folder not found.')
-
-# Additional sensitive folder path (for the original thesis data cleaning)
-sensitive_path = dir_path + 'afccp/sensitive/raw/'
+# Folder paths!
+paths = {}
+for folder in ["figures", "instances", "results", "solvers", "support"]:
+    paths[folder] = folder + '/'
 
 # Only use pyomo script if we have pyomo
 global use_pyomo
@@ -167,13 +63,14 @@ except:
 
 
 # Importing pandas dataframe function
-def import_data(filepath, sheet_name=None):
+def import_data(filepath, sheet_name=None, specify_engine=True):
     """
     This function is to alleviate issues with importing pandas dataframes since some versions can just
     import .xlsx files normally but some have to add ", engine= 'openpyxl'". Pandas versions > 1.2.1 must
     specify openpyxl as the engine
     :param filepath: excel file path
     :param sheet_name: name of the sheet to import
+    :param specify_engine: issues with pandas "engine="
     :return: pandas dataframe
     """
 

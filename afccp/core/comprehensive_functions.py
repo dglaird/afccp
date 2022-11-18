@@ -299,20 +299,34 @@ def plot_value_function(afsc, objective, parameters, value_parameters, title=Non
 
 
 # Goal Programming Model Functions
-def calculate_rewards_penalties(gp, solver_name='cbc', printing=True):
+def calculate_rewards_penalties(instance, printing=True):
     """
     This function takes a set of Rebecca's goal programming parameters and then returns the normalized
     penalties and rewards specific to this instance that are used in Rebecca's goal programming (GP) model
-    :param solver_name: name of solver
+    :param instance: problem instance to solve
     :param printing: if we want to print status updates or not
-    :param gp: Rebecca's goal programming parameters
     :return: gp norm penalties, gp norm rewards
     """
+
+    # Shorthand
+    gp = instance.gp_parameters
+
+    # Initialize gp arrays
     num_constraints = len(gp['con']) + 1
     rewards = np.zeros(num_constraints)
     penalties = np.zeros(num_constraints)
-    model = gp_model_build(gp, con_term=gp['con'][0], get_reward=True)
+
+    # Initialize model
+    instance.mdl_p["con_term"] = gp['con'][0]  # Initialize constraint term
+    instance.mdl_p["get_reward"] = True  # We want the reward term
+    instance.mdl_p["solve_time"] = 60 * 4
+    model = gp_model_build(instance, printing=False)  # Build model
+
+    # Loop through each constraint
     for c, con in enumerate(gp['con']):
+
+        # Set the constraint term
+        instance.mdl_p["con_term"] = con
 
         # Get reward term
         def objective_function(m):
@@ -322,7 +336,7 @@ def calculate_rewards_penalties(gp, solver_name='cbc', printing=True):
             print('')
             print('Obtaining reward for constraint ' + con + '...')
         model.objective = Objective(rule=objective_function, sense=maximize)
-        rewards[c] = gp_model_solve(model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name)
+        rewards[c] = gp_model_solve(instance, model)
         if printing:
             print('Reward:', rewards[c])
 
@@ -334,7 +348,7 @@ def calculate_rewards_penalties(gp, solver_name='cbc', printing=True):
             print('')
             print('Obtaining penalty for constraint ' + con + '...')
         model.objective = Objective(rule=objective_function, sense=maximize)
-        penalties[c] = gp_model_solve(model, gp, max_time=60 * 4, con_term=con, solver_name=solver_name)
+        penalties[c] = gp_model_solve(instance, model)
         if printing:
             print('Penalty:', penalties[c])
 
@@ -346,7 +360,7 @@ def calculate_rewards_penalties(gp, solver_name='cbc', printing=True):
         print('')
         print('Obtaining reward for constraint S...')
     model.objective = Objective(rule=objective_function, sense=maximize)
-    rewards[num_constraints - 1] = gp_model_solve(model, gp, max_time=60 * 4, con_term='S', solver_name=solver_name)
+    rewards[num_constraints - 1] = gp_model_solve(instance, model)
     if printing:
         print('Reward:', rewards[num_constraints - 1])
 
@@ -575,7 +589,7 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
             metrics_df[column_name] = column_dict[column_name]
 
     # Export to excel
-    filepath = paths_out['instances'] + full_name + '.xlsx'
+    filepath = paths['instances'] + full_name + '.xlsx'
     with pd.ExcelWriter(filepath) as writer:  # Export to excel
         if info_df is not None:
             info_df.to_excel(writer, sheet_name="All Cadet Info", index=False)
@@ -1146,7 +1160,7 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
     instance.data_instance_name = copy.deepcopy(instance.full_name)
 
     # Get correct filepath
-    instance.filepath_in = paths_in['instances'] + instance.data_instance_name + '.xlsx'
+    instance.filepath_in = paths['instances'] + instance.data_instance_name + '.xlsx'
 
     return instance
 

@@ -404,7 +404,7 @@ def data_graph(instance):
         ip["filename"] = ip["title"]
 
     if ip['save']:
-        fig.savefig(paths_out['figures'] + instance.data_name + "/data/" + ip['filename'] + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + instance.data_name + "/data/" + ip['filename'] + '.png', bbox_inches='tight')
 
     return fig
 
@@ -485,7 +485,8 @@ def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display
     plt.ylim(0, 1.05)
 
     if save:
-        fig.savefig(paths_out['figures'] + title + '.png')
+        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
+                    bbox_inches='tight')
     return fig
 
 
@@ -609,7 +610,7 @@ def individual_weight_graph(parameters, value_parameters, cadets=True, save=Fals
         ax.set_title(title, fontsize=label_size)
 
     if save:
-        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -2253,7 +2254,7 @@ def afsc_results_graph(instance):
 
     # Save
     if ip['save']:
-        fig.savefig(paths_out['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
+        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2503,7 +2504,7 @@ def afsc_multi_criteria_graph(instance, max_num=None):
 
     # Save
     if ip['save']:
-        fig.savefig(paths_out['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
+        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2640,7 +2641,7 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
             ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths_out['figures'] + title + '.png')
+        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -2717,7 +2718,7 @@ def cadet_utility_histogram(instance):
         ip["filename"] = ip["title"]
 
     if ip["save"]:
-        fig.savefig(paths_out['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
+        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2770,7 +2771,7 @@ def cadet_utility_merit_scatter(instance):
         ip["filename"] = ip["title"]
 
     if ip["save"]:
-        fig.savefig(paths_out['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
+        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2839,7 +2840,7 @@ def holistic_color_graph(parameters, value_parameters, metrics, figsize=(11, 10)
         y += height
 
     if save:
-        fig.savefig(paths_out['figures'] + title + '.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + instance.data_name + "/results/" + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -2898,7 +2899,7 @@ def pareto_graph(pareto_df, dimensions=None, save=True, title=None, figsize=(10,
     ax.tick_params(axis='x', labelsize=xaxis_tick_size)
 
     if save:
-        fig.savefig(paths_out['figures'] + title + '.png')
+        fig.savefig(paths['figures'] + instance.data_name + "/results/" + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -2991,7 +2992,7 @@ def afsc_objective_weights_graph(parameters, value_parameters_dict, afsc, colors
                   ncol=num_weights, columnspacing=0.8, handletextpad=0.25, borderaxespad=0.5, borderpad=0.4)
 
     if save:
-        fig.savefig(paths_out['figures'] + title + '.png')
+        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -3042,7 +3043,7 @@ def solution_parameter_comparison_graph(z_dict, colors=None, save=False, figsize
     ax.legend(handles=legend_elements, edgecolor='black', loc='upper right', columnspacing=0.8, handletextpad=0.25,
               borderaxespad=0.5, borderpad=0.4)
     if save:
-        fig.savefig(paths_out['figures'] + title + '.png')
+        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png', bbox_inches='tight')
 
     return fig
 
@@ -3146,7 +3147,7 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
     ax.set_ylabel(objective + ' Measure')
 
     if save:
-        fig.savefig(paths_out['figures'] + 'Solution_Results.png', bbox_inches='tight')
+        fig.savefig(paths['figures'] + instance.data_name + "/results/Solution Results Graph.png", bbox_inches='tight')
 
     return fig
 
@@ -3188,7 +3189,7 @@ def solution_similarity_graph(instance, coords):
     ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
     if ip["save"]:
-        fig.savefig(paths_out['figures'] + instance.data_name + "/results/" + ip['title'] + '.png',
+        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip['title'] + '.png',
                     bbox_inches='tight')
 
     return fig

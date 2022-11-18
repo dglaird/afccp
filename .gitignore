@@ -205,28 +205,16 @@ instance/
 # Sphinx documentation
 docs/_build/
 
-# Sensitive
+# Misc. Folders to ignore
 sensitive/
-
-# Real  (we want to ignore this)
 real/
-
-# Processing  (Very import .gitignore)
 processing/
-
-# Laird Folder
-# afccp/resources/laird/
-# afccp/executables/laird/
 laird/
-
-# Macdonald Folder
-macdonald/
-afccp/executables/macdonald/
-
-
-# Solvers
-# afccp/resources/shared/solvers/
-
+figures/
+instances/
+results/
+solvers/
+support/
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

@@ -1092,7 +1092,7 @@ def pyomo_measures_to_excel(x, measures, values, parameters, value_parameters, f
         values_df[objective] = values[:, k]
 
     if filepath is None:
-        filepath = paths_out['results'] + 'X_Matrix.xlsx'
+        filepath = paths['results'] + 'X_Matrix.xlsx'
 
     with pd.ExcelWriter(filepath) as writer:  # Export to excel
         x_df.to_excel(writer, sheet_name="X", index=False)

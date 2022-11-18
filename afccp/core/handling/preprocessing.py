@@ -13,7 +13,7 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
     """
     if printing:
         print('Importing dataframe...')
-    cip_df = import_data(support_paths['real'] + 'ASC_2_CIP.xlsx', sheet_name="CIP")
+    cip_df = import_data(paths["support"] + 'ASC_2_CIP.xlsx', sheet_name="CIP")
 
     if printing:
         print('Generating Matrix...')
@@ -293,7 +293,7 @@ def generate_cip_to_qual_matrix(printing=True, year=2016):
 
     if printing:
         print('Exporting Matrix...')
-    with pd.ExcelWriter(support_paths['real'] + 'Qual_CIP_Matrix.xlsx') as writer:  # Export to excel
+    with pd.ExcelWriter(paths["support"] + 'Qual_CIP_Matrix.xlsx') as writer:  # Export to excel
         qual_matrix_df.to_excel(writer, sheet_name="Qual Matrix", index=False)
         full_afscs_df.to_excel(writer, sheet_name="Full AFSCS", index=False)
 
@@ -319,13 +319,13 @@ def cip_to_qual(afscs, cip1, cip2=None, full_afscs=None, cip_qual_matrix=None, r
 
     # Load CIP to Qual matrix
     if cip_qual_matrix is None:
-        cip_qual_matrix = import_data(support_paths[data_type] + "Qual_CIP_Matrix.xlsx",
+        cip_qual_matrix = import_data(paths["support"] + "Qual_CIP_Matrix.xlsx",
                                       sheet_name="Qual Matrix")
 
     # Load full afscs
     if full_afscs is None:
         full_afscs = np.array(import_data(
-            support_paths[data_type] + "Qual_CIP_Matrix.xlsx", sheet_name="Full AFSCS"))
+            paths["support"] + "Qual_CIP_Matrix.xlsx", sheet_name="Full AFSCS"))
 
     afsc_indices = np.where(full_afscs == afscs)[0]  # afscs used in this instance
     full_cip_codes = np.array(cip_qual_matrix.loc[:, "CIP"]).astype(str)  # full list of CIP codes

@@ -19,7 +19,7 @@ if use_sdv:
 warnings.filterwarnings('ignore')  # prevent red warnings from printing
 
 
-def import_generator_parameters(filepath=support_paths['scrubbed'] + "Instance_Generator_Parameters.xlsx",
+def import_generator_parameters(filepath=paths["support"] + "Instance_Generator_Parameters.xlsx",
                                 printing=False):
     """
     Imports generator parameters used for the different generation functions
@@ -49,7 +49,7 @@ def simulate_model_fixed_parameters(N=1600, P=6, M=32, printing=False):
         print('Simulating (Random)...')
 
     # Import CIP to Qual Matrix
-    cip_qual_matrix = import_data(support_paths['scrubbed'] + "Qual_CIP_Matrix.xlsx",
+    cip_qual_matrix = import_data(paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
                                   sheet_name="Qual Matrix")
 
     # Import Generator Parameters
@@ -372,7 +372,7 @@ if use_sdv:
             print('Simulating (Realistic)...')
 
         if generator is None:
-            generator = CTGAN.load(support_paths['scrubbed'] + 'CTGAN.pkl')
+            generator = CTGAN.load(paths["support"] + 'CTGAN.pkl')
 
         # Generate data
         data = generator.sample(N)
@@ -432,7 +432,7 @@ if use_sdv:
 
         # Import CIP to Qual Matrix
         if cip_qual_matrix is None:
-            cip_qual_matrix = import_data(support_paths['scrubbed'] + "Qual_CIP_Matrix.xlsx",
+            cip_qual_matrix = import_data(paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
                                           sheet_name="Qual Matrix")
 
         # Import Generator Parameters
@@ -531,7 +531,7 @@ if use_sdv:
         """
 
         if data is None:
-            data = import_data(support_paths['scrubbed'] + 'ctgan_data.xlsx', sheet_name='Data')
+            data = import_data(paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
             data = ctgan_data_filter(data)
 
         print('')
@@ -576,7 +576,7 @@ if use_sdv:
         model.fit(data)
 
         # Save the model
-        model.save(support_paths['scrubbed'] + name + '.pkl')
+        model.save(paths["support"] + name + '.pkl')
         if printing:
             print('Model Saved.')
 
@@ -591,7 +591,7 @@ if use_sdv:
 
         # Load Data
         if ctgan_data is None:
-            ctgan_data = import_data(support_paths['scrubbed'] + 'ctgan_data.xlsx', sheet_name='Data')
+            ctgan_data = import_data(paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
 
         # Replace nans with blanks
         ctgan_data = ctgan_data.replace(np.nan, "", regex=True)
@@ -679,7 +679,7 @@ if use_sdv:
         ctgan_data = ctgan_data.drop(ctgan_data.index[indices])
 
         if export:  # Export to excel
-            with pd.ExcelWriter(support_paths['scrubbed'] + 'ctgan_data.xlsx') as writer:
+            with pd.ExcelWriter(paths["support"] + 'ctgan_data.xlsx') as writer:
                 ctgan_data.to_excel(writer, sheet_name="Data", index=False)
 
         return ctgan_data
