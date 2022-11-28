@@ -32,7 +32,10 @@ class CadetCareerProblem:
         # Get list of generated data name problem instances
         self.generated_data_names = {'Random': [], 'Perfect': [], 'Realistic': []}
         for file_name in glob.iglob(afccp.core.globals.paths['instances'] + '*.xlsx', recursive=True):
-            start_index = file_name.find(afccp.core.globals.paths['instances']) + len(afccp.core.globals.paths['instances']) + 1  # Start of filename
+
+            # Start of filename
+            start_index = file_name.find(
+                afccp.core.globals.paths['instances']) + len(afccp.core.globals.paths['instances']) + 1
             end_index = len(file_name) - 5  # Remove ".xlsx"
             full_name = file_name[start_index:end_index]  # Name of the file (not the path)
             sections = full_name.split(' ')  # Split the filename by each ' ' (space)
