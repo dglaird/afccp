@@ -4,7 +4,7 @@ import numpy as np
 import logging
 import warnings
 
-from afccp.core.globals import *
+import afccp.core.globals
 
 # Ignore warnings
 logging.getLogger('pyomo.core').setLevel(logging.ERROR)

@@ -1,7 +1,7 @@
 # Import Libraries
 import numpy as np
 from math import *
-from afccp.core.globals import *
+import afccp.core.globals
 
 
 # Value Parameter Procedures

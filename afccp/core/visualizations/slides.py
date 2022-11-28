@@ -1,5 +1,5 @@
 from pptx import Presentation
-from afccp.core.globals import *
+import afccp.core.globals
 
 
 def generate_results_slides(instance):

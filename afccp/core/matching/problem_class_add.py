@@ -1,4 +1,4 @@
-from afccp.core.comprehensive_functions import *
+import afccp.core.comprehensive_functions
 
 
 class MoreCCPMethods:

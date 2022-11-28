@@ -6,9 +6,9 @@ import os
 import pandas as pd
 
 import afccp.core.handling.value_parameter_handling
-from afccp.core.comprehensive_functions import *
-from afccp.core.handling.ccp_helping_functions import *
-from afccp.core.visualizations.slides import generate_results_slides
+import afccp.core.handling.ccp_helping_functions
+import afccp.core.visualizations.slides
+import afccp.core.comprehensive_functions
 import datetime
 import glob
 import copy
@@ -31,8 +31,8 @@ class CadetCareerProblem:
 
         # Get list of generated data name problem instances
         self.generated_data_names = {'Random': [], 'Perfect': [], 'Realistic': []}
-        for file_name in glob.iglob(paths['instances'] + '*.xlsx', recursive=True):
-            start_index = file_name.find(paths['instances']) + len(paths['instances']) + 1  # Start of filename
+        for file_name in glob.iglob(afccp.core.globals.paths['instances'] + '*.xlsx', recursive=True):
+            start_index = file_name.find(afccp.core.globals.paths['instances']) + len(afccp.core.globals.paths['instances']) + 1  # Start of filename
             end_index = len(file_name) - 5  # Remove ".xlsx"
             full_name = file_name[start_index:end_index]  # Name of the file (not the path)
             sections = full_name.split(' ')  # Split the filename by each ' ' (space)
@@ -89,7 +89,7 @@ class CadetCareerProblem:
                 self.data_variant = "Year"  # 2018, 2019, 2020, etc.
 
         # Get correct filepath  (for importing/exporting to)
-        self.filepath = paths['instances'] + self.data_name + '.xlsx'
+        self.filepath = afccp.core.globals.paths['instances'] + self.data_name + '.xlsx'
 
         # Create a "results" folder for this problem instance
         if not os.path.exists("results/" + self.data_name):
@@ -128,15 +128,16 @@ class CadetCareerProblem:
 
             if printing:
                 print('Generating ' + self.data_name + ' problem instance...')
-            parameters = simulate_model_fixed_parameters(N=N, P=P, M=M)
-            self.parameters = model_fixed_parameters_set_additions(parameters)
+            parameters = afccp.core.handling.simulation_functions.simulate_model_fixed_parameters(N=N, P=P, M=M)
+            self.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
 
         elif self.data_variant == 'Perfect' and generate:
 
             if printing:
                 print('Generating ' + self.data_name + ' problem instance...')
-            parameters, self.solution = perfect_example_generator(N=N, P=P, M=M)
-            self.parameters = model_fixed_parameters_set_additions(parameters)
+            parameters, self.solution = \
+                afccp.core.handling.simulation_functions.perfect_example_generator(N=N, P=P, M=M)
+            self.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
 
         elif self.data_variant == 'Realistic' and generate:
 
@@ -144,13 +145,15 @@ class CadetCareerProblem:
                 print('Generating ' + self.data_name + ' problem instance...')
 
             if use_sdv:
-                data = simulate_realistic_fixed_data(N=N)
-                cadets_fixed, afscs_fixed = convert_realistic_data_parameters(data)
-                parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed)
+                data = afccp.core.handling.simulation_functions.simulate_realistic_fixed_data(N=N)
+                cadets_fixed, afscs_fixed = \
+                    afccp.core.handling.simulation_functions.convert_realistic_data_parameters(data)
+                parameters = afccp.core.handling.data_handling.model_fixed_parameters_from_data_frame(
+                    cadets_fixed, afscs_fixed)
             else:
-                parameters = simulate_model_fixed_parameters(N=N, P=P, M=M)
+                parameters = afccp.core.handling.simulation_functions.simulate_model_fixed_parameters(N=N, P=P, M=M)
 
-            self.parameters = model_fixed_parameters_set_additions(parameters)
+            self.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
         else:
 
             if printing:
@@ -159,12 +162,14 @@ class CadetCareerProblem:
             # If the path exists, import the data. If not, raise an error
             if os.path.exists(self.filepath):
                 self.info_df, self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df, \
-                self.similarity_matrix = import_aggregate_instance_file(self.filepath, num_breakpoints=num_breakpoints)
+                self.similarity_matrix = afccp.core.comprehensive_functions.import_aggregate_instance_file(
+                    self.filepath, num_breakpoints=num_breakpoints)
             else:
-                raise ValueError("Instance '" + self.data_name + "' not found at path '" + paths['instances'] + "'")
+                raise ValueError("Instance '" + self.data_name + "' not found at path '" + afccp.core.globals.paths['instances'] + "'")
 
         # Initialize more "functional" parameters
-        self.plt_p, self.mdl_p = initialize_instance_functional_parameters(self.parameters["N"])
+        self.plt_p, self.mdl_p = \
+            afccp.core.handling.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
 
         if printing:
             if generate:
@@ -195,10 +200,10 @@ class CadetCareerProblem:
                     # If the parameter doesn't exist, we warn the user
                     print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
-        self.plt_p = determine_afsc_plot_details(self)
+        self.plt_p = afccp.core.handling.ccp_helping_functions.determine_afsc_plot_details(self)
 
         # Create the chart
-        chart = data_graph(self)
+        chart = afccp.core.visualizations.instance_graphs.data_graph(self)
 
         if printing is None:
             printing = self.printing
@@ -222,7 +227,7 @@ class CadetCareerProblem:
         if solution is None:
             solution = self.solution
 
-        find_solution_ineligibility(self.parameters, solution)
+        afccp.core.handling.data_handling.find_solution_ineligibility(self.parameters, solution)
 
     def display_all_data_graphs(self, p_dict={}, printing=None):
         """
@@ -271,23 +276,23 @@ class CadetCareerProblem:
 
                 if use_matrix:
                     if report_cips_not_found:
-                        qual_matrix, unknown_cips = cip_to_qual(parameters['afsc_vector'],
-                                                                parameters['cip1'].astype(str),
-                                                                cip2=parameters['cip2'].astype(str),
-                                                                report_cips_not_found=True)
+                        qual_matrix, unknown_cips = afccp.core.handling.preprocessing.cip_to_qual(
+                            parameters['afsc_vector'], parameters['cip1'].astype(str),
+                            cip2=parameters['cip2'].astype(str), report_cips_not_found=True)
                     else:
-                        qual_matrix = cip_to_qual(parameters['afsc_vector'], parameters['cip1'].astype(str),
-                                                  cip2=parameters['cip2'].astype(str))
+                        qual_matrix = afccp.core.handling.preprocessing.cip_to_qual(
+                            parameters['afsc_vector'], parameters['cip1'].astype(str),
+                            cip2=parameters['cip2'].astype(str))
                 else:
-                    qual_matrix = cip_to_qual_direct(parameters['afsc_vector'], parameters['cip1'].astype(str),
-                                                     cip2=parameters['cip2'].astype(str))
+                    qual_matrix = afccp.core.handling.preprocessing.cip_to_qual_direct(
+                        parameters['afsc_vector'], parameters['cip1'].astype(str), cip2=parameters['cip2'].astype(str))
                 parameters['qual'] = qual_matrix
                 parameters['ineligible'] = (qual_matrix == 'I') * 1
                 parameters['eligible'] = (parameters['ineligible'] == 0) * 1
                 parameters['mandatory'] = (qual_matrix == 'M') * 1
                 parameters['desired'] = (qual_matrix == 'D') * 1
                 parameters['permitted'] = (qual_matrix == 'P') * 1
-                parameters = model_fixed_parameters_set_additions(parameters)
+                parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
                 self.parameters = copy.deepcopy(parameters)
             else:
                 raise ValueError("No 'cip2' column in parameters")
@@ -303,28 +308,30 @@ class CadetCareerProblem:
                 cips.append(cip)
                 counts.append(unknown_cips[cip])
 
+            # Export to Excel
             df = pd.DataFrame({"Unknown CIP": cips, "Occurrences": counts})
-            with pd.ExcelWriter(paths["results"] + self.data_name + "_CIP_Report.xlsx") as writer:  # Export to excel
+            with pd.ExcelWriter(afccp.core.globals.paths["results"] + self.data_name + "_CIP_Report.xlsx") as writer:
                 df.to_excel(writer, sheet_name="Unknown CIPs", index=False)
 
     def convert_utilities_to_preferences(self):
         """
         Converts the utility matrices to preferences
         """
-        self.parameters = convert_utility_matrices_preferences(self.parameters)
+        self.parameters = afccp.core.handling.data_handling.convert_utility_matrices_preferences(self.parameters)
 
     def generate_fake_afsc_preferences(self):
         """
         Uses the VFT parameters to generate simulated AFSC preferences
         """
-        self.parameters = generate_fake_afsc_preferences(self.parameters, self.value_parameters)
+        self.parameters = afccp.core.handling.data_handling.generate_fake_afsc_preferences(
+            self.parameters, self.value_parameters)
 
     def convert_afsc_preferences_to_percentiles(self):
         """
         This method takes the AFSC preference lists and turns them into normalized percentiles for each cadet for each
         AFSC.
         """
-        self.parameters = convert_afsc_preferences_to_percentiles(self.parameters)
+        self.parameters = afccp.core.handling.data_handling.convert_afsc_preferences_to_percentiles(self.parameters)
 
     def convert_to_scrubbed_instance(self, new_letter, printing=None):
         """
@@ -338,7 +345,7 @@ class CadetCareerProblem:
         if printing:
             print("Converting problem instance '" + self.data_name + "' to new instance '" + new_letter + "'...")
 
-        return scrub_real_afscs_from_instance(self, new_letter)
+        return afccp.core.comprehensive_functions.scrub_real_afscs_from_instance(self, new_letter)
 
     # Specify Value Parameters
     def set_instance_value_parameters(self, vp_name=None):
@@ -431,8 +438,8 @@ class CadetCareerProblem:
         # Assume the new set is unique until proven otherwise
         unique = True
         for vp_name in self.vp_dict:
-            identical = compare_value_parameters(self.parameters, value_parameters, self.vp_dict[vp_name],
-                                                 printing=printing)
+            identical = afccp.core.handling.value_parameter_handling.compare_value_parameters(
+                self.parameters, value_parameters, self.vp_dict[vp_name], printing=printing)
             if identical:
                 unique = vp_name
                 break
@@ -465,51 +472,55 @@ class CadetCareerProblem:
             # if filename not specified, check if file path was not directly specified
             if filepath is None:  # default value parameters
                 if self.data_variant == "Scrubbed":
-                    filepath = paths["support"] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
+                    filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
                 elif self.data_variant == 'Year':
                     filename = 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
-                    if filename in os.listdir(paths["support"]):
-                        filepath = paths["support"] + filename
+                    if filename in os.listdir(afccp.core.globals.paths["support"]):
+                        filepath = afccp.core.globals.paths["support"] + filename
                     else:
-                        filepath = paths["support"] + 'Value_Parameters_Defaults.xlsx'
+                        filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults.xlsx'
                 elif self.data_variant == 'Perfect':
-                    filepath = paths["support"] + 'Value_Parameters_Defaults_Perfect.xlsx'
+                    filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults_Perfect.xlsx'
                 else:
-                    filepath = paths["support"] + 'Value_Parameters_Defaults_Generated.xlsx'
+                    filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults_Generated.xlsx'
             else:
                 pass  # we have given a filepath already, no more info is needed
         else:
             if self.data_variant == "Year":
-                filepath = paths["support"] + filename
+                filepath = afccp.core.globals.paths["support"] + filename
             else:
-                filepath = paths["support"] + filename
+                filepath = afccp.core.globals.paths["support"] + filename
 
             if '.xlsx' not in filepath:
                 filepath += '.xlsx'
 
         # Import "default value parameters" from excel
-        self.default_value_parameters = default_value_parameters_from_excel(filepath, num_breakpoints=num_breakpoints,
-                                                                            printing=printing)
+        self.default_value_parameters = \
+            afccp.core.handling.value_parameter_handling.default_value_parameters_from_excel(
+                filepath, num_breakpoints=num_breakpoints, printing=printing)
 
         # Generate this instance's value parameters from the defaults
-        value_parameters = generate_value_parameters_from_defaults(
+        value_parameters = afccp.core.handling.value_parameter_handling.generate_value_parameters_from_defaults(
             self.parameters, generate_afsc_weights=generate_afsc_weights,
             default_value_parameters=self.default_value_parameters)
 
         # Add some additional components to value parameters
         if no_constraints:
             value_parameters['constraint_type'] = np.zeros([self.parameters['M'], value_parameters['O']])
-        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
-        value_parameters = condense_value_functions(self.parameters, value_parameters)
-        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
+        value_parameters = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
+            self.parameters, value_parameters)
+        value_parameters = afccp.core.handling.value_parameter_handling.condense_value_functions(
+            self.parameters, value_parameters)
+        value_parameters = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
+            self.parameters, value_parameters)
         value_parameters['vp_weight'] = vp_weight
 
         # Set value parameters to instance attribute
         if set_to_instance:
             self.value_parameters = value_parameters
             if self.solution is not None:
-                self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                        printing=printing)
+                self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                    self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Save new set of value parameters to dictionary
         if add_to_dict:
@@ -550,13 +561,14 @@ class CadetCareerProblem:
 
         if default_value_parameters is None:
             if self.data_variant == "Scrubbed":
-                filepath = paths["support"] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
+                filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
             elif self.data_variant == 'Year':
-                filepath = paths["support"] + 'Value_Parameters_Defaults.xlsx'
+                filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults.xlsx'
             else:
                 raise ValueError('Data type must be Real not Generated.')
 
-            default_value_parameters = default_value_parameters_from_excel(filepath)
+            default_value_parameters = \
+                afccp.core.handling.value_parameter_handling.default_value_parameters_from_excel(filepath)
             self.default_value_parameters = default_value_parameters
 
         if self.data_type == "Real":  # Not scrubbed AFSC data
@@ -566,30 +578,32 @@ class CadetCareerProblem:
 
         if constraints_df is None:
             if self.data_variant == "Year":
-                constraints_df = import_data(
-                    paths["support"] + 'Value_Parameter_Sets_Options.xlsx',
+                constraints_df = afccp.core.globals.import_data(
+                    afccp.core.globals.paths["support"] + 'Value_Parameter_Sets_Options.xlsx',
                     sheet_name=data_type + ' Constraint Options')
             else:
-                constraints_df = import_data(
-                    paths["support"] + 'Value_Parameter_Sets_Options_Scrubbed.xlsx',
+                constraints_df = afccp.core.globals.import_data(
+                    afccp.core.globals.paths["support"] + 'Value_Parameter_Sets_Options_Scrubbed.xlsx',
                     sheet_name=data_type + ' Constraint Options')
 
         # Generate realistic value parameters for the problem instance
-        value_parameters = value_parameter_realistic_generator(self.parameters, default_value_parameters,
-                                                               constraints_df, deterministic=deterministic,
-                                                               constrain_merit=constrain_merit,
-                                                               data_name=data_type)
-        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
-        value_parameters = condense_value_functions(self.parameters, value_parameters)
-        value_parameters = model_value_parameters_set_additions(self.parameters, value_parameters)
+        value_parameters = afccp.core.handling.value_parameter_generator.value_parameter_realistic_generator(
+            self.parameters, default_value_parameters, constraints_df, deterministic=deterministic,
+            constrain_merit=constrain_merit, data_name=data_type)
+        value_parameters = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
+            self.parameters, value_parameters)
+        value_parameters = afccp.core.handling.value_parameter_handling.condense_value_functions(
+            self.parameters, value_parameters)
+        value_parameters = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
+            self.parameters, value_parameters)
         value_parameters['vp_weight'] = vp_weight
 
         # Set value parameters to instance attribute
         if set_to_instance:
             self.value_parameters = value_parameters
             if self.solution is not None:
-                self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                        printing=printing)
+                self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                    self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Save new set of value parameters to dictionary
         if add_to_dict:
@@ -615,10 +629,10 @@ class CadetCareerProblem:
                 filename = "Value_Parameters_Defaults_" + self.data_name + "_New.xlsx"
 
             if filepath is None:
-                filepath = paths["support"] + filename
+                filepath = afccp.core.globals.paths["support"] + filename
 
-            model_value_parameters_to_defaults(self.parameters, self.value_parameters, filepath=filepath,
-                                               printing=printing)
+            afccp.core.handling.value_parameter_handling.model_value_parameters_to_defaults(
+                self.parameters, self.value_parameters, filepath=filepath, printing=printing)
 
     def change_weight_function(self, cadets=True, function=None):
         """
@@ -640,7 +654,8 @@ class CadetCareerProblem:
             self.value_parameters['cadet_weight_function'] = function
 
             # Update weights
-            self.value_parameters["cadet_weight"] = cadet_weight_function(merit, function)
+            self.value_parameters["cadet_weight"] = \
+                afccp.core.handling.value_parameter_handling.cadet_weight_function(merit, function)
 
         else:
             if function is None:
@@ -655,7 +670,8 @@ class CadetCareerProblem:
             self.value_parameters['afsc_weight_function'] = function
 
             # Update weights
-            self.value_parameters["afsc_weight"] = afsc_weight_function(quota, function)
+            self.value_parameters["afsc_weight"] = \
+                afccp.core.handling.value_parameter_handling.afsc_weight_function(quota, function)
 
     # Translate Parameters
     def vft_to_gp_parameters(self, p_dict={}, printing=None):
@@ -667,7 +683,8 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Reset certain plot parameters
-        _, self.mdl_p = initialize_instance_functional_parameters(self.parameters["N"])
+        _, self.mdl_p = \
+            afccp.core.handling.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Update model parameters if necessary
         for key in p_dict:
@@ -681,13 +698,13 @@ class CadetCareerProblem:
         if self.mdl_p["use_gp_df"]:
 
             # Get basic parameters (May or may not include penalty/reward parameters
-            self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, self.gp_df,
-                                                                self.mdl_p["use_gp_df"])
+            self.gp_parameters = afccp.core.handling.value_parameter_handling.translate_vft_to_gp_parameters(
+                self.parameters, self.value_parameters, self.gp_df, self.mdl_p["use_gp_df"])
 
             # Use generalized "GP DF"
             if self.gp_df is None:
-                filepath = paths["support"] + 'GP_Parameters.xlsx'
-                self.gp_df = import_data(filepath=filepath, sheet_name='Weights and Scaling')
+                filepath = afccp.core.globals.paths["support"] + 'GP_Parameters.xlsx'
+                self.gp_df = afccp.core.globals.import_data(filepath=filepath, sheet_name='Weights and Scaling')
                 specific_gp_df = False
             else:
                 specific_gp_df = True
@@ -699,7 +716,8 @@ class CadetCareerProblem:
 
             # Either create new rewards and penalties for this specific instance
             if self.mdl_p["get_new_rewards_penalties"]:
-                rewards, penalties = calculate_rewards_penalties(self, printing=printing)
+                rewards, penalties = \
+                    afccp.core.comprehensive_functions.calculate_rewards_penalties(self, printing=printing)
                 min_penalty = min([penalty for penalty in penalties if penalty != 0])
                 min_reward = min(rewards)
                 norm_penalties = np.array([min_penalty / penalty if penalty != 0 else 0 for penalty in penalties])
@@ -729,8 +747,8 @@ class CadetCareerProblem:
                                        'Reward Weight': reward_weight, 'Run Penalty': run_penalties,
                                        'Run Reward': run_rewards})
 
-        self.gp_parameters = translate_vft_to_gp_parameters(self.parameters, self.value_parameters, self.gp_df,
-                                                            self.mdl_p["use_gp_df"], printing=printing)
+        self.gp_parameters = afccp.core.handling.value_parameter_handling.translate_vft_to_gp_parameters(
+            self.parameters, self.value_parameters, self.gp_df, self.mdl_p["use_gp_df"], printing=printing)
 
     # Observe Value Parameters
     def show_value_function(self, afsc=None, objective=None, printing=None, label_size=25, x_point=None,
@@ -762,11 +780,10 @@ class CadetCareerProblem:
             k = self.value_parameters["K^A"][0][0]
             objective = self.value_parameters['objectives'][k]
 
-        value_function_chart = plot_value_function(afsc, objective, self.parameters, self.value_parameters,
-                                                   printing=printing, label_size=label_size,
-                                                   yaxis_tick_size=yaxis_tick_size, facecolor=facecolor,
-                                                   xaxis_tick_size=xaxis_tick_size, figsize=figsize, save=save,
-                                                   display_title=display_title, title=title, x_point=x_point)
+        value_function_chart = afccp.core.comprehensive_functions.plot_value_function(
+            afsc, objective, self.parameters, self.value_parameters, printing=printing, label_size=label_size,
+            yaxis_tick_size=yaxis_tick_size, facecolor=facecolor, xaxis_tick_size=xaxis_tick_size, figsize=figsize,
+            save=save, display_title=display_title, title=title, x_point=x_point)
 
         if printing:
             value_function_chart.show()
@@ -774,7 +791,7 @@ class CadetCareerProblem:
         return value_function_chart
 
     def display_weight_function(self, cadets=True, save=False, figsize=(19, 7), facecolor='white', gui_chart=False,
-                                display_title=True, thesis_chart=False, title=None, label_size=35, afsc_tick_size=25,
+                                display_title=True, title=None, label_size=35, afsc_tick_size=25,
                                 yaxis_tick_size=30, afsc_rotation=None, xaxis_tick_size=30, skip_afscs=None, dpi=100,
                                 printing=None):
         """
@@ -791,7 +808,6 @@ class CadetCareerProblem:
         :param xaxis_tick_size: size of the x axis ticks
         :param figsize: size of the figure
         :param facecolor: color of the figure
-        :param thesis_chart: If this chart is used in the thesis document (determines some of these parameters)
         :param title: title of the figure
         :param save: if we should save the graph
         :param display_title: Whether we should put a title on the figure or not
@@ -816,171 +832,15 @@ class CadetCareerProblem:
                 else:
                     afsc_rotation = 0
 
-        if thesis_chart:
-            figsize = (16, 10)
-            display_title = False
-            save = True
-            label_size = 35
-            afsc_tick_size = 30
-            yaxis_tick_size = 30
-            xaxis_tick_size = 30
-            if cadets:
-                title = 'Weight_Chart_Cadets'
-            else:
-                title = 'Weight_Chart_AFSCs'
-            chart = individual_weight_graph(self.parameters, self.value_parameters, cadets, save, figsize, facecolor,
-                                            display_title, title, label_size, afsc_tick_size, gui_chart, dpi,
-                                            yaxis_tick_size, afsc_rotation, xaxis_tick_size, skip_afscs=skip_afscs)
-        else:
-            chart = individual_weight_graph(self.parameters, self.value_parameters, cadets, save, figsize, facecolor,
-                                            display_title, title, label_size, afsc_tick_size, gui_chart, dpi,
-                                            yaxis_tick_size, afsc_rotation, xaxis_tick_size, skip_afscs=skip_afscs)
+        chart = afccp.core.visualizations.instance_graphs.individual_weight_graph(
+            self.parameters, self.value_parameters, cadets, save, figsize, facecolor, display_title, title,
+            label_size, afsc_tick_size, gui_chart, dpi, yaxis_tick_size, afsc_rotation, xaxis_tick_size,
+            skip_afscs=skip_afscs)
 
         if printing:
             chart.show()
 
         return chart
-
-    # Import Solutions
-    def import_solution(self, filepath, excel_format="Specific", set_to_instance=True, add_to_dict=True,
-                        printing=None):
-        """
-        This method imports a solution from excel
-        :param excel_format: kind of excel sheet we're importing from
-        :param set_to_instance: if we want to set this solution to the instance's solution attribute
-        :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param filepath: filepath to import the solution from
-        :param printing: Whether we should print status updates or not
-        :return solution
-        """
-
-        if printing is None:
-            printing = self.printing
-
-        # Import solution
-        solution = import_solution_from_excel(filepath=filepath, excel_format=excel_format, printing=printing)
-
-        # Set the solution attribute
-        if set_to_instance:
-            self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
-
-        # Add solution to solution dictionary
-        if add_to_dict:
-            self.add_solution_to_dictionary(solution, solution_method="Original")
-
-        if printing:
-            print('Imported.')
-
-        # Return solution
-        return solution
-
-    def scrub_afsc_solution(self, year, filepath=None, solution_name=None, set_to_instance=True, add_to_dict=True,
-                            printing=None):
-        """
-        Imports a real class year solution (sensitive data) and converts the real AFSCs into the scrubbed versions
-        :param set_to_instance: if we want to set this solution to the instance's solution attribute
-        :param add_to_dict: if we want to add this solution to the solution dictionary
-        :param solution_name: name of the solution to the real class year sensitive file
-        :param filepath: filepath of the solution (optional)
-        :param year: year of the solution
-        :param printing: Whether we should print status updates or not
-        :return: solution
-        """
-
-        if printing is None:
-            printing = self.printing
-
-        if sensitive_folder:
-
-            # Figure out how we're importing the solution
-            full_name = "Real " + str(year)
-            excel_format = 'Aggregate'
-
-            # If we don't specify a filepath directly
-            if filepath is None:
-
-                # If we don't specify a solution name directly
-                if solution_name is None:
-
-                    # If the "full name" is the name of a file, we will import the solution from that file
-                    if full_name in self.real_instance_data_names:
-                        filepath = paths['instances'] + full_name + '.xlsx'
-                    else:
-
-                        # If we need to specify a solution from a specific solution excel file
-                        potential_names = []
-                        for potential_name in self.real_instance_data_names:
-
-                            # Get a list of potential names for this particular data instance
-                            if full_name in potential_name:
-                                potential_names.append(potential_name)
-
-                        # If there are no class year instance files, raise error
-                        if len(potential_names) > 0:
-
-                            # Get list of solutions that we have for this class year
-                            solution_names = []
-                            solution_full_names = []
-                            for potential_name in potential_names:
-                                split_list = potential_name.split(' ')
-                                if len(split_list) == 4:
-                                    solution_names.append(split_list[3])
-                                    solution_full_names.append(potential_name)
-
-                            # If we have at least one solution, we arbitrarily take the first one
-                            if len(solution_names) > 0:
-                                solution_name = solution_names[0]
-                                filepath = paths['instances'] + solution_full_names[0] + '.xlsx'
-                                excel_format = 'Specific'
-                            else:
-                                raise ValueError(str(year) + ' files exist, but no solutions detected.')
-                        else:
-                            raise ValueError('No ' + str(year) + ' files detected.')
-            else:
-                start_index = filepath.find(paths['instances']) + len(paths['instances']) + 1
-                end_index = len(filepath) - 5
-                full_name = filepath[start_index:end_index]
-                sections = full_name.split(' ')
-                if len(sections) == 4:
-                    solution_name = sections[3]
-                    excel_format = 'Specific'
-                elif len(sections) != 2:
-                    raise ValueError('Aggregate solution excel file not provided.')
-
-            # Import real class year solution
-            real_solution = import_solution_from_excel(filepath=filepath, solution_name=solution_name,
-                                                       excel_format=excel_format)
-            year_afsc_table = import_data(filepath=paths["support"] + "Year_AFSCs_Table.xlsx",
-                                          sheet_name=str(year))
-            real_afscs = np.array(year_afsc_table['AFSC'])
-            old_afscs = np.sort(real_afscs)
-            solution = np.zeros(self.parameters['N']).astype(int)
-            for j, afsc in enumerate(real_afscs):
-                _name = self.parameters['afsc_vector'][j]
-                old_j = np.where(old_afscs == afsc)[0][0]
-                indices = np.where(real_solution == old_j)[0]
-                solution[indices] = j
-
-            # Set the solution attribute
-            if set_to_instance:
-                self.solution = solution
-                self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                        printing=printing)
-
-            # Add solution to solution dictionary
-            if add_to_dict:
-                self.add_solution_to_dictionary(solution, solution_name="Real " + solution_name)
-
-            if printing:
-                print('Imported.')
-
-            # Return solution
-            return solution
-
-        else:
-            raise ValueError('No sensitive folder found. Cannot load real AFSC solutions')
 
     # Solve Models
     def generate_random_solution(self, set_to_instance=True, add_to_dict=True, printing=None):
@@ -1001,8 +861,8 @@ class CadetCareerProblem:
         # Set the solution attribute
         if set_to_instance:
             self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
+            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Add solution to solution dictionary
         if add_to_dict:
@@ -1021,12 +881,13 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        solution = stable_marriage_model_solve(self.parameters, self.value_parameters, printing=printing)
+        solution = afccp.core.solutions.heuristic_solvers.stable_marriage_model_solve(
+            self.parameters, self.value_parameters, printing=printing)
 
         # Set the solution attribute
         if set_to_instance:
             self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
+            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(self.solution, self.parameters, self.value_parameters,
                                                     printing=printing)
 
         # Add solution to solution dictionary
@@ -1046,13 +907,13 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        solution = matching_algorithm_1(self, printing=printing)
+        solution = afccp.core.solutions.heuristic_solvers.matching_algorithm_1(self, printing=printing)
 
         # Set the solution attribute
         if set_to_instance:
             self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
+            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Add solution to solution dictionary
         if add_to_dict:
@@ -1071,13 +932,14 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        solution = greedy_model_solve(self.parameters, self.value_parameters, printing=printing)
+        solution = afccp.core.solutions.heuristic_solvers.greedy_model_solve(
+            self.parameters, self.value_parameters, printing=printing)
 
         # Set the solution attribute
         if set_to_instance:
             self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
+            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Add solution to solution dictionary
         if add_to_dict:
@@ -1142,15 +1004,17 @@ class CadetCareerProblem:
 
         if self.mdl_p["time_eval"]:
             start_time = time.perf_counter()  # Start the timer
-            solution, time_eval_df = genetic_algorithm(self, initial_solutions, con_fail_dict, printing=printing)
+            solution, time_eval_df = afccp.core.solutions.heuristic_solvers.genetic_algorithm(
+                self, initial_solutions, con_fail_dict, printing=printing)
             solve_time = time.perf_counter() - start_time
         else:
-            solution = genetic_algorithm(self, initial_solutions, con_fail_dict, printing=printing)
+            solution = afccp.core.solutions.heuristic_solvers.genetic_algorithm(
+                self, initial_solutions, con_fail_dict, printing=printing)
 
         if self.mdl_p["set_to_instance"]:
             self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
+            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Add solution to solution dictionary
         if self.mdl_p["add_to_dict"]:
@@ -1194,19 +1058,20 @@ class CadetCareerProblem:
                 self.mdl_p["warm_start"] = self.init_exact_solution_from_x()
 
         if use_pyomo:
-            model = vft_model_build(self, printing=printing)
+            model = afccp.core.solutions.pyomo_models.vft_model_build(self, printing=printing)
             if self.mdl_p["report"]:
                 if self.mdl_p["time_eval"]:
-                    solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = vft_model_solve(
-                        self, model, printing=printing)
+                    solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = \
+                        afccp.core.solutions.pyomo_models.vft_model_solve(self, model, printing=printing)
                 else:
-                    solution, self.x, self.measure, self.value, self.pyomo_z = vft_model_solve(
-                        self, model, printing=printing)
+                    solution, self.x, self.measure, self.value, self.pyomo_z = \
+                        afccp.core.solutions.pyomo_models.vft_model_solve(self, model, printing=printing)
             else:
                 if self.mdl_p["time_eval"]:
-                    solution, solve_time = vft_model_solve(self, model, printing=printing)
+                    solution, solve_time = \
+                        afccp.core.solutions.pyomo_models.vft_model_solve(self, model, printing=printing)
                 else:
-                    solution = vft_model_solve(self, model, printing=printing)
+                    solution = afccp.core.solutions.pyomo_models.vft_model_solve(self, model, printing=printing)
         else:
             if printing:
                 raise ValueError('Pyomo not available')
@@ -1217,8 +1082,8 @@ class CadetCareerProblem:
         # Set the solution attribute
         if self.mdl_p["set_to_instance"]:
             self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
+            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Add solution to solution dictionary
         if self.mdl_p["add_to_dict"]:
@@ -1254,15 +1119,15 @@ class CadetCareerProblem:
                 print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
         if use_pyomo:
-            solution = solve_original_pyomo_model(self, printing=printing)
+            solution = afccp.core.solutions.pyomo_models.solve_original_pyomo_model(self, printing=printing)
         else:
             raise ValueError('Pyomo not available')
 
         # Set the solution attribute
         if self.mdl_p["set_to_instance"]:
             self.solution = solution
-            self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                    printing=printing)
+            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Add solution to solution dictionary
         if self.mdl_p["add_to_dict"]:
@@ -1292,8 +1157,8 @@ class CadetCareerProblem:
             self.vft_to_gp_parameters()
 
         # Solve the model
-        r_model = gp_model_build(self, printing=printing)
-        gp_var = gp_model_solve(self, r_model, printing=printing)
+        r_model = afccp.core.solutions.pyomo_models.gp_model_build(self, printing=printing)
+        gp_var = afccp.core.solutions.pyomo_models.gp_model_solve(self, r_model, printing=printing)
 
         if self.mdl_p["con_term"] is None:
             solution, self.x = gp_var
@@ -1301,8 +1166,8 @@ class CadetCareerProblem:
             # Set the solution attribute
             if self.mdl_p["set_to_instance"]:
                 self.solution = solution
-                self.metrics = measure_solution_quality(self.solution, self.parameters, self.value_parameters,
-                                                        printing=printing)
+                self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                    self.solution, self.parameters, self.value_parameters, printing=printing)
 
             # Add solution to solution dictionary
             if self.mdl_p["add_to_dict"]:
@@ -1342,7 +1207,8 @@ class CadetCareerProblem:
 
         # Determine population for the genetic algorithm if necessary
         if p_dict["populate"]:
-            p_dict["initial_solutions"] = populate_initial_ga_solutions(self, printing)
+            p_dict["initial_solutions"] = afccp.core.comprehensive_functions.populate_initial_ga_solutions(
+                self, printing)
 
             # Add additional solutions if necessary
             if p_dict["solution_names"] is not None:
@@ -1399,7 +1265,8 @@ class CadetCareerProblem:
                              "make sure the current set of value parameters has active constraints.")
 
         # Run the function!
-        constraint_type, solutions_df, report_df = determine_model_constraints(self, skip_quota=skip_quota)
+        constraint_type, solutions_df, report_df = \
+            afccp.core.comprehensive_functions.determine_model_constraints(self, skip_quota=skip_quota)
 
         if set_new_constraint_type:
             self.value_parameters["constraint_type"] = constraint_type
@@ -1411,7 +1278,7 @@ class CadetCareerProblem:
 
         # Export to excel
         if export_report:
-            filepath = paths["results"] + self.data_name + "_Constraint_Report.xlsx"
+            filepath = afccp.core.globals.paths["results"] + self.data_name + "_Constraint_Report.xlsx"
             with pd.ExcelWriter(filepath) as writer:
                 report_df.to_excel(writer, sheet_name="Report", index=False)
                 constraint_type_df.to_excel(writer, sheet_name="Constraints", index=False)
@@ -1556,10 +1423,10 @@ class CadetCareerProblem:
             self.plt_p["solution_names"] = list(self.solution_dict.keys())
 
         # Get coordinates
-        coords = solution_similarity_coordinates(similarity_matrix)
+        coords = afccp.core.handling.data_handling.solution_similarity_coordinates(similarity_matrix)
 
         # Plot similarity
-        chart = solution_similarity_graph(self, coords)
+        chart = afccp.core.visualizations.instance_graphs.solution_similarity_graph(self, coords)
 
         if printing:
             chart.show()
@@ -1579,11 +1446,13 @@ class CadetCareerProblem:
             print('Initializing VFT solution from X matrix...')
 
         # Evaluate Solution
-        metrics = measure_solution_quality(self.x, self.parameters, self.value_parameters)
+        metrics = \
+            afccp.core.handling.data_handling.measure_solution_quality(self.x, self.parameters, self.value_parameters)
         values = metrics['objective_value']
         measures = metrics['objective_measure']
 
-        lam, y = x_to_solution_initialization(self.parameters, self.value_parameters, measures, values)
+        lam, y = afccp.core.solutions.pyomo_models.x_to_solution_initialization(
+            self.parameters, self.value_parameters, measures, values)
         initialization = {'X': self.x, 'lam': lam, 'y': y, 'F_X': values}
         return initialization
 
@@ -1795,8 +1664,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        metrics = measure_solution_quality(solution, self.parameters, value_parameters,
-                                           approximate=approximate, printing=printing)
+        metrics = afccp.core.handling.data_handling.measure_solution_quality(
+            solution, self.parameters, value_parameters, approximate=approximate, printing=printing)
 
         if set_solution:
             self.metrics = metrics
@@ -1829,9 +1698,9 @@ class CadetCareerProblem:
             if con_fail_dict is None:
                 con_fail_dict = self.get_constraint_fail_dictionary()
 
-        metrics = ga_fitness_function(solution, self.parameters, self.value_parameters, constraints=constraints,
-                                      penalty_scale=penalty_scale, con_fail_dict=con_fail_dict, first=first,
-                                      printing=printing)
+        metrics = afccp.core.handling.data_handling.ga_fitness_function(
+            solution, self.parameters, self.value_parameters, constraints=constraints, penalty_scale=penalty_scale,
+            con_fail_dict=con_fail_dict, first=first, printing=printing)
 
         return metrics
 
@@ -1853,7 +1722,8 @@ class CadetCareerProblem:
                 for solution_name in self.solution_dict:
                     solution = self.solution_dict[solution_name]
                     if solution_name not in self.metrics_dict[vp_name]:
-                        metrics = measure_solution_quality(solution, self.parameters, value_parameters)
+                        metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                            solution, self.parameters, value_parameters)
                         self.metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
 
             # Update weights on the sets of value parameters relative to each other
@@ -1987,7 +1857,8 @@ class CadetCareerProblem:
             print("Saving all results graphs to folder...")
 
         # Reset chart functional parameters
-        self.plt_p, _ = initialize_instance_functional_parameters(self.parameters["N"])
+        self.plt_p, _ = \
+            afccp.core.handling.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Make sure we have a solution and a set of value parameters activated
         if self.value_parameters is None:
@@ -2010,15 +1881,15 @@ class CadetCareerProblem:
                     print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
         # Update plot parameters
-        self.plt_p = determine_afsc_plot_details(self, results_chart=True)
+        self.plt_p = afccp.core.handling.ccp_helping_functions.determine_afsc_plot_details(self, results_chart=True)
 
         # Determine which chart to show
         if self.plt_p["results_graph"] in ["Measure", "Value"]:
-            chart = afsc_results_graph(self)
+            chart = afccp.core.visualizations.instance_graphs.afsc_results_graph(self)
         elif self.plt_p["results_graph"] == "Cadet Utility":
-            chart = cadet_utility_histogram(self)
+            chart = afccp.core.visualizations.instance_graphs.cadet_utility_histogram(self)
         elif self.plt_p["results_graph"] == "Utility vs. Merit":
-            chart = cadet_utility_merit_scatter(self)
+            chart = afccp.core.visualizations.instance_graphs.cadet_utility_merit_scatter(self)
 
         # Get necessary conditions for the multi-criteria chart
         elif self.plt_p["results_graph"] == "Multi-Criteria Comparison":
@@ -2032,7 +1903,8 @@ class CadetCareerProblem:
                 if self.plt_p["comparison_afscs"] is None:
 
                     # Run through an algorithm to pick the AFSCs to show based on which ones change the most
-                    self.plt_p["comparison_afscs"] = pick_most_changed_afscs(self)
+                    self.plt_p["comparison_afscs"] = \
+                        afccp.core.handling.ccp_helping_functions.pick_most_changed_afscs(self)
 
                 # Get correct y-axis scale (scale to most cadets in biggest AFSC!)
                 quota_k = np.where(self.value_parameters["objectives"] == "Combined Quota")[0][0]
@@ -2052,7 +1924,7 @@ class CadetCareerProblem:
                     self.set_instance_solution(solution_name)
 
                     # Generate chart
-                    chart = afsc_multi_criteria_graph(self, max_num=max_num)
+                    chart = afccp.core.visualizations.instance_graphs.afsc_multi_criteria_graph(self, max_num=max_num)
             else:
 
                 # Determine AFSCs to show
@@ -2067,7 +1939,7 @@ class CadetCareerProblem:
                         self.plt_p["filename"] += "_" + afsc
 
                     # Generate chart
-                    chart = afsc_multi_criteria_graph(self)
+                    chart = afccp.core.visualizations.instance_graphs.afsc_multi_criteria_graph(self)
 
         else:
             raise ValueError("Graph '" + self.plt_p["results_graph"] + "' does not exist.")
@@ -2086,7 +1958,8 @@ class CadetCareerProblem:
             print("Generating results slides...")
 
         # Reset chart functional parameters
-        self.plt_p, _ = initialize_instance_functional_parameters(self.parameters["N"])
+        self.plt_p, _ = \
+            afccp.core.handling.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Make sure we have a solution and a set of value parameters activated
         if self.value_parameters is None:
@@ -2108,11 +1981,8 @@ class CadetCareerProblem:
                     # If the parameter doesn't exist, we warn the user
                     print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
-        # Save all the figures first
-        # self.display_all_results_graphs(p_dict)
-
         # Call the function to generate the slides
-        generate_results_slides(self)
+        afccp.core.visualizations.slides.generate_results_slides(self)
 
     # Sensitivity Analysis
     def initial_overall_weights_pareto_analysis(self, p_dict={}, printing=None):
@@ -2126,7 +1996,7 @@ class CadetCareerProblem:
         """
 
         # File we import and export to
-        filepath = paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
+        filepath = afccp.core.globals.paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
 
         if printing is None:
             printing = self.printing
@@ -2198,7 +2068,7 @@ class CadetCareerProblem:
         """
 
         # File we import and export to
-        filepath = paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
+        filepath = afccp.core.globals.paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
 
         if printing is None:
             printing = self.printing
@@ -2207,8 +2077,8 @@ class CadetCareerProblem:
             print("Conducting 'final' pareto analysis on problem...")
 
         # Solutions Dataframe
-        solutions_df = import_data(filepath, sheet_name='Initial Solutions')
-        approximate_results_df = import_data(filepath, sheet_name='Approximate Pareto Results')
+        solutions_df = afccp.core.globals.import_data(filepath, sheet_name='Initial Solutions')
+        approximate_results_df = afccp.core.globals.import_data(filepath, sheet_name='Approximate Pareto Results')
 
         # Update plot parameters if necessary
         for key in p_dict:
@@ -2289,7 +2159,7 @@ class CadetCareerProblem:
         Saves the pareto chart to the figures folder
         """
         # File we import and export to
-        filepath = paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
+        filepath = afccp.core.globals.paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
 
         if printing is None:
             printing = self.printing
@@ -2298,14 +2168,14 @@ class CadetCareerProblem:
             print("Creating Pareto Chart...")
 
         try:
-            pareto_df = import_data(filepath, sheet_name='GA Pareto Results')
+            pareto_df = afccp.core.globals.import_data(filepath, sheet_name='GA Pareto Results')
         except:
             try:
-                pareto_df = import_data(filepath, sheet_name='Approximate Pareto Results')
+                pareto_df = afccp.core.globals.import_data(filepath, sheet_name='Approximate Pareto Results')
             except:
                 raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
 
-        return pareto_graph(pareto_df)
+        return afccp.core.visualizations.instance_graphs.pareto_graph(pareto_df)
 
     def least_squares_procedure(self, t_solution, delta=0, printing=None, show_graph=True, names=None, afsc=None,
                                 colors=None, save=False, figsize=(19, 7), facecolor="white", title=None,
@@ -2318,8 +2188,8 @@ class CadetCareerProblem:
             printing = self.printing
 
         if use_pyomo:
-            value_parameters = least_squares_procedure(self.parameters, self.value_parameters, self.solution,
-                                                       t_solution, delta=delta, printing=printing)
+            value_parameters = afccp.core.solutions.pyomo_models.least_squares_procedure(
+                self.parameters, self.value_parameters, self.solution, t_solution, delta=delta, printing=printing)
         else:
             value_parameters = self.value_parameters
 
@@ -2377,24 +2247,19 @@ class CadetCareerProblem:
             yaxis_tick_size = 30
             xaxis_tick_size = 30
 
-        chart = afsc_objective_weights_graph(self.parameters, vp_dict, afsc, colors=colors, save=save,
-                                             figsize=figsize, facecolor=facecolor, title=title, legend_size=legend_size,
-                                             display_title=display_title, label_size=label_size, title_size=title_size,
-                                             xaxis_tick_size=xaxis_tick_size, yaxis_tick_size=yaxis_tick_size,
-                                             bar_color=bar_color)
+        chart = afccp.core.visualizations.instance_graphs.afsc_objective_weights_graph(
+            self.parameters, vp_dict, afsc, colors=colors, save=save, figsize=figsize, facecolor=facecolor, title=title,
+            legend_size=legend_size, display_title=display_title, label_size=label_size, title_size=title_size,
+            xaxis_tick_size=xaxis_tick_size, yaxis_tick_size=yaxis_tick_size, bar_color=bar_color)
         if printing:
             chart.show()
 
         return chart
 
     # Export
-    def create_aggregate_file(self, from_files=False, one_time_new_vp=False, printing=None):
+    def create_aggregate_file(self, printing=None):
         """
         Create the "data_type data_name" main aggregate file with solutions, metrics, and vps
-        :param one_time_new_vp: this is just to recreate default value parameters for some class years
-        (ignore this parameter)
-        :param printing: whether to print status updates
-        :param from_files: if we want to import the data from the self.instance_files or use the instance attributes
         """
         if printing is None:
             printing = self.printing
@@ -2402,50 +2267,14 @@ class CadetCareerProblem:
         if printing:
             print('Creating aggregate problem instance excel file...')
 
-        if from_files:
-            solution_dict = {}
-            if self.vp_dict is None:
-                vp_dict = {}
-            else:
-                vp_dict = self.vp_dict
-            for filepath in self.instance_files:
-                start_index = filepath.find(paths['instances']) + len(paths['instances']) + 1
-                end_index = len(filepath) - 5
-                full_name = filepath[start_index:end_index]
-                vp_name = full_name.split(' ')[2]
-                solution_name = full_name.split(' ')[3]
-                if vp_name not in vp_dict:
-                    if one_time_new_vp:
-                        value_parameters = self.import_default_value_parameters(no_constraints=True,
-                                                                                set_to_instance=False,
-                                                                                add_to_dict=False)
-                    else:
-                        value_parameters = self.import_value_parameters(filepath=filepath, set_value_parameters=False,
-                                                                        printing=False)
-                    vp_dict[vp_name] = copy.deepcopy(value_parameters)
-                if solution_name not in solution_dict:
-                    solution = self.import_solution(filepath=filepath, set_to_instance=False, add_to_dict=False,
-                                                    printing=False)
-                    solution_dict[solution_name] = copy.deepcopy(solution)
-            metrics_dict = {}
-            for vp_name in vp_dict:
-                value_parameters = vp_dict[vp_name]
-                vp_dict[vp_name]['vp_weight'] = 100
-                vp_dict[vp_name]['vp_local_weight'] = 1 / len(list(vp_dict.keys()))
-                metrics_dict[vp_name] = {}
-                for solution_name in solution_dict:
-                    solution = solution_dict[solution_name]
-                    metrics = self.measure_solution(solution, value_parameters, set_solution=False, return_z=False,
-                                                    printing=False)
-                    metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
-        else:
-            self.update_metrics_dict()
-            metrics_dict = self.metrics_dict
-            solution_dict = self.solution_dict
-            vp_dict = self.vp_dict
+        self.update_metrics_dict()
+        metrics_dict = self.metrics_dict
+        solution_dict = self.solution_dict
+        vp_dict = self.vp_dict
 
-        create_aggregate_instance_file(self.data_name, self.parameters, solution_dict, vp_dict, metrics_dict,
-                                       self.gp_df, info_df=self.info_df, similarity_matrix=self.similarity_matrix)
+        afccp.core.comprehensive_functions.create_aggregate_instance_file(
+            self.data_name, self.parameters, solution_dict, vp_dict, metrics_dict, self.gp_df, info_df=self.info_df,
+            similarity_matrix=self.similarity_matrix)
 
     def export_to_excel(self, aggregate=True, printing=None):
         """
@@ -2464,7 +2293,8 @@ class CadetCareerProblem:
             if self.solution_name in self.solution_dict:
 
                 # Check if the instance solution is the same as the one in the dictionary
-                p_s = compare_solutions(self.solution, self.solution_dict[self.solution_name])
+                p_s = afccp.core.handling.data_handlingcompare_solutions(
+                    self.solution, self.solution_dict[self.solution_name])
                 if p_s != 1:
                     raise ValueError("Current solution: " + self.solution_name +
                                      ". This is not the same solution as found in the dictionary under that name.")
@@ -2475,7 +2305,8 @@ class CadetCareerProblem:
             if self.vp_name in self.vp_dict:
 
                 # Check if the instance value parameters are the same as the ones in the dictionary
-                vp_same = compare_value_parameters(self.parameters, self.value_parameters, self.vp_dict[self.vp_name])
+                vp_same = afccp.core.handling.value_parameter_handling.compare_value_parameters(
+                    self.parameters, self.value_parameters, self.vp_dict[self.vp_name])
                 if not vp_same:
                     raise ValueError("Current value parameters: " + self.vp_name +
                                      ". This is not the same set of value parameters as found in the "
@@ -2485,10 +2316,11 @@ class CadetCareerProblem:
 
             # Export to the right place
             self.full_name = self.data_type + " " + self.data_name + " " + self.vp_name + " " + self.solution_name
-            filepath = paths['instances'] + self.full_name + '.xlsx'
+            filepath = afccp.core.globals.paths['instances'] + self.full_name + '.xlsx'
 
             # Export to excel
-            data_to_excel(filepath, self.parameters, self.value_parameters, self.metrics, printing=printing)
+            afccp.core.comprehensive_functions.data_to_excel(
+                filepath, self.parameters, self.value_parameters, self.metrics, printing=printing)
 
         if printing:
             print('Exported.')

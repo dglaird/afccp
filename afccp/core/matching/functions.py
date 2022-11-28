@@ -4,15 +4,7 @@ from openpyxl import load_workbook
 from datetime import datetime
 import collections
 
-from afccp.core.comprehensive_functions import *
-
-
-# # You can write your own functions here using the problem instance object
-# def test_function_1(instance):
-#
-#     # Just to show you that you have all the problem instance data
-#     p = instance.parameters
-#     print("Hello! Your problem instance has " + str(p["N"]) + " cadets.")
+import afccp.core.comprehensive_functions
 
 def AFSC_scoring_data_structure(instance):
     AFSC_scores = {}

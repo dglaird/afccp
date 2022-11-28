@@ -6,7 +6,6 @@ import openpyxl
 from packaging import version
 
 # Get directory path here
-global dir_path, paths_in, paths_out, support_paths
 dir_path = os.getcwd() + '/'
 
 # Check to see if we already have the data folders we need in our working directory
@@ -24,6 +23,7 @@ else:
     print("Data folders not found. Creating folders in working directory...")
 
 # Folder paths!
+global paths
 paths = {}
 for folder in ["figures", "instances", "results", "solvers", "support"]:
     paths[folder] = folder + '/'

@@ -1,6 +1,6 @@
 # Import libraries
 import numpy as np
-from afccp.core.globals import *
+import afccp.core.globals
 
 
 # Fixed Parameter Procedures
@@ -16,11 +16,11 @@ def import_fixed_cadet_afsc_data_from_excel(filepath, printing=False):
 
     # Import datasets
     try:
-        info_df = import_data(filepath, sheet_name="All Cadet Info")
+        info_df = afccp.core.globals.import_data(filepath, sheet_name="All Cadet Info")
     except:
         info_df = None
-    cadets_fixed = import_data(filepath, sheet_name="Cadets Fixed")
-    afscs_fixed = import_data(filepath, sheet_name="AFSCs Fixed")
+    cadets_fixed = afccp.core.globals.import_data(filepath, sheet_name="Cadets Fixed")
+    afscs_fixed = afccp.core.globals.import_data(filepath, sheet_name="AFSCs Fixed")
 
     return info_df, cadets_fixed, afscs_fixed
 
@@ -444,7 +444,7 @@ def import_solution_from_excel(filepath, solution_name=None, afsc_vector=None, e
         print('Importing solution from excel...')
 
     if afsc_vector is None:
-        afscs_fixed = import_data(filepath, sheet_name="AFSCs Fixed")
+        afscs_fixed = afccp.core.globals.import_data(filepath, sheet_name="AFSCs Fixed")
         afsc_vector = np.array(afscs_fixed['AFSC'])
 
     if excel_format == 'Specific':
@@ -453,7 +453,7 @@ def import_solution_from_excel(filepath, solution_name=None, afsc_vector=None, e
         sheet_name = "Original Solution"
     else:  # From Aggregate File
         sheet_name = "Solutions"
-    solutions_df = import_data(filepath, sheet_name=sheet_name)
+    solutions_df = afccp.core.globals.import_data(filepath, sheet_name=sheet_name)
 
     if solution_name is None and excel_format not in ['Specific', 'Original']:
         raise ValueError('No solution name provided')

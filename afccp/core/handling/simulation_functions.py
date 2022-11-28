@@ -2,10 +2,10 @@
 import random
 import numpy as np
 import warnings
-from afccp.core.globals import *
+import afccp.core.globals
 from afccp.core.handling.preprocessing import cip_to_qual, cip_to_qual_direct
 
-if use_sdv:
+if afccp.core.globals.use_sdv:
     from sdv.evaluation import evaluate
     from sdv.constraints import GreaterThan
     from sdv.constraints import CustomConstraint
@@ -19,7 +19,7 @@ if use_sdv:
 warnings.filterwarnings('ignore')  # prevent red warnings from printing
 
 
-def import_generator_parameters(filepath=paths["support"] + "Instance_Generator_Parameters.xlsx",
+def import_generator_parameters(filepath=afccp.core.globals.paths["support"] + "Instance_Generator_Parameters.xlsx",
                                 printing=False):
     """
     Imports generator parameters used for the different generation functions
@@ -49,7 +49,7 @@ def simulate_model_fixed_parameters(N=1600, P=6, M=32, printing=False):
         print('Simulating (Random)...')
 
     # Import CIP to Qual Matrix
-    cip_qual_matrix = import_data(paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
+    cip_qual_matrix = import_data(afccp.core.globals.paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
                                   sheet_name="Qual Matrix")
 
     # Import Generator Parameters
@@ -358,7 +358,7 @@ def perfect_example_generator(N=8, P=2, M=2, printing=False):
 
 
 # "Realistic" Generation Functions
-if use_sdv:
+if afccp.core.globals.use_sdv:
     def simulate_realistic_fixed_data(generator=None, N=1500, printing=False):
         """
         This function calls the CTGAN to generate realistic synthetic cadets, then assigns targets to that data and returns
@@ -372,7 +372,7 @@ if use_sdv:
             print('Simulating (Realistic)...')
 
         if generator is None:
-            generator = CTGAN.load(paths["support"] + 'CTGAN.pkl')
+            generator = CTGAN.load(afccp.core.globals.paths["support"] + 'CTGAN.pkl')
 
         # Generate data
         data = generator.sample(N)
@@ -432,7 +432,7 @@ if use_sdv:
 
         # Import CIP to Qual Matrix
         if cip_qual_matrix is None:
-            cip_qual_matrix = import_data(paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
+            cip_qual_matrix = import_data(afccp.core.globals.paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
                                           sheet_name="Qual Matrix")
 
         # Import Generator Parameters
@@ -531,7 +531,7 @@ if use_sdv:
         """
 
         if data is None:
-            data = import_data(paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
+            data = import_data(afccp.core.globals.paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
             data = ctgan_data_filter(data)
 
         print('')
@@ -576,7 +576,7 @@ if use_sdv:
         model.fit(data)
 
         # Save the model
-        model.save(paths["support"] + name + '.pkl')
+        model.save(afccp.core.globals.paths["support"] + name + '.pkl')
         if printing:
             print('Model Saved.')
 
@@ -591,7 +591,7 @@ if use_sdv:
 
         # Load Data
         if ctgan_data is None:
-            ctgan_data = import_data(paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
+            ctgan_data = import_data(afccp.core.globals.paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
 
         # Replace nans with blanks
         ctgan_data = ctgan_data.replace(np.nan, "", regex=True)
@@ -679,7 +679,7 @@ if use_sdv:
         ctgan_data = ctgan_data.drop(ctgan_data.index[indices])
 
         if export:  # Export to excel
-            with pd.ExcelWriter(paths["support"] + 'ctgan_data.xlsx') as writer:
+            with pd.ExcelWriter(afccp.core.globals.paths["support"] + 'ctgan_data.xlsx') as writer:
                 ctgan_data.to_excel(writer, sheet_name="Data", index=False)
 
         return ctgan_data

@@ -2,8 +2,8 @@
 import os
 
 import pandas as pd
-
-from afccp.core.comprehensive_functions import *
+import numpy as np
+import afccp.core.comprehensive_functions
 import datetime
 import glob
 import copy

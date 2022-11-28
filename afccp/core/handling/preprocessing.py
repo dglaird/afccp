@@ -2,7 +2,7 @@ import copy
 
 import numpy as np
 import pandas as pd
-from afccp.core.globals import *
+import afccp.core.globals
 
 
 def generate_cip_to_qual_matrix(printing=True, year=2016):

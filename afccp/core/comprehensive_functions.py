@@ -2,23 +2,23 @@
 import numpy as np
 import pandas as pd
 
-from afccp.core.handling.data_handling import *
-from afccp.core.handling.value_parameter_handling import *
-from afccp.core.handling.simulation_functions import *
-from afccp.core.handling.value_parameter_generator import *
-from afccp.core.visualizations.instance_graphs import *
-from afccp.core.solutions.heuristic_solvers import *
-from afccp.core.visualizations.more_graphs import *
+import afccp.core.handling.data_handling
+import afccp.core.handling.value_parameter_handling
+import afccp.core.handling.simulation_functions
+import afccp.core.handling.value_parameter_generator
+import afccp.core.visualizations.instance_graphs
+import afccp.core.solutions.heuristic_solvers
+import afccp.core.visualizations.more_graphs
 
 try:
-    from afccp.core.matching.functions import *  # Import Ian's functions
+    import afccp.core.matching.functions  # Import Ian's functions
 except:
     pass  # We may not have Ian's functions
 
 import copy
 
-if use_pyomo:
-    from afccp.core.solutions.pyomo_models import *
+if afccp.core.globals.use_pyomo:
+    import afccp.core.solutions.pyomo_models
 
 
 # Sensitivity Analysis Functions
@@ -35,7 +35,7 @@ def least_squares_procedure(parameters, value_parameters, solution_1, solution_2
     :return: weight parameters of solution 2 that make solution 2's value exceed solution 1 by amount delta
     """
 
-    if use_pyomo:
+    if afccp.core.globals.use_pyomo:
         if printing:
             print("Conducting Least Squares Procedure...")
 
@@ -137,7 +137,7 @@ def piecewise_sanity_check(a=None, f_a=None, x=None, graph=True, printing=True):
     :param x: optional x value
     :return: f_x (either maximum or at x)
     """
-    if use_pyomo:
+    if afccp.core.globals.use_pyomo:
         if a is None:
             a = np.array([0, 0.2, 0.4, 0.5, 0.6, 0.8, 1])
 
@@ -631,7 +631,8 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
         print('Importing problem instance data...')
 
     # Import fixed parameters
-    info_df, cadets_fixed, afscs_fixed = import_fixed_cadet_afsc_data_from_excel(filepath)
+    info_df, cadets_fixed, afscs_fixed = \
+        afccp.core.handling.data_handling.import_fixed_cadet_afsc_data_from_excel(filepath)
 
     # Try to import the Cadet/AFSC utility matrix
     try:
@@ -653,9 +654,9 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
         cadets_pref = None
         afscs_pref = None
 
-    parameters = model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, cadets_utility, afscs_utility,
-                                                        cadets_pref, afscs_pref)
-    parameters = model_fixed_parameters_set_additions(parameters)
+    parameters = afccp.core.handling.data_handling.model_fixed_parameters_from_data_frame(
+        cadets_fixed, afscs_fixed, cadets_utility, afscs_utility, cadets_pref, afscs_pref)
+    parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
 
     # Try to import GP parameter dataframe (may not exist)
     try:
@@ -1083,7 +1084,7 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
             new_p["assigned"][i] = new_p["afsc_vector"][j]
 
     # Set additions, and add to the instance
-    instance.parameters = model_fixed_parameters_set_additions(new_p)
+    instance.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(new_p)
 
     # Translate value parameters
     new_vp_dict = {}

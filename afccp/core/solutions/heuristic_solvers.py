@@ -1,7 +1,7 @@
 # Import Libraries
 import time
 import numpy as np
-from afccp.core.globals import *
+import afccp.core.globals
 from afccp.core.handling.data_handling import value_function
 
 
