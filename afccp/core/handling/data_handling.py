@@ -1,5 +1,6 @@
 # Import libraries
 import numpy as np
+import pandas as pd
 import afccp.core.globals
 
 
@@ -56,20 +57,36 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
     else:
         P = len([col for col in columns if 'NRat' in col])
 
-    # Check if the "Combined Target" is the quota identifier (I changed this)
+    # Check what column is the quota identifier (I changed this and am phasing it out)
     if "Combined Target" in afsc_columns:
         quota_col = "Combined Target"
-    else:
+    elif "Real Target" in afsc_columns:
         quota_col = "Real Target"
+    else:
+        quota_col = "Estimated"
 
     # Initialize parameters dictionary
     parameters = {'afsc_vector': afsc_vector, 'P': P, "quota": np.array(afscs_fixed.loc[:, quota_col]), 'N': N,
                   'M': M, 'qual': qual, 'quota_max': np.array(afscs_fixed.loc[:, 'Max']),
                   'quota_min': np.array(afscs_fixed.loc[:, 'Min']), 'utility': np.zeros([N, M])}
 
+    # Estimated number of cadets that will be assigned (Used for the Approximate VFT Model)
+    if "Estimated" in afsc_columns:
+        parameters["quota_e"] = np.array(afscs_fixed.loc[:, "Estimated"])
+    else:
+        parameters["quota_e"] = np.array(afscs_fixed.loc[:, quota_col])
+
+    # Desired number of cadets that will be assigned (Used for the value functions)
+    if "Desired" in afsc_columns:
+        parameters["quota_d"] = np.array(afscs_fixed.loc[:, "Desired"])
+    else:
+        parameters["quota_d"] = np.array(afscs_fixed.loc[:, quota_col])
+
     # PGL target (Used for graphs)
     if "PGL Target" in afsc_columns:
         parameters["pgl"] = np.array(afscs_fixed.loc[:, "PGL Target"])
+    else:
+        parameters["pgl"] = np.array(afscs_fixed.loc[:, "Min"])  # Just base it off the minimum number
 
     # Phasing out the old ID
     if "Cadet" in columns:
@@ -196,11 +213,10 @@ def model_data_frame_from_fixed_parameters(parameters):
         afscs_fixed['USAFA Target'] = parameters['usafa_quota']
         afscs_fixed['ROTC Target'] = parameters['rotc_quota']
 
-    # PGL target (Used for graphs)
-    if "pgl" in parameters:
-        afscs_fixed["PGL Target"] = parameters["pgl"]
-
-    afscs_fixed['Real Target'] = parameters['quota']
+    # Number of cadets for each of the AFSCs
+    afscs_fixed["PGL Target"] = parameters["pgl"]
+    afscs_fixed['Estimated'] = parameters['quota_e']
+    afscs_fixed['Desired'] = parameters['quota_d']
     afscs_fixed['Min'] = parameters['quota_min']
     afscs_fixed['Max'] = parameters['quota_max']
     afscs_fixed['Eligible Cadets'] = [len(parameters['I^E'][j]) for j in range(M)]
@@ -343,7 +359,7 @@ def convert_utility_matrices_preferences(parameters):
     for i in p["I"]:
 
         # Sort the utilities to get the preference list
-        utilities = p["utility"][i, :]
+        utilities = p["utility"][i, :p["M"]]
         sorted_indices = np.argsort(utilities)[::-1]
         preferences = np.argsort(sorted_indices)
         p["c_pref_matrix"][i, :] = preferences
@@ -360,7 +376,7 @@ def convert_utility_matrices_preferences(parameters):
     return p
 
 
-def generate_fake_afsc_preferences(parameters, value_parameters):
+def generate_fake_afsc_preferences(parameters, value_parameters=None):
     """
     This function generates fake AFSC utilities/preferences using AFOCD, merit, cadet preferences etc.
     :param value_parameters: set of cadet/AFSC weight and value parameters
@@ -372,15 +388,31 @@ def generate_fake_afsc_preferences(parameters, value_parameters):
 
     # Create AFSC Utility Matrix
     p["afsc_utility"] = np.zeros([N, M])
-    for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
-        if objective in vp['objectives']:
+    if vp is None:
 
-            k = np.where(vp['objectives'] == objective)[0][0]
-            if objective == "Merit":
-                merit = np.tile(p['merit'], [M, 1]).T
-                p["afsc_utility"] += merit * vp['objective_weight'][:, k].T
-            else:
-                p["afsc_utility"] += p[objective.lower()][:, :M] * vp['objective_weight'][:, k].T
+        # If we don't have a set of value_parameters, we just make some assumptions
+        weights = {"Merit": 80, "Mandatory": 100, "Desired": 50, "Permitted": 30, "Utility": 60}
+        for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
+            if objective.lower() in p:
+
+                if objective == "Merit":
+                    merit = np.tile(p['merit'], [M, 1]).T
+                    p["afsc_utility"] += merit * weights[objective]
+                elif objective == "Mandatory":
+                    p["afsc_utility"] += p[objective.lower()][:, :M] * weights[objective]
+    else:
+
+        # If we do have a set of value_parameters, we incorporate them
+        for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
+            if objective in vp['objectives']:
+
+                k = np.where(vp['objectives'] == objective)[0][0]
+                if objective == "Merit":
+                    merit = np.tile(p['merit'], [M, 1]).T
+                    p["afsc_utility"] += merit * vp['objective_weight'][:, k].T
+                else:
+                    p["afsc_utility"] += p[objective.lower()][:, :M] * vp['objective_weight'][:, k].T
+
     p["afsc_utility"] *= p["eligible"]  # They have to be eligible!
 
     # Create AFSC Preference Matrix
@@ -562,7 +594,7 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
     metrics = {'objective_measure': np.zeros([p['M'], vp['O']]), 'objective_value': np.ones([p['M'], vp['O']]),
                'afsc_value': np.zeros(p['M']), 'cadet_value': np.zeros(p['N']),
                'cadet_constraint_fail': np.zeros(p['N']), 'afsc_constraint_fail': np.zeros(p['M']),
-               'objective_score': np.zeros(vp['O']), 'total_failed_constraints': 0, 'x': x,
+               'objective_score': np.zeros(vp['O']), 'total_failed_constraints': 0, 'x': x, "failed_constraints": [],
                'objective_constraint_fail': np.array([[" " * 30 for _ in range(vp['O'])] for _ in range(p['M'])])}
 
     # Get certain objective indices
@@ -577,6 +609,9 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
     # Loop through all AFSCs to assign their individual values
     for j in p['J']:
 
+        # AFSC name
+        afsc = p["afsc_vector"][j]
+
         # Number of assigned cadets
         count = np.sum(x[i, j] for i in p['I^E'][j])
 
@@ -589,7 +624,7 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
 
             # Are we using approximate measures or not
             if approximate:
-                num_cadets = p['quota'][j]
+                num_cadets = p['quota_e'][j]
             else:
                 num_cadets = count
 
@@ -639,15 +674,13 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                                 round(metrics['objective_value'][j, k], 3)) + ' < ' + str(
                                 float(vp['objective_value_min'][j, k]))
                             metrics['total_failed_constraints'] += 1
+                            metrics["failed_constraints"].append(afsc + " " + objective)
 
                     # Constrained Approximate Measure
                     elif vp['constraint_type'][j, k] == 3:
 
                         # PGL should be more "forgiving" as a constraint
-                        if "pgl" in p:
-                            quota_j = p["pgl"][j]
-                        else:
-                            quota_j = p["quota"][j]
+                        quota_j = p["pgl"][j]
                         value_list = vp['objective_value_min'][j, k].split(",")
                         min_measure = float(value_list[0].strip())
                         max_measure = float(value_list[1].strip())
@@ -660,12 +693,14 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                                     min_measure) + '. ' + str(round(100 * (numerator / quota_j) /
                                                                     min_measure, 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
+                                metrics["failed_constraints"].append(afsc + " " + objective)
                             elif numerator / quota_j > max_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
                                     round(numerator / quota_j, 3)) + ' > ' + str(
                                     max_measure) + '. ' + str(round(100 * max_measure /
                                                                     (numerator / quota_j), 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
+                                metrics["failed_constraints"].append(afsc + " " + objective)
                         else:
                             if metrics['objective_measure'][j, k] < min_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
@@ -673,12 +708,14 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                                     min_measure) + '. ' + str(round(100 * (metrics['objective_measure'][j, k]) /
                                                                     min_measure, 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
+                                metrics["failed_constraints"].append(afsc + " " + objective)
                             elif metrics['objective_measure'][j, k] > max_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
                                     metrics['objective_measure'][j, k]) + ' > ' + str(
                                     min_measure) + '. ' + str(round(100 * max_measure /
                                                                     metrics['objective_measure'][j, k], 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
+                                metrics["failed_constraints"].append(afsc + " " + objective)
 
                     # Constrained Exact Measure
                     elif vp['constraint_type'][j, k] == 4:
@@ -694,30 +731,37 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
                                     round(numerator / count, 3)) + ' < ' + str(
                                     min_measure) + '. ' + str(round(100 * (numerator / count) /
                                                                     min_measure, 2)) + '% Met.'
+                                metrics['total_failed_constraints'] += 1
+                                metrics["failed_constraints"].append(afsc + " " + objective)
                             elif numerator / count > max_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
                                     round(numerator / count, 3)) + ' > ' + str(
                                     max_measure) + '. ' + str(round(100 * max_measure /
                                                                     (numerator / count), 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
+                                metrics["failed_constraints"].append(afsc + " " + objective)
                         else:
                             if metrics['objective_measure'][j, k] < min_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
                                     metrics['objective_measure'][j, k]) + ' < ' + str(
                                     min_measure) + '. ' + str(round(100 * (metrics['objective_measure'][j, k]) /
                                                                     min_measure, 2)) + '% Met.'
+                                metrics['total_failed_constraints'] += 1
+                                metrics["failed_constraints"].append(afsc + " " + objective)
                             elif metrics['objective_measure'][j, k] > max_measure:
                                 metrics['objective_constraint_fail'][j, k] = str(
                                     metrics['objective_measure'][j, k]) + ' > ' + str(
                                     max_measure) + '. ' + str(round(100 * max_measure /
                                                                     metrics['objective_measure'][j, k], 2)) + '% Met.'
                                 metrics['total_failed_constraints'] += 1
+                                metrics["failed_constraints"].append(afsc + " " + objective)
 
             # AFSC individual value
             metrics['afsc_value'][j] = np.dot(vp['objective_weight'][j, :], metrics['objective_value'][j, :])
             if metrics['afsc_value'][j] < vp['afsc_value_min'][j]:
                 metrics['afsc_constraint_fail'][j] = 1
                 metrics['total_failed_constraints'] += 1
+                metrics["failed_constraints"].append(afsc + " Value")
 
             # Loop through each objective that we want to calculate objective measures for
             for objective in p_lookup_dict:
@@ -761,6 +805,7 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
         if metrics['cadet_value'][i] < vp['cadet_value_min'][i]:
             metrics['cadet_constraint_fail'][i] = 1
             metrics['total_failed_constraints'] += 1
+            metrics["failed_constraints"].append("Cadet " + str(p["ID"][i]) + " Value")
 
     # Generate objective scores for each objective
     for k in vp['K']:
@@ -911,7 +956,7 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
 
                     # We're really only ever going to constrain the approximate measure for Mandatory Tier
                     if objective == 'Mandatory':
-                        constrained_measure = (metrics['objective_measure'][j, k] * count) / p['quota'][j]
+                        constrained_measure = (metrics['objective_measure'][j, k] * count) / p['pgl'][j]
                     else:
                         constrained_measure = metrics['objective_measure'][j, k]
 
@@ -949,7 +994,7 @@ def ga_fitness_function(chromosome, parameters, value_parameters, constraints='F
                                                         constrained_max / (constrained_max + 1))
                             elif objective == 'Mandatory':
                                 adj_con_tolerance = min((constrained_min - (1 / p['quota'][j])) / constrained_min,
-                                                        constrained_max / (constrained_max + (1 / p['quota'][j])))
+                                                        constrained_max / (constrained_max + (1 / p['pgl'][j])))
                             else:
                                 adj_con_tolerance = 0.95
 
@@ -1064,6 +1109,135 @@ def solution_similarity_coordinates(similarity_matrix):
 
     return coords
 
+
+def parameter_sanity_check(instance):
+    """
+    This function runs through all the different parameters and sanity checks them to make sure that they make
+    sense and don't break the model
+    """
+
+    # Shorthand
+    p, vp = instance.parameters, instance.value_parameters
+
+    # Initialization
+    print("Sanity checking the instance parameters...")
+    issue = 0
+
+    # Loop through each AFSC to check various elements
+    for j, afsc in enumerate(p["afsc_vector"][:p["M"]]):
+
+        if p["num_eligible"][j] < p["quota_min"][j]:
+            issue += 1
+            print(issue, "ISSUE: AFSC '" + afsc + "' quota constraint invalid. " + str(p["quota_min"][j]) +
+                  " (min) > " + str(p["num_eligible"][j]) + " (number of eligible cadets).")
+        elif p["num_eligible"][j] == p["quota_min"][j]:
+            issue += 1
+            print(issue, "WARNING: AFSC '" + afsc +
+                  "' has a lower quota that is the same as its number of eligible cadets (" +
+                  str(p["quota_min"][j]) + "). All eligible cadets for this AFSC will be assigned to it.")
+
+        if p["quota_min"][j] > p["quota_max"][j]:
+            issue += 1
+            print(issue, "ISSUE: AFSC '" + afsc + "' quota constraint invalid. " + str(p["quota_min"][j]) +
+                  " (min) > " + str(p["quota_max"][j]) + " (max).")
+
+        quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
+        if p["quota_d"][j] != vp["objective_target"][j, quota_k]:
+            issue += 1
+            print(issue, "ISSUE: AFSC '" + afsc + "' quota desired target of " + str(p["quota_d"][j]) +
+                  " from AFSCs Fixed does not match its objective target (" + str(vp["objective_target"][j, quota_k]) +
+                  ") in the value parameters.")
+
+        if p["quota_d"][j] < p["quota_min"][j] or p["quota_d"][j] > p["quota_max"][j]:
+            issue += 1
+            print(issue, "ISSUE: AFSC '" + afsc + "' quota desired target of " + str(p["quota_d"][j]) +
+                  " is outside the specified range on the number of cadets (" + str(p["quota_min"][j]) + ", " +
+                  str(p["quota_max"][j]) + ").")
+
+        # Validate AFOCD tier objectives
+        for objective in ["Mandatory", "Desired", "Permitted"]:
+
+            # Make sure this is a valid objective for this problem instance
+            if objective not in vp["objectives"]:
+                continue  # goes to the next objective
+
+            # Get index
+            k = np.where(vp["objectives"] == objective)[0][0]
+
+            # Check if the AFSC is constraining this objective
+            if k not in vp["K^C"][j]:
+                continue
+
+            # Make sure there are cadets that have this degree tier
+            if len(p["I^D"][objective][j]) == 0:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "'-Tier does not exist. No cadets have degrees that fit in this tier.")
+
+            # Make sure objective has valid target
+            if vp["objective_target"][j, k] == 0:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "'-Tier target cannot be 0 when it has a nonzero weight.")
+
+        # Make sure all constrained objectives have appropriate constraints
+        for k in vp["K^C"][j]:
+            objective = vp["objectives"][k]
+
+            try:
+                lb = float(vp["objective_value_min"][j, k].split(",")[0])
+                ub = float(vp["objective_value_min"][j, k].split(",")[1])
+                assert lb <= ub
+            except:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' constraint range (objective_value_min) '" + vp["objective_value_min"][j, k] +
+                      "' is invalid. This constraint is currently activated.")
+
+        # Make sure value functions are valid
+        for k in vp["K^A"][j]:
+            objective = vp["objectives"][k]
+            vf_string_start = vp["value_functions"][j, k].split("|")[0]
+
+            # VF String validation
+            if vf_string_start not in ["Min Increasing", "Min Decreasing", "Balance", "Quota_Direct",
+                                       "Quota_Normal"]:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective + "' value function string '" +
+                      vp["value_functions"][j, k] + "' is invalid.")
+
+            # Validate number of breakpoints
+            if vp["r"][j, k] == 0:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' does not have any value function breakpoints. 'a':", vp["a"][j][k])
+                continue
+
+            # Value function should have same number of x and y coordinates
+            if len(vp["a"][j][k]) != len(vp["f^hat"][j][k]):
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' value function breakpoint coordinates do not align. 'a' has length of " + len(vp["a"][j][k]) +
+                      " while 'f^hat' has length of " + len(vp["f^hat"][j][k]) + ".")
+                continue
+
+            # Ensure that the breakpoint "x" coordinates are always getting bigger
+            current_x = -1
+            valid_x_bps = True
+            for l in vp["L"][j][k]:
+                if vp["a"][j][k][l] < current_x:
+                    valid_x_bps = False
+                    break
+                else:
+                    current_x = vp["a"][j][k][l]
+
+            if not valid_x_bps:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' value function x coordinates do not continuously increase along x-axis. 'a':", vp["a"][j][k],
+                      "'vf_string':", vp["value_functions"][j, k])
+
+    print('Done,', issue, "issues found.")
 
 # Export solution metrics
 def pyomo_measures_to_excel(x, measures, values, parameters, value_parameters, filepath=None, printing=False):

@@ -129,8 +129,8 @@ def initialize_instance_functional_parameters(N):
              "xaxis_tick_size": 20, "afsc_rotation": None, "dpi": 100, "bar_color": "black", "alpha": 1,
              "legend_size": 25, "skip_afscs": None, "results_graph": "Measure", "y_max": 1.1, "y_exact_max": None,
              "objective": "Merit", "compare_solutions": False, "solution_names": None, "vp_name": None,
-             "color_choices": ["red", "blue", "green", "orange", "purple", "black", "magenta"],
-             "marker_choices": ['o', 'D', '^', 'P', 'v', '*', 'h'], "sim_dot_size": 220,
+             "color_choices": ["red", "blue", "green", "orange", "purple", "black", "magenta"], "cadets_graph": True,
+             "marker_choices": ['o', 'D', '^', 'P', 'v', '*', 'h'], "sim_dot_size": 220, "x_point": None,
              "dot_size": 100, "marker_size": 20, "all_afscs": True, "title_size": 25, "comparison_afscs": None,
              "zorder_choices": [2, 3, 2, 2, 2, 2, 2], "preference_chart": False, "preference_proportion": False,
              "dot_chart": False, "sort_by_pgl": True, "version": None, "solution_in_title": True, "afsc": None,
@@ -138,7 +138,7 @@ def initialize_instance_functional_parameters(N):
              "num_solutions": None, "use_useful_charts": True, "new_similarity_matrix": True,
              "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
                                 ("Utility", "quantity_bar_proportion"), ("Extra", "AFOCD_proportion"),
-                                ("USAFA Proportion", "bar"), ("Merit", "bar")]}
+                                ("USAFA Proportion", "bar"), ("Merit", "bar")], "smooth_value_function": False}
 
     # AFSC Measure Chart Versions
     afsc_chart_versions = {"Merit": ["large_only_bar", "bar", "quantity_bar_gradient",
@@ -175,8 +175,9 @@ def initialize_instance_functional_parameters(N):
              "pyomo_constraint_based": True, "set_to_instance": True, "initialize_new_heuristics": False,
              "solver_name": "cbc", "approximate": True, "pyomo_max_time": 10, "warm_start": None, "init_from_X": False,
              "report": False, "add_breakpoints": True, "populate": False, "iterate_from_quota": True,
-             "population_additions": 5, "provide_executable": True, "executable": None, "get_reward": False,
-             "con_term": False, "get_new_rewards_penalties": False, "use_gp_df": True, "exe_extension": False}
+             "max_quota_iterations": 5, "population_additions": 5, "provide_executable": True, "executable": None,
+             "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
+             "exe_extension": False, "skip_quota_constraint": True}
 
     return plt_p, mdl_p
 

@@ -397,9 +397,6 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
 
         return genome
 
-    if printing:
-        print("Running Genetic Algorithm...")
-
     # Shorthand
     p = instance.parameters
     vp = instance.value_parameters

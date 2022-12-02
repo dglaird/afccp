@@ -404,17 +404,19 @@ def data_graph(instance):
         ip["filename"] = ip["title"]
 
     if ip['save']:
-        fig.savefig(paths['figures'] + instance.data_name + "/data/" + ip['filename'] + '.png', bbox_inches='tight')
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/data/" + ip['filename'] + '.png',
+                    bbox_inches='tight')
 
     return fig
 
 
 # Value Parameters
-def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display_title=True, figsize=(11, 10),
+def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display_title=True, figsize=(10, 10),
                          facecolor='white', save=False, breakpoints=None, x_ticks=None, crit_point=None,
-                         label_size=25, yaxis_tick_size=25, xaxis_tick_size=25, x_label=None):
+                         label_size=25, yaxis_tick_size=25, xaxis_tick_size=25, x_label=None, data_name="None"):
     """
     Displays the value function for the chosen function parameters
+    :param data_name: name of problem instance
     :param x_label: label of the x variable (objective measure)
     :param xaxis_tick_size: font size of the x axis tick marks
     :param yaxis_tick_size: font size of the y axis tick marks
@@ -435,7 +437,16 @@ def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display
     """
     fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, tight_layout=True)
 
+    if title is None:
+        title = "Example Value Function Graph"
+
+    if display_title:
+        fig.suptitle(title, fontsize=label_size)
+
+    # Plot function
     ax.plot(x, y, color="black", linewidth=3)
+
+    # Additional function elements
     if breakpoints is not None:
         if breakpoints is True:
             ax.scatter(x, y, color='black', s=100)
@@ -447,28 +458,17 @@ def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display
                 ax.plot((point, point), (0, 1), c="black", linestyle="--", linewidth=3)
         else:
             ax.plot((crit_point, crit_point), (0, 1), c="black", linestyle="--", linewidth=3)
-    elif x_point is not None:
+    if x_point is not None:
         ax.scatter(x_point, f_x_point, color="blue", s=50)
         ax.plot((x_point, x_point), (0, f_x_point), c="blue", linestyle="--", linewidth=3)
         ax.plot((0, x_point), (f_x_point, f_x_point), c="blue", linestyle="--", linewidth=3)
         ax.text(x=x_point, y=f_x_point, s=str(round(x_point, 2)) + ", " + str(round(f_x_point, 2)))
 
-    if title is None:
-        title = "Example Value Function Graph"
-
-    if display_title:
-        fig.suptitle(title, fontsize=label_size)
-
     # Set ticks and labels
-    # y_ticks = [0.2, 0.4, 0.6, 0.8, 1]
-    y_ticks = [1]
-    ax.set_yticks(y_ticks)
+    ax.set_yticks([1])
 
     if x_ticks is not None:
         ax.set_xticks(x_ticks)
-
-    # ax.set_xticks([0, 0.5, 1])
-    # ax.plot((0.5, 0.5), (0, 1), c='black', linewidth=3, linestyle='--')
 
     # Adjust axes and ticks
     ax.tick_params(axis='x', labelsize=xaxis_tick_size)
@@ -485,14 +485,12 @@ def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display
     plt.ylim(0, 1.05)
 
     if save:
-        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
+        fig.savefig(afccp.core.globals.paths['figures'] + data_name + "/value parameters/" + title + '.png',
                     bbox_inches='tight')
     return fig
 
 
-def individual_weight_graph(parameters, value_parameters, cadets=True, save=False, figsize=(19, 7), facecolor='white',
-                            display_title=True, title=None, label_size=25, afsc_tick_size=15, gui_graph=False, dpi=100,
-                            yaxis_tick_size=25, afsc_rotation=80, xaxis_tick_size=25, skip_afscs=False):
+def individual_weight_graph(instance):
     """
     This function creates the chart for either the individual weight function for cadets or the actual
     individual weights on the AFSCs
@@ -515,102 +513,79 @@ def individual_weight_graph(parameters, value_parameters, cadets=True, save=Fals
     :return: chart
     """
 
-    if title is None:
-        if cadets:
+    # Shorthand
+    p, vp, ip = instance.parameters, instance.value_parameters, instance.plt_p
+
+    # Initialize figure and title
+    if ip["title"] is None:
+        if ip["cadets_graph"]:
             title = 'Individual Weight on Cadets'
         else:
             title = 'Individual Weight on AFSCs'
+    else:
+        title = ip["title"]
 
-    fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, dpi=dpi, tight_layout=True)
+    # Build figure
+    fig, ax = plt.subplots(figsize=ip["figsize"], facecolor=ip["facecolor"], dpi=ip["dpi"], tight_layout=True)
+    if ip["cadets_graph"]:
 
-    if cadets:
-
-        if 'merit_all' in parameters:
-            x = parameters['merit_all']
+        # Get x and y coordinates
+        if 'merit_all' in p:
+            x = p['merit_all']
         else:
-            x = parameters['merit']
-        y = value_parameters['cadet_weight'] / np.max(value_parameters['cadet_weight'])
+            x = p['merit']
+        y = vp['cadet_weight'] / np.max(vp['cadet_weight'])
 
         # Plot
-        ax.scatter(x, y, color='black', alpha=1, linewidth=3)
+        ax.scatter(x, y, color=ip["bar_color"], alpha=ip["alpha"], linewidth=3)
 
         # Labels
         ax.set_ylabel('Cadet Weight', fontname='Times New Roman')
-        ax.yaxis.label.set_size(label_size)
+        ax.yaxis.label.set_size(ip["label_size"])
         ax.set_xlabel('Percentile', fontname='Times New Roman')
-        ax.xaxis.label.set_size(label_size)
+        ax.xaxis.label.set_size(ip["label_size"])
 
         # Ticks
-        # y_ticks = [0.5, 1]
-        # ax.set_yticks(y_ticks)
-        # ax.set_yticklabels(y_ticks, fontname='Times New Roman')
         x_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
         ax.set_xticklabels(x_ticks, fontname='Times New Roman')
-        ax.tick_params(axis='x', labelsize=xaxis_tick_size)
-        ax.tick_params(axis='y', labelsize=yaxis_tick_size)
+        ax.tick_params(axis='x', labelsize=ip["xaxis_tick_size"])
+        ax.tick_params(axis='y', labelsize=ip["yaxis_tick_size"])
 
         # Margins
         ax.margins(x=0)
         ax.margins(y=0)
 
-    else:
-
-        # Get data
-        weights = value_parameters['afsc_weight']
-
-        M = parameters['M']
-        afscs = parameters['afsc_vector'][:M]
+    else:  # AFSC Chart
 
         # Labels
         ax.set_ylabel('AFSC Weight')
-        ax.yaxis.label.set_size(label_size)
+        ax.yaxis.label.set_size(ip["label_size"])
         ax.set_xlabel('AFSCs')
-        ax.xaxis.label.set_size(label_size)
+        ax.xaxis.label.set_size(ip["label_size"])
 
         # We can skip AFSCs
-        if skip_afscs:
-            tick_indices = np.arange(1, M, 2).astype(int)
+        if ip["skip_afscs"]:
+            tick_indices = np.arange(1, p["M"], 2).astype(int)
         else:
-            tick_indices = np.arange(M)
+            tick_indices = np.arange(p["M"])
 
-        if gui_graph:
-            ax.set_facecolor(facecolor)
-            ax.set_yticks([])
-            # ax.xaxis.label.set_color('black')
-            # ax.yaxis.label.set_color('black')
-            ax.spines['right'].set_color(facecolor)
-            ax.spines['top'].set_color(facecolor)
-            ax.set(xlim=(-0.8, M))
-            ax.set_xticklabels(afscs[tick_indices], rotation=afsc_rotation)
-            ax.tick_params(axis='x', labelsize=afsc_tick_size)
-            ax.set_xticks(tick_indices)
+        # Plot
+        afscs = p['afsc_vector'][:p["M"]]
+        ax.bar(afscs, vp['afsc_weight'], color=ip["bar_color"], alpha=ip["alpha"])
 
-            # Plot
-            ax.bar(afscs, weights, color='black')
-        else:
+        # Ticks
+        ax.set(xlim=(-0.8, p["M"]))
+        ax.tick_params(axis='x', labelsize=ip["afsc_tick_size"])
+        ax.set_yticks([])
+        ax.set_xticklabels(afscs[tick_indices], rotation=ip["afsc_rotation"])
+        ax.set_xticks(tick_indices)
 
-            # Plot
-            ax.bar(afscs, weights, color='black', alpha=0.5)
+    if ip["display_title"]:
+        ax.set_title(title, fontsize=ip["label_size"])
 
-            # Labels
-            ax.set_ylabel('AFSC Weight', fontname='Times New Roman')
-            ax.yaxis.label.set_size(label_size)
-            ax.set_xlabel('AFSCs')
-            ax.xaxis.label.set_size(label_size)
-
-            # Ticks
-            ax.set(xlim=(-0.8, M))
-            ax.tick_params(axis='x', labelsize=afsc_tick_size)
-            # ax.tick_params(axis='y', labelsize=yaxis_tick_size)
-            ax.set_yticks([])
-            ax.set_xticklabels(afscs[tick_indices], rotation=afsc_rotation)
-            ax.set_xticks(tick_indices)
-
-    if display_title:
-        ax.set_title(title, fontsize=label_size)
-
-    if save:
-        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png', bbox_inches='tight')
+    if ip["save"]:
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
+                    bbox_inches='tight')
 
     return fig
 
@@ -2254,7 +2229,7 @@ def afsc_results_graph(instance):
 
     # Save
     if ip['save']:
-        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2504,7 +2479,7 @@ def afsc_multi_criteria_graph(instance, max_num=None):
 
     # Save
     if ip['save']:
-        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2641,7 +2616,8 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
             ax.set_title(title, fontsize=title_size)
 
     if save:
-        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png', bbox_inches='tight')
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
+                    bbox_inches='tight')
 
     return fig
 
@@ -2718,7 +2694,7 @@ def cadet_utility_histogram(instance):
         ip["filename"] = ip["title"]
 
     if ip["save"]:
-        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2771,7 +2747,7 @@ def cadet_utility_merit_scatter(instance):
         ip["filename"] = ip["title"]
 
     if ip["save"]:
-        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2840,7 +2816,8 @@ def holistic_color_graph(parameters, value_parameters, metrics, figsize=(11, 10)
         y += height
 
     if save:
-        fig.savefig(paths['figures'] + instance.data_name + "/results/" + title + '.png', bbox_inches='tight')
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + title + '.png',
+                    bbox_inches='tight')
 
     return fig
 
@@ -2899,7 +2876,8 @@ def pareto_graph(pareto_df, dimensions=None, save=True, title=None, figsize=(10,
     ax.tick_params(axis='x', labelsize=xaxis_tick_size)
 
     if save:
-        fig.savefig(paths['figures'] + instance.data_name + "/results/" + title + '.png', bbox_inches='tight')
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + title + '.png',
+                    bbox_inches='tight')
 
     return fig
 
@@ -2992,7 +2970,8 @@ def afsc_objective_weights_graph(parameters, value_parameters_dict, afsc, colors
                   ncol=num_weights, columnspacing=0.8, handletextpad=0.25, borderaxespad=0.5, borderpad=0.4)
 
     if save:
-        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png', bbox_inches='tight')
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
+                    bbox_inches='tight')
 
     return fig
 
@@ -3043,7 +3022,8 @@ def solution_parameter_comparison_graph(z_dict, colors=None, save=False, figsize
     ax.legend(handles=legend_elements, edgecolor='black', loc='upper right', columnspacing=0.8, handletextpad=0.25,
               borderaxespad=0.5, borderpad=0.4)
     if save:
-        fig.savefig(paths['figures'] + instance.data_name + "/value parameters/" + title + '.png', bbox_inches='tight')
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
+                    bbox_inches='tight')
 
     return fig
 
@@ -3147,7 +3127,8 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
     ax.set_ylabel(objective + ' Measure')
 
     if save:
-        fig.savefig(paths['figures'] + instance.data_name + "/results/Solution Results Graph.png", bbox_inches='tight')
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/Solution Results Graph.png",
+                    bbox_inches='tight')
 
     return fig
 
@@ -3189,7 +3170,7 @@ def solution_similarity_graph(instance, coords):
     ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
     if ip["save"]:
-        fig.savefig(paths['figures'] + instance.data_name + "/results/" + ip['title'] + '.png',
+        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip['title'] + '.png',
                     bbox_inches='tight')
 
     return fig

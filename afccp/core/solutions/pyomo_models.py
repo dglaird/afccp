@@ -5,6 +5,9 @@ import logging
 import warnings
 
 import afccp.core.globals
+from pyomo.environ import *
+from pyomo.util.infeasible import log_infeasible_constraints
+from pyomo.util.infeasible import log_active_constraints
 
 # Ignore warnings
 logging.getLogger('pyomo.core').setLevel(logging.ERROR)
@@ -24,7 +27,6 @@ def solve_original_pyomo_model(instance, printing=False):
     # Shorthand
     p = instance.parameters
     vp = instance.value_parameters
-    mdl_p = instance.mdl_p
 
     # Utility Matrix
     c = np.zeros([p['N'], p['M']])
@@ -153,7 +155,7 @@ def solve_original_pyomo_model(instance, printing=False):
         print("Done. Solving original model...")
 
     # Solve the model
-    model = solve_pyomo_model(instance, model)
+    model = solve_pyomo_model(instance, m)
 
     # Initialize solution
     solution = np.zeros(p['N'])
@@ -372,7 +374,7 @@ def vft_model_build(instance, printing=False):
 
         # Are we using approximate measures or not
         if instance.mdl_p["approximate"]:
-            num_cadets = p['quota'][j]  # Approximate
+            num_cadets = p['quota_e'][j]  # Approximate
         else:
             num_cadets = count  # Exact
 
@@ -456,8 +458,10 @@ def vft_model_build(instance, printing=False):
                             m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['pgl'][j] >= 0)
                             m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['pgl'][j] <= 0)
                         else:
-                            m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['quota'][j] >= 0)
-                            m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['quota'][j] <= 0)
+                            m.measure_constraints.add(
+                                expr=numerator - objective_min_value[j, k] * p['quota_min'][j] >= 0)
+                            m.measure_constraints.add(
+                                expr=numerator - objective_max_value[j, k] * p['quota_min'][j] <= 0)
 
                 # Constrained Exact Measure  (type = 4)
                 else:
@@ -646,9 +650,9 @@ def solve_pyomo_model(instance, model):
     if mdl_p["executable"] is None:
         if mdl_p["provide_executable"]:
             if mdl_p["exe_extension"]:
-                mdl_p["executable"] = paths['solvers'] + mdl_p["solver_name"] + '.exe'
+                mdl_p["executable"] = afccp.core.globals.paths['solvers'] + mdl_p["solver_name"] + '.exe'
             else:
-                mdl_p["executable"] = paths['solvers'] + mdl_p["solver_name"]
+                mdl_p["executable"] = afccp.core.globals.paths['solvers'] + mdl_p["solver_name"]
     else:
         mdl_p["provide_executable"] = True
 
@@ -665,20 +669,20 @@ def solve_pyomo_model(instance, model):
             solver = SolverFactory(mdl_p["solver_name"])
 
     # Solve Model
-    if mdl_p["max_time"] is not None:
+    if mdl_p["pyomo_max_time"] is not None:
         if mdl_p["solver_name"] == 'mindtpy':
-            solver.solve(model, time_limit=mdl_p["max_time"],
+            solver.solve(model, time_limit=mdl_p["pyomo_max_time"],
                          mip_solver='cplex_persistent', nlp_solver='ipopt')
         elif mdl_p["solver_name"] == 'gurobi':
-            solver.solve(model, options={'TimeLimit': mdl_p["max_time"], 'IntFeasTol': 0.05})
+            solver.solve(model, options={'TimeLimit': mdl_p["pyomo_max_time"], 'IntFeasTol': 0.05})
         elif mdl_p["solver_name"] == 'ipopt':
-            solver.options['max_cpu_time'] = mdl_p["max_time"]
+            solver.options['max_cpu_time'] = mdl_p["pyomo_max_time"]
             solver.solve(model)
         elif mdl_p["solver_name"] == 'cbc':
-            solver.options['seconds'] = mdl_p["max_time"]
+            solver.options['seconds'] = mdl_p["pyomo_max_time"]
             solver.solve(model)
         elif mdl_p["solver_name"] == 'baron':
-            solver.solve(model, options={'MaxTime': mdl_p["max_time"]})
+            solver.solve(model, options={'MaxTime': mdl_p["pyomo_max_time"]})
         else:
             solver.solve(model)
     else:
@@ -829,7 +833,7 @@ def gp_model_solve(instance, model, printing=False):
         print('Solving GP Model...')
 
     # Shorthand
-    mdl_p = instance.mdl_p
+    mdl_p, gp = instance.mdl_p, instance.gp_parameters
 
     # Solve the model
     model = solve_pyomo_model(instance, model)
