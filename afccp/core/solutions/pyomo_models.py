@@ -454,9 +454,15 @@ def vft_model_build(instance, printing=False):
                         m.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
                     else:
 
-                        if "pgl" in p:  # PGL should be more "forgiving" as a constraint
-                            m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['pgl'][j] >= 0)
-                            m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['pgl'][j] <= 0)
+                        if "pgl" in p:  # Check which "reference minimum" we should use
+                            if p["pgl"][j] > p['quota_min'][j]:
+                                m.measure_constraints.add(
+                                    expr=numerator - objective_min_value[j, k] * p['quota_min'][j] >= 0)
+                                m.measure_constraints.add(
+                                    expr=numerator - objective_max_value[j, k] * p['quota_min'][j] <= 0)
+                            else:
+                                m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['pgl'][j] >= 0)
+                                m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['pgl'][j] <= 0)
                         else:
                             m.measure_constraints.add(
                                 expr=numerator - objective_min_value[j, k] * p['quota_min'][j] >= 0)

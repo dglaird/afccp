@@ -177,7 +177,7 @@ def initialize_instance_functional_parameters(N):
              "report": False, "add_breakpoints": True, "populate": False, "iterate_from_quota": True,
              "max_quota_iterations": 5, "population_additions": 5, "provide_executable": True, "executable": None,
              "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
-             "exe_extension": False, "skip_quota_constraint": True}
+             "exe_extension": False, "skip_quota_constraint": False}
 
     return plt_p, mdl_p
 

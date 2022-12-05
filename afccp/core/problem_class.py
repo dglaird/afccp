@@ -1838,8 +1838,8 @@ class CadetCareerProblem:
 
         else:
 
-            if printing:
-                print("Saving charts for solution '" + self.solution_name + "'...")
+            if self.solution is None:
+                raise ValueError("Error, no solution detected.")
 
             if p_dict["use_useful_charts"]:
 
@@ -1877,12 +1877,6 @@ class CadetCareerProblem:
         """
         Builds the AFSC Results graphs
         """
-
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print("Saving all results graphs to folder...")
 
         # Reset chart functional parameters
         self.plt_p, _ = \
