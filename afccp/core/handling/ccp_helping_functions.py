@@ -175,7 +175,7 @@ def initialize_instance_functional_parameters(N):
              "pyomo_constraint_based": True, "set_to_instance": True, "initialize_new_heuristics": False,
              "solver_name": "cbc", "approximate": True, "pyomo_max_time": 10, "warm_start": None, "init_from_X": False,
              "report": False, "add_breakpoints": True, "populate": False, "iterate_from_quota": True,
-             "max_quota_iterations": 5, "population_additions": 5, "provide_executable": True, "executable": None,
+             "max_quota_iterations": 5, "population_additions": 5, "provide_executable": False, "executable": None,
              "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
              "exe_extension": False, "skip_quota_constraint": False}
 
