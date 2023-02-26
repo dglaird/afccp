@@ -3,7 +3,7 @@ import random
 import numpy as np
 import warnings
 import afccp.core.globals
-from afccp.core.handling.preprocessing import cip_to_qual, cip_to_qual_direct
+import afccp.core.handling.preprocessing
 
 if afccp.core.globals.use_sdv:
     from sdv.evaluation import evaluate
@@ -29,9 +29,9 @@ def import_generator_parameters(filepath=afccp.core.globals.paths["support"] + "
     """
     if printing:
         print('Importing generator parameters...')
-    targets = import_data(filepath, sheet_name="Targets")
-    cip1 = import_data(filepath, sheet_name="CIP1")
-    cip2 = import_data(filepath, sheet_name="CIP2")
+    targets = afccp.core.globals.import_data(filepath, sheet_name="Targets")
+    cip1 = afccp.core.globals.import_data(filepath, sheet_name="CIP1")
+    cip2 = afccp.core.globals.import_data(filepath, sheet_name="CIP2")
     return targets, cip1, cip2
 
 
@@ -49,8 +49,8 @@ def simulate_model_fixed_parameters(N=1600, P=6, M=32, printing=False):
         print('Simulating (Random)...')
 
     # Import CIP to Qual Matrix
-    cip_qual_matrix = import_data(afccp.core.globals.paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
-                                  sheet_name="Qual Matrix")
+    cip_qual_matrix = afccp.core.globals.import_data(
+        afccp.core.globals.paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx", sheet_name="Qual Matrix")
 
     # Import Generator Parameters
     cip_df = {}
@@ -70,7 +70,8 @@ def simulate_model_fixed_parameters(N=1600, P=6, M=32, printing=False):
 
         # Generate Qual Matrix, keep M AFSCs
         afscs = np.array(targets.loc[:, 'AFSC'])
-        qual = cip_to_qual(afscs, cips['CIP1'], cips['CIP2'], cip_qual_matrix=cip_qual_matrix)[:, :M]
+        qual = afccp.core.handling.preprocessing.cip_to_qual(afscs, cips['CIP1'], cips['CIP2'],
+                                                             cip_qual_matrix=cip_qual_matrix)[:, :M]
         afscs = afscs[:M]
 
         # Convert Qual Matrix into binary matrices indicating eligibility
@@ -133,6 +134,8 @@ def simulate_model_fixed_parameters(N=1600, P=6, M=32, printing=False):
     usafa_quota = np.floor(usafa_proportions * combined_quota).astype(int)
     rotc_quota = combined_quota - usafa_quota
     parameters['quota'] = combined_quota
+    parameters['quota_e'] = combined_quota
+    parameters['quota_d'] = combined_quota
     parameters['pgl'] = combined_quota
     parameters['usafa_quota'] = usafa_quota
     parameters['rotc_quota'] = rotc_quota
@@ -344,7 +347,7 @@ def perfect_example_generator(N=8, P=2, M=2, printing=False):
             solution[i] = int(j)
             i += 1
 
-    parameters['qual'] = cip_to_qual(afsc_vector, parameters['CIP1'])
+    parameters['qual'] = afccp.core.handling.preprocessing.cip_to_qual(afsc_vector, parameters['CIP1'])
     parameters['rotc_quota'] = parameters['quota'] - parameters['usafa_quota']
     parameters['mandatory'] = (parameters['qual'] == 'M') * 1
     parameters['desired'] = (parameters['qual'] == 'D') * 1
@@ -353,12 +356,15 @@ def perfect_example_generator(N=8, P=2, M=2, printing=False):
     parameters['eligible'] = (parameters['ineligible'] == 0) * 1
     parameters['quota_max'] = np.around(np.array(targets['Over'][:M]) * parameters['quota'])
     parameters['quota_min'] = parameters['quota']
+    parameters['quota_e'] = parameters['quota']
+    parameters['quota_d'] = parameters['quota']
 
     return parameters, solution
 
 
 # "Realistic" Generation Functions
 if afccp.core.globals.use_sdv:
+
     def simulate_realistic_fixed_data(generator=None, N=1500, printing=False):
         """
         This function calls the CTGAN to generate realistic synthetic cadets, then assigns targets to that data and returns
@@ -432,7 +438,7 @@ if afccp.core.globals.use_sdv:
 
         # Import CIP to Qual Matrix
         if cip_qual_matrix is None:
-            cip_qual_matrix = import_data(afccp.core.globals.paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
+            cip_qual_matrix = afccp.core.globals.import_data(afccp.core.globals.paths["support"] + "Qual_CIP_Matrix_Scrubbed.xlsx",
                                           sheet_name="Qual Matrix")
 
         # Import Generator Parameters
@@ -444,7 +450,7 @@ if afccp.core.globals.use_sdv:
         afscs = np.array(targets.loc[:, 'AFSC'])
         cip1 = np.array(data.loc[:, 'CIP1']).astype(str)
         cip2 = np.array(data.loc[:, 'CIP2']).astype(str)
-        qual_matrix = cip_to_qual(afscs, cip1, cip2, afscs, cip_qual_matrix)
+        qual_matrix = afccp.core.handling.preprocessing.cip_to_qual(afscs, cip1, cip2, afscs, cip_qual_matrix)
         N = len(data)
         M = len(afscs)
         if 'NrWgt1' in data.keys():
@@ -474,8 +480,8 @@ if afccp.core.globals.use_sdv:
         afsc_vector = np.array(targets['AFSC'])
         afscs_fixed = pd.DataFrame({'AFSC': afsc_vector, 'USAFA Target': usafa_quota, 'ROTC Target': rotc_quota,
                                     'Combined Target': combined_quota, 'Over': np.array(targets['Over']),
-                                    'Min': min_quotas,
-                                    'Max': max_quotas})
+                                    'Estimated': combined_quota, 'Desired': combined_quota,
+                                    'Min': min_quotas, 'Max': max_quotas})
 
         return cadets_fixed, afscs_fixed
 
@@ -531,7 +537,7 @@ if afccp.core.globals.use_sdv:
         """
 
         if data is None:
-            data = import_data(afccp.core.globals.paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
+            data = afccp.core.globals.import_data(afccp.core.globals.paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
             data = ctgan_data_filter(data)
 
         print('')
@@ -591,7 +597,7 @@ if afccp.core.globals.use_sdv:
 
         # Load Data
         if ctgan_data is None:
-            ctgan_data = import_data(afccp.core.globals.paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
+            ctgan_data = afccp.core.globals.import_data(afccp.core.globals.paths["support"] + 'ctgan_data.xlsx', sheet_name='Data')
 
         # Replace nans with blanks
         ctgan_data = ctgan_data.replace(np.nan, "", regex=True)

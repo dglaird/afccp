@@ -1,6 +1,7 @@
 # Import libraries
 import numpy as np
 import pandas as pd
+import copy
 import afccp.core.globals
 
 
@@ -54,8 +55,24 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
     # Number of preferences
     if "NR_Pref_1" in columns:
         P = len([col for col in columns if 'NR_Pref_' in col])
-    else:
+        pref_col = "NR_Pref_"
+        util_col = "NR_Util_"
+    elif "NRat1" in columns:
         P = len([col for col in columns if 'NRat' in col])
+        pref_col = "NRat"
+        util_col = "NrWgt"
+    elif "Pref_1" in columns:
+        P = len([col for col in columns if 'Pref_' in col])
+        pref_col = "Pref_"
+        util_col = "Util_"
+    else:  # Preferences are stored in utility/preference dataframe
+        if c_utility_df is None:
+            raise ValueError("No cadet utility information available. There is neither a "
+                             "'Cadets Utility' dataframe nor 'Util' columns in the 'Cadets Fixed' sheet.")
+        else:
+            P = M
+            pref_col = None
+            util_col = None
 
     # Check what column is the quota identifier (I changed this and am phasing it out)
     if "Combined Target" in afsc_columns:
@@ -101,6 +118,7 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
     else:
         parameters["assigned"] = np.array(["" for _ in range(N)])
 
+    # Eligibility
     if qual[0, 0] in [1, 0]:  # Qual Matrix is Binary
         parameters['ineligible'] = (qual == 0) * 1
         parameters['eligible'] = qual
@@ -111,6 +129,8 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
         parameters['mandatory'] = (qual == 'M') * 1
         parameters['desired'] = (qual == 'D') * 1
         parameters['permitted'] = (qual == 'P') * 1
+        parameters['exception'] = (qual == 'E') * 1  # NEW: Exception to degree qualification based on other data
+
 
     # Load Instance Parameters (may or may not be included in this dataset)
     cadet_parameter_dictionary = {'USAFA': 'usafa', 'Male': 'male', 'Minority': 'minority', 'ASC1': 'asc1',
@@ -129,18 +149,25 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
         parameters['usafa_quota'] = np.array(afscs_fixed.loc[:, 'USAFA Target'])
         parameters['rotc_quota'] = np.array(afscs_fixed.loc[:, 'ROTC Target'])
 
+    # AFSC Utility Dataframe
+    if a_utility_df is None:
+        parameters["afsc_utility"] = np.zeros([N, M])  # We don't have CFM preferences
+
+    else:
+        parameters["afsc_utility"] = np.array(a_utility_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
+
+    # AFSC Preference dataframe
+    if a_pref_df is not None:
+        parameters["a_pref_matrix"] = np.array(a_pref_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
+
     # Cadet Utility dataframe (do we pull the cadet utility matrix from the preference columns or from the dataframe)?
     if c_utility_df is None:
 
-        # Create utility matrix from preference columns
-        try:  # Phasing out "NRat"
-            preferences_array = np.array(cadets_fixed.loc[:, 'NR_Pref_' + str(1):'NR_Pref_' + str(parameters['P'])])
-        except:
-            preferences_array = np.array(cadets_fixed.loc[:, 'NRat' + str(1):'NRat' + str(parameters['P'])])
-        try:  # Phasing out "NrWgt"
-            utilities_array = np.array(cadets_fixed.loc[:, 'NR_Util_' + str(1):'NR_Util_' + str(parameters['P'])])
-        except:
-            utilities_array = np.array(cadets_fixed.loc[:, 'NrWgt' + str(1):'NrWgt' + str(parameters['P'])])
+        # Get preference and utility column info
+        preferences_array = np.array(cadets_fixed.loc[:, pref_col + str(1):pref_col + str(parameters['P'])])
+        utilities_array = np.array(cadets_fixed.loc[:, util_col + str(1):util_col + str(parameters['P'])])
+
+        # Create utility matrix (numpy array NxM) from the column information
         for i in range(N):
             for p in range(parameters['P']):
                 j = np.where(preferences_array[i, p] == afsc_vector)[0]
@@ -149,20 +176,33 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
 
     else:
 
+        # We have the dataframe itself (Just convert it to numpy array NxM)
         parameters["utility"] = np.array(c_utility_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
 
-    # AFSC Utility Dataframe
-    if a_utility_df is None:
-        parameters["afsc_utility"] = np.zeros([N, M])
+    # Cadet Preference dataframe
+    if c_pref_df is not None:
+        parameters["c_pref_matrix"] = np.array(c_pref_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]]).astype(int)
 
+    # We want to maintain ordinal information about cadet preference, so we use the preference columns
     else:
-        parameters["afsc_utility"] = np.array(a_utility_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
 
-    # Preference Dataframes
-    if c_pref_df is not None:
-        parameters["c_pref_matrix"] = np.array(c_pref_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
-    if c_pref_df is not None:
-        parameters["a_pref_matrix"] = np.array(a_pref_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
+        # We have preference columns
+        if pref_col is not None:
+
+            # Initially zero out the preferences
+            parameters["c_pref_matrix"] = np.zeros([N, M])
+
+            # Create preference matrix
+            for i in range(N):
+                for p in range(1, P + 1):
+
+                    # Get AFSC information
+                    afsc = cadets_fixed.loc[i, pref_col + str(p)]
+                    if afsc in afsc_vector:
+                        j = np.where(afsc == afsc_vector)[0]
+                        parameters["c_pref_matrix"][i, j] = p
+
+            parameters["c_pref_matrix"] = parameters["c_pref_matrix"].astype(int)
 
     return parameters
 
@@ -175,8 +215,10 @@ def model_data_frame_from_fixed_parameters(parameters):
     """
 
     # Convert utility matrix to utility columns
-    preferences, utilities_array = get_utility_preferences(parameters)
-
+    if "c_pref_matrix" in parameters:  # Retains ordinal information for tied utility values
+        preferences, utilities_array = get_utility_preferences_from_preference_array(parameters)
+    else:  # Does not retain ordinal information for tied utility values
+        preferences, utilities_array = get_utility_preferences(parameters)
     # Build Cadets Fixed data frame
     if "assigned" in parameters:
         cadets_fixed = pd.DataFrame(
@@ -193,11 +235,14 @@ def model_data_frame_from_fixed_parameters(parameters):
         if cadet_parameter_dictionary[col_name] in parameters:
             cadets_fixed[col_name] = parameters[cadet_parameter_dictionary[col_name]]
 
-    # Loop through all the choices
-    for i in range(parameters['P']):
-        cadets_fixed['NR_Util_' + str(i + 1)] = utilities_array[:, i]
-    for i in range(parameters['P']):
-        cadets_fixed['NR_Pref_' + str(i + 1)] = preferences[:, i]
+    # We only want to create the preference columns if we have a preference dataframe (which we should always have!)
+    if "c_pref_matrix" in parameters:
+
+        # Loop through all the choices
+        for i in range(parameters['P']):
+            cadets_fixed['Util_' + str(i + 1)] = utilities_array[:, i]
+        for i in range(parameters['P']):
+            cadets_fixed['Pref_' + str(i + 1)] = preferences[:, i]
 
     # Number of AFSCs
     M = parameters['M']
@@ -342,6 +387,37 @@ def get_utility_preferences(parameters):
         # Put the utilities and preferences in the correct spots
         np.put(utilities_array[i, :], np.arange(len(sorted_indices)), parameters['utility'][i, :][sorted_indices])
         np.put(preferences[i, :], np.arange(len(sorted_indices)), parameters['afsc_vector'][sorted_indices])
+
+    return preferences, utilities_array
+
+
+def get_utility_preferences_from_preference_array(parameters):
+    """
+    Takes the cadet preference matrix (NxM) of cadet "ranks" and converts it to preference columns (NxP) of AFSC names.
+    Uses this alongside utility dataframe (NxP) to get the utility columns (NxP) as well.
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Initialize data
+    preference_matrix = copy.deepcopy(p["c_pref_matrix"])
+    preferences = np.array([[" " * 10 for _ in range(p['P'])] for _ in range(p['N'])])
+    utilities_array = np.zeros([p['N'], p['P']])
+    for i in range(p['N']):
+
+        # Eliminate AFSCs that weren't in the cadet's preference list (Change the choice to a large #)
+        zero_indices = np.where(preference_matrix[i, :] == 0)[0]
+        preference_matrix[i, zero_indices] = 100
+
+        # Get the ordered list of AFSCs
+        indices = np.argsort(preference_matrix[i, :])  #[::-1]  #.nonzero()[0]
+        ordered_afscs = p["afsc_vector"][indices][:p["M"] - len(zero_indices)]
+        ordered_utilities = p["utility"][i, indices][:p["M"] - len(zero_indices)]
+
+        # Put the utilities and preferences in the correct spots
+        np.put(utilities_array[i, :], np.arange(len(ordered_utilities)), ordered_utilities)
+        np.put(preferences[i, :], np.arange(len(ordered_afscs)), ordered_afscs)
 
     return preferences, utilities_array
 
