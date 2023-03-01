@@ -160,12 +160,15 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
     if a_pref_df is not None:
         parameters["a_pref_matrix"] = np.array(a_pref_df.loc[:, afsc_vector[0]:afsc_vector[M - 1]])
 
+    # Number of Utilities
+    parameters["num_util"] = min(10, parameters["P"])
+
     # Cadet Utility dataframe (do we pull the cadet utility matrix from the preference columns or from the dataframe)?
     if c_utility_df is None:
 
         # Get preference and utility column info
         preferences_array = np.array(cadets_fixed.loc[:, pref_col + str(1):pref_col + str(parameters['P'])])
-        utilities_array = np.array(cadets_fixed.loc[:, util_col + str(1):util_col + str(parameters['P'])])
+        utilities_array = np.array(cadets_fixed.loc[:, util_col + str(1):util_col + str(parameters["num_util"])])
 
         # Create utility matrix (numpy array NxM) from the column information
         for i in range(N):
@@ -239,10 +242,10 @@ def model_data_frame_from_fixed_parameters(parameters):
     if "c_pref_matrix" in parameters:
 
         # Loop through all the choices
-        for i in range(parameters['P']):
-            cadets_fixed['Util_' + str(i + 1)] = utilities_array[:, i]
-        for i in range(parameters['P']):
-            cadets_fixed['Pref_' + str(i + 1)] = preferences[:, i]
+        for p in range(parameters["num_util"]):
+            cadets_fixed['Util_' + str(p + 1)] = utilities_array[:, p]
+        for p in range(parameters['P']):
+            cadets_fixed['Pref_' + str(p + 1)] = preferences[:, p]
 
     # Number of AFSCs
     M = parameters['M']
