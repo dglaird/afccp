@@ -645,7 +645,7 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
     """
     This procedure takes in a solution (either vector or matrix), as well as the fixed
     cadet/AFSC model parameters and the weight/value parameters, and then evaluates the solution. The solution metrics
-    are returned.
+    are returned. 
     :param approximate: whether we measure the approximate value or not (using target quota instead of count)
     :param printing: Whether or not the procedure should print the matrix
     :param solution: either vector or matrix of matched cadets to AFSCs
