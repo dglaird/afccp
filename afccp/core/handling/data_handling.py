@@ -162,6 +162,7 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
 
     # Number of Utilities
     parameters["num_util"] = min(10, parameters["P"])
+    print(cadets_fixed.loc[:, util_col + str(1):util_col + str(parameters["num_util"])])
 
     # Cadet Utility dataframe (do we pull the cadet utility matrix from the preference columns or from the dataframe)?
     if c_utility_df is None:
