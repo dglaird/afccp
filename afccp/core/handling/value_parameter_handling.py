@@ -390,7 +390,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                          'Utility': 'utility', 'Male': 'male', 'Minority': 'minority'}
     objectives = []
     objective_indices = []
-    for k, objective in enumerate(list(objective_lookups.keys())):
+    for k, objective in enumerate(default_value_parameters["objectives"]):
         if objective_lookups[objective] in parameters:
             objectives.append(objective)
             objective_indices.append(k)

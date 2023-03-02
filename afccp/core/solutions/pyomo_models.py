@@ -297,20 +297,21 @@ def vft_model_build(instance, printing=False):
                     m.y[j, k, l] = instance.mdl_p["warm_start"]['y'][j, k, l]
 
     # Fixing variables if necessary
-    for i, afsc in enumerate(p["assigned"]):
-        j = np.where(p["afsc_vector"] == afsc)[0]  # AFSC index
+    if "assigned" in p:
+        for i, afsc in enumerate(p["assigned"]):
+            j = np.where(p["afsc_vector"] == afsc)[0]  # AFSC index
 
-        # Check if the cadet is actually assigned an AFSC already (it's not blank)
-        if len(j) != 0:
-            j = j[0]  # Actual index
+            # Check if the cadet is actually assigned an AFSC already (it's not blank)
+            if len(j) != 0:
+                j = j[0]  # Actual index
 
-            # Check if the cadet is assigned to an AFSC they're not eligible for
-            if j not in p["J^E"][i]:
-                raise ValueError("Cadet " + str(i) + " assigned to '" + afsc + "' but is not eligible for it. "
-                                                                               "Adjust the qualification matrix!")
+                # Check if the cadet is assigned to an AFSC they're not eligible for
+                if j not in p["J^E"][i]:
+                    raise ValueError("Cadet " + str(i) + " assigned to '" + afsc + "' but is not eligible for it. "
+                                                                                   "Adjust the qualification matrix!")
 
-            # Fix the variable
-            m.x[i, j].fix(1)
+                # Fix the variable
+                m.x[i, j].fix(1)
 
     # _________________________________OBJECTIVE FUNCTION_________________________________
     pass
