@@ -433,7 +433,7 @@ class CadetCareerProblem:
         else:
             raise ValueError('No instance value parameters detected')
 
-    def check_unique_value_parameters(self, value_parameters=None, printing=False):
+    def check_unique_value_parameters(self, value_parameters=None, vp_name1=None, printing=False):
         """
         Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the
         the set of parameters is unique, or return the name of the matching set otherwise
@@ -442,12 +442,16 @@ class CadetCareerProblem:
         """
         if value_parameters is None:
             value_parameters = self.value_parameters
+            vp_name1 = self.vp_name
+
+        if vp_name1 is None:
+            vp_name1 = "VP (Unspecified)"
 
         # Assume the new set is unique until proven otherwise
         unique = True
         for vp_name in self.vp_dict:
             identical = afccp.core.handling.value_parameter_handling.compare_value_parameters(
-                self.parameters, value_parameters, self.vp_dict[vp_name], printing=printing)
+                self.parameters, value_parameters, self.vp_dict[vp_name], vp_name1, vp_name, printing=printing)
             if identical:
                 unique = vp_name
                 break

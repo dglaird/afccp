@@ -533,13 +533,9 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     return value_parameters
 
 
-def compare_value_parameters(parameters, vp1, vp2, printing=False):
+def compare_value_parameters(parameters, vp1, vp2, vp1name, vp2name, printing=False):
     """
     Compares two sets of value parameters to see if they are identical
-    :param printing: if we should print how the two sets are similar
-    :param parameters: set of fixed cadet/AFSC parameters
-    :param vp1: set 1
-    :param vp2: set 2
     :return: True if they're identical, False otherwise
     """
 
@@ -551,7 +547,7 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
 
         if np.shape(vp1[key]) != np.shape(vp2[key]):
             if printing:
-                print('VPs not the same. ' + key + ' is a different size.')
+                print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is a different size.')
             identical = False
             break
 
@@ -559,7 +555,7 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
                    'cadets_overall_value_min', 'afscs_overall_value_min']:
             if vp1[key] != vp2[key]:
                 if printing:
-                    print('VPs not the same. ' + key + ' is different.')
+                    print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is different.')
                 identical = False
                 break
 
@@ -573,7 +569,7 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
             diff_arr = np.array([vp_1_arr[i] != vp_2_arr[i] for i in range(len(vp_1_arr))])
             if sum(diff_arr) != 0 and (vp1[key] != [] or vp2[key] != []):
                 if printing:
-                    print('VPs not the same. ' + key + ' is different.')
+                    print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is different.')
                 identical = False
                 break
 
@@ -588,18 +584,20 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
                             if vp1[key][j][k][l] != vp2[key][j][k][l]:
                                 identical = False
                                 if printing:
-                                    print('VPs not the same. Breakpoints are different for AFSC ' + afsc +
+                                    print(vp1name + ' and ' + vp2name + ' not the same. '
+                                                                        'Breakpoints are different for AFSC ' + afsc +
                                           ' Objective ' + objective + '.')
-                                    print("VP1:", vp1[key][j][k][l])
-                                    print("VP2:", vp2[key][j][k][l])
+                                    print(vp1name + ":", vp1[key][j][k][l])
+                                    print(vp2name + ":", vp2[key][j][k][l])
                                 break
                         except:  # If there was a range error, then the breakpoints are not the same
                             identical = False
                             if printing:
-                                print('VPs not the same. Breakpoints are different for AFSC ' + afsc +
+                                print(vp1name + ' and ' + vp2name + ' not the same. '
+                                                                    'Breakpoints are different for AFSC ' + afsc +
                                       ' Objective ' + objective + '.')
-                                print("VP1:", vp1[key][j][k][l])
-                                print("VP2:", vp2[key][j][k][l])
+                                print(vp1name + ":", vp1[key][j][k][l])
+                                print(vp2name + ":", vp2[key][j][k][l])
                             break
                     if not identical:
                         break
@@ -609,7 +607,7 @@ def compare_value_parameters(parameters, vp1, vp2, printing=False):
                 break
 
     if identical and printing:
-        print('VPs are the same.')
+        print(vp1name + ' and ' + vp2name + ' are the same.')
 
     return identical
 
