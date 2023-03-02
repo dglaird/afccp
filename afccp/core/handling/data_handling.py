@@ -1316,6 +1316,14 @@ def parameter_sanity_check(instance):
                       "' value function x coordinates do not continuously increase along x-axis. 'a':", vp["a"][j][k],
                       "'vf_string':", vp["value_functions"][j, k])
 
+    # Loop through each objective to see if there are any null values in the objective target array
+    for k, objective in enumerate(vp["objectives"]):
+        num_null = pd.isnull(vp["objective_target"][:, k]).sum()
+        if num_null > 0:
+            issue += 1
+            print(issue, "ISSUE: Objective '" + objective + "' contains " +
+                  str(num_null) + " null target values ('objective_target').")
+
     print('Done,', issue, "issues found.")
 
 # Export solution metrics
