@@ -173,7 +173,7 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
 
         # Create utility matrix (numpy array NxM) from the column information
         for i in range(N):
-            for p in range(parameters['P']):
+            for p in range(parameters['num_util']):
                 j = np.where(preferences_array[i, p] == afsc_vector)[0]
                 if len(j) != 0:
                     parameters['utility'][i, j[0]] = utilities_array[i, p]
