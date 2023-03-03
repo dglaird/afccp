@@ -653,7 +653,7 @@ def solve_pyomo_model(instance, model):
     # Shorthand
     mdl_p = instance.mdl_p
 
-    # Determine how the solver is called
+    # Determine how the solver is called here
     if mdl_p["executable"] is None:
         if mdl_p["provide_executable"]:
             if mdl_p["exe_extension"]:
