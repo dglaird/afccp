@@ -911,14 +911,56 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
             afsc_index = 32
         metrics['afsc_solution'][i] = p['afsc_vector'][afsc_index]
 
-    # Create some other useful stats
-    metrics["top_3_choices"] = np.zeros(p["M"])
-    metrics["next_3_choices"] = np.zeros(p["M"])
-    metrics["non_volunteers"] = np.zeros(p["M"])
-    # if not x_matrix:
-    #     metrics["top_3_choices"] =
-        # for i, j in enumerate(solution):
-        #     afsc = p["afsc_vector"][j]
+    # Initialize dictionaries for cadet choice based on demographics
+    dd = {"usafa": ["USAFA", "ROTC"], "male": ["Male", "Female"]}
+    demographic_dict = {cat: [dd[cat][0], dd[cat][1]] for cat in dd if cat in p}
+    metrics["choice_counts"] = {"TOTAL": {}}
+    for cat in demographic_dict:
+        for dem in demographic_dict[cat]:
+            metrics["choice_counts"][dem] = {}
+
+    # Initialize arrays within the choice dictionaries for the AFSCs
+    choice_categories = ["Top 3", "Next 3", "Non-Volunteers", "Total"]
+    for dem in metrics["choice_counts"]:
+        for c_cat in choice_categories:
+            metrics["choice_counts"][dem][c_cat] = np.zeros(p["M"]).astype(int)
+        for afsc in p["afsc_vector"]:
+            metrics["choice_counts"][dem][afsc] = np.zeros(p["P"]).astype(int)
+
+    # Loop through each AFSC
+    for j, afsc in enumerate(p["afsc_vector"]):
+
+        # Skip unmatched AFSC
+        if afsc != "*":
+
+            # The cadets that were assigned to this AFSC
+            dem_cadets = {"TOTAL": np.where(metrics["afsc_solution"] == afsc)[0]}
+
+            # The cadets with the demographic that were assigned to this AFSC
+            for cat in demographic_dict:
+                dem_1, dem_2 = demographic_dict[cat][0], demographic_dict[cat][1]
+                dem_cadets[dem_1] = np.intersect1d(np.where(p[cat] == 1)[0], dem_cadets["TOTAL"])
+                dem_cadets[dem_2] = np.intersect1d(np.where(p[cat] == 0)[0], dem_cadets["TOTAL"])
+
+            # Loop through each choice and calculate the metric
+            for choice in range(p["P"]):
+
+                # The cadets that were assigned to this AFSC that placed it in their Pth choice
+                choice_cadets = np.where(p["c_preferences"][:, choice] == afsc)[0]
+                assigned_choice_cadets = np.intersect1d(choice_cadets, dem_cadets["TOTAL"])
+
+                # The cadets that were assigned to this AFSC, placed it in their Pth choice, and had the specific demographic
+                for dem in metrics["choice_counts"]:
+                    metrics["choice_counts"][dem][afsc][choice] = len(
+                        np.intersect1d(assigned_choice_cadets, dem_cadets[dem]))
+
+            # Loop through each demographic
+            for dem in metrics["choice_counts"]:
+                metrics["choice_counts"][dem]["Total"][j] = int(len(dem_cadets[dem]))
+                metrics["choice_counts"][dem]["Top 3"][j] = int(np.sum(metrics["choice_counts"][dem][afsc][:3]))
+                metrics["choice_counts"][dem]["Next 3"][j] = int(np.sum(metrics["choice_counts"][dem][afsc][3:]))
+                metrics["choice_counts"][dem]["Non-Volunteers"][j] = int(
+                    len(dem_cadets[dem]) - np.sum(metrics["choice_counts"][dem][afsc]))
 
 
     # Define overall metrics
