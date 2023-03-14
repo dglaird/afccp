@@ -163,19 +163,19 @@ def model_fixed_parameters_from_data_frame(cadets_fixed, afscs_fixed, c_utility_
     # Number of Utilities
     parameters["num_util"] = min(10, parameters["P"])
 
+    # Preference and Utility Array Columns (From Cadets Fixed)
+    parameters["c_preferences"] = np.array(cadets_fixed.loc[:, pref_col + str(1):pref_col + str(parameters['P'])])
+    parameters["c_utilities"] = np.array(cadets_fixed.loc[:, util_col + str(1):util_col + str(parameters["num_util"])])
+
     # Cadet Utility dataframe (do we pull the cadet utility matrix from the preference columns or from the dataframe)?
     if c_utility_df is None:
-
-        # Get preference and utility column info
-        preferences_array = np.array(cadets_fixed.loc[:, pref_col + str(1):pref_col + str(parameters['P'])])
-        utilities_array = np.array(cadets_fixed.loc[:, util_col + str(1):util_col + str(parameters["num_util"])])
 
         # Create utility matrix (numpy array NxM) from the column information
         for i in range(N):
             for p in range(parameters['num_util']):
-                j = np.where(preferences_array[i, p] == afsc_vector)[0]
+                j = np.where(parameters["c_preferences"][i, p] == afsc_vector)[0]
                 if len(j) != 0:
-                    parameters['utility'][i, j[0]] = utilities_array[i, p]
+                    parameters['utility'][i, j[0]] = parameters["c_utilities"][i, p]
 
     else:
 
@@ -219,9 +219,14 @@ def model_data_frame_from_fixed_parameters(parameters):
 
     # Convert utility matrix to utility columns
     if "c_pref_matrix" in parameters:  # Retains ordinal information for tied utility values
-        preferences, utilities_array = get_utility_preferences_from_preference_array(parameters)
+        if "c_preferences" in parameters:
+            preferences, utilities_array = parameters["c_preferences"], parameters["c_utilities"]
+        else:
+            preferences, utilities_array = get_utility_preferences_from_preference_array(parameters)
+
     else:  # Does not retain ordinal information for tied utility values
         preferences, utilities_array = get_utility_preferences(parameters)
+
     # Build Cadets Fixed data frame
     if "assigned" in parameters:
         cadets_fixed = pd.DataFrame(
@@ -415,8 +420,8 @@ def get_utility_preferences_from_preference_array(parameters):
 
         # Get the ordered list of AFSCs
         indices = np.argsort(preference_matrix[i, :])  #[::-1]  #.nonzero()[0]
-        ordered_afscs = p["afsc_vector"][indices][:p["M"] - len(zero_indices)]
-        ordered_utilities = p["utility"][i, indices][:p["M"] - len(zero_indices)]
+        ordered_afscs = p["afsc_vector"][indices][:p["M"] - len(zero_indices)][:p["P"]]
+        ordered_utilities = p["utility"][i, indices][:p["M"] - len(zero_indices)][:p["num_util"]]
 
         # Put the utilities and preferences in the correct spots
         np.put(utilities_array[i, :], np.arange(len(ordered_utilities)), ordered_utilities)
@@ -440,7 +445,7 @@ def convert_utility_matrices_preferences(parameters):
         # Sort the utilities to get the preference list
         utilities = p["utility"][i, :p["M"]]
         sorted_indices = np.argsort(utilities)[::-1]
-        preferences = np.argsort(sorted_indices)
+        preferences = np.argsort(sorted_indices) + 1  # Add 1 to change from python index (at 0) to rank (start at 1)
         p["c_pref_matrix"][i, :] = preferences
 
     # Loop through each AFSC to get their preferences
@@ -905,6 +910,16 @@ def measure_solution_quality(solution, parameters, value_parameters, printing=Fa
             metrics["num_unmatched"] += 1
             afsc_index = 32
         metrics['afsc_solution'][i] = p['afsc_vector'][afsc_index]
+
+    # Create some other useful stats
+    metrics["top_3_choices"] = np.zeros(p["M"])
+    metrics["next_3_choices"] = np.zeros(p["M"])
+    metrics["non_volunteers"] = np.zeros(p["M"])
+    # if not x_matrix:
+    #     metrics["top_3_choices"] =
+        # for i, j in enumerate(solution):
+        #     afsc = p["afsc_vector"][j]
+
 
     # Define overall metrics
     metrics['cadets_overall_value'] = np.dot(vp['cadet_weight'], metrics['cadet_value'])
