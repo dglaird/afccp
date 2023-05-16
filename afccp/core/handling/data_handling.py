@@ -842,6 +842,8 @@ def parameter_sanity_check(instance):
     sense and don't break the model
     """
 
+    print("this is a test")
+
     # Shorthand
     p, vp = instance.parameters, instance.value_parameters
 
