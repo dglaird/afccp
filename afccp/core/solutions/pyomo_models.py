@@ -428,7 +428,7 @@ def vft_model_build(instance, printing=False):
 
             else:
                 raise ValueError("Error. Objective '" + objective + "' does not have a means of calculation in the"
-                                                                    "VFT model. Please adjust.")
+                                                                    " VFT model. Please adjust.")
 
             # Add Linear Value Function Constraints
             m.measure_vf_constraints.add(expr=measure_jk == np.sum(  # Measure Constraint for Value Function (20a)

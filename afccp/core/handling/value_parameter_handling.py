@@ -119,7 +119,8 @@ def value_parameters_sets_additions(parameters, value_parameters, printing=False
             vp["J^USAFA"] = vp["J^USAFA"].astype(int)
 
     # Set of objectives that seek to balance some cadet demographic
-    vp['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority']
+    vp['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority',
+                 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4']
 
     # Set of AFSCs for each objective:
     vp['J^A'] = {}
