@@ -141,12 +141,11 @@ def initialize_instance_functional_parameters(N):
                                 ("USAFA Proportion", "bar"), ("Merit", "bar")], "smooth_value_function": False}
 
     # AFSC Measure Chart Versions
-    afsc_chart_versions = {"Merit": ["large_only_bar", "bar", "quantity_bar_gradient",
-                                     "quantity_bar_proportion"],
+    afsc_chart_versions = {"Merit": ["large_only_bar", "bar", "quantity_bar_gradient", "quantity_bar_proportion"],
                            "USAFA Proportion": ["large_only_bar", "bar", "preference_chart", "quantity_bar_proportion"],
                            "Male": ["bar", "preference_chart", "quantity_bar_proportion"],
-                           "Combined Quota": ["dot", "quantity_bar"], "Minority": ["bar", "preference_chart",
-                                                                                   "quantity_bar_proportion"],
+                           "Combined Quota": ["dot", "quantity_bar"],
+                           "Minority": ["bar", "preference_chart", "quantity_bar_proportion"],
                            "Utility": ["bar", "quantity_bar_gradient", "quantity_bar_proportion"],
                            "Mandatory": ["dot"], "Desired": ["dot"], "Permitted": ["dot"],
                            "Norm Score": ["dot", "quantity_bar_proportion"],
@@ -156,10 +155,11 @@ def initialize_instance_functional_parameters(N):
     colors = {"top_choices": "#5490f0", "mid_choices": "#eef09e", "bottom_choices": "#f25d50",
               "quartile_1": "#373aed", "quartile_2": "#0b7532", "quartile_3": "#d1bd4d", "quartile_4": "#cc1414",
               "Mandatory": "#311cd4", "Desired": "#085206", "Permitted": "#bda522", "Ineligible": "#f25d50",
-              "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "large_afscs": "#060d47",
-              "small_afscs": "#cdddf7", "merit_above": "#c7b93a", "merit_within": "#3d8ee0", "minority": "#eb8436",
-              "non-minority": "#b6eb6c", "merit_below": "#bf4343", "large_within": "#3d8ee0",
-              "large_else": "#c7b93a", "pgl": "#5490f0", "surplus": "#eef09e", "failed_pgl": "#f25d50",
+              "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460",
+              "large_afscs": "#060d47", "small_afscs": "#cdddf7", "merit_above": "#c7b93a", "merit_within": "#3d8ee0",
+              "minority": "#eb8436", "non-minority": "#b6eb6c", "merit_below": "#bf4343", "large_within": "#3d8ee0",
+              "large_else": "#c7b93a",
+              "pgl": "#5490f0", "surplus": "#eef09e", "failed_pgl": "#f25d50",
               "Volunteer": "#5490f0", "Non-Volunteer": "#f25d50"}
 
     # Add these elements to the main dictionary
@@ -193,7 +193,6 @@ def pick_most_changed_afscs(instance):
     assigned_cadets = {}
     max_assigned = np.zeros(p["M"])
     solution_names = instance.plt_p["solution_names"]
-    num_solutions = len(solution_names)
 
     # Loop through each solution to get the max number of cadets assigned to each AFSC across each solution
     for solution_name in solution_names:

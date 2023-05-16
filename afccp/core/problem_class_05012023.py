@@ -44,21 +44,12 @@ class CadetCareerProblem:
         :param printing: Whether we should print status updates or not
         """
 
-        # Data handling attributes
+        # Initialize attributes
+        self.gp_df = None  # "Goal Programming" Dataframe (from Lt Rebecca Reynold's thesis)
+        self.vp_dict = None  # "Value Parameters" Dictionary
+        self.solution_dict = None  # Solutions Dictionary
         self.data_version = data_version  # Version of instance (in parentheses of the instance sub-folders)
         self.import_paths, self.export_paths = None, None  # Paths to various datasets we can import/export
-        self.printing = printing
-
-        # Instance components (value parameters, solution, solution metrics)
-        self.value_parameters, self.vp_name = None, None  # Set of weight and value parameters (and the name)
-        self.solution, self.solution_name = None, None  # Array of length N (cadets) of AFSC indices (and the name)
-        self.metrics = None  # Dictionary of solution metrics
-
-        # Dictionaries of instance components (sets of value parameters, solution, solution metrics)
-        self.vp_dict, self.solution_dict, self.metrics_dict = None, None, None
-
-        # Parameters from *former* Lt Rebecca Reynold's thesis
-        self.gp_parameters, self.gp_df = None, None
 
         # If we have an instance folder already for the specified instance (we're importing it)
         if data_name in afccp.core.globals.instances_available:
@@ -71,9 +62,10 @@ class CadetCareerProblem:
             self.import_paths, self.export_paths = afccp_dp.initialize_file_information(self.data_name, self.data_version)
 
             # Print statement
+            self.printing = printing
             if self.printing:
                 files = [self.import_paths[filename] for filename in self.import_paths]
-                print("Importing '" + data_name + "' instance with datasets:\n", files)
+                print("Importing '" + data_name + "' instance using datasets:", files)
 
             # Initialize dictionary of instance parameters (Information pertaining to cadets and AFSCs)
             self.parameters = {"Qual Type": degree_qual_type}
@@ -98,39 +90,159 @@ class CadetCareerProblem:
             # Import the "Solutions" data dictionary
             self.solution_dict = afccp_dp.import_solutions_data(self.import_paths, self.parameters)
 
-        # This is a new problem instance that we're generating (Should be "Random", "Perfect", or "Realistic"
         else:
 
-            # Error Handling (Must be valid data generation parameter
-            if data_name not in ["Random", "Perfect", "Realistic"]:
-                raise ValueError("Error. Instance name '" + data_name + "' is not a valid instance name. Instances must "
-                                                                        "be either generated or imported. "
-                                                                        "(Instance not found in folder).")
+            # Get list of generated data name problem instances
+            self.generated_data_names = {'Random': [], 'Perfect': [], 'Realistic': []}
+            for file_name in glob.iglob(afccp.core.globals.paths['instances'] + '*.xlsx', recursive=True):
 
-            # Determine the name of this instance (Random_1, Random_2, etc.)
-            for data_variant in ["Random", "Perfect", "Realistic"]:
-                if data_name == data_variant:
+                # Start of filename
+                start_index = file_name.find(
+                    afccp.core.globals.paths['instances']) + len(afccp.core.globals.paths['instances']) + 1
+                end_index = len(file_name) - 5  # Remove ".xlsx"
+                full_name = file_name[start_index:end_index]  # Name of the file (not the path)
+                sections = full_name.split(' ')  # Split the filename by each ' ' (space)
+                d_name = sections[0]  # First part is the "data_name"
 
-                    # Count how many instances we already have of this type to get the name of this new instance
-                    variant_counter = 1
-                    for instance_name in afccp.core.globals.instances_available:
-                        if data_variant in instance_name:
-                            variant_counter += 1
-                    self.data_name = data_variant + "_" + str(variant_counter)
+                # Loop through each of the kinds of generated data (random, perfect, realistic)
+                for variant in self.generated_data_names:
 
-            # Print statement
-            if self.printing:
-                print("Generating '" + self.data_name + "' instance...")
+                    # Ex. "Random" in "Random_1" and "Random_1" isn't already in the list
+                    if variant in d_name and d_name not in self.generated_data_names[variant]:
+                        self.generated_data_names[variant].append(d_name)  # add this data name to the list!
 
-            # For now, we can't generate data
-            self.parameters = {"N": 10}  # (Just so the below function works)
+            # Get correct data attributes
+            if data_name is None:
 
-        # Initialize more "functional" parameters
-        self.plt_p, self.mdl_p = \
-            afccp.core.handling.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
+                # If we didn't specify a data_name, we're just going to generate a random set of cadets
+                self.data_name = "Random_" + str(len(self.generated_data_names["Random"]) + 1)
+                self.data_variant = "Random"
+                generate = True
+            else:
 
-        if self.printing:
-            print("Instance '" + self.data_name + "' initialized.")
+                # We specified a data_name
+                self.data_name = data_name
+                generate = False
+
+                # Loop through "Random", "Realistic", "Perfect"
+                for data_variant in self.generated_data_names:
+
+                    # If we passed one of those three names generally, we will generate a new instance of that kind
+                    if data_variant == self.data_name:
+                        self.data_name = data_variant + "_" + str(len(self.generated_data_names[data_variant]) + 1)
+                        generate = True
+                        break
+
+                    # If we specified a specific version ("Random_4" for example), then we'll load it in
+                    elif data_variant in self.data_name and '_' in self.data_name:
+                        generate = False
+                        break
+
+            # Figure out the data variant
+            self.data_variant = None
+            if len(self.data_name) == 1:  # A, B, C, D, etc.
+                self.data_variant = "Scrubbed"
+
+            else:
+
+                # Random, Realistic, or Perfect
+                for data_variant in self.generated_data_names:
+                    if data_variant in self.data_name:
+                        self.data_variant = data_variant
+
+                # If we still haven't found the right data variant, we know it's a real class year
+                if self.data_variant is None:
+                    self.data_variant = "Year"  # 2018, 2019, 2020, etc.
+
+            # Get correct filepath  (for importing/exporting to)
+            self.filepath = afccp.core.globals.paths['instances'] + self.data_name + '.xlsx'
+
+            # Create a "results" folder for this problem instance
+            if not os.path.exists("results/" + self.data_name):
+                os.makedirs("results/" + self.data_name)
+
+            # Create multiple "figures" folders for this problem instance
+            if not os.path.exists("figures/" + self.data_name):
+                os.makedirs("figures/" + self.data_name + "/value parameters")
+                os.makedirs("figures/" + self.data_name + "/results")
+                os.makedirs("figures/" + self.data_name + "/slides")
+                os.makedirs("figures/" + self.data_name + "/data")
+
+            # initialize more instance attributes
+            self.printing = printing
+            self.default_value_parameters = None
+            self.value_parameters = None
+            self.metrics = None
+            self.x = None
+            self.measure = None
+            self.value = None
+            self.pyomo_z = None
+            self.year = None
+            self.solution = None
+            self.gp_parameters = None
+            self.gp_df = None
+            self.info_df = None
+            self.solution_dict = None
+            self.metrics_dict = None
+            self.solution_name = None
+            self.vp_dict = None
+            self.vp_name = None
+            self.similarity_matrix = None
+
+            # Check if we're generating data, and the data variant
+            if self.data_variant == 'Random' and generate:
+
+                if printing:
+                    print('Generating ' + self.data_name + ' problem instance...')
+                parameters = afccp.core.handling.simulation_functions.simulate_model_fixed_parameters(N=N, P=P, M=M)
+                self.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
+
+            elif self.data_variant == 'Perfect' and generate:
+
+                if printing:
+                    print('Generating ' + self.data_name + ' problem instance...')
+                parameters, self.solution = \
+                    afccp.core.handling.simulation_functions.perfect_example_generator(N=N, P=P, M=M)
+                self.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
+
+            elif self.data_variant == 'Realistic' and generate:
+
+                if printing:
+                    print('Generating ' + self.data_name + ' problem instance...')
+
+                if use_sdv:
+                    data = afccp.core.handling.simulation_functions.simulate_realistic_fixed_data(N=N)
+                    cadets_fixed, afscs_fixed = \
+                        afccp.core.handling.simulation_functions.convert_realistic_data_parameters(data)
+                    parameters = afccp.core.handling.data_handling.model_fixed_parameters_from_data_frame(
+                        cadets_fixed, afscs_fixed)
+                else:
+                    parameters = afccp.core.handling.simulation_functions.simulate_model_fixed_parameters(N=N, P=P, M=M)
+
+                self.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
+            else:
+
+                if printing:
+                    print('Importing ' + self.data_name + ' problem instance...')
+
+                # If the path exists, import the data. If not, raise an error
+                if os.path.exists(self.filepath):
+                    self.info_df, self.parameters, self.vp_dict, self.solution_dict, self.metrics_dict, self.gp_df, \
+                    self.similarity_matrix = afccp.core.comprehensive_functions.import_aggregate_instance_file(
+                        self.filepath, num_breakpoints=num_value_function_breakpoints)
+                else:
+                    raise ValueError("Instance '" + self.data_name + "' not found at path '" +
+                                     afccp.core.globals.paths['instances'] + "'")
+
+            # Initialize more "functional" parameters
+            self.plt_p, self.mdl_p = \
+                afccp.core.handling.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
+
+            if printing:
+                if generate:
+                    print('Generated.')
+                else:
+                    print('Imported.')
 
     # Observe "Fixed" Data
     def display_data_graph(self, p_dict={}, printing=None):

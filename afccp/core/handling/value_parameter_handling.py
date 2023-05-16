@@ -6,106 +6,6 @@ import afccp.core.globals
 
 
 # Value Parameter Procedures
-def model_value_parameters_from_excel(parameters, filepath, num_breakpoints=None, use_actual=True, printing=False):
-    """
-    This procedure imports weight and value parameters from a file and converts them to the model weight and
-    value parameters
-    :param use_actual: if we want to incorporate the set of eligible cadets for each AFSCs to generate their objective
-    weights and value functions
-    :param parameters: Model fixed parameters
-    :param num_breakpoints: if this is specified, we recreate the functions from the strings
-    :param printing: Whether the procedure should print something
-    :param filepath: input filepath containing weight/value parameter data
-    :return: weight/value parameters
-    """
-    if printing:
-        print('Importing value parameters from excel...')
-
-    # Import Data sets
-    afsc_weights = afccp.core.globals.import_data(filepath, sheet_name="AFSC Weights")
-    cadet_weights = afccp.core.globals.import_data(filepath, sheet_name="Cadet Weights")
-    overall_weights = afccp.core.globals.import_data(filepath, sheet_name="Overall Weights")
-
-    # Load into the value_parameters dictionary
-    M = len(np.unique(afsc_weights['AFSC']))
-    O = int(len(afsc_weights) / M)
-    value_parameters = {'O': O, "afscs_overall_weight": np.array(overall_weights['AFSCs Weight'])[0],
-                        "cadets_overall_weight": np.array(overall_weights['Cadets Weight'])[0],
-                        "cadet_weight_function": np.array(overall_weights['Cadet Weight Function'])[0],
-                        "afsc_weight_function": np.array(overall_weights['AFSC Weight Function'])[0],
-                        "cadets_overall_value_min": np.array(overall_weights['Cadets Min Value'])[0],
-                        "afscs_overall_value_min": np.array(overall_weights['AFSCs Min Value'])[0],
-                        "cadet_weight": np.array(cadet_weights["Weight"]), "M": M,
-                        "cadet_value_min": np.array(cadet_weights["Min Value"]),
-                        "afsc_value_min": np.zeros(M), "num_breakpoints": None,
-                        "objective_value_min": np.array([[" " * 20 for _ in range(O)] for _ in range(M)]),
-                        "value_functions": np.array([[" " * 200 for _ in range(O)] for _ in range(M)]),
-                        "constraint_type": np.zeros([M, O]), 'a': [[[] for _ in range(O)] for _ in range(M)],
-                        "objective_target": np.zeros([M, O]), 'f^hat': [[[] for _ in range(O)] for _ in range(M)],
-                        "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
-                        'objectives': np.array(afsc_weights.loc[:int(len(afsc_weights) / M - 1), 'Objective'])}
-
-    # Load in value parameter data for each AFSC
-    for j in range(M):  # These are Os (Ohs) not 0s (zeros)
-        value_parameters["objective_target"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
-                                                              'Objective Target'])
-        objective_weights = np.array(afsc_weights.loc[j * O:(j * O + O - 1), 'Objective Weight'])
-        value_parameters["objective_weight"][j, :] = objective_weights / sum(objective_weights)
-        value_parameters["objective_value_min"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
-                                                                 'Min Objective Value'])
-        value_parameters["constraint_type"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
-                                                             'Constraint Type'])
-        value_parameters["value_functions"][j, :] = np.array(afsc_weights.loc[j * O:(j * O + O - 1),
-                                                             'Value Functions'])
-        value_parameters["afsc_weight"][j] = afsc_weights.loc[j * O, "AFSC Weight"]
-        value_parameters["afsc_value_min"][j] = afsc_weights.loc[j * O, "Min Value"]
-        cadets = parameters['I^E'][j]
-
-        # Loop through each objective for this AFSC
-        for k, objective in enumerate(value_parameters['objectives']):
-
-            # Value Function string
-            vf_string = value_parameters["value_functions"][j, k]
-
-            # We import the function directly from the breakpoints
-            if num_breakpoints is None or 'Quota_Over' in vf_string:
-                string = afsc_weights.loc[j * O + k, 'Function Breakpoints']
-                if type(string) == str:
-                    value_parameters['a'][j][k] = [float(x) for x in string.split(",")]
-                string = afsc_weights.loc[j * O + k, 'Function Breakpoint Values']
-                if type(string) == str:
-                    value_parameters['f^hat'][j][k] = [float(x) for x in string.split(",")]
-
-            # We recreate the function from the vf string
-            else:
-                if vf_string != 'None':
-                    target = value_parameters['objective_target'][j, k]
-                    actual = None
-                    maximum = None
-                    minimum = None
-
-                    if use_actual:
-                        if objective == 'Merit':
-                            actual = np.mean(parameters['merit'][cadets])
-                        elif objective == 'USAFA Proportion':
-                            actual = np.mean(parameters['usafa'][cadets])
-
-                    if objective == 'Combined Quota':
-
-                        # Get bounds
-                        minimum, maximum = parameters['quota_min'][j], parameters['quota_max'][j]
-                        target = parameters['quota_d'][j]
-
-                    segment_dict = create_segment_dict_from_string(vf_string, target, actual=actual,
-                                                                   maximum=maximum, minimum=minimum)
-                    value_parameters['a'][j][k], value_parameters['f^hat'][j][k] = value_function_builder(
-                        segment_dict, num_breakpoints=num_breakpoints)
-
-    # Force AFSC weights to sum to 1
-    value_parameters["afsc_weight"] = value_parameters["afsc_weight"] / sum(value_parameters["afsc_weight"])
-    return value_parameters
-
-
 def model_value_parameter_data_frame_from_parameters(parameters, value_parameters):
     """
     This procedure takes a set of parameters and value_parameters and constructs the value parameter data frames
@@ -165,7 +65,7 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
                                        'Cadet Weight Function': [vp['cadet_weight_function']]})
 
     # Check if other columns are present (phasing these in)
-    more_vp_columns = ["USAFA-Constrained AFSCs", "Similarity Constraint", "Cadets Top 3 Constraint"]
+    more_vp_columns = ["USAFA-Constrained AFSCs", "Cadets Top 3 Constraint"]
     for col in more_vp_columns:
         if col in vp:
             overall_weights_df[col] = [vp[col]]
@@ -175,7 +75,7 @@ def model_value_parameter_data_frame_from_parameters(parameters, value_parameter
     return overall_weights_df, cadet_weights_df, afsc_weights_df
 
 
-def model_value_parameters_set_additions(parameters, value_parameters, printing=False):
+def value_parameters_sets_additions(parameters, value_parameters, printing=False):
     """
     Creates subsets for AFSCs and objectives to distinguish which AFSCs care about which objectives so that we don't
     have to calculate every value only to multiply them by zero.
@@ -187,65 +87,63 @@ def model_value_parameters_set_additions(parameters, value_parameters, printing=
     if printing:
         print('Adding AFSC and objective subsets to value parameters...')
 
-    # Grab number of AFSCs and objectives
-    M = value_parameters['M']
-    O = value_parameters['O']
-    value_parameters['K'] = np.arange(O)
+    # Shorthand
+    p, vp = parameters, value_parameters
+
+    # Set of Objectives
+    vp['K'] = np.arange(vp["O"])
 
     # Set of objectives for each AFSC
-    value_parameters['K^A'] = {}  # objectives
-    value_parameters['K^C'] = {}  # constrained objectives
-    for j in range(M):
-        value_parameters['K^A'][j] = np.where(
-            value_parameters['objective_weight'][j, :] > 0)[0].astype(int)
-        value_parameters['K^C'][j] = np.where(
-            value_parameters['constraint_type'][j, :] > 0)[0].astype(int)
+    vp['K^A'] = {}  # objectives
+    vp['K^C'] = {}  # constrained objectives
+    for j in p["J"]:
+        vp['K^A'][j] = np.where(vp['objective_weight'][j, :] > 0)[0].astype(int)
+        vp['K^C'][j] = np.where(vp['constraint_type'][j, :] > 0)[0].astype(int)
 
     # 5% of total USAFA graduating class set
-    value_parameters["J^USAFA"] = None
+    vp["J^USAFA"] = None
 
     # Add the AFSC indices to the set
-    if "USAFA-Constrained AFSCs" in value_parameters:
-        if "," in value_parameters["USAFA-Constrained AFSCs"]:
-            value_parameters["J^USAFA"] = np.array([])
-            usafa_afscs = value_parameters["USAFA-Constrained AFSCs"].split(",")
+    if "USAFA-Constrained AFSCs" in vp:
+        if "," in vp["USAFA-Constrained AFSCs"]:
+            vp["J^USAFA"] = np.array([])
+            usafa_afscs = vp["USAFA-Constrained AFSCs"].split(",")
             for afsc in usafa_afscs:
                 afsc = afsc.strip()
-                j = np.where(parameters["afsc_vector"] == afsc)[0]
+                j = np.where(p["afscs"] == afsc)[0]
                 if len(j) == 0:
                     print("WARNING: Something is wrong with the USAFA-Constrained AFSCs! "
                           "'" + afsc + "' is not in the list of AFSCs.")
                 else:
-                    value_parameters["J^USAFA"] = np.hstack((value_parameters["J^USAFA"], j))
-            value_parameters["J^USAFA"] = value_parameters["J^USAFA"].astype(int)
+                    vp["J^USAFA"] = np.hstack((vp["J^USAFA"], j))
+            vp["J^USAFA"] = vp["J^USAFA"].astype(int)
 
     # Set of objectives that seek to balance some cadet demographic
-    value_parameters['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority']
+    vp['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority']
 
     # Set of AFSCs for each objective:
-    value_parameters['J^A'] = {}
-    for k in range(O):
-        value_parameters['J^A'][k] = np.where(value_parameters['objective_weight'][:, k] > 0)[0].astype(int)
+    vp['J^A'] = {}
+    for k in range(vp["O"]):
+        vp['J^A'][k] = np.where(vp['objective_weight'][:, k] > 0)[0].astype(int)
 
     # Cadet Value Constraint Set
-    value_parameters['I^C'] = np.where(value_parameters['cadet_value_min'] > 0)[0]
+    vp['I^C'] = np.where(vp['cadet_value_min'] > 0)[0]
 
     # AFSC Value Constraint Set
-    value_parameters['J^C'] = np.where(value_parameters['afsc_value_min'] > 0)[0]
+    vp['J^C'] = np.where(vp['afsc_value_min'] > 0)[0]
 
     # number of breakpoints
-    value_parameters['r'] = np.array([[len(value_parameters['a'][j][k]) for k in range(O)] for j in range(M)])
+    vp['r'] = np.array([[len(vp['a'][j][k]) for k in vp["K"]] for j in p["J"]])
 
     # set of breakpoints
-    value_parameters['L'] = np.array([[np.arange(value_parameters['r'][j, k]) for k in range(O)] for j in range(M)],
-                                     dtype=object)
+    vp['L'] = np.array([[np.arange(vp['r'][j, k]) for k in range(vp["O"])] for j in range(p["M"])], dtype=object)
 
     # Round weights
-    value_parameters['objective_weight'] = np.around(value_parameters['objective_weight'], 8)
-    value_parameters['afsc_weight'] = np.around(value_parameters['afsc_weight'], 8)
-    value_parameters['cadet_weight'] = np.around(value_parameters['cadet_weight'], 8)
+    vp['objective_weight'] = np.around(vp['objective_weight'], 8)
+    vp['afsc_weight'] = np.around(vp['afsc_weight'], 8)
+    vp['cadet_weight'] = np.around(vp['cadet_weight'], 8)
 
-    return value_parameters
+    return vp
 
 
 def model_value_parameters_to_defaults(parameters, value_parameters, filepath=None,
@@ -275,7 +173,7 @@ def model_value_parameters_to_defaults(parameters, value_parameters, filepath=No
                                        'AFSC Weight Function': [value_parameters['afsc_weight_function']]})
 
     # Additional overall value parameter toggles
-    more_vp_columns = ["USAFA-Constrained AFSCs", "Similarity Constraint", "Cadets Top 3 Constraint"]
+    more_vp_columns = ["USAFA-Constrained AFSCs", "AFOCD Qual Type", "Cadets Top 3 Constraint"]
     for col in more_vp_columns:
         overall_weights_df[col] = [value_parameters[col]]
 
@@ -355,7 +253,7 @@ def default_value_parameters_from_excel(filepath, num_breakpoints=24, printing=F
                                 'num_breakpoints': num_breakpoints}
 
     # Check if other columns are present (phasing these in)
-    more_vp_columns = ["USAFA-Constrained AFSCs", "Similarity Constraint", "Cadets Top 3 Constraint"]
+    more_vp_columns = ["USAFA-Constrained AFSCs", "AFOCD Qual Type", "Cadets Top 3 Constraint"]
     for col in more_vp_columns:
         if col in overall_weights_df:
             element = str(np.array(overall_weights_df[col])[0])
@@ -365,6 +263,61 @@ def default_value_parameters_from_excel(filepath, num_breakpoints=24, printing=F
         else:
             default_value_parameters[col] = ""
     return default_value_parameters
+
+
+def generate_afocd_value_parameters(parameters, default_value_parameters):
+    """
+    Function to add in AFOCD value parameters
+    """
+    p, vp = parameters, default_value_parameters
+
+    # AFOCD Objective Indices
+    tier_objectives = np.array([np.where(vp["objectives"] == "Tier " + t)[0][0] for t in ["1", "2", "3", "4"]])
+
+    # Tier multipliers
+    tm = {1: 1, 2: 0.8, 3: 0.6, 4: 0.4}
+
+    # Loop through each AFSC
+    for j in p["J"]:
+
+        # Loop through each AFOCD tier
+        for t, k in enumerate(tier_objectives):
+            tier = t + 1
+
+            # We only do this for valid AFOCD tiers
+            if tier <= p["t_count"][j]:
+
+                # Objective Weight
+                if p["t_mandatory"][j, t] == 1:
+                    vp["objective_weight"][j, k] = round(90 * tm[tier], 2)
+                elif p["t_desired"][j, t] == 1:
+                    vp["objective_weight"][j, k] = round(70 * tm[tier], 2)
+                elif p["t_permitted"][j, t] == 1:
+                    vp["objective_weight"][j, k] = round(50 * tm[tier], 2)
+                else:
+                    vp["objective_weight"][j, k] = 0  # Tier doesn't exist or is an ineligible tier
+
+                # Objective Target
+                vp["objective_target"][j, k] = p["t_proportion"][j, t]
+
+                # Objective Min Value
+                if p["t_leq"][j, t] == 1:
+                    vp["objective_value_min"][j, k] = "0, " + str(p["t_proportion"][j, t])
+                elif p["t_geq"][j, t] == 1:
+                    vp["objective_value_min"][j, k] = str(p["t_proportion"][j, t]) + ", 5"
+
+                # Constraint Type (Default to turning all constraints on. It's easier to make them zeros later...)
+                if p["t_mandatory"][j, t] == 1:
+                    vp["constraint_type"][j, k] = 3  # More relaxed mandatory constraint
+                elif p["t_desired"][j, t] == 1:
+                    if p["t_leq"][j, t] == 1:
+                        vp["constraint_type"][j, k] = 4  # Easier to meet a <= constraint based on proportion
+                    elif p["t_geq"][j, t] == 1:
+                        vp["constraint_type"][j, k] = 3  # Easier to meet a >= constraint based on PGL
+                elif p["t_permitted"][j, t] == 1:
+                    vp["constraint_type"][j, k] = 4  # Easier to meet a <= constraint based on proportion
+
+    return vp
 
 
 def generate_value_parameters_from_defaults(parameters, default_value_parameters, generate_afsc_weights=True,
@@ -383,11 +336,60 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     M = parameters['M']
     N = parameters['N']
 
-    # Add the AFSC objectives that are included in this instance
+    # Variable to control if we load in AFOCD value parameters from the default excel workbook or create them here
+    init_afocd = False
+
+    # Manipulate AFOCD objectives based on what "system" we're using (Tiers or "Old")
+    if parameters["qual_type"] == "Tiers":
+
+        # Remove "Old" AFOCD Objectives
+        for objective in ["Mandatory", "Desired", "Permitted"]:
+            if objective in default_value_parameters["objectives"]:
+                k = np.where(default_value_parameters["objectives"] == objective)[0][0]
+                default_value_parameters["objectives"] = np.delete(default_value_parameters["objectives"], k)
+
+                # Remove these columns from the other arrays as well
+                for vp_key in ["objective_weight", "objective_value_min", "constraint_type", "objective_target",
+                               "value_functions"]:
+                    default_value_parameters[vp_key] = np.delete(default_value_parameters[vp_key], k, axis=1)
+
+        # Add in "Tier" AFOCD Objectives
+        for t in ["1", "2", "3", "4"]:
+            objective = "Tier " + t
+            if objective not in default_value_parameters["objectives"]:
+                init_afocd = True  # We're going to initialize the value parameters for AFOCD objectives
+                default_value_parameters["objectives"] = np.hstack([default_value_parameters["objectives"], objective])
+
+                # Add these columns in the other arrays as well
+                for vp_key in ["objective_weight", "objective_value_min", "constraint_type", "objective_target",
+                               "value_functions"]:
+                    if vp_key in ["objective_weight", "constraint_type", "objective_target"]:
+                        new_column = np.array([[0] for _ in range(M)])
+                    else:
+                        new_column = np.array([["0"] for _ in range(M)])
+                    default_value_parameters[vp_key] = np.hstack((default_value_parameters[vp_key], new_column))
+
+
+    elif parameters["qual_type"] == "Old":
+
+        # Remove "Tier" AFOCD Objectives
+        for t in ["1", "2", "3", "4"]:
+            objective = "Tier " + t
+            if objective in default_value_parameters["objectives"]:
+                k = np.where(default_value_parameters["objectives"] == objective)[0][0]
+                default_value_parameters["objectives"] = np.delete(default_value_parameters["objectives"], k)
+
+    # Generate AFOCD value parameters if necessary
+    if init_afocd:
+        default_value_parameters = generate_afocd_value_parameters(parameters, default_value_parameters)
+
+    # Add the AFSC objectives that are included in this instance (check corresponding parameters)
     objective_lookups = {'Norm Score': 'a_pref_matrix', 'Merit': 'merit', 'USAFA Proportion': 'usafa',
                          'Combined Quota': 'quota_d', 'USAFA Quota': 'usafa_quota', 'ROTC Quota': 'rotc_quota',
                          'Mandatory': 'mandatory', 'Desired': 'desired', 'Permitted': 'permitted',
                          'Utility': 'utility', 'Male': 'male', 'Minority': 'minority'}
+    for t in ["1", "2", "3", "4"]:  # Add in AFOCD Degree tiers
+        objective_lookups["Tier " + t] = "tier " + t
     objectives = []
     objective_indices = []
     for k, objective in enumerate(default_value_parameters["objectives"]):
@@ -395,12 +397,17 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
             objectives.append(objective)
             objective_indices.append(k)
 
+    # Gather additional information
     objectives = np.array(objectives)
     objective_indices = np.array(objective_indices)
     afsc_indices = np.array([np.where(
         default_value_parameters['complete_afsc_vector'] == parameters['afsc_vector'][j])[0][0] for j in range(M)])
     O = len(objectives)
 
+    if num_breakpoints is None:
+        num_breakpoints = default_value_parameters['num_breakpoints']
+
+    # Initialize set of value parameters
     value_parameters = {'cadets_overall_weight': default_value_parameters['cadets_overall_weight'],
                         'afscs_overall_weight': default_value_parameters['afscs_overall_weight'],
                         'cadet_weight_function': default_value_parameters['cadet_weight_function'],
@@ -413,13 +420,8 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                         'objective_value_min': np.array([[" " * 20 for _ in range(O)] for _ in range(M)]),
                         'constraint_type': np.zeros([M, O]).astype(int),
                         "USAFA-Constrained AFSCs": default_value_parameters["USAFA-Constrained AFSCs"],
-                        "Similarity Constraint": default_value_parameters["Similarity Constraint"],
-                        "Cadets Top 3 Constraint": default_value_parameters["Cadets Top 3 Constraint"]}
-
-    if num_breakpoints is None:
-        num_breakpoints = default_value_parameters['num_breakpoints']
-
-    value_parameters['num_breakpoints'] = num_breakpoints
+                        "Cadets Top 3 Constraint": default_value_parameters["Cadets Top 3 Constraint"],
+                        'num_breakpoints': num_breakpoints}
 
     # Determine weights on cadets
     if 'merit_all' in parameters:
@@ -1180,7 +1182,7 @@ def translate_vft_to_gp_parameters(parameters, value_parameters, gp_df=None, use
 
         # lambda parameters (Rewards)
         gp['lam^'] = {con: reward[index] for index, con in enumerate(gp['con'])}
-        gp['lam^']    ['S'] = reward[len(gp['con'])]  # extra reward for preference in order of merit
+        gp['lam^']['S'] = reward[len(gp['con'])]  # extra reward for preference in order of merit
 
     if printing:
         print('Translated.')

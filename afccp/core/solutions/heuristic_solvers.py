@@ -556,3 +556,14 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
 
         # Return best solution
         return population[0]
+
+
+def rotc_rated_algorithm():
+    """
+    Description
+    """
+
+    # Load in example
+    pass
+
+

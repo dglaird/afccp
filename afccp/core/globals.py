@@ -1,66 +1,58 @@
-# Import libraries
-print("Importing 'afccp' module...")  # I just like to see that something is happening...
 import os
 import pandas as pd
 import openpyxl
 from packaging import version
+import importlib.util
 
-# Get directory path here
-dir_path = os.getcwd() + '/'
+# Import libraries
+print("Importing 'afccp' module...")  # I just like to see that something is happening...
 
-# Check to see if we already have the data folders we need in our working directory
-for folder in ["figures", "instances", "results", "solvers", "support"]:
-    folder_exists = os.path.exists(folder)
+# Folders & Paths
+global paths
+paths = {"instances": "instances/", "solvers": "solvers/", "support": "support/"}
+for folder in paths:
 
     # If we don't have the folder, we make one
-    if not folder_exists:
+    if not os.path.exists(folder):
+        print("Folder '" + folder + "' not in current working directory. Creating it now...")
         os.makedirs(folder)
 
-# Print update
-if folder_exists:
-    print("Data folders found.")
-else:
-    print("Data folders not found. Creating folders in working directory...")
+# Available instances
+global instances_available
+instances_available = []
+for data_name in os.listdir(paths["instances"]):
+    if os.path.isdir(paths["instances"] + data_name):
+        instances_available.append(data_name)
 
-# Folder paths!
-global paths
-paths = {}
-for folder in ["figures", "instances", "results", "solvers", "support"]:
-    paths[folder] = folder + '/'
-
-# Only use pyomo script if we have pyomo
+# Only import pyomo if we have the package installed!
 global use_pyomo
-try:
+if spec := importlib.util.find_spec("pyomo"):
     from pyomo.environ import *
-
     use_pyomo = True
-    print('Pyomo module found.')
-except:
+    print("Pyomo module found.")
+else:
     use_pyomo = False
-    print('Pyomo module unavailable.')
+    print("Pyomo module unavailable.")
 
-# Only use sdv functions if we have sdv
+# Only import sdv if we have the package installed!
 global use_sdv
-try:
+if spec := importlib.util.find_spec("sdv"):
     import sdv
-
     use_sdv = True
-    print('SDV module found.')
-except:
+    print("SDV module found.")
+else:
     use_sdv = False
-    print('SDV module unavailable.')
+    print("SDV module unavailable.")
 
-# Only calculate similarity plots if we have sklearn manifold
+# Only import sklearn.manifold if we have the package installed!
 global use_manifold
-try:
+if spec := importlib.util.find_spec("sklearn.manifold"):
     from sklearn import manifold
-
     use_manifold = True
-    print('Sklearn Manifold module found.')
-except:
+    print("Sklearn Manifold module found.")
+else:
     use_manifold = False
-    print('Sklearn Manifold module unavailable.')
-
+    print("Sklearn Manifold module unavailable.")
 
 # Importing pandas dataframe function
 def import_data(filepath, sheet_name=None, specify_engine=True):
@@ -86,3 +78,9 @@ def import_data(filepath, sheet_name=None, specify_engine=True):
             df = pd.read_excel(filepath, sheet_name=sheet_name)
 
     return df
+
+def import_csv_data(filepath):
+    """
+    My own import statement in case I change the way I import data later
+    """
+    return pd.read_csv(filepath)  #, encoding='latin-1')

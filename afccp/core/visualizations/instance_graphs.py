@@ -32,7 +32,7 @@ def data_graph(instance):
 
     # Get applicable AFSCs
     indices = np.where(eligible_count <= ip["eligibility_limit"])[0]
-    afscs = p['afsc_vector'][indices]
+    afscs = p['afscs'][indices]
     M = len(afscs)
 
     # We can skip AFSCs
@@ -116,7 +116,7 @@ def data_graph(instance):
 
         for i in p["I"]:
             for j in p["J"]:
-                afsc = p["afsc_vector"][j]
+                afsc = p["afscs"][j]
                 if afsc in preferences[i, 0:3]:
                     top_3_count[j] += 1
                 elif afsc in preferences[i, 3:6]:
@@ -179,7 +179,7 @@ def data_graph(instance):
         cadets = {}
         for j in p["J"]:
 
-            afsc = p["afsc_vector"][j]
+            afsc = p["afscs"][j]
             pref_cadets[j] = []  # List of cadets that have this AFSC in their top 3 choices
             cadets[j] = []  # List of cadets that have this AFSC in their top 3 choices and are also eligible for it
             for i in p["I"]:
@@ -400,11 +400,14 @@ def data_graph(instance):
         if ip['display_title']:
             fig.suptitle(ip['title'], fontsize=ip['title_size'], color='white')
 
+    # Determine filename
     if ip["filename"] is None:
         ip["filename"] = ip["title"]
 
+    # Save the chart
     if ip['save']:
-        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/data/" + ip['filename'] + '.png',
+        fig.savefig(instance.export_paths["Analysis & Results"] + "/Data Charts/" +
+                    instance.data_name + " " + ip['filename'] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -570,7 +573,7 @@ def individual_weight_graph(instance):
             tick_indices = np.arange(p["M"])
 
         # Plot
-        afscs = p['afsc_vector'][:p["M"]]
+        afscs = p['afscs'][:p["M"]]
         ax.bar(afscs, vp['afsc_weight'], color=ip["bar_color"], alpha=ip["alpha"])
 
         # Ticks
@@ -606,7 +609,7 @@ def afsc_results_graph(instance):
     fig, ax = plt.subplots(figsize=ip['figsize'], facecolor=ip['facecolor'], tight_layout=True, dpi=ip['dpi'])
 
     # Initially assume we have a tick mark for every AFSC (unless we're skipping them)
-    afscs = p["afsc_vector"][:len(p["afsc_vector"]) - 1]  # Remove the * unmatched cadets
+    afscs = p["afscs"][:len(p["afscs"]) - 1]  # Remove the * unmatched cadets
     M = len(afscs)
     indices = np.arange(M)  # Indices of AFSCs we will plot
     if ip["skip_afscs"]:  # Indices of AFSCs we will label (can skip sometimes)
@@ -645,7 +648,7 @@ def afsc_results_graph(instance):
                         k = np.where(vp["objectives"] == ip["objective"])[0][0]
                         indices = np.where(vp["objective_weight"][:, k] != 0)[0]
                         value = m_dict[solution]["objective_value"][indices, k]
-                        afscs = p["afsc_vector"][indices]
+                        afscs = p["afscs"][indices]
                         M = len(afscs)
                         y_label = ip["objective"] + " Value"
                         if M < p["M"]:
@@ -705,7 +708,7 @@ def afsc_results_graph(instance):
                 indices = np.arange(M)
             else:
                 indices = np.where(vp["objective_weight"][:, k] != 0)[0]
-                afscs = p["afsc_vector"][indices]
+                afscs = p["afscs"][indices]
                 M = len(afscs)  # Number of AFSCs being plotted
                 if M < p["M"]:
                     tick_indices = np.arange(len(afscs))  # Make sure we're not skipping AFSCs at this point
@@ -916,7 +919,7 @@ def afsc_results_graph(instance):
                     k = np.where(vp["objectives"] == ip["objective"])[0][0]
                     indices = np.where(vp["objective_weight"][:, k] != 0)[0]
                     value = instance.metrics["objective_value"][indices, k]
-                    afscs = p["afsc_vector"][indices]
+                    afscs = p["afscs"][indices]
                     y_label = ip["objective"] + " Value"
                     if len(afscs) < p["M"]:
                         tick_indices = np.arange(len(afscs))  # Make sure we're not skipping AFSCs at this point
@@ -951,7 +954,7 @@ def afsc_results_graph(instance):
                 else:
                     indices = np.where(vp["objective_weight"][:, k] != 0)[0]
                     measure = instance.metrics["objective_measure"][indices, k]
-                    afscs = p["afsc_vector"][indices]
+                    afscs = p["afscs"][indices]
                     M = len(afscs)  # Number of AFSCs being plotted
                     if M < p["M"]:
                         tick_indices = np.arange(len(afscs))  # Make sure we're not skipping AFSCs at this point
@@ -1089,7 +1092,7 @@ def afsc_results_graph(instance):
                             y_ticks = [50]
 
                         for index, afsc in enumerate(afscs):
-                            j = np.where(p["afsc_vector"] == afsc)[0][0]
+                            j = np.where(p["afscs"] == afsc)[0][0]
                             cadets = np.where(instance.solution == j)[0]
                             merit = p["merit"][cadets]
                             uq = np.unique(merit)
@@ -1180,7 +1183,7 @@ def afsc_results_graph(instance):
 
                         percentile_dict = {1: (0.75, 1), 2: (0.5, 0.75), 3: (0.25, 0.5), 4: (0, 0.25)}
                         for index, afsc in enumerate(afscs):
-                            j = np.where(p["afsc_vector"] == afsc)[0][0]
+                            j = np.where(p["afscs"] == afsc)[0][0]
                             cadets = np.where(instance.solution == j)[0]
                             merit = p["merit"][cadets]
 
@@ -1352,7 +1355,7 @@ def afsc_results_graph(instance):
                         counts = {cls: {cat: np.zeros(M) for cat in categories} for cls in classes}
                         dem = classes[0].lower()  # reference demographic (male, usafa, minority, etc.)
                         for index, afsc in enumerate(afscs):
-                            j = np.where(p["afsc_vector"] == afsc)[0][0]
+                            j = np.where(p["afscs"] == afsc)[0][0]
                             cadets_assigned = np.where(instance.solution == j)[0]
                             cadets_with_demographic = np.where(p[dem] == 1)[0]
 
@@ -1784,7 +1787,7 @@ def afsc_results_graph(instance):
 
                             # Get cadet preference counts
                             for i, j in enumerate(instance.solution):
-                                afsc = p["afsc_vector"][j]
+                                afsc = p["afscs"][j]
                                 if afsc != "*":
                                     if afsc in preferences[i, 0:3]:
                                         counts["top_choices"][j] += 1
@@ -1810,7 +1813,7 @@ def afsc_results_graph(instance):
                             # Find each cadet's percentile relative to their assigned AFSC
                             for i, j in enumerate(instance.solution):
 
-                                afsc = p["afsc_vector"][j]
+                                afsc = p["afscs"][j]
                                 if afsc != "*":
                                     if p["afsc_utility"][i, j] < 1/3:
                                         counts["bottom_choices"][j] += 1
@@ -1954,7 +1957,7 @@ def afsc_results_graph(instance):
                             y_ticks = [50]
 
                         for index, afsc in enumerate(afscs):
-                            j = np.where(p["afsc_vector"] == afsc)[0][0]
+                            j = np.where(p["afscs"] == afsc)[0][0]
                             cadets = np.where(instance.solution == j)[0]
                             utility = p["utility"][cadets, j]
                             uq = np.unique(utility)
@@ -2116,7 +2119,7 @@ def afsc_results_graph(instance):
                     counts = {cls: {cat: np.zeros(M) for cat in categories} for cls in classes}
                     dem = classes[0].lower()  # reference demographic (male, usafa, minority, etc.)
                     for index, afsc in enumerate(afscs):
-                        j = np.where(p["afsc_vector"] == afsc)[0][0]
+                        j = np.where(p["afscs"] == afsc)[0][0]
                         cadets_assigned = np.where(instance.solution == j)[0]
                         cadets_with_demographic = np.where(p[dem] == 1)[0]
 
@@ -2250,7 +2253,7 @@ def afsc_multi_criteria_graph(instance, max_num=None):
 
     # Get list of AFSCs we're considering
     afscs = np.array(ip["comparison_afscs"])
-    used_indices = np.array([np.where(p["afsc_vector"] == afsc)[0][0] for afsc in afscs])
+    used_indices = np.array([np.where(p["afscs"] == afsc)[0][0] for afsc in afscs])
     criteria = ip["comparison_criteria"]
     num_afscs = len(afscs)
     num_criteria = len(criteria)
@@ -2321,7 +2324,7 @@ def afsc_multi_criteria_graph(instance, max_num=None):
     for i, j in enumerate(instance.solution):
 
         # Preference Counts
-        afsc = p["afsc_vector"][j]
+        afsc = p["afscs"][j]
         if afsc in preferences[i, 0:3]:
             top_3_count[j] += 1
         elif afsc in preferences[i, 3:6]:
@@ -2525,7 +2528,7 @@ def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, sav
     fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, dpi=dpi, tight_layout=True)
 
     # Get chart specs
-    j = np.where(parameters['afsc_vector'] == afsc)[0][0]
+    j = np.where(parameters['afscs'] == afsc)[0][0]
     objectives = value_parameters['objectives'][value_parameters['K^A']]
     for k, objective in enumerate(objectives):
         if objective == 'USAFA Proportion':
@@ -2914,7 +2917,7 @@ def afsc_objective_weights_graph(parameters, value_parameters_dict, afsc, colors
 
     # Get chart specs
     num_weights = len(value_parameters_dict)
-    j = np.where(parameters['afsc_vector'] == afsc)[0][0]
+    j = np.where(parameters['afscs'] == afsc)[0][0]
     first_key = list(value_parameters_dict.keys())[0]
     K_A = value_parameters_dict[first_key]['K^A'][j].astype(int)
     objectives = value_parameters_dict[first_key]['objectives'][K_A]
@@ -3046,7 +3049,7 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
 
     # Load the data
     indices = value_parameters['J^E'][k]
-    afscs = parameters['afsc_vector'][indices]
+    afscs = parameters['afscs'][indices]
     minimums = np.zeros(len(indices))
     maximums = np.zeros(len(indices))
     num_solutions = len(metrics_dict.keys())

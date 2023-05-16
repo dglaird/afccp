@@ -243,7 +243,7 @@ def plot_value_function(instance, printing=False):
     p, vp, ip = instance.parameters, instance.value_parameters, instance.plt_p
 
     # Indices
-    j, k = np.where(p["afsc_vector"]==ip["afsc"])[0][0], np.where(vp["objectives"]==ip["objective"])[0][0]
+    j, k = np.where(p["afscs"]==ip["afsc"])[0][0], np.where(vp["objectives"]==ip["objective"])[0][0]
 
     # Get the correct x_label
     x_labels = {"Merit": "Average Merit", "Combined Quota": "Number of Cadets", "USAFA Quota": "Number of Cadets",
@@ -384,9 +384,9 @@ def data_to_excel(filepath, parameters, value_parameters=None, metrics=None, pri
                                           'Weight': value_parameters['cadet_weight'],
                                           'Value Fail': metrics['cadet_constraint_fail']})
 
-        objective_measures = pd.DataFrame({'AFSC': parameters['afsc_vector'][:parameters["M"]]})
-        objective_values = pd.DataFrame({'AFSC': parameters['afsc_vector'][:parameters["M"]]})
-        afsc_constraints_df = pd.DataFrame({'AFSC': parameters['afsc_vector'][:parameters["M"]]})
+        objective_measures = pd.DataFrame({'AFSC': parameters['afscs'][:parameters["M"]]})
+        objective_values = pd.DataFrame({'AFSC': parameters['afscs'][:parameters["M"]]})
+        afsc_constraints_df = pd.DataFrame({'AFSC': parameters['afscs'][:parameters["M"]]})
         for k in range(value_parameters['O']):
             objective_measures[value_parameters['objectives'][k]] = metrics['objective_measure'][:, k]
             objective_values[value_parameters['objectives'][k]] = metrics['objective_value'][:, k]
@@ -441,12 +441,12 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
 
     # Get the Utility Dataframes
     cadets_utility = pd.DataFrame({"Cadet": parameters["ID"]})
-    for j, afsc in enumerate(parameters["afsc_vector"][:parameters["M"]]):
+    for j, afsc in enumerate(parameters["afscs"][:parameters["M"]]):
         cadets_utility[afsc] = parameters["utility"][:, j]
 
     if "afsc_utility" in parameters:
         afscs_utility = pd.DataFrame({"Cadet": parameters["ID"]})
-        for j, afsc in enumerate(parameters["afsc_vector"][:parameters["M"]]):
+        for j, afsc in enumerate(parameters["afscs"][:parameters["M"]]):
             afscs_utility[afsc] = parameters["afsc_utility"][:, j]
     else:
         afscs_utility = None
@@ -454,20 +454,20 @@ def create_aggregate_instance_file(full_name, parameters, solution_dict=None, vp
     # Get the preference dataframes
     if "c_pref_matrix" in parameters:
         cadets_pref = pd.DataFrame({"Cadet": parameters["ID"]})
-        for j, afsc in enumerate(parameters["afsc_vector"][:parameters["M"]]):
+        for j, afsc in enumerate(parameters["afscs"][:parameters["M"]]):
             cadets_pref[afsc] = parameters["c_pref_matrix"][:, j]
     else:
         cadets_pref = None
 
     if "a_pref_matrix" in parameters:
         afscs_pref = pd.DataFrame({"Cadet": parameters["ID"]})
-        for j, afsc in enumerate(parameters["afsc_vector"][:parameters["M"]]):
+        for j, afsc in enumerate(parameters["afscs"][:parameters["M"]]):
             afscs_pref[afsc] = parameters["a_pref_matrix"][:, j]
     else:
         afscs_pref = None
 
     # Get other information
-    afscs = parameters['afsc_vector']
+    afscs = parameters['afscs']
 
     # Just so pycharm doesn't yell at me
     solutions_df, metrics_df, vp_overall_df, vp_afscs_df_dict = None, None, None, None
@@ -664,7 +664,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
         for solution_name in solution_names:
             afsc_solution = np.array(solutions_df[solution_name])
             solution = np.array([np.where(
-                parameters['afsc_vector'] == afsc)[0][0] for afsc in afsc_solution])
+                parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
             solution_dict[solution_name] = solution
 
     except:
@@ -726,7 +726,7 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
                 value_parameters["cadet_value_min"] = np.array(vp_cadet_df[vp_name]).astype(float)
 
             # Check if other columns are present (phasing these in)
-            more_vp_columns = ["USAFA-Constrained AFSCs", "Similarity Constraint", "Cadets Top 3 Constraint"]
+            more_vp_columns = ["USAFA-Constrained AFSCs", "Cadets Top 3 Constraint", "AFOCD Qual Type"]
             for col in more_vp_columns:
                 if col in overall_weights:
                     element = str(np.array(overall_weights[col])[v])
@@ -815,11 +815,11 @@ def import_aggregate_instance_file(filepath, num_breakpoints=None, use_actual=Tr
             value_parameters["afsc_weight"] = value_parameters["afsc_weight"] / sum(value_parameters["afsc_weight"])
 
             # Load value_parameter dictionary
-            value_parameters = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
+            value_parameters = afccp.core.handling.value_parameter_handling.value_parameters_sets_additions(
                     parameters, value_parameters)
             value_parameters = afccp.core.handling.value_parameter_handling.condense_value_functions(
                 parameters, value_parameters)
-            value_parameters = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
+            value_parameters = afccp.core.handling.value_parameter_handling.value_parameters_sets_additions(
                 parameters, value_parameters)
             vp_dict[vp_name] = copy.deepcopy(value_parameters)
             vp_dict[vp_name]['vp_weight'] = vp_weights[v]
@@ -889,7 +889,7 @@ def determine_model_constraints(instance, printing=True):
 
     # Initially, we'll start with no constraints turned on
     vp["constraint_type"] = np.zeros([p["M"], vp["O"]])
-    vp = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(p, vp)
+    vp = afccp.core.handling.value_parameter_handling.value_parameters_sets_additions(p, vp)
     adj_instance.value_parameters = vp
 
     # Build the model
@@ -904,7 +904,7 @@ def determine_model_constraints(instance, printing=True):
 
     # Dictionary of solutions with different constraints!
     solutions = {0: afccp.core.solutions.pyomo_models.vft_model_solve(adj_instance, vft_model)}
-    afsc_solution = np.array([p["afsc_vector"][int(j)] for j in solutions[0]])
+    afsc_solution = np.array([p["afscs"][int(j)] for j in solutions[0]])
     afsc_solutions = {0: afsc_solution}
     metrics = afccp.core.handling.data_handling.measure_solution_quality(solutions[0], p, vp)
     current_solution = solutions[0]
@@ -932,7 +932,7 @@ def determine_model_constraints(instance, printing=True):
     # Begin the algorithm!
     cons = 0
     for (j, k) in importance_list:
-        afsc = p["afsc_vector"][j]
+        afsc = p["afscs"][j]
         objective = vp["objectives"][k]
 
         # Make a copy of the VFT model (In case we have to remove a constraint)
@@ -1037,7 +1037,7 @@ def determine_model_constraints(instance, printing=True):
         current_solution = solutions[cons]
 
         # Dictionary of solution arrays in AFSC format (not indices of AFSCs)
-        afsc_solutions[cons] = np.array([p["afsc_vector"][int(j)] for j in solutions[cons]])
+        afsc_solutions[cons] = np.array([p["afscs"][int(j)] for j in solutions[cons]])
         metrics = afccp.core.handling.data_handling.measure_solution_quality(solutions[cons], p, vp)
 
         # Add this solution to report
@@ -1076,7 +1076,7 @@ def determine_model_constraints(instance, printing=True):
             measure_fails = 0
             while c < cons:
                 j_1, k_1 = importance_list[c]
-                afsc_1, objective_1 = p["afsc_vector"][j_1], vp["objectives"][k_1]
+                afsc_1, objective_1 = p["afscs"][j_1], vp["objectives"][k_1]
                 if metrics["objective_measure"][j_1, k_1] > (objective_max_value[j_1, k_1] * 1.05) or metrics[
                     "objective_measure"][j_1, k_1] < (objective_min_value[j_1, k_1] * 0.95):
                     print("Measure Fail:", afsc_1, objective_1, "Measure:",
@@ -1101,7 +1101,7 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
 
     # Load parameters
     p = copy.deepcopy(instance.parameters)
-    real_afscs = p["afsc_vector"][:p["M"]]
+    real_afscs = p["afscs"][:p["M"]]
 
     # Get the quota array
     if "pgl" in p:
@@ -1114,29 +1114,27 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
 
     # Translate parameters
     new_p = copy.deepcopy(p)
-    new_p["afsc_vector"] = np.array([new_letter + str(i + 1) for i in p["J"]])
-    new_p["afsc_vector"] = np.hstack((new_p["afsc_vector"], "*"))
+    new_p["afscs"] = np.array([new_letter + str(j + 1) for j in p["J"]])
+    new_p["afscs"] = np.hstack((new_p["afscs"], "*"))
     new_p["quota"] = quota[t_indices]
     sorted_real_afscs = copy.deepcopy(real_afscs[t_indices])
 
-    # Loop through each one dimensional array of length M and translate it
-    for key in ["quota_min", "pgl", "usafa_quota", "rotc_quota"]:
+    # Loop through each key in the parameters dictionary to translate it
+    for key in p:
 
-        if key in p:
+        # If it's a one dimensional array of length M, we translate it accordingly
+        if np.shape(key) == (p["M"], ):
             new_p[key] = p[key][t_indices]
 
-    # Loop through each two dimensional array of size (N, M) and translate it
-    for key in ["qual", "utility", "ineligible", "eligible", "mandatory", "desired",
-                "permitted", "afsc_utility", "c_pref_matrix", "a_pref_matrix"]:
-
-        if key in p:
+        # If it's a two-dimensional array of shape (NxM), we translate it accordingly
+        elif np.shape(key) == (p["N"], p["M"]):
             new_p[key] = p[key][:, t_indices]
 
     # Get assigned AFSC vector
     for i, real_afsc in enumerate(p["assigned"]):
         if real_afsc in real_afscs:
             j = np.where(sorted_real_afscs == real_afsc)[0][0]
-            new_p["assigned"][i] = new_p["afsc_vector"][j]
+            new_p["assigned"][i] = new_p["afscs"][j]
 
     # Set additions, and add to the instance
     instance.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(new_p)
@@ -1162,7 +1160,7 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
                 for index, real_afsc in enumerate(usafa_afscs):
                     real_afsc = str(real_afsc.strip())
                     j = np.where(sorted_real_afscs == real_afsc)[0][0]
-                    usafa_afscs[index] = new_p["afsc_vector"][j]
+                    usafa_afscs[index] = new_p["afscs"][j]
                     if index == len(usafa_afscs) - 1:
                         new_str += usafa_afscs[index]
                     else:
@@ -1186,7 +1184,7 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
 
             # Set additions
             instance.vp_dict[vp_name] = \
-                afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
+                afccp.core.handling.value_parameter_handling.value_parameters_sets_additions(
                     instance.parameters, instance.vp_dict[vp_name])
 
         # Grab the first set of value parameters for the instance
@@ -1206,7 +1204,7 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
             # Loop through each assigned AFSC for the cadets
             for i, j in enumerate(real_solution):
                 if j != p["M"]:
-                    real_afsc = p["afsc_vector"][j]
+                    real_afsc = p["afscs"][j]
                     j = np.where(sorted_real_afscs == real_afsc)[0][0]
                     new_solutions_dict[solution_name][i] = j
 
@@ -1217,16 +1215,18 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
     else:
         instance.solution_dict = None
 
+    # Convert "c_preferences" array
+    if "c_preferences" in p:
+        for i in p["I"]:
+            for pref in range(p["P"]):
+                real_afsc = p["c_preferences"][i, pref]
+                if real_afsc in sorted_real_afscs:
+                    j = np.where(sorted_real_afscs == real_afsc)[0][0]
+                    new_p["c_preferences"][i, pref] = new_p["afscs"][j]
 
-    # Instance Variables
-    instance.scrubbed = True
-    instance.data_name = new_letter
-    instance.data_variant = "Scrubbed"
-    instance.full_name = "Real " + new_letter
-    instance.data_instance_name = copy.deepcopy(instance.full_name)
-
-    # Get correct filepath
-    instance.filepath_in = afccp.core.globals.paths['instances'] + instance.data_instance_name + '.xlsx'
+    # Instance Attributes
+    instance.data_name, instance.data_version = new_letter, "Default"
+    instance.import_paths, instance.export_paths = None, None
 
     return instance
 

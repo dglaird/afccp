@@ -65,7 +65,7 @@ def solve_original_pyomo_model(instance, printing=False):
 
     # Fixing variables if necessary
     for i, afsc in enumerate(p["assigned"]):
-        j = np.where(p["afsc_vector"] == afsc)[0]  # AFSC index
+        j = np.where(p["afscs"] == afsc)[0]  # AFSC index
 
         # Check if the cadet is actually assigned an AFSC already (it's not blank)
         if len(j) != 0:
@@ -181,7 +181,7 @@ def solve_original_pyomo_model(instance, printing=False):
             else:
                 solution[i] = int(p["J^E"][i][0])  # Just give them an AFSC they're eligible for
 
-            afsc = p["afsc_vector"][int(solution[i])]
+            afsc = p["afscs"][int(solution[i])]
 
             if printing:
                 print("Cadet " + str(i) + " was not assigned by the model for some reason. We assigned them to", afsc)
@@ -206,104 +206,105 @@ def vft_model_build(instance, printing=False):
     vp = instance.value_parameters
 
     # _________________________________PARAMETER ADJUSTMENTS_________________________________
-    pass
+    def adjust_parameters():
+        """
+        Function defined here to adjust certain parameters. The parameters adjusted here are the value function
+        breakpoint parameters (r, a, f^hat) and set (L) as well as the AFSC objective constraint min, max values since
+        they've been stored as strings (3, 6, for example) up until this point. These parameters are saved into a new
+        dictionary "q" for use in the model. This is done because the value function breakpoints need to be adjusted
+        due to the approximate model's capability of exceeding the normal domain, and I don't want it saved to "vp"
+        """
+        # Written here, so I can reference it below (Keys "r" and "L" both use this)
+        r = [[len(vp['a'][j][k]) for k in vp['K']] for j in p['J']]
 
-    # Value Function Parameters
-    r = [[len(vp['a'][j][k]) for k in vp['K']] for j in p['J']]  # number of breakpoints (bps)
-    L = [[list(range(r[j][k])) for k in vp['K']] for j in p['J']]  # set of bps
-    a = [[[vp['a'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']]  # measures of bps
-    f = [[[vp['f^hat'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']]  # values of bps
+        # New dictionary of parameters used only in this main function (vft_model_build)
+        q = {"r": r,  # Number of breakpoints (bps) for objective k's function for AFSC j
+             "L": [[list(range(r[j][k])) for k in vp['K']] for j in p['J']],  # Set of breakpoints
+             "a": [[[vp['a'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']],  # Measures of bps
+             "f^hat": [[[vp['f^hat'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']],  # Values of bps
+             "objective_min": np.zeros([p['M'], vp['O']]),  # Min AFSC objective value
+             "objective_max": np.zeros([p['M'], vp['O']])  # Max AFSC objective value
+             }
 
-    # Initialize AFSC objective measure constraint ranges
-    objective_min_value = np.zeros([p['M'], vp['O']])
-    objective_max_value = np.zeros([p['M'], vp['O']])
+        # Loop through each AFSC
+        for j in p['J']:
 
-    # Loop through each AFSC
-    for j in p['J']:
+            # Loop through each objective for each AFSC
+            for k in vp['K^A'][j]:
 
-        # Loop through each objective for each AFSC
-        for k in vp['K^A'][j]:
+                # We need to add an extra breakpoint to effectively extend the domain
+                if instance.mdl_p["add_breakpoints"]:
 
-            # We need to add an extra breakpoint to effectively extend the domain
-            if instance.mdl_p["add_breakpoints"]:
+                    # We add an extra breakpoint far along the x-axis with the same y value as the previous one
+                    last_a = q["a"][j][k][q['r'][j][k] - 1]
+                    last_f = q["f^hat"][j][k][q['r'][j][k] - 1]
+                    q["a"][j][k].append(last_a * 2000)  # arbitrarily large number in the domain (x-space)
+                    q["f^hat"][j][k].append(last_f)  # same AFSC objective "y-value" as previous one
+                    q["L"][j][k].append(q['r'][j][k])  # add the new breakpoint index
+                    q['r'][j][k] += 1  # increase number of breakpoints by 1
 
-                # We add an extra breakpoint far along the x-axis with the same y value as the previous one
-                last_a = a[j][k][r[j][k] - 1]
-                last_f = f[j][k][r[j][k] - 1]
-                a[j][k].append(last_a * 2000)  # arbitrarily large number
-                f[j][k].append(last_f)  # same y-value as previous one
-                L[j][k].append(r[j][k])  # add the new breakpoint index
-                r[j][k] += 1  # add a breakpoint to the number of breakpoints
+                # Retrieve minimum/maximum AFSC objective measures based on constraint type. 1: Approximate, 2: Exact
+                if vp['constraint_type'][j, k] in [1, 2]:  # (NOT Zero)
+                    value_list = vp['objective_value_min'][j, k].split(",")
+                    q["objective_min"][j, k] = float(value_list[0].strip())
+                    q["objective_max"][j, k] = float(value_list[1].strip())
 
-            # Retrieve minimum values based on constraint type (approximate/exact and value/measure)
-            if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
+        # Convert to numpy arrays of lists
+        for key in ["L", "r", "a", "f^hat"]:
+            q[key] = np.array(q[key])
 
-                # These are "value" constraints and so only a minimum value is needed
-                objective_min_value[j, k] = float(vp['objective_value_min'][j, k])
-            elif vp['constraint_type'][j, k] == 3 or vp['constraint_type'][j, k] == 4:
-
-                # These are "measure" constraints and so a range is needed
-                value_list = vp['objective_value_min'][j, k].split(",")
-                objective_min_value[j, k] = float(value_list[0].strip())
-                objective_max_value[j, k] = float(value_list[1].strip())
-
-    # Convert to numpy arrays of lists
-    r = np.array(r)
-    L = np.array(L)
-    a = np.array(a)
-    f = np.array(f)
+    adjust_parameters()  # Call the function
 
     # _________________________________VARIABLE DEFINITIONS_________________________________
-    pass
+    m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
+    m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)  # AFSC objective value
+    m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in q['L'][j, k]),
+                within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
+    m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(q['r'][j, k] - 1)), within=Binary)
 
-    # If we don't initialize variables
-    if instance.mdl_p["warm_start"] is None:
+    def variable_adjustments():
+        """
+        This function initializes the 4 variables defined above if applicable (warm start has been determined) and also
+        fixes certain x variables if necessary/applicable as well.
+        """
 
-        # If we don't use a warm-start, we don't initialize starting values for the variables
-        m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
-        m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)  # objective value
-        m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in L[j, k]),
-                    within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
-        m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
+        # If we initialize variables
+        if instance.mdl_p["warm_start"] is not None:
 
-    # If we do want to initialize the variables. Probably initializing the exact model using the approximate solution
-    else:
+            # For each cadet, for each AFSC that the cadet is eligible
+            for i in p['I']:
+                for j in p['J^E'][i]:
 
-        # x: 1 if assign cadet i to AFSC j; 0 otherwise
-        m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
-        for i in p['I']:
-            for j in p['J^E'][i]:
-                m.x[i, j] = round(instance.mdl_p["warm_start"]['X'][i, j])
+                    # x: 1 if we assign cadet i to AFSC j; 0 otherwise
+                    m.x[i, j] = round(instance.mdl_p["warm_start"]['x'][i, j])
 
-        # f^hat: value for AFSC j objective k
-        m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)
-        for j in p['J']:
-            for k in vp['K^A'][j]:
-                m.f_value[j, k] = instance.mdl_p["warm_start"]['F_X'][j, k]
+            # Loop through each AFSC objective for each AFSC
+            for j in p['J']:
+                for k in vp['K^A'][j]:
 
-        # lambda: % between breakpoint l and l + 1 that the measure for AFSC j objective k "has yet to travel"
-        m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in L[j, k]), within=NonNegativeReals,
-                    bounds=(0, 1))
-        for j in p['J']:
-            for k in vp['K^A'][j]:
-                for l in L[j, k]:
-                    m.lam[j, k, l] = instance.mdl_p["warm_start"]['lam'][j, k, l]
+                    # Value for AFSC j objective k  (Used in Constraint 20b in VFT thesis)
+                    m.f_value[j, k] = instance.mdl_p["warm_start"]['f(measure)'][j, k]
 
-        # y: 1 if the objective measure for AFSC j objective k is along line segment between breakpoints l and l + 1
-        m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
-        for j in p['J']:
-            for k in vp['K^A'][j]:
-                for l in range(r[j, k] - 1):
-                    m.y[j, k, l] = instance.mdl_p["warm_start"]['y'][j, k, l]
+                    # Loop through each breakpoint for this AFSC objective value function
+                    for l in q['L'][j, k]:
 
-    # Fixing variables if necessary
-    if "assigned" in p:
-        for i, afsc in enumerate(p["assigned"]):
-            j = np.where(p["afsc_vector"] == afsc)[0]  # AFSC index
+                        # % between breakpoint l and l + 1 that the measure for AFSC j objective k "has yet to travel"
+                        m.lam[j, k, l] = instance.mdl_p["warm_start"]['lambda'][j, k, l]
 
-            # Check if the cadet is actually assigned an AFSC already (it's not blank)
-            if len(j) != 0:
-                j = j[0]  # Actual index
+                        # There is one less "y" variable than lambda because this is for the line segments between bps
+                        if l < q['r'][j, k] - 1:
+
+                            # 1 if AFSC j objective measure k is on line segment between breakpoints l and l + 1; 0 o/w
+                            m.y[j, k, l] = instance.mdl_p["warm_start"]['y'][j, k, l]
+
+        # Fixing variables if necessary
+        if "assigned" in p:
+            for i, afsc in enumerate(p["assigned"]):
+
+                if afsc in p["afscs"]:
+                    j = np.where(p["afscs"] == afsc)[0][0]  # AFSC index
+                else:
+                    continue  # Skip the cadet if the assigned AFSC is not "valid"
 
                 # Check if the cadet is assigned to an AFSC they're not eligible for
                 if j not in p["J^E"][i]:
@@ -313,11 +314,13 @@ def vft_model_build(instance, printing=False):
                 # Fix the variable
                 m.x[i, j].fix(1)
 
-    # _________________________________OBJECTIVE FUNCTION_________________________________
-    pass
+    variable_adjustments()  # Call the function
 
-    # Max Z!
+    # _________________________________OBJECTIVE FUNCTION_________________________________
     def objective_function(m):
+        """
+        The objective function is to maximize "Z", the overall weighted sum of all VFT objectives
+        """
         return vp['afscs_overall_weight'] * np.sum(vp['afsc_weight'][j] * np.sum(
             vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) for j in p['J']) + \
                vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * np.sum(
@@ -326,7 +329,7 @@ def vft_model_build(instance, printing=False):
     m.objective = Objective(rule=objective_function, sense=maximize)
 
     # ____________________________________CONSTRAINTS_____________________________________
-    pass
+    pass  # Here so pycharm doesn't yell at me for the constraint line above
 
     # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
     m.one_afsc_constraints = ConstraintList()
@@ -335,11 +338,17 @@ def vft_model_build(instance, printing=False):
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if vp["J^USAFA"] is not None:
-        cap = 0.05 * instance.mdl_p["real_usafa_n"]  # Total number of USAFA cadets (Rated, SF, and NonRated)
+        cap = 0.05 * instance.mdl_p["real_usafa_n"]  # Total number of graduating USAFA cadets (Line & Non-line cadets)
 
         # USAFA 5% Cap Constraint
         def usafa_afscs_rule(m):
+            """
+            This is the 5% USAFA graduating class cap constraint for certain AFSCs (support AFSCs). I will note that
+            as of Mar '23 this constraint is effectively null and void! Still here for documentation however and for any
+            potential future experiment
+            """
             return np.sum(np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j]) for j in vp["J^USAFA"]) <= cap
+
         m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
 
     # Value Function Constraints: Linking main methodology with value function methodology
@@ -359,9 +368,8 @@ def vft_model_build(instance, printing=False):
     m.min_afsc_value_constraints = ConstraintList()
     m.min_cadet_value_constraints = ConstraintList()
 
-    # AFSC Objective Measure/Value Constraints (Optional decision-maker constraints)
+    # AFSC Objective Measure Constraints (Optional decision-maker constraints)
     m.measure_constraints = ConstraintList()
-    m.value_constraints = ConstraintList()
 
     # Loop through all AFSCs
     for j in p['J']:
@@ -381,8 +389,6 @@ def vft_model_build(instance, printing=False):
 
         # Loop through all objectives for this AFSC
         for k in vp['K^A'][j]:
-
-            # Get the right objective measure calculation
             objective = vp['objectives'][k]
 
             # If it's a demographic objective, we sum over the cadets with that demographic
@@ -411,48 +417,46 @@ def vft_model_build(instance, printing=False):
                     numerator = np.sum(p['afsc_utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
                     measure_jk = numerator / num_cadets
 
-            else:  # Utility
+            elif objective == "Utility":
                 numerator = np.sum(p['utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
                 measure_jk = numerator / num_cadets
 
+            else:
+                raise ValueError("Error. Objective '" + objective + "' does not have a means of calculation in the"
+                                                                    "VFT model. Please adjust.")
+
             # Add Linear Value Function Constraints
-            m.measure_vf_constraints.add(expr=measure_jk == np.sum(  # Measure Constraint for Value Function
-                a[j, k][l] * m.lam[j, k, l] for l in L[j, k]))
-            m.value_vf_constraints.add(expr=m.f_value[j, k] == np.sum(  # Value Constraint for Value Function
-                f[j, k][l] * m.lam[j, k, l] for l in L[j, k]))
+            m.measure_vf_constraints.add(expr=measure_jk == np.sum(  # Measure Constraint for Value Function (20a)
+                q['a'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
+            m.value_vf_constraints.add(expr=m.f_value[j, k] == np.sum(  # Value Constraint for Value Function (20b)
+                q['f^hat'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
 
-            # Lambda .. y constraints
-            m.lambda_y_constraint1.add(expr=m.lam[j, k, 0] <= m.y[j, k, 0])
-            if r[j, k] > 2:
-                for l in range(1, r[j, k] - 1):
-                    m.lambda_y_constraint2.add(expr=m.lam[j, k, l] <= m.y[j, k, l - 1] + m.y[j, k, l])
-            m.lambda_y_constraint3.add(expr=m.lam[j, k, r[j, k] - 1] <= m.y[j, k, r[j, k] - 2])
+            # Lambda .. y constraints (20c, 20d, 20e)
+            m.lambda_y_constraint1.add(expr=m.lam[j, k, 0] <= m.y[j, k, 0])  # (20c)
+            if q['r'][j, k] > 2:
+                for l in range(1, q['r'][j, k] - 1):
+                    m.lambda_y_constraint2.add(expr=m.lam[j, k, l] <= m.y[j, k, l - 1] + m.y[j, k, l])  # (20d)
+            m.lambda_y_constraint3.add(expr=m.lam[j, k, q['r'][j, k] - 1] <= m.y[j, k, q['r'][j, k] - 2])  # (20e)
 
-            # Y sum to 1 constraint
-            m.y_sum_constraint.add(expr=np.sum(m.y[j, k, l] for l in range(0, r[j, k] - 1)) == 1)
+            # Y sum to 1 constraint (20f)
+            m.y_sum_constraint.add(expr=np.sum(m.y[j, k, l] for l in range(0, q['r'][j, k] - 1)) == 1)
 
-            # Lambda sum to 1 constraint
-            m.lambda_sum_constraint.add(expr=np.sum(m.lam[j, k, l] for l in L[j, k]) == 1)
+            # Lambda sum to 1 constraint (20g)
+            m.lambda_sum_constraint.add(expr=np.sum(m.lam[j, k, l] for l in q['L'][j, k]) == 1)
 
-            # Lambda .. value positive constraint
-            for l in L[j, k]:
+            # Lambda .. value positive constraint (20h) although the "f_value" constraint is implied in the thesis
+            for l in q['L'][j, k]:
                 m.lambda_positive.add(expr=m.lam[j, k, l] >= 0)
             m.f_value_positive.add(expr=m.f_value[j, k] >= 0)
 
             # Add Min Value/Measure Constraints
-            if k in vp['K^C'][j]:  # (1/2 constrain value, 3 constrains approximate measure, 4 constrains exact measure)
-
-                # Constrained Value (I decided against this for AFSC objectives and just went with measure constraints)
-                if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
-
-                    # The formulation only lists "objective_min, objective_max" since I no longer want value constraints
-                    m.value_constraints.add(expr=m.f_value[j, k] >= objective_min_value[j, k])
+            if k in vp['K^C'][j]:  # (1 constrains "approximate" measure, 2 constrains "exact" measure)
 
                 # Constrained PGL/Approximate Measure
-                elif vp['constraint_type'][j, k] == 3:
+                if vp['constraint_type'][j, k] == 1:
                     if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                        m.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
-                        m.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
+                        m.measure_constraints.add(expr=measure_jk >= q["objective_min"][j, k])
+                        m.measure_constraints.add(expr=measure_jk <= q["objective_max"][j, k])
                     else:
 
                         if "pgl" in p:  # Check which "reference minimum" we should use
@@ -580,7 +584,7 @@ def vft_model_solve(instance, model, printing=False):
                 else:
                     solution[i] = int(p["J^E"][i][0])
 
-            afsc = p["afsc_vector"][int(solution[i])]
+            afsc = p["afscs"][int(solution[i])]
 
             if printing:
                 print("Cadet " + str(i) + " was not assigned by the model for some reason. We assigned them to", afsc)

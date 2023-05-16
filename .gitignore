@@ -216,7 +216,10 @@ results/
 solvers/
 support/
 assets/
+cfms/
 test.py
+cfm_rule_generation.py
+afccp/core/problem_class_05012023.py
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
