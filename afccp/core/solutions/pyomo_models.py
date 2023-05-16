@@ -253,7 +253,9 @@ def vft_model_build(instance, printing=False):
         for key in ["L", "r", "a", "f^hat"]:
             q[key] = np.array(q[key])
 
-    adjust_parameters()  # Call the function
+        return q  # Return the new dictionary
+
+    q = adjust_parameters()  # Call the function
 
     # _________________________________VARIABLE DEFINITIONS_________________________________
     m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
@@ -262,7 +264,7 @@ def vft_model_build(instance, printing=False):
                 within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
     m.y = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in range(q['r'][j, k] - 1)), within=Binary)
 
-    def variable_adjustments():
+    def variable_adjustments(m):
         """
         This function initializes the 4 variables defined above if applicable (warm start has been determined) and also
         fixes certain x variables if necessary/applicable as well.
@@ -314,7 +316,10 @@ def vft_model_build(instance, printing=False):
                 # Fix the variable
                 m.x[i, j].fix(1)
 
-    variable_adjustments()  # Call the function
+        # Return model (m)
+        return m
+
+    m = variable_adjustments(m)  # Call the function
 
     # _________________________________OBJECTIVE FUNCTION_________________________________
     def objective_function(m):
@@ -462,26 +467,26 @@ def vft_model_build(instance, printing=False):
                         if "pgl" in p:  # Check which "reference minimum" we should use
                             if p["pgl"][j] > p['quota_min'][j]:
                                 m.measure_constraints.add(
-                                    expr=numerator - objective_min_value[j, k] * p['quota_min'][j] >= 0)
+                                    expr=numerator - q["objective_min"][j, k] * p['quota_min'][j] >= 0)
                                 m.measure_constraints.add(
-                                    expr=numerator - objective_max_value[j, k] * p['quota_min'][j] <= 0)
+                                    expr=numerator - q["objective_max"][j, k] * p['quota_min'][j] <= 0)
                             else:
-                                m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * p['pgl'][j] >= 0)
-                                m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * p['pgl'][j] <= 0)
+                                m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * p['pgl'][j] >= 0)
+                                m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * p['pgl'][j] <= 0)
                         else:
                             m.measure_constraints.add(
-                                expr=numerator - objective_min_value[j, k] * p['quota_min'][j] >= 0)
+                                expr=numerator - q["objective_min"][j, k] * p['quota_min'][j] >= 0)
                             m.measure_constraints.add(
-                                expr=numerator - objective_max_value[j, k] * p['quota_min'][j] <= 0)
+                                expr=numerator - q["objective_min"][j, k] * p['quota_min'][j] <= 0)
 
-                # Constrained Exact Measure  (type = 4)
-                else:
+                # Constrained Exact Measure
+                elif vp['constraint_type'][j, k] == 2:
                     if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                        m.measure_constraints.add(expr=measure_jk >= objective_min_value[j, k])
-                        m.measure_constraints.add(expr=measure_jk <= objective_max_value[j, k])
+                        m.measure_constraints.add(expr=measure_jk >= q["objective_min"][j, k])
+                        m.measure_constraints.add(expr=measure_jk <= q["objective_max"][j, k])
                     else:
-                        m.measure_constraints.add(expr=numerator - objective_min_value[j, k] * count >= 0)
-                        m.measure_constraints.add(expr=numerator - objective_max_value[j, k] * count <= 0)
+                        m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * count >= 0)
+                        m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * count <= 0)
 
         # AFSC value constraint
         if vp['afsc_value_min'][j] != 0:

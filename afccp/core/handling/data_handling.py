@@ -897,11 +897,15 @@ def parameter_sanity_check(instance):
             if k not in vp["K^C"][j]:
                 continue
 
-            # Make sure there are cadets that have this degree tier
+            # Make sure there are cadets that are in this degree tier
             if len(p["I^D"][objective][j]) == 0:
                 issue += 1
-                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
-                      "'-Tier does not exist. No cadets have degrees that fit in this tier.")
+                if "Tier" in objective:
+                    print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                          "' is empty. No cadets have degrees that fit in this tier for this class year.")
+                else:
+                    print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                          "'-Tier is empty. No cadets have degrees that fit in this tier for this class year.")
 
             # Make sure objective has valid target
             if vp["objective_target"][j, k] == 0:
