@@ -14,7 +14,7 @@ logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 warnings.filterwarnings('ignore')
 
 
-def solve_original_pyomo_model(instance, printing=False):
+def original_model_build(instance, printing=False):
     """
     Converts the parameters and value parameters to the pyomo data structure
     :param instance: problem instance object
@@ -28,10 +28,10 @@ def solve_original_pyomo_model(instance, printing=False):
     p = instance.parameters
     vp = instance.value_parameters
 
-    # Utility Matrix
+    # Utility/Cost Matrix
     c = np.zeros([p['N'], p['M']])
-    for i in range(p['N']):
-        for j in range(p['M']):
+    for i in p['I']:
+        for j in p['J^E'][i]:  # Only looping through AFSCs that the cadet is eligible for
 
             # If AFSC j is a preference for cadet i
             if p['utility'][i, j] > 0:
@@ -40,10 +40,8 @@ def solve_original_pyomo_model(instance, printing=False):
                     c[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 250
                 elif p['desired'][i, j] == 1:
                     c[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 150
-                elif p['permitted'][i, j] == 1:
+                else:  # Permitted, though it could also be an "exception"
                     c[i, j] = 10 * p['merit'][i] * p['utility'][i, j]
-                else:
-                    c[i, j] = -50000
 
             # If it is not a preference for cadet i
             else:
@@ -52,13 +50,36 @@ def solve_original_pyomo_model(instance, printing=False):
                     c[i, j] = 100 * p['merit'][i]
                 elif p['desired'][i, j] == 1:
                     c[i, j] = 50 * p['merit'][i]
-                elif p['permitted'][i, j] == 1:
+                else:  # Permitted, though it could also be an "exception"
                     c[i, j] = 0
-                else:
-                    c[i, j] = -50000
 
     # Build Model
     m = ConcreteModel()
+
+    # _________________________________PARAMETER ADJUSTMENTS_________________________________
+    def adjust_parameters():
+        """
+        Mirrors the function in the VFT model, but this time we just need the objective mins and maxes
+        """
+        # New dictionary of parameters used in this main function ("vft_model_build") and in "vft_model_solve"
+        q = {"objective_min": np.zeros([p['M'], vp['O']]),  # Min AFSC objective value
+             "objective_max": np.zeros([p['M'], vp['O']])}  # Max AFSC objective value
+
+        # Loop through each AFSC
+        for j in p['J']:
+
+            # Loop through each objective for each AFSC
+            for k in vp['K^A'][j]:
+
+                # Retrieve minimum/maximum AFSC objective measures based on constraint type. 1: Approximate, 2: Exact
+                if vp['constraint_type'][j, k] in [1, 2]:  # (NOT Zero)
+                    value_list = vp['objective_value_min'][j, k].split(",")
+                    q["objective_min"][j, k] = float(value_list[0].strip())
+                    q["objective_max"][j, k] = float(value_list[1].strip())
+
+        return q  # Return the new dictionary
+
+    q = adjust_parameters()  # Call the function
 
     # ___________________________________VARIABLE DEFINITION_________________________________
     m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
@@ -96,7 +117,7 @@ def solve_original_pyomo_model(instance, printing=False):
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if vp["J^USAFA"] is not None:
         # This is a pretty arbitrary constraint and will only be used for real class years
-        real_n = 960  # Total number of USAFA cadets (NonRated, Rated, and SF)
+        real_n = instance.mdl_p['real_usafa_n']  # Total number of USAFA cadets (Line/Non-Line)
         cap = 0.05 * real_n
 
         # USAFA 5% Cap Constraint
@@ -105,87 +126,72 @@ def solve_original_pyomo_model(instance, printing=False):
 
         m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
 
-    # Loop through each AFSC and add constraints if they need it
+    # AFSC Objective Measure Constraints (Optional decision-maker constraints)
     m.measure_constraints = ConstraintList()
+
+    # Loop through all AFSCs to add constraints
     for j in p["J"]:
 
         # Get count variables for this AFSC
         count = np.sum(m.x[i, j] for i in p['I^E'][j])
+        if 'usafa' in p:
 
-        # Loop through the objectives/constraints we care about
-        for objective in ["Combined Quota", "Merit", "USAFA Proportion", "Mandatory"]:
-            k = np.where(vp["objectives"] == objective)[0]
+            # Number of USAFA cadets assigned to the AFSC
+            usafa_count = np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
 
-            # If the constraint is turned on
-            if vp["constraint_type"][j, k] == 3 or vp['constraint_type'][j, k] == 4:
+        # Loop through all objectives for this AFSC
+        for k in vp['K^A'][j]:
+            objective = vp['objectives'][k]
 
-                # Get the lower and upper bounds
-                try:
-                    value_list = vp['objective_value_min'][j, k].split(",")
-                except:
-                    value_list = vp['objective_value_min'][j, k][0].split(",")
-                min_value = float(value_list[0].strip())
-                max_value = float(value_list[1].strip())
+            # If it's a demographic objective, we sum over the cadets with that demographic
+            if objective in vp['K^D']:
+                numerator = np.sum(m.x[i, j] for i in p['I^D'][objective][j])
+                measure_jk = numerator / count
+            elif objective == "Merit":
+                numerator = np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j])
+                measure_jk = numerator / count
+            elif objective == "Combined Quota":
+                measure_jk = count
+            elif objective == "USAFA Quota":
+                measure_jk = usafa_count
+            elif objective == "ROTC Quota":
+                measure_jk = count - usafa_count
+            elif objective == "Utility":
+                numerator = np.sum(p['utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
+                measure_jk = numerator / count
+            else:
+                continue  # Skip this objective, whatever it is
 
-                # Calculate Objective Measure
-                if objective in vp['K^D']:
-                    numerator = np.sum(m.x[i, j] for i in p['I^D'][objective][j])
-                elif objective == "Merit":
-                    numerator = np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j])
-                else:  # Combined Quota
-                    measure_jk = count
+            # Add Min Measure Constraints
+            if k in vp['K^C'][j]:  # (1 constrains "approximate" measure, 2 constrains "exact" measure)
 
-                # Add the right kind of constraint
-                if objective == 'Combined Quota':
-                    m.measure_constraints.add(expr=measure_jk >= min_value)
-                    m.measure_constraints.add(expr=measure_jk <= max_value)
-                else:
-
-                    # Constrained Approximate Measure
-                    if vp['constraint_type'][j, k] == 3:
-                        m.measure_constraints.add(expr=numerator - min_value * p['quota'][j] >= 0)
-                        m.measure_constraints.add(expr=numerator - max_value * p['quota'][j] <= 0)
-
-                    # Constrained Exact Measure  (type = 4)
+                # Constrained PGL/Approximate Measure
+                if vp['constraint_type'][j, k] == 1:
+                    if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+                        m.measure_constraints.add(expr=measure_jk >= q["objective_min"][j, k])
+                        m.measure_constraints.add(expr=measure_jk <= q["objective_max"][j, k])
                     else:
-                        m.measure_constraints.add(expr=numerator - min_value * count >= 0)
-                        m.measure_constraints.add(expr=numerator - max_value * count <= 0)
+
+                        if p["pgl"][j] > p['quota_min'][j]:
+                            m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * p['quota_min'][j] >= 0)
+                            m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * p['quota_min'][j] <= 0)
+                        else:
+                            m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * p['pgl'][j] >= 0)
+                            m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * p['pgl'][j] <= 0)
+
+                # Constrained Exact Measure
+                elif vp['constraint_type'][j, k] == 2:
+                    if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+                        m.measure_constraints.add(expr=measure_jk >= q["objective_min"][j, k])
+                        m.measure_constraints.add(expr=measure_jk <= q["objective_max"][j, k])
+                    else:
+                        m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * count >= 0)
+                        m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * count <= 0)
 
     if printing:
         print("Done. Solving original model...")
 
-    # Solve the model
-    model = solve_pyomo_model(instance, m)
-
-    # Initialize solution
-    solution = np.zeros(p['N'])
-
-    # Create solution X Matrix
-    x = np.zeros([p['N'], p['M']])
-    for i in p['I']:
-        found = False
-        for j in p['J^E'][i]:
-            x[i, j] = model.x[i, j].value
-            try:
-                if round(x[i, j]):
-                    solution[i] = int(j)
-                    found = True
-            except:
-                raise ValueError("Solution didn't come out right, likely model is infeasible.")
-
-        # For some reason we may not have assigned a cadet to an AFSC in which case we just give them to one
-        # they're eligible for and want
-        if not found:
-            if len(p["J^P"][i]) != 0:
-                solution[i] = int(p["J^P"][i][0])  # Try to give them an AFSC they wanted
-            else:
-                solution[i] = int(p["J^E"][i][0])  # Just give them an AFSC they're eligible for
-
-            afsc = p["afscs"][int(solution[i])]
-
-            if printing:
-                print("Cadet " + str(i) + " was not assigned by the model for some reason. We assigned them to", afsc)
-    return solution
+    return m, q  # Return model and additional component dictionary
 
 
 def vft_model_build(instance, printing=False):
@@ -217,7 +223,7 @@ def vft_model_build(instance, printing=False):
         # Written here, so I can reference it below (Keys "r" and "L" both use this)
         r = [[len(vp['a'][j][k]) for k in vp['K']] for j in p['J']]
 
-        # New dictionary of parameters used only in this main function (vft_model_build)
+        # New dictionary of parameters used in this main function ("vft_model_build") and in "vft_model_solve"
         q = {"r": r,  # Number of breakpoints (bps) for objective k's function for AFSC j
              "L": [[list(range(r[j][k])) for k in vp['K']] for j in p['J']],  # Set of breakpoints
              "a": [[[vp['a'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']],  # Measures of bps
@@ -376,7 +382,7 @@ def vft_model_build(instance, printing=False):
     # AFSC Objective Measure Constraints (Optional decision-maker constraints)
     m.measure_constraints = ConstraintList()
 
-    # Loop through all AFSCs
+    # Loop through all AFSCs to add constraints
     for j in p['J']:
 
         # Get count variables for this AFSC
@@ -515,199 +521,7 @@ def vft_model_build(instance, printing=False):
     if vp['cadets_overall_value_min'] != 0:
         m.cadet_min_value_constraint = Constraint(rule=cadet_min_value_constraint)
 
-    return m
-
-
-def vft_model_solve(instance, model, printing=False):
-    """
-    Solve VFT Model
-    :param instance: problem instance to solve
-    :param model: pyomo model
-    :param printing: if we should print something
-    :return: solution
-    """
-
-    # Shorthand
-    p = instance.parameters
-    vp = instance.value_parameters
-    mdl_p = instance.mdl_p
-
-    # Print what we're solving
-    if printing:
-        if mdl_p["approximate"]:
-            model_str = 'Approximate'
-        else:
-            model_str = 'Exact'
-        print('Solving ' + model_str + ' VFT Model instance with solver ' + mdl_p["solver_name"] + '...')
-
-    # Start Time
-    if mdl_p["time_eval"]:
-        start_time = time.perf_counter()
-
-    # Solve the model
-    model = solve_pyomo_model(instance, model)
-
-    # Stop Time
-    if mdl_p["time_eval"]:
-        solve_time = round(time.perf_counter() - start_time, 2)
-
-    # Initialize solution
-    solution = np.zeros(p['N'])
-
-    # Create solution X Matrix
-    x = np.zeros([p['N'], p['M']])
-    for i in p['I']:
-        found = False
-        for j in p['J^E'][i]:
-            x[i, j] = model.x[i, j].value
-            try:
-                if round(x[i, j]):
-                    solution[i] = int(j)
-                    found = True
-            except:
-                raise ValueError("Solution didn't come out right, likely model is infeasible.")
-
-        # For some reason we may not have assigned a cadet to an AFSC in which case we just give them to one
-        # they're eligible for and want  (happens usually to only 1-3 people through VFT model)
-        if not found:
-
-            # Try to give the cadet their top choice AFSC for which they're eligible
-            if len(p["J^P"][i]) != 0:
-                max_util = 0
-                max_j = 0
-                for j in p["J^P"][i]:
-                    if p["utility"][i, j] >= max_util:
-                        max_j = j
-                        max_util = max_util
-                solution[i] = int(max_j)
-
-            # If we don't have any eligible preferences from the cadet, they get Needs of the Air Force
-            else:
-
-                if len(p["J^E"][i]) >= 2:
-                    solution[i] = int(p["J^E"][i][1])
-                else:
-                    solution[i] = int(p["J^E"][i][0])
-
-            afsc = p["afscs"][int(solution[i])]
-
-            if printing:
-                print("Cadet " + str(i) + " was not assigned by the model for some reason. We assigned them to", afsc)
-    if mdl_p["report"]:
-        obj = model.objective()
-        if printing:
-            if mdl_p["approximate"]:
-                print("Approximate Pyomo Model Objective Value: " + str(round(obj, 4)))
-            else:
-                print("Exact Pyomo Model Objective Value: " + str(round(obj, 4)))
-
-        # Initialize measure/value matrices
-        measure = np.zeros([p['M'], vp['O']])
-        value = np.zeros([p['M'], vp['O']])
-
-        # Loop through all AFSCs to get their values
-        for j in p['J']:
-
-            # Get variables for this AFSC
-            count = np.sum(x[i, j] for i in p['I^E'][j])
-            if 'usafa' in p:
-                usafa_count = np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j])
-
-            # Are we using approximate measures or not
-            if mdl_p["approximate"]:
-                num_cadets = p['quota'][j]
-            else:
-                num_cadets = count
-
-            # Loop through all objectives for this AFSC
-            for k in vp['K^A'][j]:
-                objective = vp['objectives'][k]
-
-                # Get the right measure calculation
-                if objective in vp['K^D']:
-                    numerator = np.sum(x[i, j] for i in p['I^D'][objective][j])
-                    measure[j, k] = numerator / num_cadets
-                elif objective == "Merit":
-                    numerator = np.sum(p['merit'][i] * x[i, j] for i in p['I^E'][j])
-                    measure[j, k] = numerator / num_cadets
-                elif objective == "Combined Quota":
-                    measure[j, k] = count
-                elif objective == "USAFA Quota":
-                    measure[j, k] = usafa_count
-                elif objective == "ROTC Quota":
-                    measure[j, k] = count - usafa_count
-                else:  # Utility
-                    numerator = np.sum(p['utility'][i, j] * x[i, j] for i in p['I^E'][j])
-                    measure[j, k] = numerator / num_cadets
-
-                # Value of measure
-                value[j, k] = model.f_value[j, k].value
-
-        if mdl_p["time_eval"]:
-            return solution, x, measure, value, obj, solve_time
-        else:
-            return solution, x, measure, value, obj
-    else:
-        if mdl_p["time_eval"]:
-            return solution, solve_time
-        else:
-            return solution
-
-
-def solve_pyomo_model(instance, model):
-    """
-    Simple function that calls the pyomo solver using the specified model and max_time
-    """
-
-    # Shorthand
-    mdl_p = instance.mdl_p
-
-    # Determine how the solver is called here
-    if mdl_p["executable"] is None:
-        if mdl_p["provide_executable"]:
-            if mdl_p["exe_extension"]:
-                mdl_p["executable"] = afccp.core.globals.paths['solvers'] + mdl_p["solver_name"] + '.exe'
-            else:
-                mdl_p["executable"] = afccp.core.globals.paths['solvers'] + mdl_p["solver_name"]
-    else:
-        mdl_p["provide_executable"] = True
-
-    # Get correct solver
-    if mdl_p["provide_executable"]:
-        if mdl_p["solver_name"] == 'gurobi':
-            solver = SolverFactory(mdl_p["solver_name"], solver_io='python', executable=mdl_p["executable"])
-        else:
-            solver = SolverFactory(mdl_p["solver_name"], executable=mdl_p["executable"])
-    else:
-        if mdl_p["solver_name"] == 'gurobi':
-            solver = SolverFactory(mdl_p["solver_name"], solver_io='python')
-        else:
-            solver = SolverFactory(mdl_p["solver_name"])
-
-    # Solve Model
-    if mdl_p["pyomo_max_time"] is not None:
-        if mdl_p["solver_name"] == 'mindtpy':
-            solver.solve(model, time_limit=mdl_p["pyomo_max_time"],
-                         mip_solver='cplex_persistent', nlp_solver='ipopt')
-        elif mdl_p["solver_name"] == 'gurobi':
-            solver.solve(model, options={'TimeLimit': mdl_p["pyomo_max_time"], 'IntFeasTol': 0.05})
-        elif mdl_p["solver_name"] == 'ipopt':
-            solver.options['max_cpu_time'] = mdl_p["pyomo_max_time"]
-            solver.solve(model)
-        elif mdl_p["solver_name"] == 'cbc':
-            solver.options['seconds'] = mdl_p["pyomo_max_time"]
-            solver.solve(model)
-        elif mdl_p["solver_name"] == 'baron':
-            solver.solve(model, options={'MaxTime': mdl_p["pyomo_max_time"]})
-        else:
-            solver.solve(model)
-    else:
-        if mdl_p["solver_name"] == 'mindtpy':
-            solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
-        else:
-            solver.solve(model)
-
-    return model
+    return m, q  # Return model and additional component dictionary
 
 
 def gp_model_build(instance, printing=False):
@@ -837,244 +651,194 @@ def gp_model_build(instance, printing=False):
     return m
 
 
-def gp_model_solve(instance, model, printing=False):
+def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
     """
-    This procedure solves Rebecca's model.
-    :param instance: problem instance to solve
-    :param model: the instantiated model
-    :param printing: Whether to print something
-    :return: solution vector
+    Simple function that calls the pyomo solver using the specified model and max_time
     """
-    if printing:
-        print('Solving GP Model...')
 
     # Shorthand
-    mdl_p, gp = instance.mdl_p, instance.gp_parameters
+    p, vp, gp, mdl_p = instance.parameters, instance.value_parameters, instance.gp_parameters, instance.mdl_p
 
-    # Solve the model
-    model = solve_pyomo_model(instance, model)
+    # Adjust solver if necessary
+    if not mdl_p["approximate"] and model_name == "VFT":
+        if mdl_p["solver_name"] == 'cbc':
+            mdl_p["solver_name"] = 'ipopt'
 
-    if mdl_p["con_term"] is not None:
-        return model.objective()
+    # Determine how the solver is called here
+    if mdl_p["executable"] is None:
+        if mdl_p["provide_executable"]:
+            if mdl_p["exe_extension"]:
+                mdl_p["executable"] = afccp.core.globals.paths['solvers'] + mdl_p["solver_name"] + '.exe'
+            else:
+                mdl_p["executable"] = afccp.core.globals.paths['solvers'] + mdl_p["solver_name"]
+    else:
+        mdl_p["provide_executable"] = True
+
+    # Get correct solver
+    if mdl_p["provide_executable"]:
+        if mdl_p["solver_name"] == 'gurobi':
+            solver = SolverFactory(mdl_p["solver_name"], solver_io='python', executable=mdl_p["executable"])
+        else:
+            solver = SolverFactory(mdl_p["solver_name"], executable=mdl_p["executable"])
+    else:
+        if mdl_p["solver_name"] == 'gurobi':
+            solver = SolverFactory(mdl_p["solver_name"], solver_io='python')
+        else:
+            solver = SolverFactory(mdl_p["solver_name"])
+
+    # Print Statement
+    if printing:
+        if model_name == "VFT":
+            if mdl_p["approximate"]:
+                print('Solving Approximate VFT Model instance with solver ' + mdl_p["solver_name"] + '...')
+            else:
+                print('Solving Exact VFT Model instance with solver ' + mdl_p["solver_name"] + '...')
+        else:
+            print('Solving ' + model_name + ' Model instance with solver ' + mdl_p["solver_name"] + '...')
+
+
+    # Solve Model
+    start_time = time.perf_counter()
+    if mdl_p["pyomo_max_time"] is not None:
+        if mdl_p["solver_name"] == 'mindtpy':
+            solver.solve(model, time_limit=mdl_p["pyomo_max_time"],
+                         mip_solver='cplex_persistent', nlp_solver='ipopt')
+        elif mdl_p["solver_name"] == 'gurobi':
+            solver.solve(model, options={'TimeLimit': mdl_p["pyomo_max_time"], 'IntFeasTol': 0.05})
+        elif mdl_p["solver_name"] == 'ipopt':
+            solver.options['max_cpu_time'] = mdl_p["pyomo_max_time"]
+            solver.solve(model)
+        elif mdl_p["solver_name"] == 'cbc':
+            solver.options['seconds'] = mdl_p["pyomo_max_time"]
+            solver.solve(model)
+        elif mdl_p["solver_name"] == 'baron':
+            solver.solve(model, options={'MaxTime': mdl_p["pyomo_max_time"]})
+        else:
+            solver.solve(model)
+    else:
+        if mdl_p["solver_name"] == 'mindtpy':
+            solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
+        else:
+            solver.solve(model)
+
+    if printing:
+        print("Model solved in", round(time.perf_counter() - start_time, 2), "seconds.")
+
+    # Goal Programming Model specific actions
+    if model_name == "GP":
+
+        # We're "pre-process" solving the model for a specific GP constraint
+        if mdl_p["con_term"] is not None:
+            return model.objective()
+
+        # We're actually solving the model for a solution
+        else:
+
+            # Get solution
+            solution = np.zeros(gp['N'])
+            x = np.zeros((gp['N'], gp['M']))
+            for c in gp['C']:
+                for a in gp['A^']['E'][c]:
+                    x[c, a] = model.x[c, a].value
+                    if round(x[c, a]):
+                        solution[c] = int(a)
+
+            if printing:
+                print('Model solved.')
+
+            return solution.astype(int), x
+
+    # VFT/Original Model specific actions
     else:
 
-        # Get solution
-        N, M = len(gp['C']), len(gp['A'])
-        solution = np.zeros(N)
-        X = np.zeros((N, M))
-        for c in gp['C']:
-            for a in gp['A^']['E'][c]:
-                X[c, a] = model.x[c, a].value
-                if round(X[c, a]):
-                    solution[c] = int(a)
+        # Obtain solution from the model
+        def obtain_solution():
+            """
+            This nested function obtains the X matrix and the solution vector from the pyomo model
+            """
 
-        if printing:
-            print('Model solved.')
+            # Initialize solution and X matrix
+            solution = np.zeros(p['N']).astype(int)
+            x = np.zeros([p['N'], p['M']])
 
-        return solution, X
+            # Loop through each cadet to determine what AFSC they're assigned
+            for i in p['I']:
+                found = False
+                for j in p['J^E'][i]:
+                    x[i, j] = model.x[i, j].value
+                    try:
+                        if round(x[i, j]):
+                            solution[i] = int(j)
+                            found = True
+                    except:
+                        raise ValueError("Solution didn't come out right, likely model is infeasible.")
 
+                # For some reason we may not have assigned a cadet to an AFSC in which case we just give them to one
+                # they're eligible for and want (happens usually to only 1-3 people through VFT model)
+                if not found:
 
-def convert_parameters_to_lsp_model_inputs(parameters, value_parameters, metrics_1, metrics_2, delta, printing=False):
-    """
-    Takes the parameters, value parameters, and solutions metrics and then converts them to data used by the pyomo model
-    :param delta: how much the value of solution 2 should exceed solution 1
-    :param parameters: fixed cadet AFSC parameters
-    :param value_parameters: value parameters
-    :param metrics_1: optimal solution metrics under these value parameters (vector)
-    :param metrics_2: some other solution metrics (vector)
-    :param printing: Whether the procedure should print something
-    :return: pyomo model data
-    """
-    if printing:
-        print("Converting LSP information into pyomo model parameters...")
+                    # Try to give the cadet their top choice AFSC for which they're eligible
+                    if len(p["J^P"][i]) != 0:
+                        max_util = 0
+                        max_j = 0
+                        for j in p["J^P"][i]:
+                            if p["utility"][i, j] >= max_util:
+                                max_j = j
+                                max_util = max_util
+                        solution[i] = int(max_j)
 
-    N = parameters['N']
-    M = parameters['M']
-    O = value_parameters['O']
+                    # If we don't have any eligible preferences from the cadet, they get Needs of the Air Force
+                    else:
 
-    data = {None: {
-        'I': {None: np.arange(N)},
-        'J': {None: np.arange(M)},
-        'K': {None: np.arange(O)},
-        'K_A': {j: value_parameters['K^A'][j] for j in range(M)},
-        'afsc_objective_value_t': {(j, k): metrics_2['objective_value'][j][k]
-                                   for j in range(M) for k in range(O)},
-        'cadet_value_t': {i: metrics_2['cadet_value'][i] for i in range(N)},
-        'afsc_objective_value_b': {(j, k): metrics_1['objective_value'][j][k]
-                                   for j in range(M) for k in range(O)},
-        'cadet_value_b': {i: metrics_1['cadet_value'][i] for i in range(N)},
-        'afsc_objective_weight_b': {(j, k): value_parameters['objective_weight'][j][k]
-                                    for j in range(M) for k in range(O)},
-        'afsc_weight': {j: value_parameters['afsc_weight'][j] for j in range(M)},
-        'afscs_overall_weight': {None: value_parameters['afscs_overall_weight']},
-        'cadet_weight': {i: value_parameters['cadet_weight'][i] for i in range(N)},
-        'cadets_overall_weight': {None: value_parameters['cadets_overall_weight']},
-        'delta': {None: delta}
-    }}
+                        if len(p["J^E"][i]) >= 2:
+                            solution[i] = int(p["J^E"][i][1])
+                        else:
+                            solution[i] = int(p["J^E"][i][0])
 
-    return data
+                    afsc = p["afscs"][int(solution[i])]
 
+                    if printing:
+                        print("Cadet " + str(i) + " was not assigned by the model for some reason. "
+                                                  "We assigned them to", afsc)
 
-def lsp_model_build(printing=False):
-    """
-    This is the model for the Least Squares Procedure to conduct sensitivity analysis on the weights for two solutions
-    :param printing: Whether the procedure should print something
-    :return: pyomo model
-    """
-    if printing:
-        print('Building Least Squares Procedure Model...')
+            return solution, x
 
-    # Build Model
-    model = AbstractModel()
+        solution, x = obtain_solution()
 
-    # Define sets
-    model.I = Set(doc='Cadets')  # range of N
-    model.J = Set(doc='AFSCs')  # range of M
-    model.K = Set(doc='AFSC Objectives')  # range of M
-    model.K_A = Set(model.J, doc="set of objectives specific to each AFSC")  # range of O
+        # Obtain "warm start" variables used to initialize the VFT pyomo model
+        def obtain_warm_start_variables():
+            """
+            This nested function obtains the variables used for the warm start (variable initialization) of the pyomo model
+            """
 
-    # value parameters
-    model.afsc_objective_value_t = Param(model.J, model.K, doc="solution t's value of objective k for afsc j")
-    model.cadet_value_t = Param(model.I, doc="solution t's value for cadet i")
-    model.afsc_objective_value_b = Param(model.J, model.K, doc="solution b's value of objective k for afsc j")
-    model.cadet_value_b = Param(model.I, doc="solution b's value for cadet i")
+            # Determine maximum number of breakpoints for any particular AFSC
+            max_r = 0
+            for j in p["J"]:
+                for k in vp["K^A"][j]:
+                    if q["r"][j][k] > max_r:
+                        max_r = q["r"][j][k]
 
-    # weight parameters
-    model.afsc_objective_weight_b = Param(model.J, model.K, doc="solution b's weight on objective k for afsc j")
-    model.afsc_weight = Param(model.J, doc="weight on afsc j")
-    model.afscs_overall_weight = Param(doc="weight on all of the afscs")
-    model.cadet_weight = Param(model.I, doc="weight on cadet i")
-    model.cadets_overall_weight = Param(doc="weight on all of the cadets")
+            # Initialize dictionary
+            warm_start = {'f(measure)': np.zeros([p['M'], vp['O']]), 'x': x,
+                          'lambda': np.zeros([p['M'], p['O'], max_r + 1]),
+                          'y': np.zeros([p['M'], p['O'], max_r + 1]).astype(int), 'obj': model.objective()}
 
-    # delta
-    model.delta = Param(doc="the amount by which the objective value for solution t should exceed that of solution b")
+            # Load warm start variables
+            for j in p['J']:
+                for k in vp['K^A'][j]:
+                    warm_start['f(measure)'][j, k] = model.f_value[j, k].value
+                    for l in range(q['r'][j, k]):
+                        warm_start['lambda'][j, k, l] = model.lam[j, k, l].value
+                        if l < q['r'][j, k] - 1:
+                            warm_start['y'][j, k, l] = round(model.y[j, k, l].value)
 
-    # Variables
-    model.afsc_objective_weight = Var(model.J, model.K, doc="new weight on objective k for afsc j",
-                                      domain=PositiveReals)
+            # Return the "warm start" dictionary
+            return warm_start
 
-    def afsc_objective_weights_rule(model, j):
-        return sum(model.afsc_objective_weight[j, k] for k in model.K_A[j]) == 1
+        warm_start = None  # Empty dictionary
+        if mdl_p["obtain_warm_start_variables"]:
+            warm_start = obtain_warm_start_variables()
 
-    model.con_afsc_objective_weights = Constraint(model.J, rule=afsc_objective_weights_rule)
+        # Return solution, X matrix, and "warm start" dictionary
+        return solution.astype(int), x, warm_start
 
-    def delta_rule(model):
-        return (model.afscs_overall_weight * sum(
-            model.afsc_weight[j] * sum(
-                model.afsc_objective_weight[j, k] * model.afsc_objective_value_t[j, k] for k in model.K_A[j])
-            for j in model.J) + model.cadets_overall_weight * sum(
-            model.cadet_weight[i] * model.cadet_value_t[i] for i in model.I)) - (model.afscs_overall_weight * sum(
-            model.afsc_weight[j] * sum(
-                model.afsc_objective_weight[j, k] * model.afsc_objective_value_b[j, k] for k in model.K_A[j])
-            for j in model.J) + model.cadets_overall_weight * sum(
-            model.cadet_weight[i] * model.cadet_value_b[i] for i in model.I)) == model.delta
-
-    model.con_delta = Constraint(rule=delta_rule)
-
-    # Objective Function
-    def objective_rule(model):
-        return sum(sum((model.afsc_objective_weight[j, k] -
-                        model.afsc_objective_weight_b[j, k]) ** 2 for k in model.K_A[j]) for j in model.J)
-
-    model.objective = Objective(rule=objective_rule, sense=minimize, doc='Define objective function')
-
-    return model
-
-
-def x_to_solution_initialization(parameters, value_parameters, measures, values, solver_name="cbc"):
-    """
-    This procedure takes the values and measures of a solution, along with other model parameters, and then returns
-    the value function variables used to initialize a VFT pyomo model. This is meant to
-    initialize the exact VFT model with an approximate solution
-    :param solver_name: name of solver
-    :param executable: optional executable path
-    :param provide_executable: if we want to use the "solver" folder for an executable
-    :param measures: AFSC objective measures
-    :param values: AFSC objective values
-    :param parameters: cadet/AFSC parameters
-    :param value_parameters: value parameters
-    :return: lam, y
-    """
-
-    # Shorthand
-    p = parameters
-    vp = value_parameters
-
-    # Set Definitions
-    M = parameters['M']  # number of afscs
-    O = value_parameters['O']  # number of objectives
-    J = parameters['J']  # set of afscs
-    K = range(O)  # set of objectives
-
-    # Value Function Parameters
-    r = [[len(value_parameters['a'][j][k]) for k in vp['K']] for j in J]  # number of breakpoints
-    L = [[list(range(r[j][k])) for k in K] for j in J]  # set of breakpoints
-    a = [[[value_parameters['a'][j][k][l] for l in L[j][k]] for k in K] for j in J]  # breakpoints
-    f = [[[value_parameters['f^hat'][j][k][l] for l in L[j][k]] for k in K] for j in J]  # values of bps
-    r = np.array(r)
-    L = np.array(L)
-    a = np.array(a)
-    f = np.array(f)
-
-    max_L = 0
-    for j in J:
-        for k in vp['K^A'][j]:
-            if len(L[j][k]) > max_L:
-                max_L = int(len(L[j][k]))
-            # Add an extra breakpoint so we can capture more possible values
-            last_a = a[j][k][r[j][k] - 1]
-            last_f = f[j][k][r[j][k] - 1]
-            a[j][k].append(last_a * 1000)  # arbitrarily large number
-            f[j][k].append(last_f)
-            L[j][k].append(r[j][k])
-            r[j][k] += 1
-
-    model = ConcreteModel()
-
-    # Variables
-    model.lam = Var(((j, k, l) for j in J for k in vp['K^A'][j] for l in L[j, k]))
-    model.y = Var(((j, k, l) for j in J for k in vp['K^A'][j] for l in range(0, r[j, k] - 1)), within=Binary)
-
-    # Objective Constraints
-    model.measure_vf_constraints = ConstraintList()
-    model.value_vf_constraints = ConstraintList()
-    model.lambda_y_constraint1 = ConstraintList()
-    model.lambda_y_constraint2 = ConstraintList()
-    model.lambda_y_constraint3 = ConstraintList()
-    model.y_sum_constraint = ConstraintList()
-    model.lambda_sum_constraint = ConstraintList()
-    model.lambda_positive = ConstraintList()
-
-    for j in J:
-        for k in vp['K^A'][j]:
-
-            model.measure_vf_constraints.add(expr=measures[j, k] == np.sum(  # Measure Constraint for Value Function
-                a[j, k][l] * model.lam[j, k, l] for l in L[j, k]))
-            model.value_vf_constraints.add(expr=values[j, k] == np.sum(  # Value Constraint for Value Function
-                f[j, k][l] * model.lam[j, k, l] for l in L[j, k]))
-            model.lambda_y_constraint1.add(expr=model.lam[j, k, 0] <= model.y[j, k, 0])
-            model.lambda_y_constraint3.add(expr=model.lam[j, k, r[j, k] - 1] <= model.y[j, k, r[j, k] - 2])
-            if r[j, k] > 2:
-                for l in range(1, r[j, k] - 1, 1):
-                    model.lambda_y_constraint2.add(expr=model.lam[j, k, l] <= model.y[j, k, l - 1] + model.y[j, k, l])
-            model.y_sum_constraint.add(expr=np.sum(model.y[j, k, l] for l in range(0, r[j, k] - 1, 1)) == 1)
-            model.lambda_sum_constraint.add(expr=np.sum(model.lam[j, k, l] for l in L[j, k]) == 1)
-            for l in L[j, k]:
-                model.lambda_positive.add(expr=model.lam[j, k, l] >= 0)
-
-    def objective_function(model):
-        return 5  # arbitrary objective function just to get solution that meets the constraints
-
-    model.objective = Objective(rule=objective_function, sense=maximize)
-    model = solve_pyomo_model(model, solver_name)
-
-    # Load model variables
-    lam = np.zeros([M, O, max_L + 1])
-    y = np.zeros([M, O, max_L + 1]).astype(int)
-    for j in p['J']:
-        for k in vp['K^A'][j]:
-            for l in L[j][k]:
-                lam[j, k, l] = model.lam[j, k, l].value
-                if l < r[j][k] - 1:
-                    y[j, k, l] = round(model.y[j, k, l].value)
-    return lam, y

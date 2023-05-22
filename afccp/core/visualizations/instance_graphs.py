@@ -9,408 +9,450 @@ from afccp.core.handling.data_handling import get_utility_preferences
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl
-
 mpl.rc('font', family='Times New Roman')
 
 
-def data_graph(instance):
-    """
-    Creates the fixed parameter data plots. These figures show the characteristics of the cadets as they pertain
-    to each AFSC as well as each AFSC objective
-    :return: figure
-    """
+class AFSCsChart:
+    def __init__(self, instance):
+        """
+        This is a class dedicated to creating "AFSCs Charts" which are all charts
+        that include AFSCs on the x-axis. This is meant to condense the amount of code and increase
+        read-ability of the various kinds of charts.
+        """
 
-    # Shorthand
-    ip = instance.plt_p
-    p = instance.parameters
+        # Load attributes
+        self.parameters = instance.parameters
+        self.value_parameters, self.vp_name = instance.value_parameters, instance.vp_name
+        self.ip = instance.plt_p  # "instance plot parameters"
+        self.metrics, self.solution, self.solution_name = instance.metrics, instance.solution, instance.solution_name
+        self.data_name, self.data_version = instance.data_name, instance.data_version
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=ip['figsize'], facecolor=ip['facecolor'], tight_layout=True, dpi=ip['dpi'])
+        # Dictionaries of instance components (sets of value parameters, solution, solution metrics)
+        self.vp_dict, self.solution_dict, self.metrics_dict = \
+            instance.vp_dict, instance.solution_dict, instance.metrics_dict
 
-    # Load the data
-    eligible_count = np.array([len(p['I^E'][j]) for j in range(p['M'])])
+        # Initialize the matplotlib figure/axes
+        self.fig, self.ax = plt.subplots(figsize=self.ip['figsize'], facecolor=self.ip['facecolor'], tight_layout=True,
+                                         dpi=self.ip['dpi'])
 
-    # Get applicable AFSCs
-    indices = np.where(eligible_count <= ip["eligibility_limit"])[0]
-    afscs = p['afscs'][indices]
-    M = len(afscs)
+        # This is going to be a dictionary of all the various chart-specific components we need
+        self.c = {"afsc_indices": np.where(self.parameters["num_eligible"] <= self.ip["eligibility_limit"])[0],
+                  "add_legend": False}
+        self.c["afscs"] = self.parameters["afscs"][self.c["afsc_indices"]]
+        self.c["M"] = len(self.c["afscs"])
 
-    # We can skip AFSCs
-    if ip['skip_afscs']:
-        tick_indices = np.arange(1, M, 2).astype(int)
-    else:
-        tick_indices = np.arange(M).astype(int)
+        # If we skip AFSCs
+        if self.ip["skip_afscs"]:
+            self.c["tick_indices"] = np.arange(1, self.c["M"], 2).astype(int)
+        else:
+            self.c["tick_indices"] = np.arange(self.c["M"]).astype(int)
 
-    # Create figures
-    add_legend = False
-    if ip['data_graph'] in ['Average Merit', 'USAFA Proportion', 'Average Utility']:
+        # Where to save the chart
+        self.paths = {"Data": instance.export_paths["Analysis & Results"] + "Data Charts/",
+                      "Results": instance.export_paths["Analysis & Results"] + "Results Charts/"}
 
-        # Get correct metric
-        if ip['data_graph'] == 'Average Merit':
-            metric = np.array([np.mean(p['merit'][p['I^E'][j]]) for j in indices])
+    def build(self, chart_type="Data", printing=True):
+        """
+        Builds the specific chart based on what the user passes within the "instance plot parameters" (ip)
+        """
+        # Determine which chart to build
+        if chart_type == "Data":
+            if self.ip['data_graph'] in ['Average Merit', 'USAFA Proportion', 'Average Utility']:
+                self.data_average_chart()
+            elif self.ip["data_graph"] == "AFOCD Data":
+                self.data_afocd_chart()
+            elif self.ip["data_graph"] == "Cadet Preference Analysis":
+                self.data_preference_chart()
+            elif self.ip["data_graph"] == "Eligible Quota":
+                self.data_quota_chart()
+
+            # Get filename
+            if self.ip["filename"] is None:
+                self.ip["filename"] = \
+                    self.data_name + " (" + self.data_version + ") " + self.ip["data_graph"] + " (Data).png"
+
+        elif chart_type == "Results":
+
+            # Get filename
+            if self.ip["filename"] is None:
+                self.ip["filename"] = \
+                    self.data_name + " (" + self.data_version + ") " + self.ip["data_graph"] + " (Results).png"
+        else:
+            raise ValueError("Error. Invalid AFSC 'main' chart type value of '" +
+                             chart_type + "'. Valid inputs are 'Data' or 'Results'.")
+
+        # Display title
+        if self.ip['display_title']:
+            self.fig.suptitle(self.ip['title'], fontsize=self.ip['title_size'])
+
+        # Labels
+        self.ax.set_ylabel(self.c["y_label"])
+        self.ax.yaxis.label.set_size(self.ip['label_size'])
+        self.ax.set_xlabel('AFSCs')
+        self.ax.xaxis.label.set_size(self.ip['label_size'])
+
+        # X axis
+        self.ax.tick_params(axis='x', labelsize=self.ip['afsc_tick_size'])
+        self.ax.set_xticklabels(self.c["afscs"][self.c["tick_indices"]], rotation=self.ip['afsc_rotation'])
+        self.ax.set_xticks(self.c["tick_indices"])
+        self.ax.set(xlim=(-0.8, self.c["M"]))
+
+        # Y axis
+        self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
+
+        # Legend
+        if self.c["add_legend"]:
+            self.ax.legend(handles=self.c["legend_elements"], edgecolor='black', loc="upper right",
+                           fontsize=self.ip['legend_size'], ncol=1, labelspacing=1, handlelength=0.8, handletextpad=0.2,
+                           borderpad=0.2, handleheight=2)
+
+        # Save the chart
+        if self.ip['save']:
+            self.fig.savefig(self.paths[chart_type] + self.ip["filename"])
+
+            if printing:
+                print("Saved", self.ip["filename"], "Chart to " + self.paths[chart_type] + ".")
+        else:
+            if printing:
+                print("Created", self.ip["filename"], "Chart.")
+
+        # Return the chart
+        return self.fig
+
+    def data_average_chart(self):
+        """
+        This method builds the "Average Merit", "USAFA Proportion", and "Average Utility" data graph charts. They are
+        all in a very similar format and are therefore combined
+        """
+
+        # Shorthand
+        p = self.parameters
+
+        # Get correct metrics and targets
+        if self.ip['data_graph'] == "Average Merit":
+            metric = np.array([np.mean(p['merit'][p['I^E'][j]]) for j in self.c["afsc_indices"]])
             target = 0.5
-        elif ip['data_graph'] == 'USAFA Proportion':
-            metric = np.array([len(p['I^D'][ip['data_graph']][j]) / len(p['I^E'][j]) for j in indices])
+        elif self.ip['data_graph'] == 'USAFA Proportion':
+            metric = np.array([len(p['I^D']['USAFA Proportion'][j]) / len(p['I^E'][j]) for j in self.c["afsc_indices"]])
             target = p['usafa_proportion']
         else:
-            if ip["eligibility"]:
-                metric = np.array([np.mean(p['utility'][p['I^E'][j], j]) for j in indices])
+            if self.ip["eligibility"]:
+                metric = np.array([np.mean(p['utility'][p['I^E'][j], j]) for j in self.c["afsc_indices"]])
             else:
-                metric = np.array([np.mean(p['utility'][:, j]) for j in indices])
+                metric = np.array([np.mean(p['utility'][:, j]) for j in self.c["afsc_indices"]])
             target = None
 
-        # Bar Chart
-        ax.bar(afscs, metric, color=ip["bar_color"], alpha=ip["alpha"], edgecolor='black')
+        # Axis Adjustments
+        self.ax.set(ylim=(0, 1))
 
+        # Bar Chart
+        self.ax.bar(self.c['afscs'], metric, color=self.ip["bar_color"], alpha=self.ip["alpha"], edgecolor='black')
+
+        # Add a "target" line
         if target is not None:
-            ax.axhline(y=target, color='black', linestyle='--', alpha=ip["alpha"])
+            self.ax.axhline(y=target, color='black', linestyle='--', alpha=self.ip["alpha"])
 
-        # Get correct text
-        y_label = ip['data_graph']
-        if ip['title'] is None:
-            ip['title'] = ip['data_graph'] + ' Across Eligible Cadets for AFSCs with less than ' + \
-                          str(ip['eligibility_limit']) + ' Eligible Cadets'
-            if ip['data_graph'] == 'Average Utility' and not ip['eligibility']:
-                ip['title'] = ip['data_graph'] + ' Across All Cadets for AFSCs with less than ' + \
-                              str(ip['eligibility_limit']) + ' Eligible Cadets'
+        # Get correct label, title
+        self.c['y_label'] = self.ip['data_graph']
+        if self.ip['title'] is None:
+            self.ip['title'] = self.ip['data_graph'] + ' Across Eligible Cadets for AFSCs with <= ' + \
+                          str(self.ip['eligibility_limit']) + ' Eligible Cadets'
+            if self.ip['data_graph'] == 'Average Utility' and not self.ip['eligibility']:
+                self.ip['title'] = self.ip['data_graph'] + ' Across All Cadets for AFSCs with <= ' + \
+                              str(self.ip['eligibility_limit']) + ' Eligible Cadets'
 
-    elif ip['data_graph'] == 'AFOCD Data':
+    def data_afocd_chart(self):
+        """
+        This method builds the "AFOCD Data" data graph chart.
+        """
+
+        # Shorthand
+        p = self.parameters
 
         # Legend
-        add_legend = True
-        legend_elements = [Patch(facecolor=ip["bar_colors"]["Permitted"], label='Permitted', edgecolor='black'),
-                           Patch(facecolor=ip["bar_colors"]["Desired"], label='Desired', edgecolor='black'),
-                           Patch(facecolor=ip["bar_colors"]["Mandatory"], label='Mandatory', edgecolor='black')]
+        self.c["add_legend"] = True
+        self.c["legend_elements"] = [
+            Patch(facecolor=self.ip["bar_colors"]["Permitted"], label='Permitted', edgecolor='black'),
+            Patch(facecolor=self.ip["bar_colors"]["Desired"], label='Desired', edgecolor='black'),
+            Patch(facecolor=self.ip["bar_colors"]["Mandatory"], label='Mandatory', edgecolor='black')]
 
         # Get metrics
-        mandatory_count = np.array([np.sum(p['mandatory'][:, j]) for j in indices])
-        desired_count = np.array([np.sum(p['desired'][:, j]) for j in indices])
-        permitted_count = np.array([np.sum(p['permitted'][:, j]) for j in indices])
+        mandatory_count = np.array([np.sum(p['mandatory'][:, j]) for j in self.c["afsc_indices"]])
+        desired_count = np.array([np.sum(p['desired'][:, j]) for j in self.c["afsc_indices"]])
+        permitted_count = np.array([np.sum(p['permitted'][:, j]) for j in self.c["afsc_indices"]])
 
         # Bar Chart
-        ax.bar(afscs, mandatory_count, color=ip["bar_colors"]["Mandatory"], edgecolor='black')
-        ax.bar(afscs, desired_count, bottom=mandatory_count, color=ip["bar_colors"]["Desired"], edgecolor='black')
-        ax.bar(afscs, permitted_count, bottom=mandatory_count + desired_count, color=ip["bar_colors"]["Permitted"],
-               edgecolor='black')
+        self.ax.bar(self.c["afscs"], mandatory_count, color=self.ip["bar_colors"]["Mandatory"], edgecolor='black')
+        self.ax.bar(self.c["afscs"], desired_count, bottom=mandatory_count,
+                    color=self.ip["bar_colors"]["Desired"], edgecolor='black')
+        self.ax.bar(self.c["afscs"], permitted_count, bottom=mandatory_count + desired_count,
+                    color=self.ip["bar_colors"]["Permitted"], edgecolor='black')
 
         # Axis Adjustments
-        ax.set(ylim=(0, ip['eligibility_limit'] + ip['eligibility_limit'] / 100))
+        self.ax.set(ylim=(0, self.ip['eligibility_limit'] + self.ip['eligibility_limit'] / 100))
 
         # Get correct text
-        y_label = "Number of Cadets"
-        if ip['title'] is None:
-            ip['title'] = 'AFOCD Degree Tier Breakdown for AFSCs with less than ' + \
-                          str(ip['eligibility_limit']) + ' Eligible Cadets'
+        self.c["y_label"] = "Number of Cadets"
+        if self.ip['title'] is None:
+            self.ip['title'] = 'AFOCD Degree Tier Breakdown for AFSCs with <= ' + \
+                               str(self.ip['eligibility_limit']) + ' Eligible Cadets'
 
-    elif ip['data_graph'] == 'Cadet Preference':
+    def data_preference_chart(self):
+        """
+        This method generates the "Cadet Preference" charts based on the version
+        specified
+        """
 
-        # Legend
-        add_legend = True
-
-        # Convert utility matrix to utility columns
-        preferences, utilities_array = get_utility_preferences(p)
-
-        # Counts
-        top_3_count = np.zeros(M)
-        next_3_count = np.zeros(M)
-
-        for i in p["I"]:
-            for j in p["J"]:
-                afsc = p["afscs"][j]
-                if afsc in preferences[i, 0:3]:
-                    top_3_count[j] += 1
-                elif afsc in preferences[i, 3:6]:
-                    next_3_count[j] += 1
-
-        # Get the title and filename
-        ip["title"] = "Cadet Preferences Placed on Each AFSC (Before Match)"
-        ip["filename"] = "1_Cadet_Preference_Choices_Placed_Across_AFSCs"
+        # Shorthand
+        p = self.parameters
 
         # Legend
-        if ip["version"] is None:
-            legend_elements = [Patch(facecolor=ip['bar_colors']["top_choices"], label='Top 3 Choices',
-                                     edgecolor='black'),
-                               Patch(facecolor=ip['bar_colors']["mid_choices"],
-                                     label='Next 3 Choices', edgecolor='black')]
+        self.c["add_legend"] = True
 
-            # Bar Chart
-            ax.bar(afscs, next_3_count, color=ip['bar_colors']["mid_choices"], edgecolor='black')
-            ax.bar(afscs, top_3_count, bottom=next_3_count, color=ip['bar_colors']["top_choices"],
-                   edgecolor='black')
+        # Choice Counts
+        top_3_count = np.array([sum(p["Choice Count"][choice][j] for choice in [0, 1, 2]) for j in p["J"]])
+        next_3_count = np.array([sum(p["Choice Count"][choice][j] for choice in [3, 4, 5]) for j in p["J"]])
 
-            y_axis_count = top_3_count + next_3_count
-            y_max = np.max(y_axis_count)
-
-        elif ip["version"] == "Top 3":
-            legend_elements = [Patch(facecolor=ip['bar_colors']["top_choices"], label='Top 3 Choices',
-                                     edgecolor='black')]
-            ip["title"] = "Cadet Top 3 Preferences Placed on Each AFSC (Before Match)"
-            ip["filename"] = "2_Cadet_Preference_Top3_Choices_Placed_Across_AFSCs"
-
-            # Bar Chart
-            ax.bar(afscs, top_3_count, color=ip['bar_colors']["top_choices"], edgecolor='black')
-
-            y_axis_count = top_3_count
-            y_max = np.max(y_axis_count)
-
-        else:
-            raise ValueError("Version '" + str(ip["version"]) + "' is not valid for Preference Data graph.")
-
-        # Axis Adjustments
-        ax.set(ylim=(0, y_max * ip["y_max"]))
-
-        # Get correct text
-        y_label = "Number of Cadets"
-        if ip["solution_in_title"]:
-            ip['title'] = ip['title']
-
-    elif ip['data_graph'] == 'Cadet Preference Analysis':
-
-        # Legend
-        add_legend = True
-
-        # Convert utility matrix to utility columns
-        preferences, utilities_array = get_utility_preferences(p)
-
-        # Counts
-        top_3_count = np.zeros(M)
-        eligible_pref_count = np.zeros(M)
-        pref_cadets = {}
-        cadets = {}
+        # Sets of cadets that have the AFSC in their top 3 choices and are eligible for the AFSC
+        top_3_cadets = {}
+        top_3_eligible_cadets = {}
         for j in p["J"]:
-
-            afsc = p["afscs"][j]
-            pref_cadets[j] = []  # List of cadets that have this AFSC in their top 3 choices
-            cadets[j] = []  # List of cadets that have this AFSC in their top 3 choices and are also eligible for it
+            top_3_cadets[j] = []
+            top_3_eligible_cadets[j] = []
             for i in p["I"]:
-                if afsc in preferences[i, 0:3]:
-                    top_3_count[j] += 1
-                    pref_cadets[j].append(i)
+                for choice in [0, 1, 2]:
+                    if i in p["I^Choice"][choice][j]:
+                        top_3_cadets[j].append(i)
+                        if i in p["I^E"][j]:
+                            top_3_eligible_cadets[j].append(i)
+            top_3_cadets[j] = np.array(top_3_cadets[j])
+            top_3_eligible_cadets[j] = np.array(top_3_eligible_cadets[j])
 
-                    # If the cadet is eligible for the AFSC, we add them to this list
-                    if p["ineligible"][i, j] == 0:
-                        cadets[j].append(i)
+        # AFOCD metrics
+        mandatory_count = np.array([np.sum(p['mandatory'][top_3_cadets[j], j]) for j in p["J"]])
+        desired_count = np.array([np.sum(p['desired'][top_3_cadets[j], j]) for j in p["J"]])
+        permitted_count = np.array([np.sum(p['permitted'][top_3_cadets[j], j]) for j in p["J"]])
+        ineligible_count = np.array([np.sum(p['ineligible'][top_3_cadets[j], j]) for j in p["J"]])
 
-            # Convert to numpy arrays
-            pref_cadets[j] = np.array(pref_cadets[j])
-            cadets[j] = np.array(cadets[j])
-            eligible_pref_count[j] = len(cadets[j])
-
-        # Used for the y-axis
-        y_max = np.max(top_3_count)
-
-        # Get the title and filename
-        ip["title"] = "Cadet Degree Eligibility of Preferred Cadets on Each AFSC (Before Match)"
-        ip["filename"] = "3_Cadet_Degree_Eligibility_Preference_Cadets_Across_AFSCs"
-
-        # Get metrics
-        mandatory_count = np.array([np.sum(p['mandatory'][pref_cadets[j], j]) for j in p["J"]])
-        desired_count = np.array([np.sum(p['desired'][pref_cadets[j], j]) for j in p["J"]])
-        permitted_count = np.array([np.sum(p['permitted'][pref_cadets[j], j]) for j in p["J"]])
-        ineligible_count = np.array([np.sum(p['ineligible'][pref_cadets[j], j]) for j in p["J"]])
-
-        # Legend
-        if ip["version"] is None:
-
-            # Legend
-            legend_elements = [Patch(facecolor=ip['bar_colors'][objective], label=objective) for
-                               objective in ["Ineligible", "Permitted", "Desired", "Mandatory"]]
+        # Version 1
+        if self.ip["version"] == "1":
+            self.c["legend_elements"] = [
+                Patch(facecolor=self.ip['bar_colors']["top_choices"], label='Top 3 Choices', edgecolor='black'),
+                Patch(facecolor=self.ip['bar_colors']["mid_choices"], label='Next 3 Choices', edgecolor='black')]
 
             # Bar Chart
-            ax.bar(afscs, mandatory_count, color=ip['bar_colors']["Mandatory"], edgecolor='black')
-            ax.bar(afscs, desired_count, bottom=mandatory_count, color=ip['bar_colors']["Desired"],
-                   edgecolor='black')
-            ax.bar(afscs, permitted_count, bottom=desired_count + mandatory_count, color=ip['bar_colors']["Permitted"],
-                   edgecolor='black')
-            ax.bar(afscs, ineligible_count, bottom=permitted_count + desired_count + mandatory_count,
-                   color=ip['bar_colors']["Ineligible"], edgecolor='black')
+            self.ax.bar(self.c["afscs"], next_3_count, color=self.ip['bar_colors']["mid_choices"], edgecolor='black')
+            self.ax.bar(self.c["afscs"], top_3_count, bottom=next_3_count, color=self.ip['bar_colors']["top_choices"],
+                        edgecolor='black')
 
-        elif ip["version"] == "AFOCD_Eligible":
+            # Y max used for axis adjustments
+            self.c["y_max"] = np.max(top_3_count + next_3_count)
 
-            # Legend
-            legend_elements = [Patch(facecolor=ip['bar_colors'][objective], label=objective) for
-                               objective in ["Permitted", "Desired", "Mandatory"]]
+            if self.ip['title'] is None:
+                self.ip['title'] = "Cadet Preferences Placed on Each AFSC (Before Match)"
+
+        # Version 2
+        elif self.ip["version"] == "2":
+            self.c["legend_elements"] = [
+                Patch(facecolor=self.ip['bar_colors']["top_choices"], label='Top 3 Choices', edgecolor='black')]
 
             # Bar Chart
-            ax.bar(afscs, mandatory_count, color=ip['bar_colors']["Mandatory"], edgecolor='black')
-            ax.bar(afscs, desired_count, bottom=mandatory_count, color=ip['bar_colors']["Desired"],
+            self.ax.bar(self.c["afscs"], top_3_count, color=self.ip['bar_colors']["top_choices"], edgecolor='black')
+
+            # Y max used for axis adjustments
+            self.c["y_max"] = np.max(top_3_count)
+
+            if self.ip['title'] is None:
+                self.ip['title'] = "Cadet Top 3 Preferences Placed on Each AFSC (Before Match)"
+
+        # Version 3
+        elif self.ip["version"] == "3":
+            self.c["legend_elements"] = [Patch(facecolor=self.ip['bar_colors'][objective], label=objective) for
+                                         objective in ["Ineligible", "Permitted", "Desired", "Mandatory"]]
+
+            # Bar Chart
+            self.ax.bar(self.c["afscs"], mandatory_count, color=self.ip['bar_colors']["Mandatory"], edgecolor='black')
+            self.ax.bar(self.c["afscs"], desired_count, bottom=mandatory_count, color=self.ip['bar_colors']["Desired"],
                    edgecolor='black')
-            ax.bar(afscs, permitted_count, bottom=desired_count + mandatory_count, color=ip['bar_colors']["Permitted"],
-                   edgecolor='black')
+            self.ax.bar(self.c["afscs"], permitted_count, bottom=desired_count + mandatory_count,
+                        color=self.ip['bar_colors']["Permitted"], edgecolor='black')
+            self.ax.bar(self.c["afscs"], ineligible_count, bottom=permitted_count + desired_count + mandatory_count,
+                   color=self.ip['bar_colors']["Ineligible"], edgecolor='black')
 
-            ip["filename"] = "4_Cadet_Degree_Preference_Cadets_Across_AFSCs"
+            # Y max used for axis adjustments
+            self.c["y_max"] = np.max(top_3_count)
 
-        elif ip["version"] == "Merit":
+            if self.ip['title'] is None:
+                self.ip['title'] = "Cadet Degree Eligibility of Preferred Cadets on Each AFSC (Before Match)"
 
-            add_legend = False
+        # Version 4
+        elif self.ip["version"] == "4":
+            self.c["legend_elements"] = [Patch(facecolor=self.ip['bar_colors'][objective], label=objective) for
+                                         objective in ["Permitted", "Desired", "Mandatory"]]
 
+            # Bar Chart
+            self.ax.bar(self.c["afscs"], mandatory_count, color=self.ip['bar_colors']["Mandatory"],
+                        edgecolor='black')
+            self.ax.bar(self.c["afscs"], desired_count, bottom=mandatory_count,
+                        color=self.ip['bar_colors']["Desired"],
+                        edgecolor='black')
+            self.ax.bar(self.c["afscs"], permitted_count, bottom=desired_count + mandatory_count,
+                        color=self.ip['bar_colors']["Permitted"], edgecolor='black')
+
+            # Y max used for axis adjustments
+            self.c["y_max"] = np.max(top_3_count)
+
+            if self.ip['title'] is None:
+                self.ip['title'] = "Cadet Degree Eligibility of Preferred Cadets on Each AFSC (Before Match)"
+
+        # Version 5
+        elif self.ip["version"] == "5":
+            self.c["add_legend"] = False
+
+            # Build a gradient
             for j in p["J"]:
-                merit = p["merit"][cadets[j]]
+                merit = p["merit"][top_3_eligible_cadets[j]]
                 uq = np.unique(merit)
                 count_sum = 0
                 for val in uq:
                     count = len(np.where(merit == val)[0])
                     c = str(val)  # Grayscale
-                    ax.bar([j], count, bottom=count_sum, color=c, zorder=2)
+                    self.ax.bar([j], count, bottom=count_sum, color=c, zorder=2)
                     count_sum += count
 
                 # Add the text and an outline
-                ax.text(j - 0.3, eligible_pref_count[j] + 2, round(np.mean(merit), 2))
-                ax.bar([j], eligible_pref_count[j], color="black", zorder=1, edgecolor="black")
+                self.ax.text(j, len(top_3_eligible_cadets[j]) + 4, round(np.mean(merit), 2),
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+                self.ax.bar([j], len(top_3_eligible_cadets[j]), color="black", zorder=1, edgecolor="black")
+
+            # Y max used for axis adjustments
+            self.c["y_max"] = np.max(top_3_count)
 
             # DIY Colorbar
-            h = (100 / 245) * y_max
+            h = (100 / 245) * self.c["y_max"]
             w1 = 0.8
             w2 = 0.74
+            current_height = (150 / 245) * self.c["y_max"]
+            self.ax.add_patch(Rectangle((self.c["M"] - 2, current_height), w1, h, edgecolor='black', facecolor='black',
+                                        fill=True, lw=2))
+            self.ax.text(self.c["M"] - 3.3, (245 / 245) * self.c["y_max"], '100%', fontsize=self.ip["text_size"])
+            self.ax.text(self.c["M"] - 2.8, current_height, '0%', fontsize=self.ip["text_size"])
+            self.ax.text((self.c["M"] - 0.95), (166 / 245) * self.c["y_max"], 'Cadet Percentile',
+                         fontsize=self.ip["text_size"], rotation=270)
             vals = np.arange(101) / 100
-            current_height = (150 / 245) * y_max
-            ax.add_patch(Rectangle((M - 2, current_height), w1, h, edgecolor='black', facecolor='black',
-                                   fill=True, lw=2))
-            ax.text(M - 3.3, (245 / 245) * y_max, '100%', fontsize=ip["xaxis_tick_size"])
-            ax.text(M - 2.8, current_height, '0%', fontsize=ip["xaxis_tick_size"])
-            ax.text((M - 0.95), (166 / 245) * y_max, 'Cadet Percentile', fontsize=ip["xaxis_tick_size"],
-                    rotation=270)
             for val in vals:
                 c = str(val)  # Grayscale
-                ax.add_patch(Rectangle((M - 1.95, current_height), w2, h / 101, color=c, fill=True))
+                self.ax.add_patch(Rectangle((self.c["M"] - 1.95, current_height), w2, h / 101, color=c, fill=True))
                 current_height += h / 101
 
-            ip["title"] = "Merit of Preferred Cadets on Each AFSC (Before Match)"
-            ip["filename"] = "5_Cadet_Merit_Preference_Cadets_Across_AFSCs"
+            # Y max used for axis adjustments
+            self.c["y_max"] = np.max(top_3_count)
 
-        elif ip["version"] == "USAFA":
+            if self.ip['title'] is None:
+                self.ip['title'] = "Merit of Preferred Cadets on Each AFSC (Before Match)"
 
-            # Legend
-            legend_elements = [Patch(facecolor=ip['bar_colors']["usafa"], label='USAFA'),
-                               Patch(facecolor=ip['bar_colors']["rotc"], label='ROTC'),
-                               mlines.Line2D([], [], color="red", linestyle='-', linewidth=3, label="Baseline")]
+        # Version 6
+        elif self.ip["version"] == "6":
+            self.c["legend_elements"] = [
+                Patch(facecolor=self.ip['bar_colors']["usafa"], label='USAFA'),
+                Patch(facecolor=self.ip['bar_colors']["rotc"], label='ROTC'),
+                mlines.Line2D([], [], color="red", linestyle='-', linewidth=3, label="Baseline")]
 
-            rotc_baseline = eligible_pref_count - (eligible_pref_count * p["usafa_proportion"])
-
-            usafa_count = np.array([np.sum(p['usafa'][cadets[j]]) for j in p["J"]])
-            rotc_count = np.array([eligible_pref_count[j] - usafa_count[j] for j in p["J"]])
-
-            # Bar Chart
-            ax.bar(afscs, rotc_count, color=ip['bar_colors']["rotc"], edgecolor='black')
-            ax.bar(afscs, usafa_count, bottom=rotc_count, color=ip['bar_colors']["usafa"],
-                   edgecolor='black')
-
-            for j in p["J"]:
-                # Add the PGL lines
-                ax.plot((j - 0.4, j + 0.4), (rotc_baseline[j], rotc_baseline[j]),
-                        color="red", linestyle="-", zorder=2, linewidth=3)
-
-            ip["title"] = "USAFA/ROTC Breakdown of Preferred Cadets on Each AFSC (Before Match)"
-            ip["filename"] = "6_Cadet_USAFA_Preference_Cadets_Across_AFSCs"
-
-        elif ip["version"] == "Gender":
-
-            # Legend
-            legend_elements = [Patch(facecolor=ip['bar_colors']["male"], label='Male'),
-                               Patch(facecolor=ip['bar_colors']["female"], label='Female'),
-                               mlines.Line2D([], [], color="red", linestyle='-', linewidth=3, label="Baseline")]
-
-            female_baseline = eligible_pref_count - (eligible_pref_count * p["male_proportion"])
-
-            male_count = np.array([np.sum(p['male'][cadets[j]]) for j in p["J"]])
-            female_count = np.array([eligible_pref_count[j] - male_count[j] for j in p["J"]])
+            # USAFA/ROTC Numbers
+            rotc_baseline = np.array([len(top_3_eligible_cadets[j]) - (
+                    len(top_3_eligible_cadets[j]) * p["usafa_proportion"]) for j in p["J"]])
+            usafa_count = np.array([np.sum(p['usafa'][top_3_eligible_cadets[j]]) for j in p["J"]])
+            rotc_count = np.array([len(top_3_eligible_cadets[j]) - usafa_count[j] for j in p["J"]])
 
             # Bar Chart
-            ax.bar(afscs, female_count, color=ip['bar_colors']["female"], edgecolor='black')
-            ax.bar(afscs, male_count, bottom=female_count, color=ip['bar_colors']["male"],
-                   edgecolor='black')
+            self.ax.bar(self.c["afscs"], rotc_count, color=self.ip['bar_colors']["rotc"], edgecolor='black')
+            self.ax.bar(self.c["afscs"], usafa_count, bottom=rotc_count, color=self.ip['bar_colors']["usafa"],
+                        edgecolor='black')
 
+            # Add the baseline marks
             for j in p["J"]:
-                # Add the PGL lines
-                ax.plot((j - 0.4, j + 0.4), (female_baseline[j], female_baseline[j]),
+                self.ax.plot((j - 0.4, j + 0.4), (rotc_baseline[j], rotc_baseline[j]),
                         color="red", linestyle="-", zorder=2, linewidth=3)
 
-            ip["title"] = "Male/Female Breakdown of Preferred Cadets on Each AFSC (Before Match)"
-            ip["filename"] = "7_Cadet_Male_Preference_Cadets_Across_AFSCs"
+            # Y max used for axis adjustments
+            self.c["y_max"] = np.max(top_3_count)
+
+            if self.ip['title'] is None:
+                self.ip['title'] = "USAFA/ROTC Breakdown of Preferred Cadets on Each AFSC (Before Match)"
+
+        # Version 7
+        elif self.ip["version"] == "7":
+            self.c["legend_elements"] = [
+                Patch(facecolor=self.ip['bar_colors']["male"], label='Male'),
+                Patch(facecolor=self.ip['bar_colors']["female"], label='Female'),
+                mlines.Line2D([], [], color="red", linestyle='-', linewidth=3, label="Baseline")]
+
+            # USAFA/ROTC Numbers
+            female_baseline = np.array([len(top_3_eligible_cadets[j]) - (
+                    len(top_3_eligible_cadets[j]) * p["male_proportion"]) for j in p["J"]])
+            male_count = np.array([np.sum(p['male'][top_3_eligible_cadets[j]]) for j in p["J"]])
+            female_count = np.array([len(top_3_eligible_cadets[j]) - male_count[j] for j in p["J"]])
+
+            # Bar Chart
+            self.ax.bar(self.c["afscs"], female_count, color=self.ip['bar_colors']["female"], edgecolor='black')
+            self.ax.bar(self.c["afscs"], male_count, bottom=female_count, color=self.ip['bar_colors']["male"],
+                        edgecolor='black')
+
+            # Add the baseline marks
+            for j in p["J"]:
+                self.ax.plot((j - 0.4, j + 0.4), (female_baseline[j], female_baseline[j]),
+                             color="red", linestyle="-", zorder=2, linewidth=3)
+
+            # Y max used for axis adjustments
+            self.c["y_max"] = np.max(top_3_count)
+
+            if self.ip['title'] is None:
+                self.ip['title'] = "Male/Female Breakdown of Preferred Cadets on Each AFSC (Before Match)"
 
         else:
-            raise ValueError("Version '" + str(ip["version"]) + "' is not valid for Preference Analysis Data graph.")
+            raise ValueError("Version '" + str(
+                self.ip["version"]) + "' is not valid for the Cadet Preference Analysis data graph.")
 
         # Axis Adjustments
-        ax.set(ylim=(0, y_max * ip["y_max"]))
+        self.ax.set(ylim=(0, self.c["y_max"] * self.ip["y_max"]))
 
-        # Get correct text
-        y_label = "Number of Cadets"
-        if ip["solution_in_title"]:
-            ip['title'] = ip['title']
+        # Get correct y-label
+        self.c["y_label"] = "Number of Cadets"
 
-    elif ip['data_graph'] == 'Eligible Quota':
+        # Get filename
+        if self.ip["filename"] is None:
+            self.ip["filename"] = self.data_name + " (" + self.data_version + \
+                                  ") Cadet Preference Analysis Version " + self.ip["version"] + " (Data).png"
+
+    def data_quota_chart(self):
+        """
+        This method builds the "Eligible Quota" data graph chart.
+        """
+
+        # Shorthand
+        p = self.parameters
 
         # Legend
-        add_legend = True
-        legend_elements = [Patch(facecolor='blue', label='Eligible Cadets', edgecolor='black'),
-                           Patch(facecolor='black', alpha=0.5, label='AFSC Quota', edgecolor='black')]
+        self.c["add_legend"] = True
+        self.c["legend_elements"] = [Patch(facecolor='blue', label='Eligible Cadets', edgecolor='black'),
+                                     Patch(facecolor='black', alpha=0.5, label='AFSC Quota', edgecolor='black')]
 
         # Get metrics
-        eligible_count = np.array([len(p['I^E'][j]) for j in indices])
-        quota = p['quota'][indices]
+        eligible_count = p["num_eligible"][self.c["afsc_indices"]]
+        quota = p['pgl'][self.c["afsc_indices"]]
 
         # Bar Chart
-        ax.bar(afscs, eligible_count, color='blue', edgecolor='black')
-        ax.bar(afscs, quota, color='black', edgecolor='black', alpha=0.5)
+        self.ax.bar(self.c["afscs"], eligible_count, color='blue', edgecolor='black')
+        self.ax.bar(self.c["afscs"], quota, color='black', edgecolor='black', alpha=0.5)
 
         # Axis Adjustments
-        ax.set(ylim=(0, ip['eligibility_limit'] + ip['eligibility_limit'] / 100))
+        self.ax.set(ylim=(0, self.ip['eligibility_limit'] + self.ip['eligibility_limit'] / 100))
 
         # Get correct text
-        y_label = "Number of Cadets"
-        if ip['title'] is None:
-            ip['title'] = 'Eligible Cadets and Quotas for AFSCs with less than ' + \
-                          str(ip['eligibility_limit']) + ' Eligible Cadets'
-
-    # Display title
-    if ip['display_title']:
-        fig.suptitle(ip['title'], fontsize=ip['title_size'])
-
-    # Labels
-    ax.set_ylabel(y_label)
-    ax.yaxis.label.set_size(ip['label_size'])
-    ax.set_xlabel('AFSCs')
-    ax.xaxis.label.set_size(ip['label_size'])
-
-    # X axis
-    ax.tick_params(axis='x', labelsize=ip['afsc_tick_size'])
-    ax.set_xticklabels(afscs[tick_indices], rotation=ip['afsc_rotation'])
-    ax.set_xticks(tick_indices)
-    ax.set(xlim=(-0.8, M))
-
-    # Y axis
-    ax.tick_params(axis='y', labelsize=ip['yaxis_tick_size'])
-
-    # Legend
-    if add_legend:
-        ax.legend(handles=legend_elements, edgecolor='black', loc="upper right", fontsize=ip['legend_size'], ncol=1,
-                  labelspacing=1, handlelength=0.8, handletextpad=0.2, borderpad=0.2, handleheight=2)
-
-    # Fix Colors
-    if ip['facecolor'] == 'black':
-        ax.set_facecolor('white')
-        ax.yaxis.label.set_color('white')
-        ax.tick_params(axis='x', colors='white')
-        ax.tick_params(axis='y', colors='white')
-        ax.spines['right'].set_color('white')
-        ax.spines['top'].set_color('white')
-        ax.spines['left'].set_color('white')
-        ax.spines['bottom'].set_color('white')
-        if ip['display_title']:
-            fig.suptitle(ip['title'], fontsize=ip['title_size'], color='white')
-
-    # Determine filename
-    if ip["filename"] is None:
-        ip["filename"] = ip["title"]
-
-    # Save the chart
-    if ip['save']:
-        fig.savefig(instance.export_paths["Analysis & Results"] + "/Data Charts/" +
-                    instance.data_name + " " + ip['filename'] + '.png',
-                    bbox_inches='tight')
-
-    return fig
+        self.c["y_label"] = "Number of Cadets"
+        if self.ip['title'] is None:
+            self.ip['title'] = 'Eligible Cadets and Quotas for AFSCs with <= ' + \
+                               str(self.ip['eligibility_limit']) + ' Eligible Cadets'
 
 
 # Value Parameters

@@ -286,11 +286,18 @@ def parameter_sets_additions(parameters):
     p['I^E'] = [np.where(p['eligible'][:, j])[0] for j in p['J']]  # set of cadets that are eligible for AFSC j
 
     # Number of eligible cadets for each AFSC
-    p["num_eligible"] = [len(p['I^E'][j]) for j in p['J']]
+    p["num_eligible"] = np.array([len(p['I^E'][j]) for j in p['J']])
 
     # set of cadets that have placed a preference for AFSC j and are eligible for AFSC j
     non_zero_utils_i = [np.where(p['utility'][:, j] > 0)[0] for j in p['J']]
     p["I^P"] = [np.intersect1d(p['I^E'][j], non_zero_utils_i[j]) for j in p['J']]
+
+    # More cadet preference sets if we have the "cadet preference columns"
+    if "c_preferences" in p:
+        p["I^Choice"] = {choice: [np.where(
+            p["c_preferences"][:, choice] == afsc)[0] for afsc in p["afscs"][:p["M"]]] for choice in range(p["P"])}
+        p["Choice Count"] = {choice: np.array(
+            [len(p["I^Choice"][choice][j]) for j in p["J"]]) for choice in range(p["P"])}
 
     # Add demographic sets if they're included
     p['I^D'] = {}
@@ -368,10 +375,9 @@ def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
     afscs_df = afscs_df.fillna('')
 
     # Initialize dictionary translating 'AFSCs' df columns to their parameter counterparts
-    afsc_columns_to_parameters = {"AFSC": "afscs", "USAFA Target": "usafa_quota", "ROTC Target": "rotc_quota",
-                                  "PGL Target": "pgl", "Estimated": "quota_e", "Combined Target": "quota_e",
-                                  "Real Target": "quota_e", "Desired": "quota_d", "Min": "quota_min",
-                                  "Max": "quota_max"}
+    afsc_columns_to_parameters = {"AFSC": "afscs", "Accessions Group": "acc_grp", "USAFA Target": "usafa_quota",
+                                  "ROTC Target": "rotc_quota", "PGL Target": "pgl", "Estimated": "quota_e",
+                                  "Desired": "quota_d", "Min": "quota_min", "Max": "quota_max"}
 
     # Loop through each column in the 'AFSCs' dataframe to put it into the p dictionary
     for col in afscs_df.columns:
@@ -788,9 +794,9 @@ def export_afscs_data(instance):
     p = instance.parameters
 
     # Initialize dictionary translating AFSC parameters to their "AFSCs" df column counterparts
-    afsc_parameters_to_columns = {"afscs": "AFSC", "usafa_quota": "USAFA Target", "rotc_quota": "ROTC Target",
-                                  "pgl": "PGL Target", "quota_e": "Estimated", "quota_d": "Desired",
-                                  "quota_min": "Min", "quota_max": "Max"}
+    afsc_parameters_to_columns = {"afscs": "AFSC", "acc_grp": "Accessions Group", "usafa_quota": "USAFA Target",
+                                  "rotc_quota": "ROTC Target", "pgl": "PGL Target", "quota_e": "Estimated",
+                                  "quota_d": "Desired", "quota_min": "Min", "quota_max": "Max"}
 
     # Loop through each parameter in the translation dictionary to create dictionary of "AFSCs" columns
     afscs_columns = {}
@@ -986,20 +992,15 @@ def export_value_parameters_data(instance):
         vp_cadet_df[vp_name] = vp["cadet_value_min"]
 
         # Initialize overall vp column dictionary
-        overall_vp_columns = {'VP Name': vp_name, 'Cadets Weight': vp['cadets_overall_weight'],
+        overall_vp_columns = {'VP Name': vp_name,
+                              'Cadets Weight': vp['cadets_overall_weight'],
                               'AFSCs Weight': vp['afscs_overall_weight'],
                               'Cadets Min Value': vp['cadets_overall_value_min'],
                               'AFSCs Min Value': vp['afscs_overall_value_min'],
+                              'Cadet Weight Function': vp['cadet_weight_function'],
                               'AFSC Weight Function': vp['afsc_weight_function'],
-                              'Cadet Weight Function': vp['cadet_weight_function']}
-
-        # Check if other columns are present
-        more_vp_columns = ["USAFA-Constrained AFSCs", "Cadets Top 3 Constraint"]
-        for col in more_vp_columns:
-            if col in vp:
-                overall_vp_columns[col] = vp[col]
-            else:
-                overall_vp_columns[col] = ""
+                              "USAFA-Constrained AFSCs": vp["USAFA-Constrained AFSCs"],
+                              "Cadets Top 3 Constraint": vp["Cadets Top 3 Constraint"]}
 
         # Add the row for this set of value parameters to the overall df
         for col in overall_vp_columns:

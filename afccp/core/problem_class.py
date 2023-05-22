@@ -6,14 +6,19 @@ import os
 import pandas as pd
 import numpy as np
 import math
+import afccp.core.globals
+import afccp.core.handling.simulation_functions
 import afccp.core.handling.value_parameter_handling
 import afccp.core.handling.ccp_helping_functions
 import afccp.core.visualizations.slides
+import afccp.core.visualizations.instance_graphs
 import afccp.core.comprehensive_functions
 import afccp.core.handling.data_processing
 import datetime
 import glob
 import copy
+print("New")
+
 
 # Main Problem Class
 class CadetCareerProblem:
@@ -24,7 +29,7 @@ class CadetCareerProblem:
         instance of the problem that we are solving. Usually a class year, though you can also generate data to solve by
         specifying "Random", "Realistic", or "Perfect".
         :param data_name: The name of the data set. If we want to import data using the data_name, this needs to be
-        the name of the excel file without the .xlsx extension
+        the name of the main instance sub-folder
         :param data_version: A string of some sort that indicates the version of the data we're dealing with. All the
         folders we import/export to will have this designation in parentheses and this is to manage the different
         versions of cadets/AFSCs to mitigate the headache of adjudication and also handle NRL vs All cadet scenarios
@@ -49,10 +54,19 @@ class CadetCareerProblem:
         self.import_paths, self.export_paths = None, None  # Paths to various datasets we can import/export
         self.printing = printing
 
+        # The data variant helps inform how the charts should be constructed
+        if len(data_name) == 1:
+            self.data_variant = "Scrubbed"
+        elif len(data_name) == 4:
+            self.data_variant = "Year"
+        else:
+            self.data_variant = "Generated"
+
         # Instance components (value parameters, solution, solution metrics)
         self.value_parameters, self.vp_name = None, None  # Set of weight and value parameters (and the name)
         self.solution, self.solution_name = None, None  # Array of length N (cadets) of AFSC indices (and the name)
-        self.metrics = None  # Dictionary of solution metrics
+        self.metrics = None # Dictionary of solution metrics
+        self.x = None  # Solution "X" matrix (NxM binary matrix)
 
         # Dictionaries of instance components (sets of value parameters, solution, solution metrics)
         self.vp_dict, self.solution_dict, self.metrics_dict = None, None, None
@@ -68,7 +82,8 @@ class CadetCareerProblem:
 
             # Gather information about the files we're importing and eventually exporting
             self.data_name = data_name
-            self.import_paths, self.export_paths = afccp_dp.initialize_file_information(self.data_name, self.data_version)
+            self.import_paths, self.export_paths = afccp_dp.initialize_file_information(self.data_name,
+                                                                                        self.data_version)
 
             # Print statement
             if self.printing:
@@ -90,6 +105,9 @@ class CadetCareerProblem:
             # Import the "Goal Programming" dataframe (from Lt Rebecca Reynold's thesis)
             if "Goal Programming" in self.import_paths:
                 self.gp_df = afccp.core.globals.import_csv_data(self.import_paths["Goal Programming"])
+            else:  # Default "GP" file
+                self.gp_df = afccp.core.globals.import_csv_data(
+                    afccp.core.globals.paths["support"] + "data/gp_parameters.xlsx")
 
             # Import the "Value Parameters" data dictionary
             self.vp_dict = afccp_dp.import_value_parameters_data(self.import_paths, self.parameters,
@@ -103,9 +121,10 @@ class CadetCareerProblem:
 
             # Error Handling (Must be valid data generation parameter
             if data_name not in ["Random", "Perfect", "Realistic"]:
-                raise ValueError("Error. Instance name '" + data_name + "' is not a valid instance name. Instances must "
-                                                                        "be either generated or imported. "
-                                                                        "(Instance not found in folder).")
+                raise ValueError(
+                    "Error. Instance name '" + data_name + "' is not a valid instance name. Instances must "
+                                                           "be either generated or imported. "
+                                                           "(Instance not found in folder).")
 
             # Determine the name of this instance (Random_1, Random_2, etc.)
             for data_variant in ["Random", "Perfect", "Realistic"]:
@@ -124,6 +143,7 @@ class CadetCareerProblem:
 
             # For now, we can't generate data
             self.parameters = {"N": 10}  # (Just so the below function works)
+            print("Didn't actually generate data yet..")
 
         # Initialize more "functional" parameters
         self.plt_p, self.mdl_p = \
@@ -132,60 +152,86 @@ class CadetCareerProblem:
         if self.printing:
             print("Instance '" + self.data_name + "' initialized.")
 
-    # Observe "Fixed" Data
+    # Method helper functions
+    def reset_functional_parameters(self, p_dict={}):
+        """
+        This method simply "resets" our instance functional parameters and then inputs the "new" ones from
+        the "p_dict". This all happens in-place.
+        """
+        # Shorthand
+        ccp_fns = afccp.core.handling.ccp_helping_functions
+
+        # Reset plot parameters and model parameters
+        self.plt_p, self.mdl_p = ccp_fns.initialize_instance_functional_parameters(self.parameters["N"])
+
+        # Update plot parameters and model parameters
+        for key in p_dict:
+
+            if key in self.plt_p:
+                self.plt_p[key] = p_dict[key]
+            elif key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
+            else:
+                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+    def solution_handling(self, solution, solution_method, x=None):
+        """
+        This method simply determines what to do with the solution that we've generated. I made this method
+        since I had the same few lines of code re-used everywhere and decided to put it in a method.
+        """
+
+        # Set the solution attribute to the instance
+        if self.mdl_p["set_to_instance"]:
+            self.solution = solution
+            self.x = x
+            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
+                self.solution, self.parameters, self.value_parameters, printing=printing)
+
+        # Add solution to solution dictionary
+        if self.mdl_p["add_to_dict"]:
+
+            # Adjust solution method for VFT models
+            if solution_method == "VFT" and self.mdl_p["approximate"]:
+                solution_method = "A-VFT"
+            elif solution_method == "VFT" and not self.mdl_p["approximate"]:
+                solution_method = "E-VFT"
+            self.add_solution_to_dictionary(solution, solution_method=solution_method)
+
+    def error_checking(self, test="None"):
+        """
+        This method is here to test different conditions and raise errors where conditions are not met.
+        """
+
+        if test == "Value Parameters":
+            if self.value_parameters is None:
+                if self.vp_dict is None:
+                    raise ValueError(
+                        "Error. No value parameters detected. You need to import the defaults first by using"
+                        "'instance.import_default_value_parameters()' as you currently do not have a "
+                        "'vp_dict' either.")
+                else:
+                    raise ValueError("Error. No value parameters set. You currently do have a 'vp_dict' and so all you "
+                                     "need to do is run 'instance.set_instance_value_parameters()'. ")
+
+    # Visualizations
     def display_data_graph(self, p_dict={}, printing=None):
         """
         This method plots different aspects of the fixed parameters of the problem instance.
         """
 
-        # Reset title and filename
-        self.plt_p["title"], self.plt_p["filename"] = None, None
-
-        # Update plot parameters if necessary
-        for key in p_dict:
-            if key in self.plt_p:
-                self.plt_p[key] = p_dict[key]
-            else:
-
-                # Exception
-                if key == "graph":
-                    self.plt_p["data_graph"] = p_dict["graph"]
-
-                else:
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
-        self.plt_p = afccp.core.handling.ccp_helping_functions.determine_afsc_plot_details(self)
-
-        # Create the chart
-        chart = afccp.core.visualizations.instance_graphs.data_graph(self)
-
+        # Print statement
         if printing is None:
             printing = self.printing
 
-        if printing:
-            chart.show()
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.plt_p = afccp.core.handling.ccp_helping_functions.determine_afsc_plot_details(self)
 
-        return chart
+        # Initialize the AFSC Chart object
+        afsc_chart = afccp.core.visualizations.instance_graphs.AFSCsChart(self)
 
-    def find_ineligible_cadets(self, solution=None):
-        """
-        This procedure takes in a solution (presumably AFPC solution) and then finds the cadets that are
-        assigned to AFSCs that they are ineligible for. This is used in cases where I didn't have the qual
-        matrix and I had to generate it myself using the 2021 AFOCD. For some of the older years where
-        qualifications were different, this would mean my qual matrix may say that a cadet is ineligible
-        for an AFSC they got. I used this function to tell me how to change the qualifications based on
-        the cadets' CIPs. If no cadets are printed out, then none were ineligible.
-        :param solution: solution vector
-        """
-
-        if solution is None:
-            if self.solution is None:
-                raise ValueError("No solution selected for this problem instance.")
-            else:
-                solution = self.solution
-
-        afccp.core.handling.data_handling.find_solution_ineligibility(self.parameters, solution)
+        # Construct the specific chart
+        return afsc_chart.build(printing=printing)
 
     def display_all_data_graphs(self, p_dict={}, printing=None):
         """
@@ -198,14 +244,17 @@ class CadetCareerProblem:
         if printing:
             print("Saving all data graphs to the corresponding folder...")
 
-        # Loop through each version of each graph
+        # Regular Charts
         charts = []
-        version_list = {"Cadet Preference": [None, "Top 3"], "Cadet Preference Analysis": [None, "AFOCD_Eligible", "Merit",
-                                                                                           "USAFA", "Gender"]}
-        for graph in version_list:
-            for version in version_list[graph]:
-                p_dict["data_graph"], p_dict["version"] = graph, version
-                charts.append(self.display_data_graph(p_dict, printing=printing))
+        for graph in ["Average Utility", "USAFA Proportion", "Average Merit", "AFOCD Data", "Eligible Quota"]:
+            p_dict["data_graph"] = graph
+            charts.append(self.display_data_graph(p_dict, printing=printing))
+
+        # Cadet Preference Analysis Charts
+        p_dict["data_graph"] = "Cadet Preference Analysis"
+        for version in range(1, 8):
+            p_dict["version"] = str(version)
+            charts.append(self.display_data_graph(p_dict, printing=printing))
 
         return charts
 
@@ -227,10 +276,10 @@ class CadetCareerProblem:
         if "cip1" in parameters:
             if "cip2" in parameters:
                 qual_matrix = afccp.core.handling.preprocessing.cip_to_qual_tiers(
-                    parameters["afsc_vector"][:parameters["M"]], parameters['cip1'], cip2=parameters['cip2'])
+                    parameters["afscs"][:parameters["M"]], parameters['cip1'], cip2=parameters['cip2'])
             else:
                 qual_matrix = afccp.core.handling.preprocessing.cip_to_qual_tiers(
-                    parameters["afsc_vector"][:parameters["M"]], parameters['cip1'])
+                    parameters["afscs"][:parameters["M"]], parameters['cip1'])
         else:
             raise ValueError("Error. Need to update the degree tier qualification matrix to include tiers "
                              "('M1' instead of 'M' for example) but don't have CIP codes. Please incorporate this.")
@@ -238,12 +287,12 @@ class CadetCareerProblem:
         # Load data back into parameters
         parameters["qual"] = qual_matrix
         parameters["qual_type"] = "Tiers"
-        parameters["ineligible"] = (np.core.defchararray.find(qual, "I") != -1) * 1
+        parameters["ineligible"] = (np.core.defchararray.find(qual_matrix, "I") != -1) * 1
         parameters["eligible"] = (parameters["ineligible"] == 0) * 1
-        parameters["exception"] = (np.core.defchararray.find(qual, "E") != -1) * 1
+        parameters["exception"] = (np.core.defchararray.find(qual_matrix, "E") != -1) * 1
         for t in [1, 2, 3, 4]:
-            parameters["tier " + str(t)] = (np.core.defchararray.find(qual, str(t)) != -1) * 1
-        parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(parameters)
+            parameters["tier " + str(t)] = (np.core.defchararray.find(qual_matrix, str(t)) != -1) * 1
+        parameters = afccp.core.handling.data_processing.parameter_sets_additions(parameters)
         self.parameters = copy.deepcopy(parameters)
 
     def convert_utilities_to_preferences(self):
@@ -287,14 +336,16 @@ class CadetCareerProblem:
         in the value parameter dictionary
         """
         if self.vp_dict is None:
-            raise ValueError('Value parameter dictionary is still empty')
+            raise ValueError("Error. No sets of value parameters (vp_dict) detected. You need to import the "
+                             "defaults first by using 'instance.import_default_value_parameters()'.")
         else:
-            if vp_name is None:
-                self.vp_name = list(self.vp_dict.keys())[0]
+            if vp_name is None:  # Name not specified
+                self.vp_name = list(self.vp_dict.keys())[0]  # Take the first set in the dictionary
                 self.value_parameters = copy.deepcopy(self.vp_dict[self.vp_name])
-            else:
+            else:  # Name specified
                 if vp_name not in self.vp_dict:
-                    raise ValueError(vp_name + ' set not in value parameter dictionary')
+                    raise ValueError(vp_name + ' set not in value parameter dictionary. Available sets are:',
+                                     self.vp_dict.keys())
                 else:
                     self.value_parameters = copy.deepcopy(self.vp_dict[vp_name])
                     self.vp_name = vp_name
@@ -302,42 +353,36 @@ class CadetCareerProblem:
             if self.solution is not None:
                 self.measure_solution()
 
-    def save_new_value_parameters_to_dict(self, value_parameters=None, vp_name=None):
+    def save_new_value_parameters_to_dict(self, value_parameters=None):
         """
         Adds the set of value parameters to a dictionary as a new set (if it is a unique set)
-        :param value_parameters: set of value parameters
-        :param vp_name: name of the new set of value parameters (defaults to adding 1 to the last set in the dict)
         """
+        # Grab the value parameters
         if value_parameters is None:
             value_parameters = self.value_parameters
 
+        # Make sure this is a valid dictionary of value parameters
         if value_parameters is not None:
             if self.vp_dict is None:
-                self.vp_dict = {}
-                if vp_name is None:
-                    vp_name = "VP"
-                unique = True  # If this is the first set of value parameters, it's unique!
+                self.vp_dict, self.vp_name = {"VP": copy.deepcopy(value_parameters)}, "VP"
             else:
-                if vp_name is None:
-                    high = 1
-                    for vp_name in self.vp_dict:
-                        if '_' in vp_name:
-                            num = int(vp_name.split('_')[1])
-                            if num > high:
-                                high = num
-                    vp_name = "VP_" + str(high + 1)
+
+                # Determine new value parameters name
+                vp_name, v = "VP2", 2
+                while vp_name in self.vp_dict:
+                    v += 1
+                    vp_name = "VP" + str(v)
 
                 # Check if this new set is unique or not to get the name of the set
                 unique = self.check_unique_value_parameters()
-
-            if unique is True:  # If it's unique, we save this new set of value parameters to the dictionary
-                self.vp_dict[vp_name] = copy.deepcopy(value_parameters)
-                self.vp_name = vp_name
-            else:  # If it's not unique, then the "unique" variable is the name of the matching set of value parameters
-                self.vp_name = unique
+                if unique is True: # If it's unique, we save this new set of value parameters to the dictionary
+                    self.vp_dict[vp_name], self.vp_name = copy.deepcopy(value_parameters), self.vp_name
+                else:  # If it's not unique, then "unique" is the name of the matching set of value parameters
+                    self.vp_name = unique
 
         else:
-            raise ValueError('No instance value parameters detected')
+            raise ValueError("Error. No value parameters set. You currently do have a 'vp_dict' and so all you "
+                                     "need to do is run 'instance.set_instance_value_parameters()'. ")
 
     def update_value_parameters_in_dict(self, vp_name=None):
         """
@@ -362,8 +407,6 @@ class CadetCareerProblem:
         """
         Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the
         the set of parameters is unique, or return the name of the matching set otherwise
-        :param printing: if we want to print out which value parameter sets are different
-        :param value_parameters: set of value parameters (presumably the instance attributes)
         """
         if value_parameters is None:
             value_parameters = self.value_parameters
@@ -382,85 +425,63 @@ class CadetCareerProblem:
                 break
         return unique
 
-    def import_default_value_parameters(self, filename=None, filepath=None, no_constraints=False, num_breakpoints=24,
-                                        generate_afsc_weights=True, set_to_instance=True, add_to_dict=True,
-                                        vp_weight=100, printing=None):
+    def import_default_value_parameters(self, no_constraints=False, num_breakpoints=24,
+                                        generate_afsc_weights=True, vp_weight=100, printing=None):
         """
-        Import default value parameter setting and generate value parameters for this instance from those
-        ones.
-        :param filename: filename
-        :param filepath: filepath to import from (if none specified, will use filepath attribute)
-        :param num_breakpoints: Number of breakpoints to use for the value functions
-        :param set_to_instance: if we want to set this set to the instance's value parameters attribute
-        :param add_to_dict: if we want to add this set of value parameters to the vp dictionary
-        :param vp_weight: swing weight of this entire set of value parameters relative to others
-        :param printing: Whether we should print status updates or not
-        :param no_constraints: If we don't want to use the predefined constraints
-        :param generate_afsc_weights: If we generate the AFSC weights from the weight function (True), or just
-        import the weights directly from the "AFSC Weight" column (False)
+        Import default value parameter settings and generate value parameters for this instance.
         """
 
         if printing is None:
             printing = self.printing
 
-        # check first if the user did not specify a filename (just name of excel file within correct folder)
-        if filename is None:
+        # Folder/Files information
+        folder_path = afccp.core.globals.paths["support"] + "value parameters defaults/"
+        vp_defaults_folder = os.listdir(folder_path)
+        vp_defaults_filename = "Value_Parameters_Defaults_" + self.data_name + ".xlsx"
 
-            # if filename not specified, check if file path was not directly specified
-            if filepath is None:  # default value parameters
-                if self.data_variant == "Scrubbed":
-                    filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
-                elif self.data_variant == 'Year':
-                    filename = 'Value_Parameters_Defaults_' + self.data_name + '.xlsx'
-                    if filename in os.listdir(afccp.core.globals.paths["support"]):
-                        filepath = afccp.core.globals.paths["support"] + filename
-                    else:
-                        filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults.xlsx'
-                elif self.data_variant == 'Perfect':
-                    filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults_Perfect.xlsx'
-                else:
-                    filepath = afccp.core.globals.paths["support"] + 'Value_Parameters_Defaults_Generated.xlsx'
-            else:
-                pass  # we have given a filepath already, no more info is needed
+        # Determine the path to the default value parameters we need to import
+        if vp_defaults_filename in vp_defaults_folder:
+            filename = vp_defaults_filename
+        elif len(self.data_name) == 4:
+            filename = "Value_Parameters_Defaults.xlsx"
+        elif "Perfect" in self.data_name:
+            filename = "Value_Parameters_Defaults_Perfect.xlsx"
         else:
-            if self.data_variant == "Year":
-                filepath = afccp.core.globals.paths["support"] + filename
-            else:
-                filepath = afccp.core.globals.paths["support"] + filename
+            filename = "Value_Parameters_Defaults_Generated.xlsx"
+        filepath = folder_path + filename
 
-            if '.xlsx' not in filepath:
-                filepath += '.xlsx'
+        # Module shorthand
+        afccp_vp = afccp.core.handling.value_parameter_handling
 
         # Import "default value parameters" from excel
-        self.default_value_parameters = \
-            afccp.core.handling.value_parameter_handling.default_value_parameters_from_excel(
-                filepath, num_breakpoints=num_breakpoints, printing=printing)
+        dvp = afccp_vp.default_value_parameters_from_excel(filepath, num_breakpoints=num_breakpoints, printing=printing)
 
         # Generate this instance's value parameters from the defaults
-        value_parameters = afccp.core.handling.value_parameter_handling.generate_value_parameters_from_defaults(
-            self.parameters, generate_afsc_weights=generate_afsc_weights,
-            default_value_parameters=self.default_value_parameters)
+        value_parameters = afccp_vp.generate_value_parameters_from_defaults(
+            self.parameters, generate_afsc_weights=generate_afsc_weights, default_value_parameters=dvp)
 
-        # Add some additional components to value parameters
+        # Add some additional components to the value parameters
         if no_constraints:
             value_parameters['constraint_type'] = np.zeros([self.parameters['M'], value_parameters['O']])
-        value_parameters = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
-            self.parameters, value_parameters)
-        value_parameters = afccp.core.handling.value_parameter_handling.condense_value_functions(
-            self.parameters, value_parameters)
-        value_parameters = afccp.core.handling.value_parameter_handling.model_value_parameters_set_additions(
-            self.parameters, value_parameters)
+
+        # "Condense" the value functions by removing unnecessary zeros
+        value_parameters = afccp_vp.condense_value_functions(self.parameters, value_parameters)
+
+        # Add indexed sets and subsets of AFSCs and AFSC objectives
+        value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, value_parameters)
+
+        # Weight of the value parameters as a whole
         value_parameters['vp_weight'] = vp_weight
 
         # Set value parameters to instance attribute
-        if set_to_instance:
+        if self.mdl_p["set_to_instance"]:
             self.value_parameters = value_parameters
             if self.solution is not None:
                 self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
                     self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Save new set of value parameters to dictionary
-        if add_to_dict:
+        if self.mdl_p["add_to_dict"]:
             self.save_new_value_parameters_to_dict(value_parameters)
 
         if self.printing:
@@ -468,7 +489,7 @@ class CadetCareerProblem:
 
         return value_parameters
 
-    def export_value_parameters_as_defaults(self, filename=None, filepath=None, printing=None):
+    def export_value_parameters_as_defaults(self, filename=None, printing=None):
         """
         This method exports the current set of instance value parameters to a new excel file in the "default"
         value parameter format
@@ -478,15 +499,13 @@ class CadetCareerProblem:
 
         if self.value_parameters is None:
             raise ValueError('No instance value parameters detected.')
-        else:
-            if filename is None:  # I add the "_New" just so we make sure we don't accidentally overwrite the old one
-                filename = "Value_Parameters_Defaults_" + self.data_name + "_New.xlsx"
 
-            if filepath is None:
-                filepath = afccp.core.globals.paths["support"] + filename
+        if filename is None:  # I add the "_New" just so we make sure we don't accidentally overwrite the old one
+            filename = "Value_Parameters_Defaults_" + self.data_name + "_New.xlsx"
+        filepath = afccp.core.globals.paths["support"] + "value parameters defaults/" + filename
 
-            afccp.core.handling.value_parameter_handling.model_value_parameters_to_defaults(
-                self.parameters, self.value_parameters, filepath=filepath, printing=printing)
+        afccp.core.handling.value_parameter_handling.model_value_parameters_to_defaults(
+            self.parameters, self.value_parameters, filepath=filepath, printing=printing)
 
     def change_weight_function(self, cadets=True, function=None):
         """
@@ -534,7 +553,7 @@ class CadetCareerProblem:
         """
         afccp.core.handling.data_handling.parameter_sanity_check(self)
 
-    # Translate Parameters
+    # noinspection PyDictCreation
     def vft_to_gp_parameters(self, p_dict={}, printing=None):
         """
         Converts the instance parameters and value parameters to parameters used by Rebecca's model
@@ -543,73 +562,45 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        _, self.mdl_p = \
-            afccp.core.handling.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
+        # Print statement
+        if printing:
+            print('Translating VFT model parameters to Goal Programming Model parameters...')
 
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
-                # If the parameter doesn't exist, we warn the user
-                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+        # Get basic parameters (May or may not include penalty/reward parameters
+        self.gp_parameters = afccp.core.handling.value_parameter_handling.translate_vft_to_gp_parameters(self)
 
-        if self.mdl_p["use_gp_df"]:
+        # Get list of constraints
+        con_list = copy.deepcopy(self.gp_parameters['con'])
+        con_list.append("S")
+        num_constraints = len(con_list)  # should be 1
 
-            # Get basic parameters (May or may not include penalty/reward parameters
-            self.gp_parameters = afccp.core.handling.value_parameter_handling.translate_vft_to_gp_parameters(
-                self.parameters, self.value_parameters, self.gp_df, self.mdl_p["use_gp_df"])
+        # Convert gp_df to dictionary of numpy arrays ("gc" = "gp_df columns")
+        gc = {col: np.array(self.gp_df[col]) for col in self.gp_df}
 
-            # Use generalized "GP DF"
-            if self.gp_df is None:
-                filepath = afccp.core.globals.paths["support"] + 'gp_parameters.xlsx'
-                self.gp_df = afccp.core.globals.import_data(filepath=filepath, sheet_name='Weights and Scaling')
-                specific_gp_df = False
-            else:
-                specific_gp_df = True
+        # Do we want to create new rewards/penalties for this problem instance by iterating with the model?
+        if self.mdl_p["get_new_rewards_penalties"]:
 
-            # Get list of constraints
-            con_list = copy.deepcopy(self.gp_parameters['con'])
-            con_list.append('S')
-            num_constraints = len(con_list)  # should be 12
+            gc["Raw Reward"], gc["Raw Penalty"] = afccp.core.comprehensive_functions.calculate_rewards_penalties(
+                self, printing=printing)
+            min_p = min([penalty for penalty in gc["Raw Penalty"] if penalty != 0])
+            min_r = min(gc["Raw Reward"])
+            gc["Normalized Penalty"] = np.array([min_p / penalty if penalty != 0 else 0 for penalty in gc["Raw Penalty"]])
+            gc["Normalized Reward"] = np.array([min_r / reward for reward in gc["Raw Reward"]])
 
-            # Either create new rewards and penalties for this specific instance
-            if self.mdl_p["get_new_rewards_penalties"]:
-                rewards, penalties = \
-                    afccp.core.comprehensive_functions.calculate_rewards_penalties(self, printing=printing)
-                min_penalty = min([penalty for penalty in penalties if penalty != 0])
-                min_reward = min(rewards)
-                norm_penalties = np.array([min_penalty / penalty if penalty != 0 else 0 for penalty in penalties])
-                norm_rewards = np.array([min_reward / reward for reward in rewards])
-            else:
-                if 'Raw Reward' in self.gp_df:
-                    rewards, penalties = np.array(self.gp_df['Raw Reward']), np.array(self.gp_df['Raw Penalty'])
-                else:
-                    rewards, penalties = np.array(['Unk' for _ in range(num_constraints)]), \
-                                         np.array(['Unk' for _ in range(num_constraints)])
-                norm_rewards, norm_penalties = np.array(self.gp_df['Normalized Reward']), \
-                                               np.array(self.gp_df['Normalized Penalty'])
-            if not specific_gp_df:
-                penalty_weight = [100, 100, 90, 30, 30, 25, 50, 50, 50, 50, 25, 0]
-                reward_weight = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100]
-            else:
-                penalty_weight = np.array(self.gp_df['Penalty Weight'])
-                reward_weight = np.array(self.gp_df['Reward Weight'])
+        # Rewards/Penalties used in the model "run"
+        gc["Run Penalty"] = np.array(
+            [gc["Penalty Weight"][c] /
+             gc["Normalized Penalty"][c] if gc["Normalized Penalty"][c] != 0 else 0 for c in range(num_constraints)])
+        gc["Run Reward"] = np.array([gc["Reward Weight"][c] / gc["Normalized Reward"][c] for c in range(num_constraints)])
 
-            run_penalties = np.array(
-                [penalty_weight[c] / norm_penalties[c] if penalties[c] != 0 else 0 for c in range(num_constraints)])
-            run_rewards = np.array([reward_weight[c] / norm_rewards[c] for c in range(num_constraints)])
+        # Convert back to pandas dataframe using numpy array dictionary
+        self.gp_df = pd.DataFrame(gc)
 
-            self.gp_df = pd.DataFrame({'Constraint': con_list, 'Raw Penalty': penalties, 'Raw Reward': rewards,
-                                       'Normalized Penalty': norm_penalties,
-                                       'Normalized Reward': norm_rewards, 'Penalty Weight': penalty_weight,
-                                       'Reward Weight': reward_weight, 'Run Penalty': run_penalties,
-                                       'Run Reward': run_rewards})
-
-        self.gp_parameters = afccp.core.handling.value_parameter_handling.translate_vft_to_gp_parameters(
-            self.parameters, self.value_parameters, self.gp_df, self.mdl_p["use_gp_df"], printing=printing)
+        # Update the "mu" and "lam" parameters with our new Reward/Penalty terms
+        self.gp_parameters = afccp.core.handling.value_parameter_handling.translate_vft_to_gp_parameters(self)
 
     # Observe Value Parameters
     def show_value_function(self, p_dict={}, printing=None):
@@ -620,37 +611,11 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset title and filename
-        self.plt_p["title"], self.plt_p["filename"] = None, None
-
-        # Update plot parameters if necessary
-        for key in p_dict:
-            if key in self.plt_p:
-                self.plt_p[key] = p_dict[key]
-            else:
-
-                # Exception
-                if key == "graph":
-                    self.plt_p["data_graph"] = p_dict["graph"]
-
-                else:
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
         self.plt_p = afccp.core.handling.ccp_helping_functions.determine_afsc_plot_details(self)
 
-        # Get AFSC
-        if self.plt_p["afsc"] is None:
-            self.plt_p["afsc"] = self.parameters['afsc_vector'][0]
-
-        # Get AFSC index
-        j = np.where(self.parameters["afsc_vector"]==self.plt_p["afsc"])[0][0]
-
-        # Get objective
-        if self.plt_p["objective"] is None:
-            k = self.value_parameters["K^A"][j][0]
-            self.plt_p["objective"] = self.value_parameters['objectives'][k]
-
+        # Build the chart
         value_function_chart = afccp.core.comprehensive_functions.plot_value_function(self, printing)
 
         if printing:
@@ -666,23 +631,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset title and filename
-        self.plt_p["title"], self.plt_p["filename"] = None, None
-
-        # Update plot parameters if necessary
-        for key in p_dict:
-            if key in self.plt_p:
-                self.plt_p[key] = p_dict[key]
-            else:
-
-                # Exception
-                if key == "graph":
-                    self.plt_p["data_graph"] = p_dict["graph"]
-
-                else:
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
         self.plt_p = afccp.core.handling.ccp_helping_functions.determine_afsc_plot_details(self)
 
         if printing:
@@ -691,23 +641,7 @@ class CadetCareerProblem:
             else:
                 print("Creating AFSC weight chart...")
 
-        # Whether to skip AFSCs
-        if self.plt_p["skip_afscs"] is None:
-            if self.data_variant == "Real":
-                self.plt_p["skip_afscs"] = False
-            else:
-                self.plt_p["skip_afscs"] = True
-
-        # Whether to rotate the AFSCs
-        if self.plt_p["afsc_rotation"] is None:
-            if self.plt_p["skip_afscs"]:
-                self.plt_p["afsc_rotation"] = 0
-            else:
-                if self.parameters['M'] < 18:
-                    self.plt_p["afsc_rotation"] = 45
-                else:
-                    self.plt_p["afsc_rotation"] = 0
-
+        # Build the chart
         chart = afccp.core.visualizations.instance_graphs.individual_weight_graph(self)
 
         if printing:
@@ -726,29 +660,14 @@ class CadetCareerProblem:
         if printing:
             print('Generating random solution...')
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # If the parameter doesn't exist, we warn the user
-                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
+        # Generate solution
         solution = np.array([np.random.choice(self.parameters['J^E'][i]) for i in self.parameters['I']])
 
-        # Set the solution attribute
-        if self.mdl_p["set_to_instance"]:
-            self.solution = solution
-            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                self.solution, self.parameters, self.value_parameters, printing=printing)
-
-        # Add solution to solution dictionary
-        if self.mdl_p["add_to_dict"]:
-            self.add_solution_to_dictionary(solution, solution_method='Random')
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="Random")
 
         return solution
 
@@ -756,33 +675,18 @@ class CadetCareerProblem:
         """
         This method solves the stable marriage heuristic for an initial solution
         """
+        self.error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
+        # Generate solution
+        solution = afccp.core.solutions.heuristic_solvers.stable_marriage_model_solve(self, printing=printing)
 
-                # If the parameter doesn't exist, we warn the user
-                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
-        solution = afccp.core.solutions.heuristic_solvers.stable_marriage_model_solve(
-            self.parameters, self.value_parameters, printing=printing)
-
-        # Set the solution attribute
-        if self.mdl_p["set_to_instance"]:
-            self.solution = solution
-            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                self.solution, self.parameters, self.value_parameters, printing=printing)
-
-        # Add solution to solution dictionary
-        if self.mdl_p["add_to_dict"]:
-            self.add_solution_to_dictionary(solution, solution_method='Stable')
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="Stable")
 
         return solution
 
@@ -793,29 +697,13 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
-
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # If the parameter doesn't exist, we warn the user
-                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
         solution = afccp.core.solutions.heuristic_solvers.matching_algorithm_1(self, printing=printing)
 
-        # Set the solution attribute
-        if self.mdl_p["set_to_instance"]:
-            self.solution = solution
-            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                self.solution, self.parameters, self.value_parameters, printing=printing)
-
-        # Add solution to solution dictionary
-        if self.mdl_p["add_to_dict"]:
-            self.add_solution_to_dictionary(solution, solution_method='MA1')
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="MA1")
 
         return solution
 
@@ -823,34 +711,18 @@ class CadetCareerProblem:
         """
         This method solves the greedy heuristic for an initial solution
         """
+        self.error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
+        # Generate solution
+        solution = afccp.core.solutions.heuristic_solvers.greedy_model_solve(self, printing=printing)
 
-                # If the parameter doesn't exist, we warn the user
-                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
-        solution = afccp.core.solutions.heuristic_solvers.greedy_model_solve(
-            self.parameters, self.value_parameters, printing=printing)
-
-        # Set the solution attribute
-        if self.mdl_p["set_to_instance"]:
-            self.solution = solution
-            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                self.solution, self.parameters, self.value_parameters, printing=printing)
-
-        # Add solution to solution dictionary
-        if self.mdl_p["add_to_dict"]:
-            self.add_solution_to_dictionary(solution, solution_method='Greedy')
-
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="Greedy")
         return solution
 
     def genetic_algorithm(self, p_dict={}, printing=None):
@@ -859,30 +731,12 @@ class CadetCareerProblem:
         solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve
         from there
         """
-
+        self.error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
-
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # Adjust max time parameter
-                if key == "max_time":
-                    self.mdl_p["ga_max_time"] = p_dict[key]
-                else:
-
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
-        # Make sure we have selected a set of value parameters
-        if self.value_parameters is None:
-            raise ValueError("Error. No instance value parameters set.")
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
         # Dictionary of failed constraints across all solutions
         # (should be off by *no more than* one cadet due to rounding)
@@ -898,26 +752,30 @@ class CadetCareerProblem:
 
                 else:
                     if self.mdl_p["solution_names"] is None:
+
+                        # Get list of initial solutions
                         initial_solutions = np.array(
                             [self.solution_dict[solution_name] for solution_name in self.solution_dict])
+                        solution_names = list(self.solution_dict.keys())
 
-                        if printing:
-                            print("Running Genetic Algorithm with initial solutions:", list(self.solution_dict.keys()))
                     else:
 
                         # If we just pass "Solution" instead of ["Solution"]
                         if type(self.mdl_p["solution_names"]) == str:
                             self.mdl_p["solution_names"] = [self.mdl_p["solution_names"]]
 
+                        # Get list of initial solutions
                         initial_solutions = np.array(
                             [self.solution_dict[solution_name] for solution_name in self.mdl_p["solution_names"]])
+                        solution_names = self.mdl_p["solution_names"]
 
-                        if printing:
-                            print("Running Genetic Algorithm with initial solutions:", self.mdl_p["solution_names"])
+                    if printing:
+                        print("Running Genetic Algorithm with initial solutions:", solution_names)
 
             else:
-                initial_solutions = self.mdl_p["initial_solutions"]
 
+                # Get list of initial solutions
+                initial_solutions = self.mdl_p["initial_solutions"]
                 if printing:
                     print("Running Genetic Algorithm with", len(initial_solutions), "initial solutions...")
 
@@ -927,31 +785,19 @@ class CadetCareerProblem:
         else:
 
             if printing:
-                print("Running Genetic Algorithm with no initial solutions...")
-
+                print("Running Genetic Algorithm with no initial solutions (not advised!)...")
             initial_solutions = None
 
-        if self.mdl_p["time_eval"]:
-            start_time = time.perf_counter()  # Start the timer
-            solution, time_eval_df = afccp.core.solutions.heuristic_solvers.genetic_algorithm(
-                self, initial_solutions, con_fail_dict, printing=printing)
-            solve_time = time.perf_counter() - start_time
-        else:
-            solution = afccp.core.solutions.heuristic_solvers.genetic_algorithm(
-                self, initial_solutions, con_fail_dict, printing=printing)
+        # Generate the solution
+        solution, time_eval_df = afccp.core.solutions.heuristic_solvers.genetic_algorithm(
+            self, initial_solutions, con_fail_dict, printing=printing)
 
-        if self.mdl_p["set_to_instance"]:
-            self.solution = solution
-            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                self.solution, self.parameters, self.value_parameters, printing=printing)
-
-        # Add solution to solution dictionary
-        if self.mdl_p["add_to_dict"]:
-            self.add_solution_to_dictionary(solution, solution_method="Genetic")
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="Genetic")
 
         # Return the final solution and maybe the time evaluation dataframe if needed
         if self.mdl_p["time_eval"]:
-            return solve_time, solution
+            return time_eval_df, solution
         else:
             return solution
 
@@ -959,75 +805,31 @@ class CadetCareerProblem:
         """
         Solve the VFT model using pyomo
         """
+        self.error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
-
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # Adjust max time parameter
-                if key == "max_time":
-                    self.mdl_p["pyomo_max_time"] = p_dict[key]
-                else:
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
-        # Make sure we have selected a set of value parameters
-        if self.value_parameters is None:
-            raise ValueError("Error. No instance value parameters set.")
-
-        if not self.mdl_p["approximate"]:
-            if self.mdl_p["solver_name"] == 'cbc':
-                self.mdl_p["solver_name"] = 'ipopt'
-
-        if self.mdl_p["warm_start"] is None:
-            if self.mdl_p["init_from_X"]:
-                self.mdl_p["warm_start"] = self.init_exact_solution_from_x()
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
         if afccp.core.globals.use_pyomo:
-            model = afccp.core.solutions.pyomo_models.vft_model_build(self, printing=printing)
-            if self.mdl_p["report"]:
-                if self.mdl_p["time_eval"]:
-                    solution, self.x, self.measure, self.value, self.pyomo_z, solve_time = \
-                        afccp.core.solutions.pyomo_models.vft_model_solve(self, model, printing=printing)
-                else:
-                    solution, self.x, self.measure, self.value, self.pyomo_z = \
-                        afccp.core.solutions.pyomo_models.vft_model_solve(self, model, printing=printing)
-            else:
-                if self.mdl_p["time_eval"]:
-                    solution, solve_time = \
-                        afccp.core.solutions.pyomo_models.vft_model_solve(self, model, printing=printing)
-                else:
-                    solution = afccp.core.solutions.pyomo_models.vft_model_solve(self, model, printing=printing)
+
+            # Build the model and then solve it
+            model, q = afccp.core.solutions.pyomo_models.vft_model_build(self, printing=printing)
+            start_time = time.perf_counter()  # Start the timer to solve the model
+            solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.pyomo_models.solve_pyomo_model(
+                self, model, "VFT", q=q, printing=printing)
+            solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
+
         else:
-            if printing:
-                raise ValueError('Pyomo not available')
+            raise ValueError('Pyomo not available.')
 
-        # Convert to integer
-        solution = solution.astype(int)
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="VFT", x=x)
 
-        # Set the solution attribute
-        if self.mdl_p["set_to_instance"]:
-            self.solution = solution
-            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                self.solution, self.parameters, self.value_parameters, printing=printing)
-
-        # Add solution to solution dictionary
-        if self.mdl_p["add_to_dict"]:
-            if self.mdl_p["approximate"]:
-                solution_method = "A-VFT"
-            else:
-                solution_method = "E-VFT"
-            self.add_solution_to_dictionary(solution, solution_method=solution_method)
-
+        # Return the solution and potentially the time it took to solve the model
         if self.mdl_p["time_eval"]:
-            return solve_time
+            return solution, solve_time
         else:
             return solution
 
@@ -1035,134 +837,106 @@ class CadetCareerProblem:
         """
         Solve the original AFPC model using pyomo
         """
-
+        self.error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
-
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # Adjust max time parameter
-                if key == "max_time":
-                    self.mdl_p["pyomo_max_time"] = p_dict[key]
-                else:
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
         if afccp.core.globals.use_pyomo:
-            solution = afccp.core.solutions.pyomo_models.solve_original_pyomo_model(self, printing=printing)
+
+            # Build the model and then solve it
+            model, q = afccp.core.solutions.pyomo_models.original_model_build(self, printing=printing)
+            start_time = time.perf_counter()  # Start the timer to solve the model
+            solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.pyomo_models.solve_pyomo_model(
+                self, model, "Original", q=q, printing=printing)
+            solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
+
         else:
-            raise ValueError('Pyomo not available')
+            raise ValueError('Pyomo not available.')
 
-        # Set the solution attribute
-        if self.mdl_p["set_to_instance"]:
-            self.solution = solution
-            self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                self.solution, self.parameters, self.value_parameters, printing=printing)
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="OG", x=x)
 
-        # Add solution to solution dictionary
-        if self.mdl_p["add_to_dict"]:
-            self.add_solution_to_dictionary(solution, solution_method="OG")
+        # Return the solution and potentially the time it took to solve the model
+        if self.mdl_p["time_eval"]:
+            return solution, solve_time
+        else:
+            return solution
 
     def solve_gp_pyomo_model(self, p_dict={}, printing=None):
         """
         Solve the Goal Programming Model (Created by Lt. Reynolds)
         """
-
+        self.error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = True, True
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # Adjust max time parameter
-                if key == "max_time":
-                    self.mdl_p["pyomo_max_time"] = p_dict[key]
-                else:
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
+        # Convert VFT parameters to Goal Programming ("gp") parameters
         if self.gp_parameters is None:
             self.vft_to_gp_parameters(self.mdl_p)
 
-        # Solve the model
-        r_model = afccp.core.solutions.pyomo_models.gp_model_build(self, printing=printing)
-        gp_var = afccp.core.solutions.pyomo_models.gp_model_solve(self, r_model, printing=printing)
+        if afccp.core.globals.use_pyomo:
 
+            # Build the model and then solve it
+            model = afccp.core.solutions.pyomo_models.gp_model_build(self, printing=printing)
+            start_time = time.perf_counter()  # Start the timer to solve the model
+            gp_var = afccp.core.solutions.pyomo_models.solve_pyomo_model(
+                self, model, "GP", printing=printing)
+            solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
+
+        else:
+            raise ValueError('Pyomo not available.')
+
+        # This "IF" statement is here in case we're "pre-process" solving the model for different constraints
         if self.mdl_p["con_term"] is None:
-            solution, self.x = gp_var
+            solution, x = gp_var
 
-            # Set the solution attribute
-            if self.mdl_p["set_to_instance"]:
-                self.solution = solution
-                self.metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                    self.solution, self.parameters, self.value_parameters, printing=printing)
+            # Determine what to do with the solution
+            self.solution_handling(solution, solution_method="GP", x=x)
 
-            # Add solution to solution dictionary
-            if self.mdl_p["add_to_dict"]:
-                self.add_solution_to_dictionary(solution, solution_method="GP")
-
-            return solution
+            # Return the solution and potentially the time it took to solve the model
+            if self.mdl_p["time_eval"]:
+                return solution, solve_time
+            else:
+                return solution
         else:
             return gp_var
 
     def full_vft_model_solve(self, p_dict={}, printing=None):
         """
-        This is the main method to solve the problem instance. We first solve the pyomo Approximate model, and then
-        evolve it using the GA
+        This is the main method to solve the problem instance. If we choose to develop an initial population
+        of solutions, we do so using the approximate VFT model. We then evolve the solutions further using the GA.
         """
+        self.error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = False, True
-
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # If the parameter doesn't exist, we warn the user
-                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
-        # Get p_dict with adjustments
-        p_dict = self.mdl_p
-        p_dict["add_to_dict"] = False
-
-        # Make sure we have selected a set of value parameters
-        if self.value_parameters is None:
-            raise ValueError("Error. No instance value parameters set.")
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
         # Determine population for the genetic algorithm if necessary
-        if p_dict["populate"]:
-            p_dict["initial_solutions"] = afccp.core.comprehensive_functions.populate_initial_ga_solutions(
+        if self.mdl_p["populate"]:
+            self.mdl_p["initial_solutions"] = afccp.core.comprehensive_functions.populate_initial_ga_solutions(
                 self, printing)
 
             # Add additional solutions if necessary
-            if p_dict["solution_names"] is not None:
+            if self.mdl_p["solution_names"] is not None:
 
                 # In case the user specifies "Solution" instead of ["Solution"]
-                if type(p_dict["solution_names"]) == str:
-                    p_dict["solution_names"] = [p_dict["solution_names"]]
+                if type(self.mdl_p["solution_names"]) == str:
+                    self.mdl_p["solution_names"] = [self.mdl_p["solution_names"]]
 
-                for solution_name in p_dict["solution_names"]:
+                # Add additional solutions
+                for solution_name in self.mdl_p["solution_names"]:
                     solution = self.solution_dict[solution_name]
-                    p_dict["initial_solutions"] = np.vstack((p_dict["initial_solutions"], solution))
+                    self.mdl_p["initial_solutions"] = np.vstack((self.mdl_p["initial_solutions"], solution))
 
-            p_dict["initialize"] = True
+            self.mdl_p["initialize"] = True
 
             if printing:
                 now = datetime.datetime.now()
@@ -1200,21 +974,12 @@ class CadetCareerProblem:
         This method iteratively adds constraints to the model to find which ones should be included based on
         feasibility and in order of importance
         """
-
+        self.error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
-        # Reset certain plot parameters
-        self.mdl_p["add_to_dict"], self.mdl_p["set_to_instance"] = False, True
-
-        # Update model parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # If the parameter doesn't exist, we warn the user
-                print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
         # Determine which constraints should be turned on!
         if not afccp.core.globals.use_pyomo:
@@ -1230,7 +995,7 @@ class CadetCareerProblem:
             afccp.core.comprehensive_functions.determine_model_constraints(self, printing=printing)
 
         # Build dataframe
-        constraint_type_df = pd.DataFrame({'AFSC': self.parameters['afsc_vector'][:self.parameters["M"]]})
+        constraint_type_df = pd.DataFrame({'AFSC': self.parameters['afscs'][:self.parameters["M"]]})
         for k, objective in enumerate(self.value_parameters['objectives']):
             constraint_type_df[objective] = constraint_type[:, k]
 
@@ -1390,89 +1155,6 @@ class CadetCareerProblem:
         if printing:
             chart.show()
 
-    # TODO: Need to fix this method (doesn't work right now)
-    def init_exact_solution_from_x(self, printing=None):
-        """
-        This method creates a dictionary of initial variables used in the exact optimization model if we want to
-        start it with a solution
-        :param printing: Whether we should print statues updates or not
-        :return: dictionary of exact pyomo model initial variables
-        """
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print('Initializing VFT solution from X matrix...')
-
-        # Evaluate Solution
-        metrics = \
-            afccp.core.handling.data_handling.measure_solution_quality(self.x, self.parameters, self.value_parameters)
-        values = metrics['objective_value']
-        measures = metrics['objective_measure']
-
-        lam, y = afccp.core.solutions.pyomo_models.x_to_solution_initialization(
-            self.parameters, self.value_parameters, measures, values)
-        initialization = {'X': self.x, 'lam': lam, 'y': y, 'F_X': values}
-        return initialization
-
-    # Measure Solutions
-    def get_constraint_fail_dictionary(self, metrics=None):
-        """
-        Get a dictionary of failed constraints. This is used since the Approximate model initial solution must be
-        rounded, and we may miss a few constraints by 1 cadet each. This allows the GA to not reject the solution
-        initially
-        :param metrics: solution metrics
-        :return: constraint fail dictionary
-        """
-        if metrics is None:
-            metrics = self.metrics
-
-        con_fail_dict = {}
-        quota_k = np.where(self.value_parameters['objectives'] == 'Combined Quota')[0][0]
-        for j in self.parameters['J']:
-
-            for k, objective in enumerate(self.value_parameters['objectives']):
-
-                if k in self.value_parameters['K^C'][j]:
-
-                    measure = metrics['objective_measure'][j, k]
-                    count = metrics['objective_measure'][j, quota_k]
-                    target_quota = self.parameters['quota'][j]
-
-                    # Constrained Approximate Measure
-                    if self.value_parameters['constraint_type'][j, k] == 3:
-                        value_list = self.value_parameters['objective_value_min'][j, k].split(",")
-                        min_measure = float(value_list[0].strip())
-                        max_measure = float(value_list[1].strip())
-
-                        # Get correct measure constraint
-                        if objective not in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                            if (measure * count) / target_quota < min_measure:
-                                new_min = math.floor(1000 * (measure * count) / target_quota) / 1000
-                                con_fail_dict[(j, k)] = '> ' + str(new_min)
-                            elif (measure * count) / target_quota > max_measure:
-                                new_max = ceil(1000 * (measure * count) / target_quota) / 1000
-                                con_fail_dict[(j, k)] = '< ' + str(new_max)
-                        else:
-                            if measure < min_measure:
-                                con_fail_dict[(j, k)] = '> ' + str(measure)
-                            elif measure > max_measure:
-                                con_fail_dict[(j, k)] = '< ' + str(measure)
-
-                    # Constrained Exact Measure
-                    elif self.value_parameters['constraint_type'][j, k] == 4:
-
-                        value_list = self.value_parameters['objective_value_min'][j, k].split(",")
-                        min_measure = float(value_list[0].strip())
-                        max_measure = float(value_list[1].strip())
-
-                        if measure < min_measure:
-                            con_fail_dict[(j, k)] = '> ' + str(measure)
-                        elif measure > max_measure:
-                            con_fail_dict[(j, k)] = '< ' + str(measure)
-
-        return con_fail_dict
-
     def get_full_constraint_fail_dictionary(self, solutions, printing=None):
         """
         Get a dictionary of failed constraints. This is used since the Approximate model initial solution must be
@@ -1482,118 +1164,59 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
+        # Loop through each solution to build a "constraint fail dictionary" that works on all solutions
         con_fail_dict = {}
-        quota_k = np.where(self.value_parameters['objectives'] == 'Combined Quota')[0][0]
         for s, solution in enumerate(solutions):
 
-            # Measure the solution
-            metrics = self.measure_solution(solution=solution, set_solution=False, return_z=False,
-                                            printing=False)
+            # Measure the solution and then loop through all AFSCs
+            metrics = self.measure_solution(solution=solution, set_solution=False, return_z=False, printing=False)
             for j in self.parameters['J']:
+                afsc = self.parameters["afscs"][j]
 
-                afsc = self.parameters["afsc_vector"][j]
+                # Loop through all AFSC objectives
+                for k in self.value_parameters["K^C"][j]:
+                    objective = self.value_parameters["objectives"][k]
 
-                for k, objective in enumerate(self.value_parameters['objectives']):
+                    # Determine if we need to update the AFSC objective in the con_fail_dict or not
+                    if (j, k) in metrics['con_fail_dict']:  # Solution specific con_fail_dict
+                        ineq = float(metrics['con_fail_dict'][(j, k)].split(' ')[0])
+                        measure_1 = float(metrics['con_fail_dict'][(j, k)].split(' ')[1])
+                        if (j, k) in con_fail_dict:  # "Main" con_fail_dict for all solutions
+                            measure_2 = float(con_fail_dict[(j, k)].split(' ')[1])
 
-                    if k in self.value_parameters['K^C'][j]:
+                            # Increase the "ceiling" on this constraint for this AFSC objective
+                            if ineq == "<" and measure_1 > measure_2:
 
-                        measure = metrics['objective_measure'][j, k]
-                        count = metrics['objective_measure'][j, quota_k]
-                        target_quota = self.parameters['quota'][j]
+                                # Print statements
+                                if printing:
+                                    print("AFSC '" + afsc + "' Objective '" + objective +
+                                          "' constraint maximum increased from " + str(measure_2) + " to " +
+                                          str(measure_1) + ".")
 
-                        # Constrained Approximate Measure
-                        if self.value_parameters['constraint_type'][j, k] == 3:
-                            value_list = self.value_parameters['objective_value_min'][j, k].split(",")
-                            min_measure = float(value_list[0].strip())
-                            max_measure = float(value_list[1].strip())
+                                # Update the dictionary
+                                con_fail_dict[(j, k)] = "<" + str(measure_1)
 
-                            # Get correct measure constraint
-                            if objective not in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                                if (measure * count) / target_quota < min_measure:
-                                    new_min = math.floor(1000 * (measure * count) / target_quota) / 1000
+                            # Increase the "floor" on this constraint for this AFSC objective
+                            elif ineq == ">" and measure_1 < measure_2:
 
-                                    if (j, k) in con_fail_dict:
-                                        current_val = float(con_fail_dict[(j, k)].split(' ')[1])
-                                        if new_min < current_val:
+                                # Print statements
+                                if printing:
+                                    print("AFSC '" + afsc + "' Objective '" + objective +
+                                          "' constraint minimum decreased from " + str(measure_2) + " to " +
+                                          str(measure_1) + ".")
 
-                                            if printing:
-                                                print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
-                                                      " Objective " + objective + " Current Constraint:",
-                                                      con_fail_dict[(j, k)], "New Constraint:", '> ' + str(new_min))
-                                            con_fail_dict[(j, k)] = '> ' + str(new_min)
-                                    else:
-                                        con_fail_dict[(j, k)] = '> ' + str(new_min)
-                                elif (measure * count) / target_quota > max_measure:
-                                    new_max = ceil(1000 * (measure * count) / target_quota) / 1000
+                                # Update the dictionary
+                                con_fail_dict[(j, k)] = "<" + str(measure_1)
 
-                                    if (j, k) in con_fail_dict:
-                                        current_val = float(con_fail_dict[(j, k)].split(' ')[1])
-                                        if new_max > current_val:
+                        # This is a new AFSC objective to put in our con_fail_dict dictionary
+                        else:
+                            # Print statements
+                            if printing:
+                                print("AFSC '" + afsc + "' Objective '" + objective +
+                                      "' current constraint:", metrics['con_fail_dict'][(j, k)])
 
-                                            if printing:
-                                                print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
-                                                      " Objective " + objective + " Current Constraint:",
-                                                      con_fail_dict[(j, k)], "New Constraint:", '< ' + str(new_max))
-                                            con_fail_dict[(j, k)] = '< ' + str(new_max)
-                                    else:
-                                        con_fail_dict[(j, k)] = '< ' + str(new_max)
-                            else:
-                                if measure < min_measure:
-                                    if (j, k) in con_fail_dict:
-                                        current_val = float(con_fail_dict[(j, k)].split(' ')[1])
-                                        if measure < current_val:
-
-                                            if printing:
-                                                print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
-                                                      " Objective " + objective + " Current Constraint:",
-                                                      con_fail_dict[(j, k)], "New Constraint:", '> ' + str(measure))
-                                            con_fail_dict[(j, k)] = '> ' + str(measure)
-                                    else:
-                                        con_fail_dict[(j, k)] = '> ' + str(measure)
-                                elif measure > max_measure:
-                                    if (j, k) in con_fail_dict:
-                                        current_val = float(con_fail_dict[(j, k)].split(' ')[1])
-                                        if measure > current_val:
-
-                                            if printing:
-                                                print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
-                                                      " Objective " + objective + " Current Constraint:",
-                                                      con_fail_dict[(j, k)], "New Constraint:", '< ' + str(measure))
-                                            con_fail_dict[(j, k)] = '< ' + str(measure)
-                                    else:
-                                        con_fail_dict[(j, k)] = '< ' + str(measure)
-
-                        # Constrained Exact Measure
-                        elif self.value_parameters['constraint_type'][j, k] == 4:
-
-                            value_list = self.value_parameters['objective_value_min'][j, k].split(",")
-                            min_measure = float(value_list[0].strip())
-                            max_measure = float(value_list[1].strip())
-
-                            if measure < min_measure:
-                                if (j, k) in con_fail_dict:
-                                    current_val = float(con_fail_dict[(j, k)].split(' ')[1])
-                                    if measure < current_val:
-
-                                        if printing:
-                                            print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
-                                                  " Objective " + objective + " Current Constraint:",
-                                                  con_fail_dict[(j, k)], "New Constraint:", '> ' + str(measure))
-                                        con_fail_dict[(j, k)] = '> ' + str(measure)
-                                else:
-                                    con_fail_dict[(j, k)] = '> ' + str(measure)
-                            elif measure > max_measure:
-                                if (j, k) in con_fail_dict:
-                                    current_val = float(con_fail_dict[(j, k)].split(' ')[1])
-                                    if measure > current_val:
-
-                                        if printing:
-                                            print("Solution " + str(s + 1) + " AFSC " + str(afsc) +
-                                                  " Objective " + objective + " Current Constraint:",
-                                                  con_fail_dict[(j, k)], "New Constraint:", '< ' + str(measure))
-                                        con_fail_dict[(j, k)] = '< ' + str(measure)
-                                else:
-                                    con_fail_dict[(j, k)] = '< ' + str(measure)
+                            # Update the dictionary
+                            con_fail_dict[(j, k)] = copy.deepcopy(metrics['con_fail_dict'][(j, k)])
 
         # print(con_fail_dict)
         return con_fail_dict
@@ -1601,20 +1224,15 @@ class CadetCareerProblem:
     def measure_solution(self, solution=None, value_parameters=None, approximate=False, matrix=False,
                          printing=None, set_solution=True, return_z=True):
         """
-        Measure a solution using a set of value parameters
-        :param return_z: if we want to return z or the full metrics
-        :param set_solution: if we we want to set the solution metrics as the object's attribute of metrics
-        :param matrix: if we want to measure a solution matrix (x) or the vector of AFSC indices (solution)
-        :param approximate: whether we measure the approximate value or not (using target quota instead of count)
-        :param printing: Whether or not the procedure should print the matrix
-        :param solution: either vector or matrix of matched cadets to AFSCs
-        :param value_parameters: weight/value parameters
-        :return: solution metrics
+        Evaluate a solution using a set of value parameters
         """
-        if solution is None:
 
+        # Determine solution & value parameters
+        if solution is None:
             if matrix:
                 solution = self.x
+                if solution is None:
+                    raise ValueError("No 'x' matrix initialized.")
             else:
                 solution = self.solution
         if value_parameters is None:
@@ -1623,6 +1241,7 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
+        # Calculate solution metrics
         metrics = afccp.core.handling.data_handling.measure_solution_quality(
             solution, self.parameters, value_parameters, approximate=approximate, printing=printing)
 
@@ -1635,33 +1254,41 @@ class CadetCareerProblem:
         else:
             return metrics
 
-    def measure_fitness(self, solution=None, constraints='Fail', penalty_scale=1, printing=None, con_fail_dict=None,
-                        first=True):
+    def measure_fitness(self, solution=None, metrics=None, printing=None):
         """
         This is the fitness function method (could be slightly different depending on how the constraints are handled)
-        :param first: if this is a solution in the initial population
-        :param con_fail_dict: dictionary used for constraints
-        :param penalty_scale: how much to penalize failed constraints
-        :param constraints: how we handle failed constraints
-        :param printing: whether the procedure should print something
-        :param solution: solution vector
         :return: fitness score
         """
+        # Get solution and solution metrics
         if solution is None:
             solution = self.solution
+        if metrics is None:
+            metrics = self.metrics
 
+        # Printing statement
         if printing is None:
             printing = self.printing
 
-        if constraints == 'Fail':
-            if con_fail_dict is None:
-                con_fail_dict = self.get_constraint_fail_dictionary()
+        # Dictionary of failed constraints
+        con_fail_dict = self.get_constraint_fail_dictionary(metrics=metrics)
 
-        metrics = afccp.core.handling.data_handling.ga_fitness_function(
-            solution, self.parameters, self.value_parameters, constraints=constraints, penalty_scale=penalty_scale,
-            con_fail_dict=con_fail_dict, first=first, printing=printing)
+        # Obtain objective minimums and maximums (and add to the "temporary" q dictionary)
+        q = {"objective_min": np.zeros([p['M'], vp['O']]), "objective_max": np.zeros([p['M'], vp['O']]),
+             "con_fail_dict": con_fail_dict}
+        for j in p['J']:
+            for k in vp['K^C'][j]:
+                value_list = vp['objective_value_min'][j, k].split(",")
+                q["objective_min"][j, k] = float(value_list[0].strip())
+                q["objective_max"][j, k] = float(value_list[1].strip())
 
-        return metrics
+        # Calculate fitness value
+        z = afccp.core.solutions.heuristic_solvers.fitness_function(
+            solution, self.parameters, self.value_parameters, self.mdl_p, q)
+
+        # Print and return fitness value
+        if printing:
+            print("Fitness value calculated to be", round(z, 4))
+        return z
 
     def update_metrics_dict(self):
         """
@@ -1670,19 +1297,20 @@ class CadetCareerProblem:
 
         # We only update the dictionaries if we have at least one set of value parameters and one solution
         if self.vp_dict is not None and self.solution_dict is not None:
-
             if self.metrics_dict is None:
                 self.metrics_dict = {}
 
+            # Loop through each set of value parameters
             for vp_name in self.vp_dict:
                 value_parameters = self.vp_dict[vp_name]
                 if vp_name not in self.metrics_dict:
                     self.metrics_dict[vp_name] = {}
+
+                # Loop through each solution
                 for solution_name in self.solution_dict:
                     solution = self.solution_dict[solution_name]
                     if solution_name not in self.metrics_dict[vp_name]:
-                        metrics = afccp.core.handling.data_handling.measure_solution_quality(
-                            solution, self.parameters, value_parameters)
+                        metrics = self.measure_solution(solution, value_parameters, set_solution=False, return_z=False)
                         self.metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
 
             # Update weights on the sets of value parameters relative to each other
@@ -1869,13 +1497,11 @@ class CadetCareerProblem:
         elif self.plt_p["results_graph"] == "Multi-Criteria Comparison":
             if self.plt_p["compare_solutions"]:
                 if self.plt_p["solution_names"] is None:
-
                     # Pick all of the solutions in the dictionary
                     self.plt_p["solution_names"] = list(self.solution_dict.keys())
 
                 # Determine AFSCs to show
                 if self.plt_p["comparison_afscs"] is None:
-
                     # Run through an algorithm to pick the AFSCs to show based on which ones change the most
                     self.plt_p["comparison_afscs"] = \
                         afccp.core.handling.ccp_helping_functions.pick_most_changed_afscs(self)
@@ -2010,7 +1636,7 @@ class CadetCareerProblem:
 
             solution = self.solve_vft_pyomo_model(p_dict, printing=False)
             solution_name = str(round(cadet_overall_weights[point], 4))
-            afsc_solution = np.array([self.parameters["afsc_vector"][int(j)] for j in solution])
+            afsc_solution = np.array([self.parameters["afscs"][int(j)] for j in solution])
             solutions[solution_name] = afsc_solution
 
             cadet_overall_values[point] = self.metrics['cadets_overall_value']
@@ -2072,7 +1698,7 @@ class CadetCareerProblem:
         initial_afsc_solutions = np.array([np.array(solutions_df[col]) for col in solutions_df])
         initial_solutions = np.array([])
         for i, afsc_solution in enumerate(initial_afsc_solutions):
-            solution = np.array([np.where(self.parameters["afsc_vector"] == afsc)[0][0] for afsc in afsc_solution])
+            solution = np.array([np.where(self.parameters["afscs"] == afsc)[0][0] for afsc in afsc_solution])
             if i == 0:
                 initial_solutions = solution
             else:
@@ -2101,7 +1727,7 @@ class CadetCareerProblem:
 
             solution = self.genetic_algorithm(self.mdl_p)
             solution_name = str(round(cadet_overall_weights[point], 4))
-            afsc_solution = np.array([self.parameters["afsc_vector"][int(j)] for j in solution])
+            afsc_solution = np.array([self.parameters["afscs"][int(j)] for j in solution])
             solutions[solution_name] = afsc_solution
 
             cadet_overall_values[point] = self.metrics['cadets_overall_value']
@@ -2151,44 +1777,6 @@ class CadetCareerProblem:
 
         return afccp.core.visualizations.instance_graphs.pareto_graph(pareto_df)
 
-    def least_squares_procedure(self, t_solution, delta=0, printing=None, show_graph=True, names=None, afsc=None,
-                                colors=None, save=False, figsize=(19, 7), facecolor="white", title=None,
-                                display_title=True, thesis_chart=False):
-        """
-        Conducts the "Least Squares Procedure" for sensitivity analysis. This method also builds the chart. I got
-        lazy about writing all the parameters in the doc-string since most of them are already defined elsewhere.
-        """
-        if printing is None:
-            printing = self.printing
-
-        if afccp.core.globals.use_pyomo:
-            value_parameters = afccp.core.solutions.pyomo_models.least_squares_procedure(
-                self.parameters, self.value_parameters, self.solution, t_solution, delta=delta, printing=printing)
-        else:
-            value_parameters = self.value_parameters
-
-            if printing:
-                print("Pyomo not available")
-
-        if show_graph:
-            if names is None:
-                names = ['Set 1', 'Set 2']
-            vp_dict = {names[0]: self.value_parameters, names[1]: value_parameters}
-            if afsc is None:
-                afsc = self.parameters['afsc_vector'][0]
-            chart = self.display_afsc_objective_weights_chart(vp_dict, afsc, printing=printing, colors=colors,
-                                                              save=save, figsize=figsize, facecolor=facecolor,
-                                                              title=title, display_title=display_title,
-                                                              thesis_chart=thesis_chart)
-
-            if printing:
-                print('t', self.measure_solution(t_solution, value_parameters=value_parameters, set_solution=False))
-                print('original', self.measure_solution(self.solution, value_parameters=value_parameters,
-                                                        set_solution=False))
-            return chart
-        else:
-            return value_parameters
-
     def display_afsc_objective_weights_chart(self, current_set=True, afsc=None, printing=None, colors=None,
                                              save=False, figsize=(14, 6), facecolor="white", title=None,
                                              display_title=True, thesis_chart=False, title_size=None, bar_color=None,
@@ -2210,7 +1798,7 @@ class CadetCareerProblem:
             legend_size = label_size
 
         if afsc is None:
-            afsc = self.parameters['afsc_vector'][0]
+            afsc = self.parameters['afscs'][0]
 
         if thesis_chart:
             figsize = (16, 10)
@@ -2231,75 +1819,7 @@ class CadetCareerProblem:
         return chart
 
     # Export
-    def create_aggregate_file(self, printing=None):
-        """
-        Create the "data_type data_name" main aggregate file with solutions, metrics, and vps
-        """
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print('Creating aggregate problem instance excel file...')
-
-        self.update_metrics_dict()
-        metrics_dict = self.metrics_dict
-        solution_dict = self.solution_dict
-        vp_dict = self.vp_dict
-
-        afccp.core.comprehensive_functions.create_aggregate_instance_file(
-            self.data_name, self.parameters, solution_dict, vp_dict, metrics_dict, self.gp_df, info_df=self.info_df,
-            similarity_matrix=self.similarity_matrix)
-
-    def export_to_excel(self, aggregate=True, printing=None):
-        """
-        Export data information to excel. We can either export the dictionaries back to excel or we can export
-        the results for one particular solution given one set of value parameters
-        :param aggregate: if we are exporting back to the aggregate excel file or not
-        :param printing: if we should print status updates or not
-        """
-        if printing is None:
-            printing = self.printing
-
-        if aggregate:
-            self.create_aggregate_file()
-        else:
-
-            if self.solution_name in self.solution_dict:
-
-                # Check if the instance solution is the same as the one in the dictionary
-                p_s = afccp.core.handling.data_handling.compare_solutions(
-                    self.solution, self.solution_dict[self.solution_name])
-                if p_s != 1:
-                    raise ValueError("Current solution: " + self.solution_name +
-                                     ". This is not the same solution as found in the dictionary under that name.")
-
-            else:
-                raise ValueError("Solution " + self.solution_name + " not found in dictionary.")
-
-            if self.vp_name in self.vp_dict:
-
-                # Check if the instance value parameters are the same as the ones in the dictionary
-                vp_same = afccp.core.handling.value_parameter_handling.compare_value_parameters(
-                    self.parameters, self.value_parameters, self.vp_dict[self.vp_name])
-                if not vp_same:
-                    raise ValueError("Current value parameters: " + self.vp_name +
-                                     ". This is not the same set of value parameters as found in the "
-                                     "dictionary under that name.")
-            else:
-                raise ValueError("Value Parameters " + self.vp_name + " not found in dictionary.")
-
-            # Export to the right place
-            filepath = afccp.core.globals.paths['results'] + self.data_name + '/' + self.data_name + ' ' + \
-                       self.solution_name + ' ' + self.vp_name + '.xlsx'
-
-            # Export to excel
-            afccp.core.comprehensive_functions.data_to_excel(
-                filepath, self.parameters, self.value_parameters, self.metrics, printing=printing)
-
-        if printing:
-            print('Exported.')
-
-    def export_data(self, datasets=["Value Parameters", "Solutions"], printing=None):
+    def export_data(self, datasets=None, printing=None):
         """
         Exports the desired problem instance datasets back to csvs.
 
@@ -2324,9 +1844,13 @@ class CadetCareerProblem:
         the method exports the `gp_df` dataframe to a csv using the file path specified in the `export_paths` dictionary.
         """
 
-        # Print statement
+        # Parameter initialization
+        if datasets is None:
+            datasets = ["Goal Programming", "Value Parameters", "Solutions"]
         if printing is None:
             printing = self.printing
+
+        # Print statement
         if printing:
             print("Exporting datasets", datasets)
 
@@ -2338,7 +1862,8 @@ class CadetCareerProblem:
 
             # If we don't have this information, that means this is a new instance to export
             if attribute is None:
-                self.import_paths, self.export_paths = afccp_dp.initialize_file_information(self.data_name, self.data_version)
+                self.import_paths, self.export_paths = afccp_dp.initialize_file_information(self.data_name,
+                                                                                            self.data_version)
                 break
 
         # Export various data using the different functions
@@ -2354,8 +1879,6 @@ class CadetCareerProblem:
         # Goal Programming dataframe is an easy export (dataframe is already constructed)
         if "Goal Programming" in datasets and self.gp_df is not None:
             self.gp_df.to_csv(self.export_paths["Goal Programming"], index=False)
-
-
 
 # # I commented this out because the functions.py script is 15k lines of code (Definitely need to talk refactoring)
 # try:

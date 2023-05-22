@@ -5,21 +5,17 @@ import afccp.core.globals
 from afccp.core.handling.data_handling import value_function
 
 
-def stable_marriage_model_solve(parameters, value_parameters, printing=False):
+def stable_marriage_model_solve(instance, printing=False):
     """
     This is a stable marriage implementation. This procedure takes in the parameters and value_parameters for the
     specified problem, then formulates the problem as a stable marriage problem and solves it. The procedure returns
     the solution.
-    :param printing: Whether the procedure should print something
-    :param parameters: fixed cadet/AFSC input parameters
-    :param value_parameters: weight/value parameters
-    :return: solution in vector form
     """
     if printing:
         print('Solving stable marriage model...')
 
-    # Load Parameters
-    p, vp = parameters, value_parameters
+    # Shorthand
+    p, vp = instance.parameters, instance.value_parameters
 
     # Create AFSC Utility Matrix
     if "afsc_utility" in p:
@@ -164,21 +160,16 @@ def matching_algorithm_1(instance, printing=True):
     return np.zeros(p["N"]).astype(int)
 
 
-def greedy_model_solve(parameters, value_parameters, printing=False):
+def greedy_model_solve(instance, printing=False):
     """
     This is a simple greedy algorithm that matches each cadet according to the highest valued AFSC determined by the
     initial overall utility matrix.
-    :param printing: Whether the procedure should print something or not
-    :param parameters: fixed cadet/AFSC input parameters
-    :param value_parameters: weight/value parameters
-    :return: solution in vector form
     """
     if printing:
         print('Solving Greedy Model...')
 
-    # Load Parameters
-    p = parameters
-    vp = value_parameters
+    # Shorthand
+    p, vp = instance.parameters, instance.value_parameters
 
     # Create AFSC Utility Matrix
     if "afsc_utility" in p:
@@ -210,153 +201,12 @@ def greedy_model_solve(parameters, value_parameters, printing=False):
     return solution
 
 
-def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, printing=False):
+def genetic_algorithm(instance, initial_solutions=None, printing=False):
     """
     This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
     solved in conjunction with the pyomo model solutions. Use several VFT pyomo solutions in the initial population to
     this genetic algorithm
     """
-
-    # Function Definitions
-    def fitness_function(chromosome):
-        """
-        This function takes in a chromosome (solution vector) and evaluates it. I tried to make it as efficient
-        as possible, since it is a very time-consuming function (relatively speaking)
-        :param chromosome: solution vector
-        :return: fitness score
-        """
-        # We assume the solution is feasible until proven otherwise
-        failed = False
-
-        # Make sure cadets are assigned to the AFSCs they need to be assigned to (fixed variables)
-        if p["J^Fixed"] is not None:
-            for i in p["J^Fixed"]:
-                chromosome[i] = p["J^Fixed"][i]
-
-        # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
-        if vp["J^USAFA"] is not None:
-
-            # This is a pretty arbitrary constraint and will only be used for real class years
-            cap = 0.05 * mp["real_usafa_n"]
-
-            u_count = 0
-            for j in vp["J^USAFA"]:
-
-                # list of indices of assigned cadets
-                cadets = np.where(chromosome == j)[0]
-                usafa_cadets = np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets)
-                u_count += len(usafa_cadets)
-
-            if u_count > int(cap + 1):
-                failed = True
-
-        afsc_value = np.zeros(p['M'])
-        for j in p['J']:
-
-            # Initialize objective measures and values
-            measure = np.zeros(vp['O'])
-            value = np.zeros(vp['O'])
-
-            # list of indices of assigned cadets
-            cadets = np.where(chromosome == j)[0]
-
-            # Only calculate measures for AFSCs with at least one cadet
-            count = len(cadets)
-            usafa_count = count
-            if count > 0:
-
-                if "USAFA Proportion" in vp["objectives"]:
-                    usafa_cadets = np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets)
-                    usafa_count = len(usafa_cadets)
-
-                # Loop through all AFSC objectives
-                for k in vp['K^A'][j]:
-                    objective = vp['objectives'][k]
-                    if objective == 'Merit':
-                        measure[k] = np.mean(p['merit'][cadets])
-                    elif objective == 'Utility':
-                        measure[k] = np.mean(p['utility'][cadets, j])
-                    elif objective == 'Combined Quota':
-                        measure[k] = count
-                    elif objective == 'USAFA Quota':
-                        measure[k] = usafa_count
-                    elif objective == 'ROTC Quota':
-                        measure[k] = count - usafa_count
-                    elif objective in vp['K^D']:
-                        measure[k] = len(np.intersect1d(p['I^D'][objective][j], cadets)) / count
-                    elif objective == "Norm Score":
-                        best_sum = np.sum(c for c in range(count))
-                        worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
-                        worst_sum = np.sum(c for c in worst_range)
-                        achieved_sum = np.sum(p["a_pref_matrix"][cadets, j])
-                        measure[k] = 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
-
-                    # Assign AFSC objective value
-                    value[k] = value_function(vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k], measure[k])
-
-                    # AFSC Objective Constraints
-                    if k in vp['K^C'][j]:
-
-                        # Check if this is a constrained approximate measure or exact measure
-                        if vp["constraint_type"][j, k] == 3:
-
-                            # PGL should be more "forgiving" as a constraint
-                            if "pgl" in p:
-                                constrained_measure = (measure[k] * count) / p['pgl'][j]
-                            else:
-                                constrained_measure = (measure[k] * count) / p['quota'][j]
-                        else:
-                            constrained_measure = measure[k]
-
-                        # Use the "real" constraint (potentially different as a result of approximate model)
-                        constrained_min, constrained_max = objective_min[j, k], objective_max[j, k]
-                        if con_fail_dict is not None:
-                            if (j, k) in con_fail_dict:
-                                split_list = con_fail_dict[(j, k)].split(' ')
-                                if split_list[0] == '>':
-                                    constrained_min = float(split_list[1])
-                                    constrained_max = objective_max[j, k]
-                                else:
-                                    constrained_min = objective_min[j, k]
-                                    constrained_max = float(split_list[1])
-
-                        # Constraint penalties
-                        if constrained_measure < constrained_min or constrained_measure > constrained_max:
-
-                            # We failed this constraint, exit the fitness function!
-                            if con_fail_dict is not None:
-                                failed = True
-                                break
-
-                if failed:
-                    break
-                else:
-
-                    # Calculate AFSC value
-                    afsc_value[j] = np.dot(vp['objective_weight'][j, :], value)
-                    if j in vp['J^C']:
-                        if afsc_value[j] < vp['afsc_value_min'][j]:
-                            failed = True
-                            break
-
-            else:
-                failed = True
-                break
-
-        if not failed:
-            cadet_value = np.array([p['utility'][i, int(chromosome[i])] for i in p['I']])
-            for i in vp['I^C']:
-                if cadet_value[i] < vp['cadet_value_min'][i]:
-                    failed = True
-                    break
-
-        if not failed:
-            z = vp['cadets_overall_weight'] * np.dot(vp['cadet_weight'], cadet_value) + \
-                vp['afscs_overall_weight'] * np.dot(vp['afsc_weight'], afsc_value)
-        else:
-            z = 0
-
-        return z
 
     def multi_point_crossover(genome1, genome2):
         """
@@ -391,9 +241,9 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
         :return: mutated genome
         """
         for _ in range(mp["num_mutations"]):
-            i = np.random.randint(low=0, high=p['N'])
-            new_j = np.random.choice(p['J^E'][i])
-            genome[i] = new_j if (np.random.uniform() < mp["mutation_rate"]) else genome[i]
+            i = np.random.randint(low=0, high=p['N'])  # Random cadet
+            j = np.random.choice(p['J^E'][i])  # Random AFSC
+            genome[i] = j if (np.random.uniform() < mp["mutation_rate"]) else genome[i]
 
         return genome
 
@@ -402,23 +252,14 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
     vp = instance.value_parameters
     mp = instance.mdl_p
 
-    # Obtain objective minimums and maximums
-    objective_min = np.zeros([p['M'], vp['O']])
-    objective_max = np.zeros([p['M'], vp['O']])
+    # Obtain objective minimums and maximums (and add to the "temporary" q dictionary)
+    q = {"objective_min": np.zeros([p['M'], vp['O']]), "objective_max": np.zeros([p['M'], vp['O']]),
+         "con_fail_dict": con_fail_dict}
     for j in p['J']:
         for k in vp['K^C'][j]:
-            if vp['constraint_type'][j, k] == 1 or vp['constraint_type'][j, k] == 2:
-                objective_min[j, k] = float(vp['objective_value_min'][j, k])
-            elif vp['constraint_type'][j, k] == 3 or vp['constraint_type'][j, k] == 4:
-                value_list = vp['objective_value_min'][j, k].split(",")
-                objective_min[j, k] = float(value_list[0].strip())
-                objective_max[j, k] = float(value_list[1].strip())
-
-    # Printing updates
-    if mp["ga_printing"]:
-        step = mp["ga_max_time"] / (100 / mp["percent_step"])
-        checkpoint = step
-        completed = 0
+            value_list = vp['objective_value_min'][j, k].split(",")
+            q["objective_min"][j, k] = float(value_list[0].strip())
+            q["objective_max"][j, k] = float(value_list[1].strip())
 
     # Rank Selection Parameters
     rank_weights = (np.arange(1, mp["pop_size"] + 1)[::-1]) ** 1.2
@@ -432,12 +273,11 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
     population = np.array([[np.random.choice(p['J^E'][i]) for i in p['I']] for _ in range(mp["pop_size"])]).astype(int)
     if initial_solutions is not None:
 
-        # Get fitness of initial_solutions in case there are issues with feasibility or there are
-        # too many initial solutions
+        # Get fitness of initial_solutions in case there are feasibility issues or there are too many initial solutions
         num_initial = len(initial_solutions)
         fitness = np.zeros(num_initial)
         for s, chromosome in enumerate(initial_solutions):
-            fitness[s] = fitness_function(chromosome)
+            fitness[s] = fitness_function(chromosome, p, vp, mp, q)
 
         # Sort Initial solutions by Fitness
         sorted_indices = fitness.argsort()[::-1]
@@ -453,14 +293,18 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
     # Initialize Fitness Scores
     fitness = np.zeros(mp["pop_size"])
     for i, chromosome in enumerate(population):
-        fitness[i] = fitness_function(chromosome)
+        fitness[i] = fitness_function(chromosome, p, vp, mp, q)
 
     # Sort Population by Fitness
     sorted_indices = fitness.argsort()[::-1]
     fitness = fitness[sorted_indices]
     population = population[sorted_indices]
 
+    # Print updates
     if mp["ga_printing"]:
+        step = mp["ga_max_time"] / (100 / mp["percent_step"])
+        checkpoint = step
+        completed = 0
         print('Initial Fitness Scores', fitness)
 
     # Time Evaluation Initialization
@@ -483,7 +327,7 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
 
         # Evaluate Population
         for index in range(2, mp["pop_size"]):
-            fitness[index] = fitness_function(population[index])
+            fitness[index] = fitness_function(population[index], p, vp, mp, q)
         eval_times.append(time.perf_counter() - gen_start_time)
 
         # Sort Population by Fitness
@@ -567,3 +411,141 @@ def rotc_rated_algorithm():
     pass
 
 
+def fitness_function(chromosome, p, vp, mp, q):
+    """
+    This function takes in a chromosome (solution vector) and evaluates it. This is a relatively time-consuming function
+    and so it needs to be as efficient as possible. This is currently as fast as I can make it.
+    :return: fitness score
+    """
+    # We assume the solution is feasible until proven otherwise
+    failed = False
+
+    # Make sure cadets are assigned to the AFSCs they need to be assigned to (fixed variables)
+    if p["J^Fixed"] is not None:
+        for i in p["J^Fixed"]:
+            chromosome[i] = p["J^Fixed"][i]
+
+    # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
+    if vp["J^USAFA"] is not None:
+
+        # This is a pretty arbitrary constraint and will only be used for real class years (but has since been removed)
+        cap = 0.05 * mp["real_usafa_n"]
+        u_count = 0
+        for j in vp["J^USAFA"]:
+
+            # list of indices of assigned cadets
+            cadets = np.where(chromosome == j)[0]
+            usafa_cadets = np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets)
+            u_count += len(usafa_cadets)
+
+        if u_count > int(cap + 1):
+            failed = True
+
+    afsc_value = np.zeros(p['M'])
+    for j in p['J']:
+
+        # Initialize objective measures and values
+        measure = np.zeros(vp['O'])
+        value = np.zeros(vp['O'])
+
+        # list of indices of assigned cadets
+        cadets = np.where(chromosome == j)[0]
+
+        # Only calculate measures for AFSCs with at least one cadet
+        count = len(cadets)
+        usafa_count = count
+        if count > 0:
+
+            if "USAFA Proportion" in vp["objectives"]:
+                usafa_cadets = np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets)
+                usafa_count = len(usafa_cadets)
+
+            # Loop through all AFSC objectives
+            for k in vp['K^A'][j]:
+                objective = vp['objectives'][k]
+                if objective == 'Merit':
+                    measure[k] = np.mean(p['merit'][cadets])
+                elif objective == 'Utility':
+                    measure[k] = np.mean(p['utility'][cadets, j])
+                elif objective == 'Combined Quota':
+                    measure[k] = count
+                elif objective == 'USAFA Quota':
+                    measure[k] = usafa_count
+                elif objective == 'ROTC Quota':
+                    measure[k] = count - usafa_count
+                elif objective in vp['K^D']:
+                    measure[k] = len(np.intersect1d(p['I^D'][objective][j], cadets)) / count
+                elif objective == "Norm Score":
+                    best_sum = np.sum(c for c in range(count))
+                    worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
+                    worst_sum = np.sum(c for c in worst_range)
+                    achieved_sum = np.sum(p["a_pref_matrix"][cadets, j])
+                    measure[k] = 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
+
+                # Assign AFSC objective value
+                value[k] = value_function(vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k], measure[k])
+
+                # AFSC Objective Constraints
+                if k in vp['K^C'][j]:
+
+                    # Check if this is a constrained approximate measure or exact measure
+                    if vp["constraint_type"][j, k] == 1:  # Approximate
+
+                        # PGL should be more "forgiving" as a constraint
+                        if "pgl" in p:
+                            constrained_measure = (measure[k] * count) / p['pgl'][j]
+                        else:
+                            constrained_measure = (measure[k] * count) / p['quota'][j]
+                    else:  # Exact
+                        constrained_measure = measure[k]
+
+                    # Use the "real" constraint (potentially different as a result of approximate model)
+                    constrained_min, constrained_max = q["objective_min"][j, k], q["objective_max"][j, k]
+                    if q["con_fail_dict"] is not None:
+                        if (j, k) in q["con_fail_dict"]:
+                            split_list = q["con_fail_dict"][(j, k)].split(' ')
+                            if split_list[0] == '>':
+                                constrained_min = float(split_list[1])
+                                constrained_max = q["objective_max"][j, k]
+                            else:
+                                constrained_min = q["objective_min"][j, k]
+                                constrained_max = float(split_list[1])
+
+                    # Constraint penalties
+                    if constrained_measure < constrained_min or constrained_measure > constrained_max:
+
+                        # We failed this constraint, exit the fitness function!
+                        if q["con_fail_dict"] is not None:
+                            failed = True
+                            break
+
+            if failed:
+                break
+            else:
+
+                # Calculate AFSC value
+                afsc_value[j] = np.dot(vp['objective_weight'][j, :], value)
+                if j in vp['J^C']:
+                    if afsc_value[j] < vp['afsc_value_min'][j]:
+                        failed = True
+                        break
+
+        # No cadets assigned to the AFSC means it failed
+        else:
+            failed = True
+            break
+
+    # Calculate Cadet Value
+    if not failed:
+        cadet_value = np.array([p['utility'][i, int(chromosome[i])] for i in p['I']])
+        for i in vp['I^C']:
+            if cadet_value[i] < vp['cadet_value_min'][i]:
+                failed = True
+                break
+
+    # Return fitness value
+    if not failed:
+        return vp['cadets_overall_weight'] * np.dot(vp['cadet_weight'], cadet_value) + \
+               vp['afscs_overall_weight'] * np.dot(vp['afsc_weight'], afsc_value)
+    else:
+        return 0

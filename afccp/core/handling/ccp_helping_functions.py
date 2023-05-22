@@ -52,6 +52,18 @@ def determine_afsc_plot_details(instance, results_chart=False):
                 else:
                     instance.plt_p["afsc_rotation"] = 45
 
+    # Get AFSC
+    if instance.plt_p["afsc"] is None:
+        instance.plt_p["afsc"] = instance.parameters['afscs'][0]
+
+    # Get AFSC index
+    j = np.where(instance.parameters["afscs"] == instance.plt_p["afsc"])[0][0]
+
+    # Get objective
+    if instance.plt_p["objective"] is None:
+        k = instance.value_parameters["K^A"][j][0]
+        instance.plt_p["objective"] = instance.value_parameters['objectives'][k]
+
     # Figure out which solutions to show, what the colors/markers are going to be, and some error handling
     if results_chart:
 
@@ -123,22 +135,41 @@ def initialize_instance_functional_parameters(N):
     """
 
     # Parameters for the graphs
-    plt_p = {"save": True, "figsize": (19, 10), "facecolor": "white", "eligibility": True, "title": None,
-             "filename": None, "display_title": True, "eligibility_limit": None, "label_size": 25,
-             "afsc_tick_size": 20, "data_graph": "AFOCD Data", "yaxis_tick_size": 25, "bar_text_size": 15,
-             "xaxis_tick_size": 20, "afsc_rotation": None, "dpi": 100, "bar_color": "black", "alpha": 1,
-             "legend_size": 25, "skip_afscs": None, "results_graph": "Measure", "y_max": 1.1, "y_exact_max": None,
-             "objective": "Merit", "compare_solutions": False, "solution_names": None, "vp_name": None,
-             "color_choices": ["red", "blue", "green", "orange", "purple", "black", "magenta"], "cadets_graph": True,
-             "marker_choices": ['o', 'D', '^', 'P', 'v', '*', 'h'], "sim_dot_size": 220, "x_point": None,
-             "dot_size": 100, "marker_size": 20, "all_afscs": True, "title_size": 25, "comparison_afscs": None,
-             "zorder_choices": [2, 3, 2, 2, 2, 2, 2], "preference_chart": False, "preference_proportion": False,
-             "dot_chart": False, "sort_by_pgl": True, "version": None, "solution_in_title": True, "afsc": None,
-             "num_afscs_to_compare": 8, "comparison_criteria": ["Utility", "Merit", "AFOCD"], "text_size": 20,
-             "num_solutions": None, "use_useful_charts": True, "new_similarity_matrix": True,
-             "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
-                                ("Utility", "quantity_bar_proportion"), ("Extra", "AFOCD_proportion"),
-                                ("USAFA Proportion", "bar"), ("Merit", "bar")], "smooth_value_function": False}
+    plt_p = {
+
+        # Generic Chart Handling
+        "save": True, "figsize": (19, 10), "facecolor": "white", "title": None, "filename": None, "display_title": True,
+        "label_size": 25, "afsc_tick_size": 20, "yaxis_tick_size": 25, "bar_text_size": 15, "xaxis_tick_size": 20,
+        "afsc_rotation": None, "dpi": 100, "bar_color": "black", "alpha": 1, "legend_size": 25,  "title_size": 25,
+        "text_size": 20,
+
+        # AFSC Chart Elements
+        "eligibility": True, "eligibility_limit": None, "skip_afscs": None, "all_afscs": True, "y_max": 1.1,
+        "y_exact_max": None, "preference_chart": False, "preference_proportion": False, "dot_chart": False,
+        "sort_by_pgl": True, "solution_in_title": True, "afsc": None, "use_useful_charts": True,
+        "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
+                           ("Utility", "quantity_bar_proportion"), ("Extra", "AFOCD_proportion"),
+                           ("USAFA Proportion", "bar"), ("Merit", "bar")],
+
+        # Macro Chart Controls
+        "cadets_graph": True, "data_graph": "AFOCD Data", "results_graph": "Measure", "objective": "Merit",
+        "version": "1",
+
+        # Similarity Chart Elements
+        "sim_dot_size": 220, "new_similarity_matrix": True,
+
+        # Value Function Chart Elements
+        "x_point": None, "dot_size": 100, "smooth_value_function": False,
+
+        # Solution Comparison Chart Information
+        "compare_solutions": False, "solution_names": None, "vp_name": None,
+        "color_choices": ["red", "blue", "green", "orange", "purple", "black", "magenta"],
+        "marker_choices": ['o', 'D', '^', 'P', 'v', '*', 'h'], "marker_size": 20, "comparison_afscs": None,
+        "zorder_choices": [2, 3, 2, 2, 2, 2, 2], "num_solutions": None,
+
+        # Multi-Criteria Chart
+        "num_afscs_to_compare": 8, "comparison_criteria": ["Utility", "Merit", "AFOCD"],
+    }
 
     # AFSC Measure Chart Versions
     afsc_chart_versions = {"Merit": ["large_only_bar", "bar", "quantity_bar_gradient", "quantity_bar_proportion"],
@@ -152,32 +183,64 @@ def initialize_instance_functional_parameters(N):
                            "Extra": ["AFOCD_proportion", "gender_preference"]}
 
     # Colors for the various bar types:
-    colors = {"top_choices": "#5490f0", "mid_choices": "#eef09e", "bottom_choices": "#f25d50",
-              "quartile_1": "#373aed", "quartile_2": "#0b7532", "quartile_3": "#d1bd4d", "quartile_4": "#cc1414",
-              "Mandatory": "#311cd4", "Desired": "#085206", "Permitted": "#bda522", "Ineligible": "#f25d50",
-              "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460",
-              "large_afscs": "#060d47", "small_afscs": "#cdddf7", "merit_above": "#c7b93a", "merit_within": "#3d8ee0",
-              "minority": "#eb8436", "non-minority": "#b6eb6c", "merit_below": "#bf4343", "large_within": "#3d8ee0",
-              "large_else": "#c7b93a",
-              "pgl": "#5490f0", "surplus": "#eef09e", "failed_pgl": "#f25d50",
-              "Volunteer": "#5490f0", "Non-Volunteer": "#f25d50"}
+    colors = {
+
+        # Cadet Preference Charts
+        "top_choices": "#5490f0", "mid_choices": "#eef09e", "bottom_choices": "#f25d50",
+        "Volunteer": "#5490f0", "Non-Volunteer": "#f25d50",
+
+        # Quartile Charts
+        "quartile_1": "#373aed", "quartile_2": "#0b7532", "quartile_3": "#d1bd4d", "quartile_4": "#cc1414",
+
+        # AFOCD Charts
+        "Mandatory": "#311cd4", "Desired": "#085206", "Permitted": "#bda522", "Ineligible": "#f25d50",
+
+        # Cadet Demographics
+        "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "minority": "#eb8436",
+        "non-minority": "#b6eb6c",
+
+        # Misc. AFSC Criteria
+        "large_afscs": "#060d47", "small_afscs": "#cdddf7", "merit_above": "#c7b93a", "merit_within": "#3d8ee0",
+        "merit_below": "#bf4343", "large_within": "#3d8ee0", "large_else": "#c7b93a",
+
+        # PGL Charts
+        "pgl": "#5490f0", "surplus": "#eef09e", "failed_pgl": "#f25d50",
+    }
 
     # Add these elements to the main dictionary
     plt_p["afsc_chart_versions"] = afsc_chart_versions
     plt_p["bar_colors"] = colors
 
-    # Parameters to solve the models
-    mdl_p = {"pop_size": 12, "ga_max_time": 60, "num_crossover_points": 3, "initialize": True,
-             "initial_solutions": None, "solution_names": None, "ga_printing": True,
-             "mutation_rate": 0.05, "num_time_points": 100, "time_eval": False, "real_usafa_n": 960,
-             "num_mutations": int(np.ceil(N / 75)), "percent_step": 10, "pareto_step": 10,
-             "add_to_dict": True, "constraint_tolerance": 0.95, "ga_constrain_first_only": False,
-             "pyomo_constraint_based": True, "set_to_instance": True, "initialize_new_heuristics": False,
-             "solver_name": "cbc", "approximate": True, "pyomo_max_time": 10, "warm_start": None, "init_from_X": False,
-             "report": False, "add_breakpoints": True, "populate": False, "iterate_from_quota": True,
-             "max_quota_iterations": 5, "population_additions": 5, "provide_executable": False, "executable": None,
-             "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
-             "exe_extension": False, "skip_quota_constraint": False}
+    # Parameters to solve the models and handle data
+    mdl_p = {
+
+        # Generic Solution Handling (for multiple algorithms/models)
+        "initial_solutions": None, "solution_names": None, "add_to_dict": True, "set_to_instance": True,
+        "initialize_new_heuristics": False, 'gather_all_metrics': True,
+
+        # Genetic Algorithm Parameters
+        "pop_size": 12, "ga_max_time": 60, "num_crossover_points": 3, "initialize": True, "ga_printing": True,
+        "mutation_rate": 0.05, "num_time_points": 100, "num_mutations": int(np.ceil(N / 75)), "time_eval": False,
+        "percent_step": 10, "ga_constrain_first_only": False,
+
+        # Pyomo General Parameters
+        "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
+        "executable": None, "exe_extension": False,
+
+        # VFT Model Parameters
+        "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,
+        "obtain_warm_start_variables": False, "add_breakpoints": True, "approximate": True,
+
+        # VFT Population Generation Parameters (Including Pareto)
+        "populate": False, "iterate_from_quota": True, "max_quota_iterations": 5, "population_additions": 5,
+        "skip_quota_constraint": False, "pareto_step": 10,
+
+        # Goal Programming Parameters
+        "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
+
+         # Value Parameter Generation
+         "new_vp_weight": 100, "num_breakpoints": 24,
+    }
 
     return plt_p, mdl_p
 
