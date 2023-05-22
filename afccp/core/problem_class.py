@@ -106,7 +106,7 @@ class CadetCareerProblem:
             if "Goal Programming" in self.import_paths:
                 self.gp_df = afccp.core.globals.import_csv_data(self.import_paths["Goal Programming"])
             else:  # Default "GP" file
-                self.gp_df = afccp.core.globals.import_csv_data(
+                self.gp_df = afccp.core.globals.import_data(
                     afccp.core.globals.paths["support"] + "data/gp_parameters.xlsx")
 
             # Import the "Value Parameters" data dictionary
