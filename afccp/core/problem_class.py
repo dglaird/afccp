@@ -17,7 +17,6 @@ import afccp.core.handling.data_processing
 import datetime
 import glob
 import copy
-print("New")
 
 
 # Main Problem Class

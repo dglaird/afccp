@@ -8,12 +8,7 @@ import afccp.core.handling.simulation_functions
 import afccp.core.visualizations.instance_graphs
 import afccp.core.solutions.heuristic_solvers
 import afccp.core.visualizations.more_graphs
-
-try:
-    import afccp.core.matching.functions  # Import Ian's functions
-except:
-    pass  # We may not have Ian's functions
-
+import afccp.core.handling.data_processing
 import copy
 
 if afccp.core.globals.use_pyomo:
@@ -1103,31 +1098,28 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
     p = copy.deepcopy(instance.parameters)
     real_afscs = p["afscs"][:p["M"]]
 
-    # Get the quota array
-    if "pgl" in p:
-        quota = p["pgl"]
-    else:
-        quota = p["quota"]
-
     # Sort indices
-    t_indices = np.argsort(quota)[::-1]
+    t_indices = np.argsort(p["pgl"])[::-1]
 
     # Translate parameters
     new_p = copy.deepcopy(p)
     new_p["afscs"] = np.array([new_letter + str(j + 1) for j in p["J"]])
     new_p["afscs"] = np.hstack((new_p["afscs"], "*"))
-    new_p["quota"] = quota[t_indices]
     sorted_real_afscs = copy.deepcopy(real_afscs[t_indices])
 
-    # Loop through each key in the parameters dictionary to translate it
+    # Loop through each key in the parameter dictionary to translate it
     for key in p:
 
         # If it's a one dimensional array of length M, we translate it accordingly
-        if np.shape(key) == (p["M"], ):
+        if np.shape(p[key]) == (p["M"], ) and "^" not in key:  # Sets/Subsets will be adjusted later
             new_p[key] = p[key][t_indices]
 
+        # If it's a one dimensional array of length M, we translate it accordingly
+        elif np.shape(p[key]) == (p["M"], 4):
+            new_p[key] = p[key][t_indices, :]
+
         # If it's a two-dimensional array of shape (NxM), we translate it accordingly
-        elif np.shape(key) == (p["N"], p["M"]):
+        elif np.shape(p[key]) == (p["N"], p["M"]) and key not in ['c_preferences', 'c_utilities']:
             new_p[key] = p[key][:, t_indices]
 
     # Get assigned AFSC vector
@@ -1137,7 +1129,7 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
             new_p["assigned"][i] = new_p["afscs"][j]
 
     # Set additions, and add to the instance
-    instance.parameters = afccp.core.handling.data_handling.model_fixed_parameters_set_additions(new_p)
+    instance.parameters = afccp.core.handling.data_processing.parameter_sets_additions(new_p)
 
     # Translate value parameters
     if instance.vp_dict is not None:
@@ -1145,16 +1137,23 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
         for vp_name in instance.vp_dict:
             vp = copy.deepcopy(instance.vp_dict[vp_name])
             new_vp = copy.deepcopy(vp)
-            new_vp["afsc_value_min"] = vp["afsc_value_min"][t_indices]
-            new_vp["afsc_weight"] = vp["afsc_weight"][t_indices]
 
-            # Loop through each two dimensional array of size (M, O) and translate it
-            for key in ["objective_value_min", "value_functions", "constraint_type", "objective_target",
-                        "objective_weight"]:
-                new_vp[key] = vp[key][t_indices, :]
+            for key in vp:
+
+                # If it's a one dimensional array of length M, we translate it accordingly
+                if np.shape(vp[key]) == (p["M"],):
+                    new_vp[key] = vp[key][t_indices]
+
+                # If it's a two-dimensional array of shape (NxM), we translate it accordingly
+                elif np.shape(vp[key]) == (p["N"], p["M"]):
+                    new_vp[key] = vp[key][:, t_indices]
+
+                # If it's a two-dimensional array of shape (MxO), we translate it accordingly
+                elif np.shape(vp[key]) == (vp["M"], vp["O"]) and key not in ["a", "f^hat"]:
+                    new_vp[key] = vp[key][t_indices, :]
 
             # USAFA-constrained AFSCs
-            if "USAFA-Constrained AFSCs" in vp:
+            if vp["J^USAFA"] is not None:
                 usafa_afscs = vp["USAFA-Constrained AFSCs"].split(", ")
                 new_str = ""
                 for index, real_afsc in enumerate(usafa_afscs):
