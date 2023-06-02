@@ -185,10 +185,10 @@ def gather_degree_tier_qual_matrix(cadets_df, parameters):
 
         if "cip1" in p:
             if "cip2" in p:
-                qual = afccp.core.handling.preprocessing.cip_to_qual_tiers(
+                qual = afccp.core.data.preprocessing.cip_to_qual_tiers(
                     p["afscs"][:p["M"]], p['cip1'], cip2=p['cip2'])
             else:
-                qual = afccp.core.handling.preprocessing.cip_to_qual_tiers(
+                qual = afccp.core.data.preprocessing.cip_to_qual_tiers(
                     p["afscs"][:p["M"]], p['cip1'])
         else:
             raise ValueError("Error. Need to update the degree tier qualification matrix to include tiers "
@@ -795,7 +795,7 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=2
 
     # Shorthand
     p = parameters
-    afccp_vp = afccp.core.handling.values  # Reduce the module name so it fits on one line
+    afccp_vp = afccp.core.data.values  # Reduce the module name so it fits on one line
 
     # Import the cadets utility constraints dataframe if we have it.
     if "Cadets Utility Constraints" in import_filepaths:

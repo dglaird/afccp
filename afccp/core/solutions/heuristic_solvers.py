@@ -85,23 +85,23 @@ def stable_marriage_model_solve(instance, printing=False):
             # Loop through all cadets that are proposing to AFSC j
             for i in afsc_proposal_lists[j]:
                 if i in afsc_preference_lists[j]:  # if the cadet is eligible for the AFSC
-                    if len(afsc_proposal_lists[j]) > parameters['quota'][j]:
+                    if len(afsc_proposal_lists[j]) > p['pgl'][j]:
                         afsc_proposal_ranks[j] = np.append(afsc_proposal_ranks[j],
                                                            np.where(afsc_preference_lists[j] == i)[0][0])
                     afsc_proposal_indices[j] = np.append(afsc_proposal_indices[j], int(i))
                 else:
                     rejections[int(i), int(pref_proposals[int(i)])] = 1  # This cadet has been rejected by the AFSC
 
-            if len(afsc_proposal_lists[j]) > p['quota'][j]:
+            if len(afsc_proposal_lists[j]) > p['pgl'][j]:
 
                 if len(afsc_proposal_ranks[j]) != 0:
                     # This line sorts the indices of cadets who are proposing to AFSC j according to AFSC j's ordinal
                     # preference for them
                     sorted_indices = afsc_proposal_indices[j][afsc_proposal_ranks[j].argsort()]
-                    afsc_matches[j] = sorted_indices[0:int(p['quota'][j])]
+                    afsc_matches[j] = sorted_indices[0:int(p['pgl'][j])]
 
                     # reject excess cadets above quota
-                    rejected_cadets = sorted_indices[int(p['quota'][j]):len(sorted_indices)]
+                    rejected_cadets = sorted_indices[int(p['pgl'][j]):len(sorted_indices)]
                     for r in rejected_cadets:
                         rejections[int(r), int(pref_proposals[int(r)])] = 1  # This cadet has been rejected by the AFSC
 
