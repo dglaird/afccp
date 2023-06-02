@@ -3,7 +3,7 @@ import random
 import numpy as np
 import warnings
 import afccp.core.globals
-import afccp.core.handling.preprocessing
+import afccp.core.data.preprocessing
 
 if afccp.core.globals.use_sdv:
     

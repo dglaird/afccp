@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import copy
 import afccp.core.globals
-import afccp.core.handling.preprocessing
-import afccp.core.handling.value_parameter_handling
+import afccp.core.data.preprocessing
+import afccp.core.data.values
 
 
 # File & Parameter Handling
@@ -351,6 +351,226 @@ def parameter_sets_additions(parameters):
     return p
 
 
+def parameter_sanity_check(instance):
+    """
+    This function runs through all the different parameters and sanity checks them to make sure that they make
+    sense and don't break the model
+    """
+
+    # Shorthand
+    p, vp = instance.parameters, instance.value_parameters
+
+    if vp is None:
+        raise ValueError("Cannot sanity check parameters without specifying which value_parameters to use.")
+
+    # Initialization
+    print("Sanity checking the instance parameters...")
+    issue = 0
+
+    # Check constraint type matrix (I discontinued "3"s and "4"s in favor of just doing "1"s and "2"s
+    if 3 in vp['constraint_type'] or 4 in vp['constraint_type']:
+        issue += 1
+        print(issue, "ISSUE: 'constraint_type' matrix contains 3s and/or 4s instead of 1s and 2s. I discontinued the"
+                     "use of the former in favor of the latter so please adjust it.")
+
+    # Loop through each AFSC to check various elements
+    for j, afsc in enumerate(p["afscs"][:p["M"]]):
+
+        if p["num_eligible"][j] < p["quota_min"][j]:
+            issue += 1
+            print(issue, "ISSUE: AFSC '" + afsc + "' quota constraint invalid. " + str(p["quota_min"][j]) +
+                  " (min) > " + str(p["num_eligible"][j]) + " (number of eligible cadets).")
+        elif p["num_eligible"][j] == p["quota_min"][j]:
+            issue += 1
+            print(issue, "WARNING: AFSC '" + afsc +
+                  "' has a lower quota that is the same as its number of eligible cadets (" +
+                  str(p["quota_min"][j]) + "). All eligible cadets for this AFSC will be assigned to it.")
+
+        if p["quota_min"][j] > p["quota_max"][j]:
+            issue += 1
+            print(issue, "ISSUE: AFSC '" + afsc + "' quota constraint invalid. " + str(p["quota_min"][j]) +
+                  " (min) > " + str(p["quota_max"][j]) + " (max).")
+
+        quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
+        if p["quota_d"][j] != vp["objective_target"][j, quota_k]:
+            issue += 1
+            print(issue, "ISSUE: AFSC '" + afsc + "' quota desired target of " + str(p["quota_d"][j]) +
+                  " from AFSCs Fixed does not match its objective target (" + str(vp["objective_target"][j, quota_k]) +
+                  ") in the value parameters.")
+
+        if p["quota_d"][j] < p["quota_min"][j] or p["quota_d"][j] > p["quota_max"][j]:
+            issue += 1
+            print(issue, "ISSUE: AFSC '" + afsc + "' quota desired target of " + str(p["quota_d"][j]) +
+                  " is outside the specified range on the number of cadets (" + str(p["quota_min"][j]) + ", " +
+                  str(p["quota_max"][j]) + ").")
+
+        # If we have the AFSC preference lists, we validate certain features
+        if 'a_pref_matrix' in p:
+
+            cfm_list = np.where(p['a_pref_matrix'][:, j])[0]  # Cadets on the AFSC preference list
+
+            # Cadets that are both on the CFM preference list and are eligible for the AFSC (qual matrix)
+            both_lists = np.intersect1d(cfm_list, p['I^E'][j])  # SHOULD contain the same cadets
+            num_cfm, num_qual = len(cfm_list), len(p['I^E'][j])  # SHOULD be the same number of cadets
+
+            # If the numbers aren't equal
+            if len(both_lists) != num_qual:
+                issue += 1
+                cfm_not_qual = [cadet for cadet in cfm_list if cadet not in p['I^E'][j]]
+                qual_not_cfm = [cadet for cadet in p['I^E'][j] if cadet not in cfm_list]
+                print(issue, "ISSUE: AFSC '" + afsc + "' CFM preference list ('a_pref_matrix') does not match the qual"
+                                                      "matrix. \nThere are " + str(num_cfm) +
+                      " cadets that are on the preference list (non-zero ranks) but there are "
+                      + str(num_qual) + " 'eligible' cadets (qual matrix). There are " + str(len(both_lists)) +
+                      " cadets in both sets. \nCFM list but not qual cadets:", cfm_not_qual,
+                      "\nQual but not CFM list cadets:", qual_not_cfm)
+
+        # Validate AFOCD tier objectives
+        for objective in ["Mandatory", "Desired", "Permitted", "Tier 1", "Tier 2", "Tier 3", "Tier 4"]:
+
+            # Make sure this is a valid objective for this problem instance
+            if objective not in vp["objectives"]:
+                continue  # goes to the next objective
+
+            # Get index
+            k = np.where(vp["objectives"] == objective)[0][0]
+
+            # Check if the AFSC is constraining this objective
+            if k not in vp["K^C"][j]:
+                continue
+
+            # Make sure there are cadets that are in this degree tier
+            if len(p["I^D"][objective][j]) == 0:
+                issue += 1
+                if "Tier" in objective:
+                    print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                          "' is empty. No cadets have degrees that fit in this tier for this class year.")
+                else:
+                    print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                          "'-Tier is empty. No cadets have degrees that fit in this tier for this class year.")
+
+            # Make sure objective has valid target
+            if vp["objective_target"][j, k] == 0:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "'-Tier target cannot be 0 when it has a nonzero weight.")
+
+        # Validate AFOCD Tier objectives
+        levels = []
+        for t, objective in enumerate(["Tier 1", "Tier 2", "Tier 3", "Tier 4"]):
+
+            # Make sure this is a valid objective for this problem instance
+            if objective not in vp["objectives"]:
+                continue  # goes to the next objective
+
+            # Get index
+            k = np.where(vp["objectives"] == objective)[0][0]
+
+            # Make sure that this is a valid tier for this AFSC
+            if k not in vp['K^A'][j]:
+                continue  # goes to the next objective
+
+            level = "I" + str(t + 1)
+            requirement_dict = {'t_mandatory': 'M', 't_desired': 'D', 't_permitted': 'P'}
+            for r_level in requirement_dict:
+                if p[r_level][j, t]:
+                    level = requirement_dict[r_level] + str(t + 1)
+            levels.append(level)
+
+            # Make sure this requirement/qualification level is present with the cadets
+            if level not in p['qual'][:, j]:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' expected cadet qualification level is '" + level + "' but this is not in the qual matrix.")
+
+        unique_levels = np.unique(p['qual'][:, j])
+        for level in unique_levels:
+            if level not in levels and 'E' not in level and 'I' not in level:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' qualification level '" + level +
+                      "' found within the cadet qual matrix but this is not defined within the value"
+                      " parameters." )
+
+        # Make sure all constrained objectives have appropriate constraints
+        for k in vp["K^C"][j]:
+            objective = vp["objectives"][k]
+
+            # Check constraint type to see if something doesn't check out
+            if vp["constraint_type"][j, k] == 1:
+
+                # If the minimum is zero, we know this is an "at MOST" constraint (0 to 0.3, for example)
+                if vp['objective_min'][j, k] == 0:
+                    issue += 1
+                    print(issue, "WARNING: AFSC '" + afsc + "' objective '" + objective +
+                          "' has an 'at most' constraint of '" + vp['objective_value_min'][j, k] +
+                          "'. The constraint_type is 1, indicating an approximate constraint but this is not recommended. "
+                          "Instead, use the constraint_type '2' to indicate an exact constraint since this is the easiest"
+                          " way to meet an 'at most' constraint.")
+
+            try:
+                lb = float(vp["objective_value_min"][j, k].split(",")[0])
+                ub = float(vp["objective_value_min"][j, k].split(",")[1])
+                assert lb <= ub
+            except:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' constraint range (objective_value_min) '" + vp["objective_value_min"][j, k] +
+                      "' is invalid. This constraint is currently activated.")
+
+        # Make sure value functions are valid
+        for k in vp["K^A"][j]:
+            objective = vp["objectives"][k]
+            vf_string_start = vp["value_functions"][j, k].split("|")[0]
+
+            # VF String validation
+            if vf_string_start not in ["Min Increasing", "Min Decreasing", "Balance", "Quota_Direct",
+                                       "Quota_Normal"]:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective + "' value function string '" +
+                      vp["value_functions"][j, k] + "' is invalid.")
+
+            # Validate number of breakpoints
+            if vp["r"][j, k] == 0:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' does not have any value function breakpoints. 'a':", vp["a"][j][k])
+                continue
+
+            # Value function should have same number of x and y coordinates
+            if len(vp["a"][j][k]) != len(vp["f^hat"][j][k]):
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' value function breakpoint coordinates do not align. 'a' has length of " + len(vp["a"][j][k]) +
+                      " while 'f^hat' has length of " + len(vp["f^hat"][j][k]) + ".")
+                continue
+
+            # Ensure that the breakpoint "x" coordinates are always getting bigger
+            current_x = -1
+            valid_x_bps = True
+            for l in vp["L"][j][k]:
+                if vp["a"][j][k][l] < current_x:
+                    valid_x_bps = False
+                    break
+                else:
+                    current_x = vp["a"][j][k][l]
+
+            if not valid_x_bps:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' value function x coordinates do not continuously increase along x-axis. 'a':", vp["a"][j][k],
+                      "'vf_string':", vp["value_functions"][j, k])
+
+    # Loop through each objective to see if there are any null values in the objective target array
+    for k, objective in enumerate(vp["objectives"]):
+        num_null = pd.isnull(vp["objective_target"][:, k]).sum()
+        if num_null > 0:
+            issue += 1
+            print(issue, "ISSUE: Objective '" + objective + "' contains " +
+                  str(num_null) + " null target values ('objective_target').")
+
+    print('Done,', issue, "issues found.")
+
+
 # Data Imports
 def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
     """
@@ -528,7 +748,7 @@ def import_preferences_data(import_filepaths, parameters):
     return p
 
 
-def import_value_parameters_data(import_filepaths, parameters, num_breakpoints):
+def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=24):
     """
     Imports the data pertaining to the value parameters of the model.
 
@@ -575,7 +795,7 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints):
 
     # Shorthand
     p = parameters
-    afccp_vp = afccp.core.handling.value_parameter_handling  # Reduce the module name so it fits on one line
+    afccp_vp = afccp.core.handling.values  # Reduce the module name so it fits on one line
 
     # Import the cadets utility constraints dataframe if we have it.
     if "Cadets Utility Constraints" in import_filepaths:
@@ -634,7 +854,8 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints):
                             "constraint_type": np.zeros([M, O]), 'a': [[[] for _ in range(O)] for _ in range(M)],
                             "objective_target": np.zeros([M, O]), 'f^hat': [[[] for _ in range(O)] for _ in range(M)],
                             "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
-                            'objectives': np.array(vp_df.loc[:int(len(vp_df) / M - 1), 'Objective']), "K^A": {}}
+                            'objectives': np.array(vp_df.loc[:int(len(vp_df) / M - 1), 'Objective']), "K^A": {},
+                            'num_breakpoints': num_breakpoints}
 
         # If we have constraints specified for cadet utility
         if vp_cadet_df is not None:
@@ -929,7 +1150,7 @@ def export_value_parameters_data(instance):
     # Shorthand
     p = instance.parameters
 
-    # Error handling
+    # Error data
     if instance.vp_dict is None:
         raise ValueError("Error. No value parameters to export.")
 
@@ -1030,7 +1251,7 @@ def export_solutions_data(instance):
     # Shorthand
     p = instance.parameters
 
-    # Error handling
+    # Error data
     if instance.solution_dict is None:
         raise ValueError("Error. No solutions to export.")
 

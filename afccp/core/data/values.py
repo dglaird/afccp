@@ -21,6 +21,12 @@ def value_parameters_sets_additions(parameters, value_parameters, printing=False
     # Shorthand
     p, vp = parameters, value_parameters
 
+    # Temporary manual adjustment of constraint_type matrix
+    indices_3 = np.where(vp['constraint_type'] == 3)
+    indices_4 = np.where(vp['constraint_type'] == 4)
+    vp['constraint_type'][indices_3] = 1
+    vp['constraint_type'][indices_4] = 2
+
     # Set of Objectives
     vp['K'] = np.arange(vp["O"])
 
@@ -227,19 +233,25 @@ def generate_afocd_value_parameters(parameters, default_value_parameters):
                 # Objective Min Value
                 if p["t_leq"][j, t] == 1:
                     vp["objective_value_min"][j, k] = "0, " + str(p["t_proportion"][j, t])
-                elif p["t_geq"][j, t] == 1:
+                else:  # <= OR ==
                     vp["objective_value_min"][j, k] = str(p["t_proportion"][j, t]) + ", 5"
 
                 # Constraint Type (Default to turning all constraints on. It's easier to make them zeros later...)
                 if p["t_mandatory"][j, t] == 1:
-                    vp["constraint_type"][j, k] = 3  # More relaxed mandatory constraint (easier to meet >=)
+                    vp["constraint_type"][j, k] = 1  # Easier to meet "at least" constraint (M >/= x) based on PGL
                 elif p["t_desired"][j, t] == 1:
                     if p["t_leq"][j, t] == 1:
-                        vp["constraint_type"][j, k] = 4  # Easier to meet a <= constraint based on proportion
+                        vp["constraint_type"][j, k] = 2  # Easier to meet "at most" constraint (D < x) based on proportion
                     elif p["t_geq"][j, t] == 1:
-                        vp["constraint_type"][j, k] = 3  # Easier to meet a >= constraint based on PGL
+                        vp["constraint_type"][j, k] = 1  # Easier to meet "at least" constraint (D > x) based on PGL
                 elif p["t_permitted"][j, t] == 1:
-                    vp["constraint_type"][j, k] = 4  # Easier to meet a <= constraint based on proportion
+                    vp["constraint_type"][j, k] = 2  # Easier to meet "at most" constraint (P < x) based on proportion
+
+                # Value Functions
+                if p['t_leq'][j, t] == 1:
+                    vp['value_functions'][j, k] = "Min Decreasing|0.3"
+                else:  # <= OR ==
+                    vp['value_functions'][j, k] = "Min Increasing|0.3"
 
     return vp
 
@@ -259,7 +271,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     init_afocd = False
 
     # Manipulate AFOCD objectives based on what "system" we're using (Tiers or "Old")
-    if p["qual_type"] == "Tiers":
+    if p["Qual Type"] == "Tiers":
 
         # Weight "Old" AFOCD Objectives at zero (but keep them in because we can select them if needed)
         for objective in ["Mandatory", "Desired", "Permitted"]:
@@ -283,7 +295,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                         new_column = np.array([["0"] for _ in p["J"]])
                     dvp[vp_key] = np.hstack((dvp[vp_key], new_column))
 
-    elif p["qual_type"] == "Relaxed":
+    elif p["Qual Type"] == "Relaxed":
 
         # Remove "Tier" AFOCD Objectives
         for t in ["1", "2", "3", "4"]:
@@ -324,19 +336,19 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
     # Initialize set of value p
     vp = {'cadets_overall_weight': dvp['cadets_overall_weight'],
-                        'afscs_overall_weight': dvp['afscs_overall_weight'],
-                        'cadet_weight_function': dvp['cadet_weight_function'],
-                        'afsc_weight_function': dvp['afsc_weight_function'],
-                        'cadets_overall_value_min': dvp['cadets_overall_value_min'],
-                        'afscs_overall_value_min': dvp['afscs_overall_value_min'],
-                        'afsc_value_min': np.zeros(p["M"]), 'cadet_value_min': np.zeros(p["N"]),
-                        'objective_weight': np.zeros([p["M"], O]), 'afsc_weight': np.zeros(p["M"]), "M": p["M"],
-                        'objective_target': np.zeros([p["M"], O]), 'objectives': objectives, 'O': O,
-                        'objective_value_min': np.array([[" " * 20 for _ in range(O)] for _ in p["J"]]),
-                        'constraint_type': np.zeros([p["M"], O]).astype(int),
-                        "USAFA-Constrained AFSCs": dvp["USAFA-Constrained AFSCs"],
-                        "Cadets Top 3 Constraint": dvp["Cadets Top 3 Constraint"],
-                        'num_breakpoints': num_breakpoints}
+          'afscs_overall_weight': dvp['afscs_overall_weight'],
+          'cadet_weight_function': dvp['cadet_weight_function'],
+          'afsc_weight_function': dvp['afsc_weight_function'],
+          'cadets_overall_value_min': dvp['cadets_overall_value_min'],
+          'afscs_overall_value_min': dvp['afscs_overall_value_min'],
+          'afsc_value_min': np.zeros(p["M"]), 'cadet_value_min': np.zeros(p["N"]),
+          'objective_weight': np.zeros([p["M"], O]), 'afsc_weight': np.zeros(p["M"]), "M": p["M"],
+          'objective_target': np.zeros([p["M"], O]), 'objectives': objectives, 'O': O,
+          'objective_value_min': np.array([[" " * 20 for _ in range(O)] for _ in p["J"]]),
+          'constraint_type': np.zeros([p["M"], O]).astype(int),
+          "USAFA-Constrained AFSCs": dvp["USAFA-Constrained AFSCs"],
+          "Cadets Top 3 Constraint": dvp["Cadets Top 3 Constraint"],
+          'num_breakpoints': num_breakpoints}
 
     # Determine weights on cadets
     if 'merit_all' in p:
@@ -361,6 +373,9 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     value_functions = value_functions[afsc_indices, :]
     vp['value_functions'] = value_functions
 
+    # Initialize objective set
+    vp['K^A'] = {}
+
     # Loop through each AFSC to load in their value parameters
     for j, afsc in enumerate(p['afscs']):
 
@@ -374,8 +389,8 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
             vp['objective_target'][j] = dvp['objective_target'][loc, objective_indices]
             vp['objective_value_min'][j] = dvp['objective_value_min'][loc, objective_indices]
             vp['afsc_value_min'][j] = dvp['afsc_value_min'][loc]
-            vp['constraint_type'][j] = \
-                dvp['constraint_type'][loc, objective_indices]
+            vp['constraint_type'][j] = dvp['constraint_type'][loc, objective_indices]
+            vp['K^A'][j] = np.where(vp['objective_weight'][j, :] > 0)[0].astype(int)
 
             # If we're not generating afsc weights using the specified weight function...
             if not generate_afsc_weights:  # Also, if the weight function is "Custom"
@@ -474,7 +489,8 @@ def compare_value_parameters(parameters, vp1, vp2, vp1name, vp2name, printing=Fa
                 break
 
         elif key in ['afsc_value_min', 'cadet_value_min', 'objective_value_min', 'value_functions', 'objective_target',
-                     'objective_weight', 'afsc_weight', 'cadet_weight', 'I^C', 'J^C', 'value_functions']:
+                     'objective_weight', 'afsc_weight', 'cadet_weight', 'I^C', 'J^C', 'value_functions',
+                     'constraint_type']:
             if key not in ['objective_value_min', 'value_functions']:
                 vp_1_arr, vp_2_arr = np.ravel(np.around(vp1[key], 4)), np.ravel(np.around(vp2[key], 4))
             else:
@@ -603,15 +619,28 @@ def afsc_weight_function(quota, func="Curve"):
 # Value Function Construction
 def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual=None, multiplier=False, minimum=None):
     """
-    This function takes a value function string and converts it into the segment
-    dictionary which can then be used to generate the function breakpoints
-    :param minimum: minimum objective measure (optional)
-    :param multiplier: if we're multiplying the target values by some scalar for the quota objectives or not
-    :param actual: proportion of eligible cadets
-    :param vf_string: value function string
-    :param target: target objective measure (optional)
-    :param maximum: maximum objective measure (optional)
-    :return: segment_dict
+    Converts a value function string into a segment dictionary.
+
+    Args:
+        vf_string (str): Value function string.
+        target (float, optional): Target objective measure.
+        maximum (float, optional): Maximum objective measure.
+        actual (float, optional): Proportion of eligible cadets.
+        multiplier (bool, optional): Specifies whether the target values are multiplied by a scalar for quota objectives.
+        minimum (float, optional): Minimum objective measure.
+
+    Returns:
+        segment_dict (dict): A dictionary representing the segments of the value function.
+
+    Notes:
+        - The function assumes that the value function string follows a specific format.
+        - The segment dictionary contains keys representing the segment number and values representing the segment details.
+        - Each segment is represented by a dictionary with the following keys:
+            - 'x1': The starting point on the x-axis.
+            - 'y1': The starting point on the y-axis.
+            - 'x2': The ending point on the x-axis.
+            - 'y2': The ending point on the y-axis.
+            - 'rho': The value of the rho parameter for the segment.
     """
 
     # Collect the kind of function we're creating
@@ -752,13 +781,39 @@ def value_function_builder(segment_dict=None, num_breakpoints=None, derivative_l
     """
     This procedure takes in a dictionary of exponential segments and returns the breakpoints (measures and values) for
     that value function.
-    :param derivative_locations: if we want to place breakpoints at locations where derivative increases
-    by some interval
-    :param segment_dict: (x1, y1, x2, y2, rho, and optional "r": number of breakpoints per segment)
-    :param num_breakpoints: if num_breakpoints is not specified within segment array, we have a
-    general number of breakpoints to go off of
-    :return: a, f^hat  (breakpoint measures and values)
+
+    :param segment_dict: A dictionary representing exponential segments of the value function.
+        The dictionary should have the following format:
+        {
+            segment_id: {
+                'x1': measure of the starting point of the segment,
+                'y1': value of the starting point of the segment,
+                'x2': measure of the ending point of the segment,
+                'y2': value of the ending point of the segment,
+                'rho': rate of change for the segment,
+                'r': number of breakpoints per segment (optional)
+            },
+            ...
+        }
+        If segment_dict is not provided, a default dictionary will be used.
+
+    :param num_breakpoints: The total number of breakpoints to be generated for the value function.
+        If not specified within the segment_dict for each segment, a general number of breakpoints will be used.
+        If both segment_dict and num_breakpoints are provided, num_breakpoints takes precedence.
+
+    :param derivative_locations: A boolean flag indicating whether breakpoints should be placed at locations where
+        the derivative increases by some interval. If True, breakpoints will be placed based on derivative intervals;
+        if False, breakpoints will be placed at fixed intervals based on x.
+
+    :return: Two numpy arrays representing the breakpoints of the value function:
+        - a: Array of breakpoint measures.
+        - fhat: Array of breakpoint values.
+
+    Note:
+    - The breakpoints are determined based on the exponential segments provided.
+    - The resulting breakpoints are returned as numpy arrays, with measures and values rounded to 5 decimal places.
     """
+
     if segment_dict is None:
         segment_dict = {1: {'x1': 0, 'y1': 0, 'x2': 0.2, 'y2': 0.8, 'rho': -0.2, 'r': 10},
                         2: {'x1': 0.2, 'y1': 0.8, 'x2': 0.3, 'y2': 1, 'rho': 0.2, 'r': 10},
@@ -963,7 +1018,18 @@ def condense_value_functions(parameters, value_parameters):
 # Rebecca's Model Parameter Translation
 def translate_vft_to_gp_parameters(instance):
     """
-    This function translates the VFT parameters to Rebecca's model's parameters
+    Translates the VFT (Value Focused Thinking) parameters to Rebecca's model parameters.
+
+    Args:
+        instance: An instance of CadetCareerProblem
+
+    Returns:
+        gp (dict): A dictionary containing the translated parameters for Rebecca's model.
+
+    Notes:
+        The function assumes that the instance object contains the following attributes:
+            - parameters: A dictionary containing the VFT model parameters.
+            - value_parameters: A dictionary containing the value parameters of the VFT model.
     """
 
     # Shorthand

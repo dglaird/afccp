@@ -1,26 +1,62 @@
 # Import libraries
 import time
+import copy
 import numpy as np
 import logging
 import warnings
+import pandas as pd
 
 import afccp.core.globals
+import afccp.core.solutions.handling
+import afccp.core.data.values
 from pyomo.environ import *
-from pyomo.util.infeasible import log_infeasible_constraints
-from pyomo.util.infeasible import log_active_constraints
 
 # Ignore warnings
 logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 warnings.filterwarnings('ignore')
 
-
+# Main Model Building
 def original_model_build(instance, printing=False):
     """
     Converts the parameters and value parameters to the pyomo data structure
-    :param instance: problem instance object
-    :param printing: Whether the procedure should print something
-    :return: pyomo data
+
+    Parameters:
+        instance (object): Problem instance object
+        printing (bool, optional): Whether the procedure should print something. Default is False.
+
+    Returns:
+        pyomo data: Pyomo data representing the converted model
+
+    Description:
+        This function builds a Pyomo model based on the provided problem instance. It converts the parameters and value
+        parameters into the Pyomo data structure and constructs the objective function and constraints of the model.
+
+        The function takes a problem instance object as input, which contains the necessary parameters and value parameters
+        for building the model. The `printing` parameter controls whether the procedure should print progress information
+        during model construction.
+
+        The utility/cost matrix is computed based on the parameters and value parameters. The AFSC preferences, merit,
+        and eligibility information are used to calculate the cost values for each cadet-AFSC pair in the matrix.
+
+        The model is built using the Pyomo `ConcreteModel` class. The variables, objective function, and constraints
+        are defined within the model.
+
+        The objective function is defined as the sum of the cost values multiplied by the corresponding decision variable
+        for each cadet-AFSC pair.
+
+        The constraints include ensuring that each cadet is assigned to exactly one AFSC, limiting the percentage of
+        USAFA cadets in certain AFSCs, and applying AFSC objective measure constraints if specified.
+
+        If `printing` is set to True, the function prints progress information during the model construction.
+
+        Finally, the constructed model is returned.
+
+    Example:
+        instance = ProblemInstance()
+        model = original_model_build(instance, printing=True)
+        ...
     """
+
     if printing:
         print("Building original model...")
 
@@ -55,31 +91,6 @@ def original_model_build(instance, printing=False):
 
     # Build Model
     m = ConcreteModel()
-
-    # _________________________________PARAMETER ADJUSTMENTS_________________________________
-    def adjust_parameters():
-        """
-        Mirrors the function in the VFT model, but this time we just need the objective mins and maxes
-        """
-        # New dictionary of parameters used in this main function ("vft_model_build") and in "vft_model_solve"
-        q = {"objective_min": np.zeros([p['M'], vp['O']]),  # Min AFSC objective value
-             "objective_max": np.zeros([p['M'], vp['O']])}  # Max AFSC objective value
-
-        # Loop through each AFSC
-        for j in p['J']:
-
-            # Loop through each objective for each AFSC
-            for k in vp['K^A'][j]:
-
-                # Retrieve minimum/maximum AFSC objective measures based on constraint type. 1: Approximate, 2: Exact
-                if vp['constraint_type'][j, k] in [1, 2]:  # (NOT Zero)
-                    value_list = vp['objective_value_min'][j, k].split(",")
-                    q["objective_min"][j, k] = float(value_list[0].strip())
-                    q["objective_max"][j, k] = float(value_list[1].strip())
-
-        return q  # Return the new dictionary
-
-    q = adjust_parameters()  # Call the function
 
     # ___________________________________VARIABLE DEFINITION_________________________________
     m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
@@ -129,78 +140,91 @@ def original_model_build(instance, printing=False):
     # AFSC Objective Measure Constraints (Optional decision-maker constraints)
     m.measure_constraints = ConstraintList()
 
-    # Loop through all AFSCs to add constraints
-    for j in p["J"]:
+    # Loop through all AFSCs to add AFSC objective measure constraints
+    for j in p['J']:
 
-        # Get count variables for this AFSC
-        count = np.sum(m.x[i, j] for i in p['I^E'][j])
-        if 'usafa' in p:
+        # Loop through all constrained AFSC objectives
+        for k in vp['K^C'][j]:
 
-            # Number of USAFA cadets assigned to the AFSC
-            usafa_count = np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
+            # Calculate AFSC objective measure components
+            measure, numerator = afccp.core.solutions.handling.calculate_objective_measure_matrix(
+                m.x, j, objective, p, vp, approximate=True)
 
-        # Loop through all objectives for this AFSC
-        for k in vp['K^A'][j]:
-            objective = vp['objectives'][k]
-
-            # If it's a demographic objective, we sum over the cadets with that demographic
-            if objective in vp['K^D']:
-                numerator = np.sum(m.x[i, j] for i in p['I^D'][objective][j])
-                measure_jk = numerator / count
-            elif objective == "Merit":
-                numerator = np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j])
-                measure_jk = numerator / count
-            elif objective == "Combined Quota":
-                measure_jk = count
-            elif objective == "USAFA Quota":
-                measure_jk = usafa_count
-            elif objective == "ROTC Quota":
-                measure_jk = count - usafa_count
-            elif objective == "Utility":
-                numerator = np.sum(p['utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
-                measure_jk = numerator / count
-            else:
-                continue  # Skip this objective, whatever it is
-
-            # Add Min Measure Constraints
-            if k in vp['K^C'][j]:  # (1 constrains "approximate" measure, 2 constrains "exact" measure)
-
-                # Constrained PGL/Approximate Measure
-                if vp['constraint_type'][j, k] == 1:
-                    if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                        m.measure_constraints.add(expr=measure_jk >= q["objective_min"][j, k])
-                        m.measure_constraints.add(expr=measure_jk <= q["objective_max"][j, k])
-                    else:
-
-                        if p["pgl"][j] > p['quota_min'][j]:
-                            m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * p['quota_min'][j] >= 0)
-                            m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * p['quota_min'][j] <= 0)
-                        else:
-                            m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * p['pgl'][j] >= 0)
-                            m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * p['pgl'][j] <= 0)
-
-                # Constrained Exact Measure
-                elif vp['constraint_type'][j, k] == 2:
-                    if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                        m.measure_constraints.add(expr=measure_jk >= q["objective_min"][j, k])
-                        m.measure_constraints.add(expr=measure_jk <= q["objective_max"][j, k])
-                    else:
-                        m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * count >= 0)
-                        m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * count <= 0)
+            # Add AFSC objective measure constraint
+            m = add_objective_measure_constraint(m, j, k, measure, numerator, p, vp)
 
     if printing:
         print("Done. Solving original model...")
 
-    return m, q  # Return model and additional component dictionary
+    return m  # Return model
 
 
 def vft_model_build(instance, printing=False):
     """
-    Builds the VFT optimization model using pyomo
-    :param instance: problem instance object
-    :param printing: Whether the procedure should print something
-    :return: pyomo model as object
+    Builds the VFT optimization model using pyomo.
+
+    Parameters:
+        instance (object): Problem instance object.
+        printing (bool): Whether the procedure should print something. Default is False.
+
+    Returns:
+        object: Pyomo model object.
+
+    This function builds the VFT (Value Focused Thinking) optimization model using the Pyomo library. It takes a
+    problem instance as input and returns the constructed model.
+
+    The function performs the following steps:
+    1. Initializes the Pyomo model.
+    2. Adjusts certain parameters used in the model.
+    3. Defines and initializes the decision variables of the model.
+    4. Defines the objective function of the model.
+    5. Defines the constraints of the model.
+
+    Parameter Adjustments:
+    The function adjusts certain parameters related to the value function breakpoints and sets. These adjustments are
+    necessary to account for the approximate model's capability of exceeding the normal domain. The adjusted parameters
+    are stored in a new dictionary called 'q' for use in the model.
+
+    Variable Definitions:
+    The function defines the decision variables used in the model, including 'x' (main decision variable), 'f_value'
+    (AFSC objective value), 'lam' (lambda and y variables for value functions), and 'y' (binary variable for line
+    segments between breakpoints).
+
+    Variable Adjustments:
+    This function initializes the variables defined above if applicable (warm start has been determined) and fixes
+    certain 'x' variables if necessary/applicable.
+
+    Objective Function:
+    The objective function of the model is to maximize the overall weighted sum of all VFT objectives. It combines the
+    AFSC objective values and the cadet utility values based on their respective weights.
+
+    Constraints:
+    The function defines various constraints for the model, including the constraint that each cadet receives one and
+    only one AFSC, the 5% cap on the total percentage of USAFA cadets allowed into certain AFSCs, the value function
+    constraints linking the main methodology with the value function methodology, and optional decision-maker
+    constraints.
+
+    AFSC Objective Measure Constraints:
+    The function adds AFSC objective measure constraints for each AFSC and objective. It calculates the objective measure
+    components and adds linear value function constraints based on the measure and value functions.
+
+    AFSC Value Constraints:
+    Optional decision-maker constraints can be added to enforce minimum AFSC objective values. The function adds
+    constraints to ensure that the weighted sum of AFSC objective values meets the specified minimum value for each AFSC.
+
+    Cadet Value Constraints:
+    Optional decision-maker constraints can be added to enforce minimum cadet utility values. The function adds
+    constraints to ensure that the weighted sum of cadet utility values meets the specified minimum value for each cadet.
+
+    AFSCs Overall Min Value Constraint:
+    If a minimum overall value for AFSCs is specified, the function adds a constraint to ensure that the weighted sum of
+    AFSC objective values meets the specified minimum value for all AFSCs.
+
+    Note: The function assumes the availability of additional helper functions, such as 'add_objective_measure_constraint',
+    which are used to add specific types of constraints to the model.
+
     """
+
     if printing:
         print('Building VFT Model...')
 
@@ -227,10 +251,7 @@ def vft_model_build(instance, printing=False):
         q = {"r": r,  # Number of breakpoints (bps) for objective k's function for AFSC j
              "L": [[list(range(r[j][k])) for k in vp['K']] for j in p['J']],  # Set of breakpoints
              "a": [[[vp['a'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']],  # Measures of bps
-             "f^hat": [[[vp['f^hat'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']],  # Values of bps
-             "objective_min": np.zeros([p['M'], vp['O']]),  # Min AFSC objective value
-             "objective_max": np.zeros([p['M'], vp['O']])  # Max AFSC objective value
-             }
+             "f^hat": [[[vp['f^hat'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']]}  # Values of bps
 
         # Loop through each AFSC
         for j in p['J']:
@@ -248,12 +269,6 @@ def vft_model_build(instance, printing=False):
                     q["f^hat"][j][k].append(last_f)  # same AFSC objective "y-value" as previous one
                     q["L"][j][k].append(q['r'][j][k])  # add the new breakpoint index
                     q['r'][j][k] += 1  # increase number of breakpoints by 1
-
-                # Retrieve minimum/maximum AFSC objective measures based on constraint type. 1: Approximate, 2: Exact
-                if vp['constraint_type'][j, k] in [1, 2]:  # (NOT Zero)
-                    value_list = vp['objective_value_min'][j, k].split(",")
-                    q["objective_min"][j, k] = float(value_list[0].strip())
-                    q["objective_max"][j, k] = float(value_list[1].strip())
 
         # Convert to numpy arrays of lists
         for key in ["L", "r", "a", "f^hat"]:
@@ -382,117 +397,46 @@ def vft_model_build(instance, printing=False):
     # AFSC Objective Measure Constraints (Optional decision-maker constraints)
     m.measure_constraints = ConstraintList()
 
-    # Loop through all AFSCs to add constraints
+    # Loop through all AFSCs to add AFSC objective measure constraints
     for j in p['J']:
 
-        # Get count variables for this AFSC
-        count = np.sum(m.x[i, j] for i in p['I^E'][j])
-        if 'usafa' in p:
+        # Loop through all AFSC objectives
+        for k, objective in enumerate(vp['objectives']):
 
-            # Number of USAFA cadets assigned to the AFSC
-            usafa_count = np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j])
+            # Add AFSC objective measure value function "functional" constraints
+            if k in vp['K^A'][j]:
 
-        # Are we using approximate measures or not
-        if instance.mdl_p["approximate"]:
-            num_cadets = p['quota_e'][j]  # Approximate
-        else:
-            num_cadets = count  # Exact
+                # Calculate AFSC objective measure components
+                measure, numerator = afccp.core.solutions.handling.calculate_objective_measure_matrix(
+                    m.x, j, objective, p, vp, approximate=instance.mdl_p['approximate'])
 
-        # Loop through all objectives for this AFSC
-        for k in vp['K^A'][j]:
-            objective = vp['objectives'][k]
+                # Add Linear Value Function Constraints
+                m.measure_vf_constraints.add(expr=measure == np.sum(  # Measure Constraint for Value Function (20a)
+                    q['a'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
+                m.value_vf_constraints.add(expr=m.f_value[j, k] == np.sum(  # Value Constraint for Value Function (20b)
+                    q['f^hat'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
 
-            # If it's a demographic objective, we sum over the cadets with that demographic
-            if objective in vp['K^D']:
-                numerator = np.sum(m.x[i, j] for i in p['I^D'][objective][j])
-                measure_jk = numerator / num_cadets
-            elif objective == "Merit":
-                numerator = np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j])
-                measure_jk = numerator / num_cadets
-            elif objective == "Combined Quota":
-                measure_jk = count
-            elif objective == "USAFA Quota":
-                measure_jk = usafa_count
-            elif objective == "ROTC Quota":
-                measure_jk = count - usafa_count
-            elif objective == "Norm Score":
+                # Lambda .. y constraints (20c, 20d, 20e)
+                m.lambda_y_constraint1.add(expr=m.lam[j, k, 0] <= m.y[j, k, 0])  # (20c)
+                if q['r'][j, k] > 2:
+                    for l in range(1, q['r'][j, k] - 1):
+                        m.lambda_y_constraint2.add(expr=m.lam[j, k, l] <= m.y[j, k, l - 1] + m.y[j, k, l])  # (20d)
+                m.lambda_y_constraint3.add(expr=m.lam[j, k, q['r'][j, k] - 1] <= m.y[j, k, q['r'][j, k] - 2])  # (20e)
 
-                if instance.mdl_p["approximate"]:
-                    best_range = range(num_cadets)
-                    best_sum = np.sum(c for c in best_range)
-                    worst_range = range(p["num_eligible"][j] - num_cadets, p["num_eligible"][j])
-                    worst_sum = np.sum(c for c in worst_range)
-                    achieved_sum = np.sum(p["a_pref_matrix"][i, j] * m.x[i, j] for i in p["I^E"][j])
-                    measure_jk = 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
-                else:
-                    numerator = np.sum(p['afsc_utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
-                    measure_jk = numerator / num_cadets
+                # Y sum to 1 constraint (20f)
+                m.y_sum_constraint.add(expr=np.sum(m.y[j, k, l] for l in range(0, q['r'][j, k] - 1)) == 1)
 
-            elif objective == "Utility":
-                numerator = np.sum(p['utility'][i, j] * m.x[i, j] for i in p['I^E'][j])
-                measure_jk = numerator / num_cadets
+                # Lambda sum to 1 constraint (20g)
+                m.lambda_sum_constraint.add(expr=np.sum(m.lam[j, k, l] for l in q['L'][j, k]) == 1)
 
-            else:
-                raise ValueError("Error. Objective '" + objective + "' does not have a means of calculation in the"
-                                                                    " VFT model. Please adjust.")
+                # Lambda .. value positive constraint (20h) although the "f_value" constraint is implied in the thesis
+                for l in q['L'][j, k]:
+                    m.lambda_positive.add(expr=m.lam[j, k, l] >= 0)
+                m.f_value_positive.add(expr=m.f_value[j, k] >= 0)
 
-            # Add Linear Value Function Constraints
-            m.measure_vf_constraints.add(expr=measure_jk == np.sum(  # Measure Constraint for Value Function (20a)
-                q['a'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
-            m.value_vf_constraints.add(expr=m.f_value[j, k] == np.sum(  # Value Constraint for Value Function (20b)
-                q['f^hat'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
-
-            # Lambda .. y constraints (20c, 20d, 20e)
-            m.lambda_y_constraint1.add(expr=m.lam[j, k, 0] <= m.y[j, k, 0])  # (20c)
-            if q['r'][j, k] > 2:
-                for l in range(1, q['r'][j, k] - 1):
-                    m.lambda_y_constraint2.add(expr=m.lam[j, k, l] <= m.y[j, k, l - 1] + m.y[j, k, l])  # (20d)
-            m.lambda_y_constraint3.add(expr=m.lam[j, k, q['r'][j, k] - 1] <= m.y[j, k, q['r'][j, k] - 2])  # (20e)
-
-            # Y sum to 1 constraint (20f)
-            m.y_sum_constraint.add(expr=np.sum(m.y[j, k, l] for l in range(0, q['r'][j, k] - 1)) == 1)
-
-            # Lambda sum to 1 constraint (20g)
-            m.lambda_sum_constraint.add(expr=np.sum(m.lam[j, k, l] for l in q['L'][j, k]) == 1)
-
-            # Lambda .. value positive constraint (20h) although the "f_value" constraint is implied in the thesis
-            for l in q['L'][j, k]:
-                m.lambda_positive.add(expr=m.lam[j, k, l] >= 0)
-            m.f_value_positive.add(expr=m.f_value[j, k] >= 0)
-
-            # Add Min Value/Measure Constraints
-            if k in vp['K^C'][j]:  # (1 constrains "approximate" measure, 2 constrains "exact" measure)
-
-                # Constrained PGL/Approximate Measure
-                if vp['constraint_type'][j, k] == 1:
-                    if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                        m.measure_constraints.add(expr=measure_jk >= q["objective_min"][j, k])
-                        m.measure_constraints.add(expr=measure_jk <= q["objective_max"][j, k])
-                    else:
-
-                        if "pgl" in p:  # Check which "reference minimum" we should use
-                            if p["pgl"][j] > p['quota_min'][j]:
-                                m.measure_constraints.add(
-                                    expr=numerator - q["objective_min"][j, k] * p['quota_min'][j] >= 0)
-                                m.measure_constraints.add(
-                                    expr=numerator - q["objective_max"][j, k] * p['quota_min'][j] <= 0)
-                            else:
-                                m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * p['pgl'][j] >= 0)
-                                m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * p['pgl'][j] <= 0)
-                        else:
-                            m.measure_constraints.add(
-                                expr=numerator - q["objective_min"][j, k] * p['quota_min'][j] >= 0)
-                            m.measure_constraints.add(
-                                expr=numerator - q["objective_min"][j, k] * p['quota_min'][j] <= 0)
-
-                # Constrained Exact Measure
-                elif vp['constraint_type'][j, k] == 2:
-                    if objective in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-                        m.measure_constraints.add(expr=measure_jk >= q["objective_min"][j, k])
-                        m.measure_constraints.add(expr=measure_jk <= q["objective_max"][j, k])
-                    else:
-                        m.measure_constraints.add(expr=numerator - q["objective_min"][j, k] * count >= 0)
-                        m.measure_constraints.add(expr=numerator - q["objective_max"][j, k] * count <= 0)
+                # Add AFSC objective measure constraint
+                if k in vp['K^C'][j]:
+                    m = add_objective_measure_constraint(m, j, k, measure, numerator, p, vp)
 
         # AFSC value constraint
         if vp['afsc_value_min'][j] != 0:
@@ -526,11 +470,41 @@ def vft_model_build(instance, printing=False):
 
 def gp_model_build(instance, printing=False):
     """
-    This is Rebecca's model. We've incorporated her parameters and are building that model
-    :param instance: problem instance to solve
-    :param printing: Whether to print something
-    :return: pyomo model
+    Builds Rebecca's goal programming (GP) model using the provided problem instance.
+
+    Args:
+        instance (object): The problem instance to solve.
+        printing (bool, optional): Specifies whether to print status updates during model building. Default is False.
+
+    Returns:
+        pyomo.core.base.PyomoModel.ConcreteModel: The constructed Pyomo model.
+
+    Raises:
+        None
+
+    Detailed Description:
+        This function builds the GP model according to Rebecca's goal programming formulation using the provided problem instance.
+        The model incorporates Rebecca's parameters and constructs the necessary variables, objective function, and constraints.
+
+        The function iterates over each constraint and AFSC to create the decision variables, penalty variables, and reward variables.
+        It defines the main objective function that represents the overall goal programming problem.
+        Additionally, it defines penalty and reward specific objective functions to obtain raw penalties and rewards.
+
+        The function also constructs various constraints related to AFSC assignments, penalty terms, and reward terms.
+
+    Parameter Details:
+        - instance (object): The problem instance to solve. It should contain the following attributes:
+            - gp_parameters (dict): The GP parameters, including the constraint terms, utility values, and sets.
+            - mdl_p (dict): Additional model parameters, including the current constraint term and the reward/penalty flag.
+        - printing (bool, optional): Specifies whether to print status updates during model building. Default is False.
+
+    Returns:
+        - model (pyomo.core.base.PyomoModel.ConcreteModel): The constructed Pyomo model representing the GP problem.
+
+    Note:
+        The function assumes that the necessary libraries and packages (such as NumPy) are imported.
     """
+
     if printing:
         print('Building GP Model...')
 
@@ -651,9 +625,29 @@ def gp_model_build(instance, printing=False):
     return m
 
 
+# Pyomo Model Solving Function
 def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
     """
-    Simple function that calls the pyomo solver using the specified model and max_time
+    Solve a Pyomo model using a specified solver.
+
+    This function takes an instance, a Pyomo model, the model name, optional parameters (q), and a flag for printing
+    intermediate information. It adjusts the solver settings based on the provided instance parameters, solves the
+    model, and returns the solution.
+
+    Args:
+        instance: The Pyomo instance.
+        model: The Pyomo model to solve.
+        model_name (str): The name of the model.
+        q (dict, optional): Optional parameters.
+        printing (bool, optional): Flag for printing intermediate information.
+
+    Returns:
+        solution (int or tuple): The solution of the model.
+            - If the model name is "GP", returns a tuple (solution, x) where solution is an array of integers representing
+              the AFSCs assigned to cadets, and x is a 2D array representing the assignment matrix.
+            - Otherwise, returns a tuple (solution, x, warm_start), where solution is an array of integers representing
+              the AFSCs assigned to cadets, x is a 2D array representing the assignment matrix, and warm_start is a
+              dictionary containing warm start variables used for initializing the VFT Pyomo model.
     """
 
     # Shorthand
@@ -841,4 +835,352 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
 
         # Return solution, X matrix, and "warm start" dictionary
         return solution.astype(int), x, warm_start
+
+
+# Goal Programming Model Pre-Processing
+def calculate_rewards_penalties(instance, printing=True):
+    """
+    This function calculates the normalized penalties and rewards specific to an instance of
+    Rebecca's goal programming (GP) model.
+
+    Args:
+        instance (object): The problem instance to solve, which contains the GP parameters.
+        printing (bool, optional): Specifies whether to print status updates during the calculation. Default is True.
+
+    Returns:
+        tuple: A tuple containing the normalized penalties and rewards as NumPy arrays.
+
+    Detailed Description:
+        This function takes a set of Rebecca's goal programming parameters and returns the normalized penalties and
+        rewards specific to the given instance. The function iterates over each constraint in the GP parameters and
+        calculates the penalties and rewards using a GP model.
+
+        The GP model is built by initializing the necessary parameters and solving the model for each constraint.
+        The rewards are calculated by maximizing the objective function that represents the reward term, while the
+        penalties are calculated by maximizing the objective function that represents the penalty term.
+
+        The function also calculates the reward term for the special constraint 'S' separately.
+
+    Parameter Details:
+        - instance (object): The problem instance to solve. It should contain the following attributes:
+            - gp_parameters (dict): The GP parameters, including the constraint terms, utility values, and sets.
+        - printing (bool, optional): Specifies whether to print status updates during the calculation. Default is True.
+
+    Returns:
+        - rewards (numpy.ndarray): An array containing the normalized rewards for each constraint, including the reward
+        for constraint 'S'.
+        - penalties (numpy.ndarray): An array containing the normalized penalties for each constraint.
+
+    Note:
+        The function assumes that the necessary functions 'gp_model_build' and 'solve_pyomo_model'
+        are defined and accessible.
+    """
+
+    # Shorthand
+    gp = instance.gp_parameters
+
+    # Initialize gp arrays
+    num_constraints = len(gp['con']) + 1
+    rewards = np.zeros(num_constraints)
+    penalties = np.zeros(num_constraints)
+
+    # Initialize model
+    instance.mdl_p["con_term"] = gp['con'][0]  # Initialize constraint term
+    instance.mdl_p["get_reward"] = True  # We want the reward term
+    instance.mdl_p["solve_time"] = 60 * 4  # Don't want to be solving this thing for too long
+    model = gp_model_build(instance, printing=False)  # Build model
+
+    # Loop through each constraint
+    for c, con in enumerate(gp['con']):
+
+        # Set the constraint term
+        instance.mdl_p["con_term"] = con
+
+        # Get reward term
+        def objective_function(m):
+            return np.sum(m.Z[con, a] for a in gp['A^'][con])
+
+        if printing:
+            print('')
+            print('Obtaining reward for constraint ' + con + '...')
+        model.objective = Objective(rule=objective_function, sense=maximize)
+        rewards[c] = solve_pyomo_model(instance, model, "GP")
+        if printing:
+            print('Reward:', rewards[c])
+
+        # Get penalty term
+        def objective_function(m):
+            return np.sum(m.Y[con, a] for a in gp['A^'][con])
+
+        if printing:
+            print('')
+            print('Obtaining penalty for constraint ' + con + '...')
+        model.objective = Objective(rule=objective_function, sense=maximize)
+        penalties[c] = solve_pyomo_model(instance, model, "GP")
+        if printing:
+            print('Penalty:', penalties[c])
+
+    # S reward term
+    def objective_function(m):
+        return np.sum(np.sum(gp['utility'][c, a] * m.x[c, a] for a in gp['A^']['W^E'][c]) for c in gp['C'])
+
+    if printing:
+        print('')
+        print('Obtaining reward for constraint S...')
+    model.objective = Objective(rule=objective_function, sense=maximize)
+    rewards[num_constraints - 1] = solve_pyomo_model(instance, model, "GP")
+    if printing:
+        print('Reward:', rewards[num_constraints - 1])
+
+    return rewards, penalties
+
+
+# VFT Model Helper Functions
+def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
+    """
+    Add an objective measure constraint to the model.
+
+    This function takes the model (m), AFSC index (j), objective, objective measure, numerator of the function,
+    problem parameters (p), and value parameters (vp) as inputs. It adds a constraint to the constraint list of the model
+    based on the given objective measure.
+
+    For objectives related to the number of cadets (such as Combined Quota, USAFA Quota, ROTC Quota), the minimum and
+    maximum values of the measure are directly enforced.
+
+    For objectives with constrained approximate measures, the function checks whether the constrained minimum number
+    of cadets is lower than the Program Guidance Letter (PGL). If the constrained minimum is below the PGL, the
+    objective constraint is based on that minimum value, otherwise, it is based on the PGL target.
+
+    For objectives with constrained exact measures, the constraint is directly based on the minimum and maximum values
+    multiplied by the count of cadets for the AFSC. (Numerator / Count) -> Objective Measure
+
+    Args:
+        m (ConcreteModel): The Pyomo model to which the constraint will be added.
+        j (int): The index of the AFSC.
+        k (int): The index of the objective.
+        measure (Expression): The objective measure.
+        numerator (Expression): The numerator of the objective measure function.
+        p (dict): The problem parameters.
+        vp (dict): The value parameters.
+
+    Returns:
+        ConcreteModel: The updated Pyomo model with the objective measure constraint added.
+    """
+
+    # Get count variables for this AFSC
+    count = np.sum(m.x[i, j] for i in p['I^E'][j])
+
+    # "Number of Cadets" objectives handled separately
+    if vp['objectives'][k] in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+        m.measure_constraints.add(expr=measure >= vp["objective_min"][j, k])
+        m.measure_constraints.add(expr=measure <= vp["objective_max"][j, k])
+    else:
+        # Constrained Approximate Measure
+        if vp['constraint_type'][j, k] == 1:
+
+            # Take the smallest value between the PGL and constrained minimum number for this constraint
+            m.measure_constraints.add(
+                expr=numerator - vp["objective_min"][j, k] * min(p["pgl"][j], p['quota_min'][j]) >= 0)
+            m.measure_constraints.add(
+                expr=numerator - vp["objective_max"][j, k] * min(p["pgl"][j], p['quota_min'][j]) <= 0)
+
+        # Constrained Exact Measure
+        elif vp['constraint_type'][j, k] == 2:
+            m.measure_constraints.add(expr=numerator - vp["objective_min"][j, k] * count >= 0)
+            m.measure_constraints.add(expr=numerator - vp["objective_max"][j, k] * count <= 0)
+
+    # Return the model
+    return m
+
+
+# VFT Constraint Placing Algorithm
+def determine_model_constraints(instance):
+    """
+    Iteratively evaluate the VFT (Value Focussed Thinking) model by adding constraints until a feasible solution is obtained,
+    in order of importance.
+
+    This function takes a problem instance containing parameters and value parameters as input. It starts with no constraints
+    activated and gradually adds constraints in order of their importance. The function builds and solves the VFT model at each
+    constraint iteration, evaluating the feasibility and objective value of the solution. The process continues until all
+    constraints have been considered.
+
+    Args:
+        instance (ProblemInstance): An instance of the problem containing the problem parameters and value parameters.
+
+    Returns:
+        A tuple containing:
+            - constraint_type (ndarray): The adjusted constraint type matrix, indicating the active constraints.
+            - solutions_df (DataFrame): A DataFrame with the solutions for different constraint iterations.
+            - report_df (DataFrame): A DataFrame containing the report of each constraint iteration, including information
+                                     about the solution, the new constraint applied, the objective value, and if the solution
+                                     failed or not.
+    """
+
+    print("Initializing Model Constraint Algorithm...")
+
+    # Shorthand
+    p, vp, ip = instance.parameters, copy.deepcopy(instance.value_parameters), instance.mdl_p
+
+    # Create a copy of the problem instance
+    adj_instance = copy.deepcopy(instance)  # "Adjusted Instance"
+    real_constraint_type = copy.deepcopy(vp["constraint_type"])  # All constraints (Not 0s)
+
+    # Initially, we'll start with no constraints turned on
+    vp["constraint_type"] = np.zeros([p["M"], vp["O"]])
+    vp['K^C'] = {j: np.array([]) for j in p['J']}
+    adj_instance.value_parameters = vp  # Set to instance
+
+    # Build the model
+    model, q = afccp.core.solutions.pyomo_models.vft_model_build(adj_instance)
+    print("Done. Solving model with no constraints active...")
+
+    # Initialize Report
+    report_columns = ["Solution", "New Constraint", "Objective Value", "Failed"]
+    report = {col: [] for col in report_columns}
+
+    # Dictionary of solutions with different constraints!
+    current_solution, _, _ = solve_pyomo_model(adj_instance, model, "VFT", q=q, printing=False)
+    solutions = {0: current_solution}
+    afsc_solutions = {0: np.array([p["afscs"][int(j)] for j in solutions[0]])}
+    metrics = afccp.core.solutions.handling.evaluate_solution(solutions[0], p, vp)
+
+    # Add first solution to the report
+    report["Solution"].append(0)
+    report["Objective Value"].append(round(metrics["z"], 4))
+    report["New Constraint"].append("None")
+    report["Failed"].append(0)
+    print("Done. New solution objective value:", str(report["Objective Value"][0]))
+
+    # Get importance "list" based on multiplied weight
+    afsc_weight = np.atleast_2d(vp["afsc_weight"]).T  # Turns 1d array into 2d column
+    scaled_weights = afsc_weight * vp["objective_weight"]
+    flat = np.ndarray.flatten(scaled_weights)  # flatten them
+    tuples = [(j, k) for j in range(p['M']) for k in range(vp['O'])]  # get a list of tuples (0, 0), (0, 1) etc.
+    tuples = np.array(tuples)
+    sort_flat = np.argsort(flat)[::-1]
+    importance_list = [(j, k) for (j, k) in tuples[sort_flat] if real_constraint_type[j, k] != 0]
+    num_constraints = len(importance_list)
+
+    # Begin the algorithm!
+    cons = 0
+    print("Running through " + str(num_constraints) + " total constraint iterations...")
+    for (j, k) in importance_list:
+        afsc = p["afscs"][j]
+        objective = vp["objectives"][k]
+
+        # Make a copy of the VFT model (In case we have to remove a constraint)
+        new_model = copy.deepcopy(model)
+
+        # Calculate AFSC objective measure components
+        measure, numerator = afccp.core.solutions.handling.calculate_objective_measure_matrix(
+            new_model.x, j, objective, p, vp, approximate=True)
+
+        # Add AFSC objective measure constraint
+        vp['constraint_type'][j, k] = real_constraint_type[j, k]
+        new_model = add_objective_measure_constraint(new_model, j, k, measure, numerator, p, vp)
+        num_measure_constraints = len(new_model.measure_constraints)
+
+        # Update constraint type within the problem instance
+        adj_instance.value_parameters['constraint_type'][j, k] = real_constraint_type[j, k]
+
+        # Print message
+        cons += 1
+        print_str = "\n------[" + str(cons) + "] AFSC " + afsc + " Objective " + objective
+        print_str += "-" * (55 - len(print_str))
+        print(print_str)
+
+        # Loop through each of the constraints to validate how many are on
+        num_activated = 0
+        for i in list(new_model.measure_constraints):
+            if new_model.measure_constraints[i].active:
+                num_activated += 1
+        print("Constraint", cons, "Active Constraints:", int(num_measure_constraints / 2),
+                               "Validated:", int(num_activated / 2))
+
+        # Variable to determine the outcome of this iteration
+        feasible = True  # Assume model is feasible until proven otherwise
+
+        # We can skip the quota constraint (leave it on without solving)
+        if objective == "Combined Quota" and ip["skip_quota_constraint"]:
+            print("Result: SKIPPED [Combined Quota]")
+            solutions[cons] = current_solution
+            skipped_obj = True
+
+        # If our most current solution is already meeting this constraint, then we can skip this constraint
+        elif vp['objective_min'][j, k] <= metrics["objective_measure"][j, k] <= vp['objective_max'][j, k]:
+            print("Result: SKIPPED [Measure:", str(round(metrics["objective_measure"][j, k], 2)) + "], ",
+                  "Range: (" + str(vp['objective_min'][j, k]) +",", str(vp['objective_max'][j, k]) + ")")
+            solutions[cons] = current_solution
+            skipped_obj = True
+
+        # We can't skip the constraint, so we solve it
+        else:
+            skipped_obj = False
+
+            # Solution Solved!
+            try:
+                solutions[cons], _, _ = solve_pyomo_model(adj_instance, new_model, "VFT", q=q, printing=False)
+
+            # Solution Failed :(
+            except:
+                solutions[cons] = current_solution
+                feasible = False
+
+        # Get solution information
+        current_solution = solutions[cons]
+        metrics = afccp.core.solutions.handling.evaluate_solution(current_solution, p, vp)
+        afsc_solutions[cons] = metrics['afsc_solution']
+
+        # Add this solution to report
+        report["Solution"].append(cons)
+        report["New Constraint"].append(afsc + " " + objective)
+
+        if feasible:
+            report["Objective Value"].append(round(metrics["z"], 4))
+            if not skipped_obj:
+                print("Result: SOLVED [Z = " + str(report["Objective Value"][cons]) + "]")
+            report["Failed"].append(0)
+            model = copy.deepcopy(new_model)  # Save this model!
+
+        else:
+            print("Result: INFEASIBLE. Proceeding with next constraint.")
+            report["Objective Value"].append(0)
+            report["Failed"].append(1)
+
+            # Update constraint type within the problem instance (Remove this constraint)
+            vp["constraint_type"][j, k] = 0
+
+        # Measure it again
+        metrics = afccp.core.solutions.handling.evaluate_solution(current_solution, p, vp)
+
+        # Validate solution meets the constraints:
+        num_constraint_check = np.sum(vp["constraint_type"] != 0)
+        print("Active Objective Measure Constraints:", num_constraint_check)
+        print("Total Failed Constraints:", int(metrics["total_failed_constraints"]))
+        print("Current Objective Measure:", round(metrics["objective_measure"][j, k], 2), "Range:",
+              vp["objective_value_min"][j, k])
+
+        for con_fail_str in metrics["failed_constraints"]:
+            print("Failed:", con_fail_str)
+
+        # Check all other AFSC objectives to see if we're suddenly failing them now for some reason
+        c = 0
+        measure_fails = 0
+        while c < cons:
+            j_1, k_1 = importance_list[c]
+            afsc_1, objective_1 = p["afscs"][j_1], vp["objectives"][k_1]
+            if metrics["objective_measure"][j_1, k_1] > (vp['objective_max'][j_1, k_1] * 1.05) or \
+                    metrics["objective_measure"][j_1, k_1] < (vp['objective_min'][j_1, k_1] * 0.95):
+                print("Measure Fail:", afsc_1, objective_1, "Measure:",
+                      round(metrics["objective_measure"][j_1, k_1], 2), "Range:",
+                      vp["objective_value_min"][j_1, k_1])
+                measure_fails += 1
+            c += 1
+        print_str = "-" * 10 + " Objective Measure Fails:" + str(measure_fails)
+        print(print_str + "-" * (55 - len(print_str)))
+
+    # Build Report
+    solutions_df = pd.DataFrame(afsc_solutions)
+    report_df = pd.DataFrame(report)
+    return vp["constraint_type"], solutions_df, report_df
 

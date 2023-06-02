@@ -3,7 +3,6 @@ import os
 
 import pandas as pd
 import numpy as np
-import afccp.core.comprehensive_functions
 import datetime
 import glob
 import copy
@@ -64,7 +63,7 @@ def determine_afsc_plot_details(instance, results_chart=False):
         k = instance.value_parameters["K^A"][j][0]
         instance.plt_p["objective"] = instance.value_parameters['objectives'][k]
 
-    # Figure out which solutions to show, what the colors/markers are going to be, and some error handling
+    # Figure out which solutions to show, what the colors/markers are going to be, and some error data
     if results_chart:
 
         # Only applies to AFSC charts

@@ -76,7 +76,7 @@ def cadet_scoring_data_structure(instance):
 
 
 def build_ranking_data_structures(instance):
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     AFSC_scores = AFSC_scoring_data_structure(instance)
     cadet_scores, unmatched_ordered_cadets = cadet_scoring_data_structure(instance)
 
@@ -531,7 +531,7 @@ def Tiered_Degree_Scoring_Build(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     # AFSC_scores = AFSC_scoring_data_structure(instance)
     # cadet_scores, unmatched_ordered_cadets = cadet_scoring_data_structure(instance)
 
@@ -6095,7 +6095,7 @@ def func_classic_hr_alg_1_0(instance):
 
     # print(unmatched_ordered_cadets)
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -6547,7 +6547,7 @@ def func_hr_alg_1_0_0(instance):
 
     # print(unmatched_ordered_cadets)
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -6915,7 +6915,7 @@ def func_hr_alg_1_0_1(instance):
 
     # print(unmatched_ordered_cadets)
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -7331,7 +7331,7 @@ def func_hr_alg_1_0_1_1(instance):
 
     # print(unmatched_ordered_cadets)
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -7770,7 +7770,7 @@ def func_hr_alg_1_0_2(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -8128,7 +8128,7 @@ def func_hr_alg_1_0_2_1(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -8612,7 +8612,7 @@ def func_hr_alg_1_0_2_1_1(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -9186,7 +9186,7 @@ def func_hr_alg_1_0_2_2(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -9605,7 +9605,7 @@ def func_hr_alg_1_0_2_2(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         # print(a)
@@ -9974,7 +9974,7 @@ def func_hr_alg_1_0_2_2(instance):
 #     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
 #                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 #
-#     # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+#     # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
 #     ranking = {}
 #     for a in range(instance.parameters['M']):
 #         # print(a)
@@ -10368,7 +10368,7 @@ def func_hr_alg_1_0_2_2(instance):
 #     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
 #                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 #
-#     # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+#     # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
 #     ranking = {}
 #     for a in range(instance.parameters['M']):
 #         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -10780,7 +10780,7 @@ def func_hr_alg_1_0_2_2(instance):
 #     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
 #                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 #
-#     # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+#     # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
 #     ranking = {}
 #     for a in range(instance.parameters['M']):
 #         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -11118,7 +11118,7 @@ def func_hr_alg_1_0_2_2(instance):
 #     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
 #                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 #
-#     # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+#     # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
 #     ranking = {}
 #     for a in range(instance.parameters['M']):
 #         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -11469,7 +11469,7 @@ def func_hr_alg_1_0_2_2(instance):
 #     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
 #                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 #
-#     # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+#     # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
 #     ranking = {}
 #     for a in range(instance.parameters['M']):
 #         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -11865,7 +11865,7 @@ def func_hr_alg_1_2(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -12274,7 +12274,7 @@ def func_hr_alg_1_3(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -12692,7 +12692,7 @@ def func_hr_lq_alg_2_0(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -13235,7 +13235,7 @@ def func_hr_lq_alg_2_1(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -13789,7 +13789,7 @@ def func_hr_lq_alg_2_1_1_w_preprocess(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)
@@ -15388,7 +15388,7 @@ def classic_hr_alg(instance):
     unmatched_ordered_cadets = [cadet_list for (cadet_merit_list, cadet_list) in
                                 sorted(zip(cadet_merit_list, cadet_list), key=lambda x: x[0])]
 
-    # This is the functional ranking structure. I put this in as a function under data handling. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
+    # This is the functional ranking structure. I put this in as a function under data data. This is the AFSCs ranking of cadets. AFSC_ranking relies on this sorted dictionary to build that dictionary in order of preference.
     ranking = {}
     for a in range(instance.parameters['M']):
         sorted_scores = sorted(((v, i) for i, v in enumerate(AFSC_scores[a])), reverse=True)

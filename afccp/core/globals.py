@@ -6,10 +6,13 @@ import importlib.util
 
 # Import libraries
 print("Importing 'afccp' module...")  # I just like to see that something is happening...
+dir_path = os.getcwd() + "/"
 
 # Folders & Paths
 global paths
-paths = {"instances": "instances/", "solvers": "solvers/", "support": "support/"}
+paths = {"instances": dir_path + "instances/",
+         "solvers": dir_path + "solvers/",
+         "support": dir_path + "support/"}
 for folder in paths:
 
     # If we don't have the folder, we make one
