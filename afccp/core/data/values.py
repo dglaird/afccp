@@ -451,13 +451,75 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                     vp['a'][j][k], vp['f^hat'][j][k] = value_function_builder(
                         segment_dict, num_breakpoints=num_breakpoints)
 
-            # Scale the weights for this AFSC, so they sum to 1
+            # Scale the objective weights for this AFSC, so they sum to 1
             vp['objective_weight'][j] = vp['objective_weight'][j] / sum(vp['objective_weight'][j])
 
     # Scale the weights across all AFSCs, so they sum to 1
     vp['afsc_weight'] = vp['afsc_weight'] / sum(vp['afsc_weight'])
 
     return vp
+
+
+def update_value_and_weight_functions(instance, num_breakpoints=None):
+    """
+    This function takes in a problem instance and updates the set of value parameters in case the user
+    makes a change to some aspect of them. Note: Only works for the current set of objectives in the value
+    parameters. This does not add/subtract from the objectives. If you want to add a new one in that will
+    have to be re-generated. This works for when the user wants to update an objective weight, weight/value function,
+    etc.
+    """
+
+    # Shorthand
+    p, vp = instance.parameters, instance.value_parameters
+
+    # Determine weights on cadets
+    if 'merit_all' in p:
+        vp['cadet_weight'] = cadet_weight_function(p['merit_all'], func=vp['cadet_weight_function'])
+    else:
+        vp['cadet_weight'] = cadet_weight_function(p['merit'], func=vp['cadet_weight_function'])
+
+    # Determine weights on AFSCs
+    if vp['afsc_weight_function'] != 'Custom':  # If the AFSC weight function is not "custom", we regenerate the weights
+        vp['afsc_weight'] = afsc_weight_function(p["pgl"], vp['afsc_weight_function'])
+
+    # Initialize breakpoints
+    vp['a'] = [[[] for _ in range(vp['O'])] for _ in p["J"]]
+    vp['f^hat'] = [[[] for _ in range(vp['O'])] for _ in p["J"]]
+
+    # Loop through each AFSC
+    for j, afsc in enumerate(p['afscs'][:p['M']]):  # Skip the "unmatched AFSC": '*'
+
+        # Loop through each objective
+        for k, objective in enumerate(vp['objectives']):
+
+            # Value Function specific parameters
+            actual, minimum, maximum = None, None, None
+            if objective == 'Merit':
+                actual = np.mean(p['merit'][p['I^E'][j]])
+            if objective in ['USAFA Proportion', 'Male', 'Minority']:
+                actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
+            if objective == 'Combined Quota':
+                minimum, maximum = p['quota_min'][j], p['quota_max'][j]
+
+            # If we care about this objective, we load in its value function breakpoints
+            if vp['objective_weight'][j, k] != 0:
+
+                # Create the non-linear piecewise exponential segment dictionary
+                segment_dict = create_segment_dict_from_string(vp['value_functions'][j, k],
+                                                               vp['objective_target'][j, k],
+                                                               minimum=minimum, maximum=maximum, actual=actual)
+
+                # Linearize the non-linear function using the specified number of breakpoints
+                vp['a'][j][k], vp['f^hat'][j][k] = value_function_builder(
+                    segment_dict, num_breakpoints=num_breakpoints)
+
+        # Scale the objective weights for this AFSC, so they sum to 1
+        vp['objective_weight'][j] = vp['objective_weight'][j] / sum(vp['objective_weight'][j])
+
+    # Scale the weights across all AFSCs, so they sum to 1
+    vp['afsc_weight'] = vp['afsc_weight'] / sum(vp['afsc_weight'])
+
+    return vp  # Return set of value parameters
 
 
 def compare_value_parameters(parameters, vp1, vp2, vp1name, vp2name, printing=False):

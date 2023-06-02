@@ -363,6 +363,9 @@ def calculate_failed_constraint_metrics(j, k, x, metrics, p, vp):
     elif vp["constraint_type"][j, k] == 2:  # Should be either an "at most constraint" or simple valid range (0.2, 0.4)
         constrained_measure = m['objective_measure'][j, k]
 
+    else:
+        pass
+
     # Measure is below the range
     if constrained_measure < vp['objective_min'][j, k]:
         m['objective_constraint_fail'][j, k] = \

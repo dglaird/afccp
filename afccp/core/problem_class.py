@@ -371,6 +371,28 @@ class CadetCareerProblem:
             if self.solution is not None:
                 self.measure_solution()
 
+    def update_value_parameters(self, num_breakpoints=24):
+        """
+        Simple method to take the current set of value parameters and update their sets and subsets and all that.
+        This method also updates the set of value parameters in the dictionary
+        :param num_breakpoints: Number of breakpoints to use when building the value functions
+        """
+
+        # Module shorthand
+        afccp_vp = afccp.core.data.values
+
+        # Update the value functions and cadet/AFSC weights
+        self.value_parameters = afccp_vp.update_value_and_weight_functions(self, num_breakpoints)
+
+        # "Condense" the value functions by removing unnecessary zeros in the breakpoints
+        self.value_parameters = afccp_vp.condense_value_functions(self.parameters, self.value_parameters)
+
+        # Add indexed sets and subsets of AFSCs and AFSC objectives
+        self.value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, self.value_parameters)
+
+        # Update the set of value parameters in the dictionary (vp_dict attribute)
+        self.update_value_parameters_in_dict()
+
     def save_new_value_parameters_to_dict(self, value_parameters=None):
         """
         Adds the set of value parameters to a dictionary as a new set (if it is a unique set)

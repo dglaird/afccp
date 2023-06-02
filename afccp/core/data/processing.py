@@ -507,6 +507,15 @@ def parameter_sanity_check(instance):
                           "Instead, use the constraint_type '2' to indicate an exact constraint since this is the easiest"
                           " way to meet an 'at most' constraint.")
 
+            # Make sure constrained objectives have valid constraint types
+            if vp['constraint_type'][j, k] not in [1, 2]:
+                issue += 1
+                print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
+                      "' is in set of constrained objectives: vp['K^C'][j] but has a constraint_type of '" +
+                      str(vp['constraint_type'][j, k]) + "'. This is not a valid active constraint.",
+                      "Please update the set of value parameters using 'instance.update_value_and_weight_functions()'.")
+
+            # Check valid 'objective_value_min' constraint range
             try:
                 lb = float(vp["objective_value_min"][j, k].split(",")[0])
                 ub = float(vp["objective_value_min"][j, k].split(",")[1])
@@ -559,6 +568,16 @@ def parameter_sanity_check(instance):
                 print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
                       "' value function x coordinates do not continuously increase along x-axis. 'a':", vp["a"][j][k],
                       "'vf_string':", vp["value_functions"][j, k])
+
+        # Check all the objectives to see if the user missed something
+        for k, objective in enumerate(vp['objectives']):
+
+            if vp['constraint_type'][j, k] in [1, 2] and k not in vp['K^C'][j]:
+                issue += 1
+                print(issue, "WARNING: AFSC '" + afsc + "' objective '" + objective +
+                      "' has a constraint_type of '" + str(vp['constraint_type'][j, k]) +
+                      "' but is not in set of constrained objectives: vp['K^C'][j]. This is a mistake so",
+                      "please update the set of value parameters using 'instance.update_value_and_weight_functions()'.")
 
     # Loop through each objective to see if there are any null values in the objective target array
     for k, objective in enumerate(vp["objectives"]):
