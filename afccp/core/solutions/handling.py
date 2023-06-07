@@ -90,7 +90,7 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             j = int(j[0])
         else:
             metrics["num_unmatched"] += 1
-            j = 32
+            j = p['M']  # Last index (*)
         metrics['afsc_solution'][i] = p['afscs'][j]
 
     # Define overall metrics
@@ -626,4 +626,5 @@ def similarity_coordinates(similarity_matrix):
         print('Sklearn manifold not available')
 
     return coordinates
+
 

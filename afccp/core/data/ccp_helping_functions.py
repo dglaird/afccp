@@ -133,6 +133,19 @@ def initialize_instance_functional_parameters(N):
     to specify the new parameter in this initialization function or when passed in the method it is need
     """
 
+    # Parameters for the animation (CadetBoardFigure)
+    b = {
+
+        # Figure stuff
+        'animation_type': 'Solutions Dict', 'b_figsize': (20, 10), 's': 1, 'fw': 100,
+        'fh_ratio': 0.5, 'bw^t_ratio': 0.05, 'bw^l_ratio': 0.02, 'bw^r_ratio': 0.02,
+        'bw^b_ratio': 0.02, 'bw^u_ratio': 0.02, 'abw^lr_ratio': 0.01, 'abw^ud_ratio': 0.01,
+        'lh_ratio': 0.1, 'lw_ratio': 0.1, 'dpi': 200, 'pgl_linestyle': '-', 'pgl_color': 'gray',
+        'pgl_alpha': 0.5, 'surplus_linestyle': '--', 'surplus_color': 'white', 'surplus_alpha': 1,
+        'cb_edgecolor': 'black', 'save_board_default': True, 'circle_color': 'black', 'focus': 'Cadet Utility',
+        'save_iteration_frames': True, 'afsc_title_size': 20, 'afscs_to_show': 'all', 'afsc_names_sized_box': False,
+    }
+
     # Parameters for the graphs
     plt_p = {
 
@@ -217,6 +230,9 @@ def initialize_instance_functional_parameters(N):
         "initial_solutions": None, "solution_names": None, "add_to_dict": True, "set_to_instance": True,
         "initialize_new_heuristics": False, 'gather_all_metrics': True,
 
+        # Matching Algorithm Parameters
+        'ma_printing': False, 'capacity_parameter': 'quota_max',
+
         # Genetic Algorithm Parameters
         "pop_size": 12, "ga_max_time": 60, "num_crossover_points": 3, "initialize": True, "ga_printing": True,
         "mutation_rate": 0.05, "num_time_points": 100, "num_mutations": int(np.ceil(N / 75)), "time_eval": False,
@@ -241,7 +257,7 @@ def initialize_instance_functional_parameters(N):
          "new_vp_weight": 100, "num_breakpoints": 24,
     }
 
-    return plt_p, mdl_p
+    return plt_p, mdl_p, b
 
 
 def pick_most_changed_afscs(instance):

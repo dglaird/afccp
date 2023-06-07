@@ -131,33 +131,103 @@ def stable_marriage_model_solve(instance, printing=False):
 
 def matching_algorithm_1(instance, printing=True):
     """
-    This is my (Lt. Laird)'s first attempt at a working matching algorithm using the preference lists
-    :param printing: whether to print something out or not
-    :param instance: problem instance to solve
-    :return: solution
+    This is the Hospitals/Residents algorithm that matches cadets and AFSCs across all rated, space, and NRL positions.
     """
     if printing:
         print("Solving the deferred acceptance algorithm (1)...")
 
-    # Load parameters
-    p = instance.parameters
+    # Shorthand
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
 
-    if "c_pref_matrix" not in p or "a_pref_matrix" not in p:
-        raise ValueError("No preference matrices found in the parameters. Cannot run the algorithm.")
+    # Create Cadet preferences
+    cadet_preferences = {}
+    for i, cadet in enumerate(p['cadets']):
+        cadet_sorted_preferences = np.argsort(p['c_pref_matrix'][i, :])
+        cadet_preferences[cadet] = []
+        for j in cadet_sorted_preferences:
+            if j in p['J^E'][i] and p['c_pref_matrix'][i, j] != 0:
+                cadet_preferences[cadet].append(p['afscs'][j])
 
-    # Sort the preferences for cadets and remove AFSCs they're not eligible for
-    c_preferences = [[] for _ in p["I"]]
-    for i in p["I"]:
-        sorted_preferences = np.argsort(p["c_pref_matrix"][i, :])
-        c_preferences[i] = [j for j in sorted_preferences if j in p["J^E"][i]]
+    # Create AFSC preferences
+    afsc_preferences = {}
+    for j, afsc in enumerate(p['afscs'][:p['M']]):
+        afsc_sorted_preferences = np.argsort(p['a_pref_matrix'][:, j])
+        afsc_preferences[afsc] = []
+        for i in afsc_sorted_preferences:
+            if i in p['I^E'][j] and p['a_pref_matrix'][i, j] != 0:
+                afsc_preferences[afsc].append(p['cadets'][i])
 
-    # Sort the preferences for AFSCs and remove cadets that aren't eligible for them
-    a_preferences = [[] for _ in p["J"]]
-    for j in p["J"]:
-        sorted_preferences = np.argsort(p["a_pref_matrix"][:, j])
-        a_preferences[j] = [i for i in sorted_preferences if i in p["I^E"][j]]
+    # Algorithm initialization
+    total_slots = {p['afscs'][j]: p[mdl_p['capacity_parameter']][j] for j in p['J']}  # capacity targets
+    total_rejections = {p['afscs'][j]: 0 for j in p['J']}  # Rejections for each AFSC
 
-    return np.zeros(p["N"]).astype(int)
+    # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
+    solution_iterations = {'proposals': {}, 'solutions': {}, 'iteration_names': {}}
+
+    # Begin the simple Hospital/Residents Algorithm
+    for iteration in range(p['M']):
+
+        if mdl_p['ma_printing']:
+            print("\nIteration", iteration + 1)
+
+        # Cadets propose to their top choice that hasn't been rejected
+        proposals = {cadet: "*" for cadet in p['cadets']}
+        for cadet in p['cadets']:
+            if len(cadet_preferences[cadet]) > 0:  # Making sure we haven't run out of preferences
+                proposals[cadet] = cadet_preferences[cadet][0]  # (Current first choice)
+
+        # Solution Iteration components (Proposals)
+        afsc_solution = np.array([proposals[cadet] for cadet in p['cadets']])
+        solution_iterations['proposals'][iteration] = \
+            np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+
+        counts = {afsc: len(np.where(afsc_solution == afsc)[0]) for afsc in p['afscs']}
+
+        # Initialize matches information
+        total_matched = {p['afscs'][j]: 0 for j in p['J']}  # Number of matched cadets for each AFSC
+
+        # AFSCs accept their best cadets and reject the others
+        for afsc in p['afscs'][:p['M']]:
+
+            # Loop through their preferred cadets from top to bottom
+            iteration_rejections = 0
+            for cadet in afsc_preferences[afsc]:
+
+                # If the cadet is proposing to this AFSC, we have two options
+                if proposals[cadet] == afsc:
+
+                    # We haven't hit capacity, so we accept this cadet
+                    if total_matched[afsc] < total_slots[afsc]:
+                        total_matched[afsc] += 1
+
+                    # We're at capacity, so we reject this cadet
+                    else:
+
+                        # Delete this AFSC (first choice) from the cadet's options
+                        proposals[cadet] = "*"
+                        cadet_preferences[cadet].remove(afsc)
+                        iteration_rejections += 1
+                        total_rejections[afsc] += 1
+
+        # Solution Iteration components (Current Matches)
+        afsc_solution = np.array([proposals[cadet] for cadet in p['cadets']])
+        solution_iterations['solutions'][iteration] = \
+            np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+        solution_iterations['iteration_names'][iteration] = 'Iteration ' + str(iteration + 1)
+
+        # Specific matching algorithm print statement
+        if mdl_p['ma_printing']:
+            print('Proposals:', counts)
+            print('Matched', total_matched)
+            print('Rejected', total_rejections)
+
+    # Last solution iteration
+    solution_iterations['last_s'] = iteration
+
+    # Return the solution and iterations
+    afsc_solution = np.array([proposals[cadet] for cadet in p['cadets']])
+    solution = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+    return solution, solution_iterations
 
 
 def greedy_model_solve(instance, printing=False):

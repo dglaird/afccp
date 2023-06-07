@@ -122,7 +122,7 @@ def initialize_file_information(data_name: str, data_version: str):
                     import_filepaths[file] = import_sub_folder_path + data_name + " " + file + ".csv"
 
     # If we don't have one of the Analysis & Results "sub-sub folders", we make it
-    for sub_sub_folder in ["Data Charts", "Results Charts"]:
+    for sub_sub_folder in ["Data Charts", "Results Charts", "Cadet Board"]:
         if sub_sub_folder not in os.listdir(export_filepaths["Analysis & Results"]):
             os.mkdir(export_filepaths["Analysis & Results"] + sub_sub_folder + "/")
 
@@ -513,7 +513,7 @@ def parameter_sanity_check(instance):
                 print(issue, "ISSUE: AFSC '" + afsc + "' objective '" + objective +
                       "' is in set of constrained objectives: vp['K^C'][j] but has a constraint_type of '" +
                       str(vp['constraint_type'][j, k]) + "'. This is not a valid active constraint.",
-                      "Please update the set of value parameters using 'instance.update_value_and_weight_functions()'.")
+                      "Please update the set of value parameters using 'instance.update_value_parameters()'.")
 
             # Check valid 'objective_value_min' constraint range
             try:
@@ -577,7 +577,7 @@ def parameter_sanity_check(instance):
                 print(issue, "WARNING: AFSC '" + afsc + "' objective '" + objective +
                       "' has a constraint_type of '" + str(vp['constraint_type'][j, k]) +
                       "' but is not in set of constrained objectives: vp['K^C'][j]. This is a mistake so",
-                      "please update the set of value parameters using 'instance.update_value_and_weight_functions()'.")
+                      "please update the set of value parameters using 'instance.update_value_parameters()'.")
 
     # Loop through each objective to see if there are any null values in the objective target array
     for k, objective in enumerate(vp["objectives"]):
@@ -1171,7 +1171,7 @@ def export_value_parameters_data(instance):
 
     # Error data
     if instance.vp_dict is None:
-        raise ValueError("Error. No value parameters to export.")
+        return None  # No value parameters to export!
 
     # Determine how we're going to show merit for context in the Cadet Constraints dataframe
     merit_col = "merit"
@@ -1272,7 +1272,7 @@ def export_solutions_data(instance):
 
     # Error data
     if instance.solution_dict is None:
-        raise ValueError("Error. No solutions to export.")
+        return None  # No solutions to export!
 
     # Initialize solutions dataframe
     solutions_df = pd.DataFrame({"Cadet": p["cadets"]})

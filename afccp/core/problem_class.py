@@ -16,6 +16,8 @@ import afccp.core.comprehensive_functions
 import afccp.core.data.processing
 import afccp.core.data.preferences
 import afccp.core.solutions.handling
+import afccp.core.visualizations.animation
+import afccp.core.data.generation
 import datetime
 import glob
 import copy
@@ -55,9 +57,12 @@ class CadetCareerProblem:
         :param printing: Whether we should print status updates or not
         """
 
-        # Data data attributes
+        # Shorten the module name so everything fits better
+        afccp_dp = afccp.core.data.processing
+
+        # Data attributes
         self.data_version = data_version  # Version of instance (in parentheses of the instance sub-folders)
-        self.import_paths, self.export_paths = None, None  # Paths to various datasets we can import/export
+        self.import_paths, self.export_paths = None, None  # We initialize these attributes to 'None'
         self.printing = printing
 
         # The data variant helps inform how the charts should be constructed
@@ -73,6 +78,7 @@ class CadetCareerProblem:
         self.solution, self.solution_name = None, None  # Array of length N (cadets) of AFSC indices (and the name)
         self.metrics = None # Dictionary of solution metrics
         self.x = None  # Solution "X" matrix (NxM binary matrix)
+        self.solution_iterations = None  # Will be a dictionary of solution iterations and their various components
 
         # Dictionaries of instance components (sets of value parameters, solution, solution metrics)
         self.vp_dict, self.solution_dict, self.metrics_dict = None, None, None
@@ -82,9 +88,6 @@ class CadetCareerProblem:
 
         # If we have an instance folder already for the specified instance (we're importing it)
         if data_name in afccp.core.globals.instances_available:
-
-            # Shorten the module name so everything fits better
-            afccp_dp = afccp.core.data.processing
 
             # Gather information about the files we're importing and eventually exporting
             self.data_name = data_name
@@ -147,12 +150,15 @@ class CadetCareerProblem:
             if self.printing:
                 print("Generating '" + self.data_name + "' instance...")
 
-            # For now, we can't generate data
-            self.parameters = {"N": 10}  # (Just so the below function works)
-            print("Didn't actually generate data yet..")
+            # Generate data
+            if data_name == 'Random':
+                self.parameters = afccp.core.data.generation.generate_random_instance(N, P, M)
+
+            # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
+            self.parameters = afccp_dp.parameter_sets_additions(self.parameters)
 
         # Initialize more "functional" parameters
-        self.plt_p, self.mdl_p = \
+        self.plt_p, self.mdl_p, self.b = \
             afccp.core.data.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
 
         if self.printing:
@@ -168,7 +174,7 @@ class CadetCareerProblem:
         ccp_fns = afccp.core.data.ccp_helping_functions
 
         # Reset plot parameters and model parameters
-        self.plt_p, self.mdl_p = ccp_fns.initialize_instance_functional_parameters(self.parameters["N"])
+        self.plt_p, self.mdl_p, self.b = ccp_fns.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Update plot parameters and model parameters
         for key in p_dict:
@@ -177,6 +183,8 @@ class CadetCareerProblem:
                 self.plt_p[key] = p_dict[key]
             elif key in self.mdl_p:
                 self.mdl_p[key] = p_dict[key]
+            elif key in self.b:
+                self.b[key] = p_dict[key]
             else:
                 print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
@@ -229,6 +237,9 @@ class CadetCareerProblem:
             if not afccp.core.globals.use_pyomo:
                 raise ValueError("Error. Pyomo is not currently installed and is required to run pyomo models. Please"
                                  "install this library.")
+        elif test == 'Solutions':
+            if self.solution_dict is None:
+                raise ValueError("Error. No solutions dictionary detected. You need to solve this problem first.")
 
     # Visualizations
     def display_data_graph(self, p_dict={}, printing=None):
@@ -464,6 +475,44 @@ class CadetCareerProblem:
                 unique = vp_name
                 break
         return unique
+
+    def generate_random_value_parameters(self, num_breakpoints=24, vp_weight=100, printing=None):
+        """
+        Generates value parameters for a given problem instance from scratch
+        """
+
+        # Print Statement
+        if printing is None:
+            printing = self.printing
+
+        # Generate random set of value parameters
+        value_parameters = afccp.core.data.generation.generate_random_value_parameters(
+            self.parameters, num_breakpoints=num_breakpoints)
+
+        # Module shorthand
+        afccp_vp = afccp.core.data.values
+
+        # "Condense" the value functions by removing unnecessary zeros
+        value_parameters = afccp_vp.condense_value_functions(self.parameters, value_parameters)
+
+        # Add indexed sets and subsets of AFSCs and AFSC objectives
+        value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, value_parameters)
+
+        # Weight of the value parameters as a whole
+        value_parameters['vp_weight'] = vp_weight
+
+        # Set value parameters to instance attribute
+        if self.mdl_p["set_to_instance"]:
+            self.value_parameters = value_parameters
+            if self.solution is not None:
+                self.metrics = afccp.core.solutions.handling.evaluate_solution(
+                    self.solution, self.parameters, self.value_parameters, printing=printing)
+
+        # Save new set of value parameters to dictionary
+        if self.mdl_p["add_to_dict"]:
+            self.save_new_value_parameters_to_dict(value_parameters)
+
+        return value_parameters
 
     def import_default_value_parameters(self, no_constraints=False, num_breakpoints=24,
                                         generate_afsc_weights=True, vp_weight=100, printing=None):
@@ -740,7 +789,9 @@ class CadetCareerProblem:
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
-        solution = afccp.core.solutions.heuristic_solvers.matching_algorithm_1(self, printing=printing)
+        # Get the solution and solution iterations we need
+        solution, self.solution_iterations = afccp.core.solutions.heuristic_solvers.matching_algorithm_1(
+            self, printing=printing)
 
         # Determine what to do with the solution
         self.solution_handling(solution, solution_method="MA1")
@@ -1640,6 +1691,82 @@ class CadetCareerProblem:
         # Call the function to generate the slides
         afccp.core.visualizations.slides.generate_results_slides(self)
 
+    def generate_cadet_board_animation(self, p_dict={}, printing=None):
+        """
+        Method to generate the "Cadet Board" animation by calling the CadetBoardFigure class and applying the parameters
+        as specified in the ccp helping functions.
+        """
+        # Error Checking
+        self.error_checking("Solutions")
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Print updates
+        if printing:
+            print('Creating cadet board animation figures...')
+
+        if self.solution_iterations is not None and 'MA' in self.solution_name:
+            self.b['animation_type'] = 'Matching Algorithm Iterations'
+
+        # Animation based on the solutions in the solutions dictionary
+        if self.b['animation_type'] == 'Solutions Dict':
+            if self.solution_dict is None:
+                raise ValueError("Error. No solution dictionary initialized.")
+
+            # Grab the solutions
+            self.solution_iterations = {'solutions': {}, 'iteration_names': {}}
+            for s, solution_name in enumerate(self.solution_dict.keys()):
+                self.solution_iterations['solutions'][s] = self.solution_dict[solution_name]
+                self.solution_iterations['iteration_names'][s] = solution_name
+
+            # Last solution iteration
+            self.solution_iterations['last_s'] = s
+
+        # Error handling
+        if self.solution_iterations is None:
+            raise ValueError("Error. No solution iterations set yet. Cannot build the animation without them!")
+
+        # Determine which AFSCs to show
+        if self.b['afscs_to_show'] == 'all':  # All AFSCs
+            self.solution_iterations['afscs'] = self.parameters['afscs'][:self.parameters['M']]  # Don't want "*"
+            self.solution_iterations['J'] = self.parameters['J']
+        else:  # Needs to be a list of AFSCs
+            self.solution_iterations['afscs'] = np.array(self.b['afscs_to_show'])
+            self.solution_iterations['J'] = []
+            for afsc in self.solution_iterations['afscs']:
+                if afsc in self.parameters['afscs']:
+                    j = np.where(self.parameters['afscs'] == afsc)[0][0]
+                    self.solution_iterations['J'].append(j)
+                else:
+                    raise ValueError("Error. AFSC '" + afsc + "' not recognized as a valid AFSC.")
+            self.solution_iterations['J'] = np.array(self.solution_iterations['J'])  # Convert to numpy array
+
+        # Determine name of this solution sequence
+        version = ' '
+        if self.data_version != 'Default':
+            version = ' (' + self.data_version + ') '
+        self.solution_iterations['sequence'] = self.data_name + version
+        if self.b['animation_type'] == 'Solutions Dict':
+            self.solution_iterations['sequence'] += 'Solutions (' + ', '.join(list(self.solution_dict.keys())) + \
+                                                    ') M (' + str(len(self.solution_iterations['afscs'])) + ')'
+        elif self.b['animation_type'] == 'Matching Algorithm Iterations':
+            self.solution_iterations['sequence'] +=  'Matching Algorithm Iterations (' + self.solution_name + \
+                                                     ') M (' + str(len(self.solution_iterations['afscs'])) + ')'
+        else:
+            raise ValueError("Error. Current animation type is uncertain. Needs to be either 'Solutions Dict' or"
+                             " 'Matching Algorithm Iterations'.")
+
+        # Call the figure object
+        cadet_board = afccp.core.visualizations.animation.CadetBoardFigure(self)
+        cadet_board.main()
+
+        # Print updates
+        if printing:
+            print('Done.')
+
     # Sensitivity Analysis
     def initial_overall_weights_pareto_analysis(self, p_dict={}, printing=None):
         """
@@ -1915,4 +2042,44 @@ class CadetCareerProblem:
         # Goal Programming dataframe is an easy export (dataframe is already constructed)
         if "Goal Programming" in datasets and self.gp_df is not None:
             self.gp_df.to_csv(self.export_paths["Goal Programming"], index=False)
+
+    def export_matching_algorithm_iterations(self, printing=None):
+        """
+        Exports iterations of a matching algorithm to excel
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Error handling
+        if self.solution_iterations is not None and 'MA' in self.solution_name:
+            pass
+        else:
+            raise ValueError("Unable to export matching algorithms. Either solution iterations is not initialized or "
+                             "the current solution is not a matching algorithm solution (MA)")
+
+        # Determine data version
+        version = ' '
+        if self.data_version != 'Default':
+            version = ' (' + self.data_version + ') '
+
+        # Get filepath
+        filepath = self.export_paths['Analysis & Results'] + self.data_name + version + self.solution_name + \
+                   ' Iterations.csv'
+        if printing:
+            print('Exporting matching algorithm iterations to ' + filepath + '...')
+
+        # Craft the dataset
+        df = pd.DataFrame({'Cadet': self.parameters['cadets']})
+        for s in self.solution_iterations['solutions']:
+            solution = self.solution_iterations['solutions'][s]
+            iteration_name = self.solution_iterations['iteration_names'][s]
+            afsc_solution = [self.parameters['afscs'][j] for j in solution]
+            df[iteration_name] = afsc_solution
+
+        # Export to csv
+        df.to_csv(filepath, index=False)
+
+        if printing:
+            print('Done.')
+
 

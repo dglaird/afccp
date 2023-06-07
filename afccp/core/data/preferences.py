@@ -19,7 +19,7 @@ def get_utility_preferences(parameters):
         # Sort indices of nonzero utilities
         indices = parameters['utility'][i, :].nonzero()[0]
         sorted_init = np.argsort(parameters['utility'][i, :][indices])[::-1]
-        sorted_indices = indices[sorted_init][:6]  # Just take the top 6 preferences for now
+        sorted_indices = indices[sorted_init][:parameters['P']]  # Take the top "P" preferences (all preferences)
 
         # Put the utilities and preferences in the correct spots
         np.put(utilities_array[i, :], np.arange(len(sorted_indices)), parameters['utility'][i, :][sorted_indices])
