@@ -236,6 +236,13 @@ class CadetCareerProblem:
         elif test == 'Solutions':
             if self.solution_dict is None:
                 raise ValueError("Error. No solutions dictionary detected. You need to solve this problem first.")
+        elif test == 'Solution':
+            if self.solution is None:
+                if self.solution_dict is None:
+                    raise ValueError("Error. No solutions dictionary detected. You need to solve this problem first.")
+                else:
+                    raise ValueError("Error. Solutions dictionary detected but you haven't actually initialized a "
+                                     "solution yet. You can do so by running 'instance.set_instance_solution()'.")
 
     # Adjust Data
     def adjust_qualification_matrix(self, printing=None):
@@ -1485,7 +1492,7 @@ class CadetCareerProblem:
         """
 
         # Error Checking
-        self.error_checking("Solutions")
+        self.error_checking("Solution")
 
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)

@@ -73,6 +73,11 @@ class CadetBoardFigure:
         if 'proposals' in self.solution_iterations:
             self.b['proposals'] = self.solution_iterations['proposals']
 
+        # These are attributes to use in the title of each iteration
+        self.num_unmatched = self.b['N']
+        self.average_afsc_choice = None
+        self.average_cadet_choice = None
+
         # Initialize Figure
         self.fig, self.ax = plt.subplots(figsize=self.b['b_figsize'], tight_layout=True, dpi=self.b['dpi'],
                                          facecolor=self.b['figure_color'])
@@ -117,7 +122,14 @@ class CadetBoardFigure:
 
             # Matching Algorithm Proposals & Rejections
             elif self.mdl_p['animation_type'] == 'Matching Algorithm':
-                for s in self.b['solutions']:  # Loop through each iteration
+
+                # Save the orientation slide
+                filepath = self.paths['Analysis & Results'] + 'Cadet Board/' + self.b['sequence'] + \
+                           '/' + self.b['focus'] + '/0 (Orientation).png'
+                self.fig.savefig(filepath)
+
+                # Loop through each iteration
+                for s in self.b['solutions']:
                     self.solution_iteration_frame(s, cadets_to_show='cadets_proposing', kind='Proposals')
                     self.rejections_iteration_frame(s, kind='Rejections')
 
@@ -363,7 +375,7 @@ class CadetBoardFigure:
 
         # Add the title
         if self.b['b_title'] is None:
-            title = "Iteration 0 (Orientation)"
+            title = "Round 0 (Orientation)"
         self.fig.suptitle(title, fontsize=self.b['b_title_size'], color=self.b['text_color'])
 
         # Save the figure
@@ -446,6 +458,7 @@ class CadetBoardFigure:
         """
 
         # Loop through each AFSC
+        scores = {j: 0 for j in self.b['J']}
         for j in self.b['J']:
 
             # Sort the cadets based on whatever method we choose
@@ -461,63 +474,32 @@ class CadetBoardFigure:
                 # Hide the circle
                 self.b['c_circles'][j][i].set_visible(False)
 
+            # Calculate AFSC Norm Score and use it in the new text
+            scores[j] = round(afccp.core.solutions.handling.calculate_afsc_norm_score(
+                self.b['cadets_matched'][s][j], j, self.p, count=None), 2)
+
             # Change the text for the AFSCs
             if self.b['afsc_text_to_show'] == 'Norm Score':
-
-                # Calculate AFSC Norm Score and use it in the new text
-                score = round(afccp.core.solutions.handling.calculate_afsc_norm_score(cadets, j, self.p, count=None), 2)
-                color = self.v_hex_dict[score]  # New AFSC color
-                afsc_text = self.p['afscs'][j] + ": " + str(score)
+                color = self.v_hex_dict[scores[j]]  # New AFSC color
+                afsc_text = self.p['afscs'][j] + ": " + str(scores[j])
                 self.b['afsc_name_text'][j].set_color(color)
 
+            # Determine average cadet choice and use it in the nex text
             elif self.b['afsc_text_to_show'] == 'Cadet Choice':
-
-                # Determine average cadet choice and use it in the nex text
-                average_choice = round(np.mean(self.p['c_pref_matrix'][cadets, j]), 2)
+                average_choice = round(np.mean(self.p['c_pref_matrix'][self.b['cadets_matched'][s][j], j]), 2)
                 color = 'white'
                 afsc_text = self.p['afscs'][j] + ": " + str(average_choice)
                 self.b['afsc_name_text'][j].set_color(color)
 
+            # Text shows number of cadets matched/proposing
             else:
-
-                # Text shows number of cadets matched/proposing
                 afsc_text = self.p['afscs'][j] + ": " + str(len(cadets))
 
             # Update the text
             self.b['afsc_name_text'][j].set_text(afsc_text)
 
-        # Change the text and color of the title
-        if kind == 'Proposals':
-            title_text = 'Iteration ' + str(s + 1) + ' (Proposals)'
-            array_to_use = 'proposals'
-
-            # Get the color of the title
-            if s + 1 in self.b['choice_colors']:
-                title_color = self.b['choice_colors'][s + 1]
-            else:
-                title_color = self.b['all_other_choice_colors']
-        else:
-
-            if kind == 'Final Solution':
-                title_text = 'Final Solution'
-            else:
-                title_text = self.b['iteration_names'][s]
-            array_to_use = 'solutions'
-            title_color = self.b['text_color']
-
-
-        # Calculate average choice
-        choices = np.zeros(self.b["N"])
-        for i, j in enumerate(self.b[array_to_use][s]):
-            if j in self.p['J']:
-                choices[i] = self.p['c_pref_matrix'][i, j]
-            else:
-                choices[i] = np.max(self.p['c_pref_matrix'][i, :]) + 1
-        average_choice = round(np.mean(choices), 2)
-        title_text += ' Average Choice: ' + str(average_choice)
-
-        # Update the title
-        self.fig.suptitle(title_text, fontsize=self.b['b_title_size'], color=title_color)
+        # Update the title of the figure
+        self.update_title_text(s, scores=scores, kind=kind)
 
         # Save the figure
         if self.b['save_iteration_frames']:
@@ -553,22 +535,8 @@ class CadetBoardFigure:
                     line_1[j][i] = self.ax.plot(x_values_1, y_values_1, linestyle='-', c='red')
                     line_2[j][i] = self.ax.plot(x_values_2, y_values_2, linestyle='-', c='red')
 
-        # Change the text of the title
-        title_text = 'Iteration ' + str(s + 1) + ' (Rejections)'
-
-        # Calculate total number of cadets matched and unmatched
-        unmatched_cadets = np.where(self.b['solutions'][s] == self.b['M'])[0]
-        num_unmatched = len(unmatched_cadets)
-        title_text += ' Matched: ' + str(self.b['N'] - num_unmatched) + ", Unmatched: " + str(num_unmatched)
-
-        # Get the color of the title
-        if s + 1 in self.b['choice_colors']:
-            title_color = self.b['choice_colors'][s + 1]
-        else:
-            title_color = self.b['all_other_choice_colors']
-
-        # Update the title
-        self.fig.suptitle(title_text, fontsize=self.b['b_title_size'], color=title_color)
+        # Update the title of the figure
+        self.update_title_text(s, scores=None, kind=kind)
 
         # Save the figure
         if self.b['save_iteration_frames']:
@@ -609,6 +577,62 @@ class CadetBoardFigure:
 
             # Save frame
             self.fig.savefig(filepath)
+
+    def update_title_text(self, s, scores=None, kind=None):
+        """
+        This method purely updates the text in the title of the figure
+        """
+
+        # Change the text and color of the title
+        if kind == 'Proposals':
+            title_text = 'Round ' + str(s + 1) + ' (Proposals)'
+
+            # Get the color of the title
+            if s + 1 in self.b['choice_colors']:
+                title_color = self.b['choice_colors'][s + 1]
+            else:
+                title_color = self.b['all_other_choice_colors']
+        else:
+            title_color = self.b['text_color']
+
+            # Update the title text in a specific way
+            if kind == 'Final Solution':
+                title_text = 'Final Solution'
+            elif kind == 'Rejections':
+                title_text = 'Round ' + str(s + 1) + ' (Rejections)'
+
+                # Get the color of the title
+                if s + 1 in self.b['choice_colors']:
+                    title_color = self.b['choice_colors'][s + 1]
+                else:
+                    title_color = self.b['all_other_choice_colors']
+            else:
+                title_text = self.b['iteration_names'][s]
+
+        # Update the number of unmatched cadets
+        unmatched_cadets = np.where(self.b['solutions'][s] == self.b['M'])[0]
+        self.num_unmatched = len(unmatched_cadets)
+        matched_cadets = np.array([i for i in range(self.b['N']) if i not in unmatched_cadets])
+
+        # Calculate average cadet choice based on matched cadets
+        choices = np.zeros(len(matched_cadets))
+        for idx, i in enumerate(matched_cadets):
+            j = self.b['solutions'][s][i]
+            choices[idx] = self.p['c_pref_matrix'][i, j]
+        self.average_cadet_choice = round(np.mean(choices), 2)
+        title_text += ' Averages: Cadets (' + str(self.average_cadet_choice)
+
+        # Calculate AFSC weighted average score (and add number of unmatched cadets)
+        if scores is not None:
+            counts = np.array([len(np.where(self.b['solutions'][s] == j)[0]) for j in self.b['J']])
+            weights = counts / np.sum(counts)
+            scores = np.array([scores[j] for j in self.b['J']])
+            self.average_afsc_choice = round(np.dot(weights, scores), 2)
+        title_text += ') AFSCs (' + str(self.average_afsc_choice) + \
+                      '), ' + str(self.num_unmatched) + ' Unmatched.'
+
+        # Update the title
+        self.fig.suptitle(title_text, fontsize=self.b['b_title_size'], color=title_color)
 
     def export_board_parameters(self):
         """

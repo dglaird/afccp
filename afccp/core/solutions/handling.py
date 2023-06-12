@@ -99,6 +99,11 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
     metrics['z'] = vp['cadets_overall_weight'] * metrics['cadets_overall_value'] + \
                    vp['afscs_overall_weight'] * metrics['afscs_overall_value']
     metrics['num_ineligible'] = np.sum(x[i, j] * p['ineligible'][i, j] for j in p['J'] for i in p['I'])
+
+    # Add additional metrics components (Non-VFT stuff)
+    metrics = calculate_additional_useful_metrics(metrics, p, vp)
+
+    # Print statement
     if printing:
         if approximate:
             model_type = 'approximate'
@@ -107,9 +112,6 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         print("Measured " + model_type + " solution objective value: " + str(round(metrics['z'], 4)) +
               ". Unmatched cadets: " + str(metrics["num_unmatched"]) +
               ". Ineligible cadets: " + str(metrics['num_ineligible']) + ".")
-
-    # Add additional metrics components
-    metrics = calculate_additional_useful_metrics(metrics, p, vp)
 
     # Return the metrics
     return metrics
@@ -564,6 +566,38 @@ def calculate_additional_useful_metrics(metrics, p, vp):
         and value parameters. The purpose is to enhance the information and analysis of the metrics.
     """
 
+    # Convert back to solution array
+    solution = np.array([np.where(p['afscs'] == metrics['afsc_solution'][i])[0][0] for i in p["I"]])
+
+    # Calculate average cadet choice
+    choices = np.zeros(p["N"])
+    for i, j in enumerate(solution):
+        if j in p['J']:
+            choices[i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
+        else:
+            choices[i] = np.max(p['c_pref_matrix'][i, :]) + 1  # Unassigned cadet choice
+    metrics['average_cadet_choice'] = round(np.mean(choices), 2)
+
+    # Calculate average cadet choice for each AFSC individually
+    metrics['afsc_average_cadet_choice'] = np.zeros(p['M'])
+    for j in p['J']:
+        cadets = np.where(solution == j)[0]
+        metrics['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
+
+    # Save the counts for each AFSC separately from the objective_measure matrix
+    quota_k = np.where(vp['objectives'] == 'Combined Quota')[0][0]
+    metrics['count'] = metrics['objective_measure'][:, quota_k]
+
+    # Calculate weighted average AFSC choice (based on Norm Score)
+    if 'Norm Score' in vp['objectives']:
+        k = np.where(vp['objectives'] == 'Norm Score')[0][0]
+
+        # Individual norm scores for each AFSC
+        metrics['afsc_norm_score'] = metrics['objective_measure'][:, k]
+
+        # Weighted average AFSC choice
+        weights = metrics['count'] / np.sum(metrics['count'])
+        metrics['weighted_average_afsc_score'] = np.dot(weights, metrics['afsc_norm_score'])
 
     # Generate objective scores for each objective
     for k in vp['K']:
