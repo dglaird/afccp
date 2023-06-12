@@ -158,8 +158,8 @@ class CadetCareerProblem:
             self.parameters = afccp_dp.parameter_sets_additions(self.parameters)
 
         # Initialize more "functional" parameters
-        self.plt_p, self.mdl_p, self.b = \
-            afccp.core.data.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
+        self.mdl_p = afccp.core.data.ccp_helping_functions.initialize_instance_functional_parameters(
+            self.parameters["N"])
 
         if self.printing:
             print("Instance '" + self.data_name + "' initialized.")
@@ -174,17 +174,13 @@ class CadetCareerProblem:
         ccp_fns = afccp.core.data.ccp_helping_functions
 
         # Reset plot parameters and model parameters
-        self.plt_p, self.mdl_p, self.b = ccp_fns.initialize_instance_functional_parameters(self.parameters["N"])
+        self.mdl_p = ccp_fns.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Update plot parameters and model parameters
         for key in p_dict:
 
-            if key in self.plt_p:
-                self.plt_p[key] = p_dict[key]
-            elif key in self.mdl_p:
+            if key in self.mdl_p:
                 self.mdl_p[key] = p_dict[key]
-            elif key in self.b:
-                self.b[key] = p_dict[key]
             else:
                 print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
@@ -240,51 +236,6 @@ class CadetCareerProblem:
         elif test == 'Solutions':
             if self.solution_dict is None:
                 raise ValueError("Error. No solutions dictionary detected. You need to solve this problem first.")
-
-    # Visualizations
-    def display_data_graph(self, p_dict={}, printing=None):
-        """
-        This method plots different aspects of the fixed parameters of the problem instance.
-        """
-
-        # Print statement
-        if printing is None:
-            printing = self.printing
-
-        # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
-        self.plt_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
-
-        # Initialize the AFSC Chart object
-        afsc_chart = afccp.core.visualizations.instance_graphs.AFSCsChart(self)
-
-        # Construct the specific chart
-        return afsc_chart.build(printing=printing)
-
-    def display_all_data_graphs(self, p_dict={}, printing=None):
-        """
-        This method runs through all the different versions of graphs we have and saves
-        them to the corresponding folder.
-        """
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print("Saving all data graphs to the corresponding folder...")
-
-        # Regular Charts
-        charts = []
-        for graph in ["Average Utility", "USAFA Proportion", "Average Merit", "AFOCD Data", "Eligible Quota"]:
-            p_dict["data_graph"] = graph
-            charts.append(self.display_data_graph(p_dict, printing=printing))
-
-        # Cadet Preference Analysis Charts
-        p_dict["data_graph"] = "Cadet Preference Analysis"
-        for version in range(1, 8):
-            p_dict["version"] = str(version)
-            charts.append(self.display_data_graph(p_dict, printing=printing))
-
-        return charts
 
     # Adjust Data
     def adjust_qualification_matrix(self, printing=None):
@@ -702,7 +653,7 @@ class CadetCareerProblem:
 
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
-        self.plt_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
+        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
 
         # Build the chart
         value_function_chart = afccp.core.comprehensive_functions.plot_value_function(self, printing)
@@ -722,10 +673,10 @@ class CadetCareerProblem:
 
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
-        self.plt_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
+        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
 
         if printing:
-            if self.plt_p["cadets_graph"]:
+            if self.mdl_p["cadets_graph"]:
                 print("Creating cadet weight chart...")
             else:
                 print("Creating AFSC weight chart...")
@@ -1221,32 +1172,32 @@ class CadetCareerProblem:
 
         # Update plot parameters if necessary
         for key in p_dict:
-            if key in self.plt_p:
-                self.plt_p[key] = p_dict[key]
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
             else:
 
                 # Exception
                 if key == "graph":
-                    self.plt_p["results_graph"] = p_dict["graph"]
+                    self.mdl_p["results_graph"] = p_dict["graph"]
 
                 else:
                     # If the parameter doesn't exist, we warn the user
                     print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
         # Get our similarity matrix from somewhere
-        if self.plt_p["new_similarity_matrix"]:
-            similarity_matrix = self.compute_similarity_matrix(solution_names=self.plt_p["solution_names"],
+        if self.mdl_p["new_similarity_matrix"]:
+            similarity_matrix = self.compute_similarity_matrix(solution_names=self.mdl_p["solution_names"],
                                                                set_to_instance=set_to_instance)
         else:
             if self.similarity_matrix is None:
-                similarity_matrix = self.compute_similarity_matrix(solution_names=self.plt_p["solution_names"],
+                similarity_matrix = self.compute_similarity_matrix(solution_names=self.mdl_p["solution_names"],
                                                                    set_to_instance=set_to_instance)
             else:
                 similarity_matrix = self.similarity_matrix
 
         # Get the right solution names
-        if self.plt_p["solution_names"] is None:
-            self.plt_p["solution_names"] = list(self.solution_dict.keys())
+        if self.mdl_p["solution_names"] is None:
+            self.mdl_p["solution_names"] = list(self.solution_dict.keys())
 
         # Get coordinates
         coords = afccp.core.data.preferences.solution_similarity_coordinates(similarity_matrix)
@@ -1427,7 +1378,227 @@ class CadetCareerProblem:
             for vp_name in self.vp_dict:
                 self.vp_dict[vp_name]['vp_local_weight'] = self.vp_dict[vp_name]['vp_weight'] / sum_weights
 
-    # Observe Results
+    # Matching Algorithm Iterations
+    def export_solution_iterations(self, printing=None):
+        """
+        Exports iterations of a matching algorithm to excel
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Error handling
+        if self.solution_iterations is None:
+            raise ValueError("Error. Solution iterations is not initialized.")
+
+        # Update the solution iterations dictionary
+        if 'sequence' not in self.solution_iterations:
+            self.manage_solution_iterations()
+
+        # 'Sequence' Folder
+        folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
+        if self.solution_iterations['sequence'] not in os.listdir(folder_path):
+            os.mkdir(folder_path + self.solution_iterations['sequence'])
+
+        # Create proposals dataframe
+        if 'proposals' in self.solution_iterations:
+            proposals_df = pd.DataFrame({'Cadet': self.parameters['cadets']})
+            for s in self.solution_iterations['proposals']:
+                solution = self.solution_iterations['proposals'][s]
+                afsc_solution = [self.parameters['afscs'][j] for j in solution]
+                proposals_df['Iteration ' + str(s + 1)] = afsc_solution
+
+            # Export file
+            filepath = folder_path + self.solution_iterations['sequence'] + '/Solution Iterations (Proposals).csv'
+            proposals_df.to_csv(filepath, index=False)
+
+            if printing:
+                print('Proposal iterations exported to', filepath)
+
+        # Create matches dataframe
+        if 'solutions' in self.solution_iterations:
+            solutions_df = pd.DataFrame({'Cadet': self.parameters['cadets']})
+            for s in self.solution_iterations['solutions']:
+                solution = self.solution_iterations['solutions'][s]
+                afsc_solution = [self.parameters['afscs'][j] for j in solution]
+                solutions_df['Iteration ' + str(s + 1)] = afsc_solution
+
+            # Export file
+            filepath = folder_path + self.solution_iterations['sequence'] + '/Solution Iterations (Matches).csv'
+            solutions_df.to_csv(filepath, index=False)
+
+            if printing:
+                print('Solution iterations exported to', filepath)
+
+        if printing:
+            print('Done.')
+
+    def import_solution_iterations(self, sequence_name, printing=None):
+        """
+        Exports iterations of a matching algorithm to excel
+        """
+        if printing is None:
+            printing = self.printing
+
+        # 'Sequence' Folder
+        folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
+        if sequence_name not in os.listdir(folder_path):
+            raise ValueError("Error. Sequence '" + str(sequence_name) + "' not found in 'Cadet Board' figure.")
+        sequence_folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/' + sequence_name
+        sequence_folder = os.listdir(sequence_folder_path)
+        self.solution_iterations = {}  # Initialize dictionary
+
+        # Get proposals if applicable
+        if 'Solution Iterations (Proposals).csv' in sequence_folder:
+            filepath = sequence_folder_path + '/Solution Iterations (Proposals).csv'
+            proposals_df = afccp.core.globals.import_csv_data(filepath)
+            self.solution_iterations['proposals'] = {}
+            for s, col in enumerate(proposals_df.columns[1:]):
+                afsc_solution = np.array(proposals_df[col])
+                solution = np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+                self.solution_iterations['proposals'][s] = solution
+
+            if printing:
+                print('Proposal iterations imported from', filepath)
+
+        # Get matches if applicable
+        if 'Solution Iterations (Matches).csv' in sequence_folder:
+            filepath = sequence_folder_path + '/Solution Iterations (Matches).csv'
+            matches_df = afccp.core.globals.import_csv_data(filepath)
+            self.solution_iterations['solutions'] = {}
+            self.solution_iterations['iteration_names'] = {}
+            for s, col in enumerate(matches_df.columns[1:]):
+                afsc_solution = np.array(matches_df[col])
+                solution = np.array(
+                    [np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+                self.solution_iterations['solutions'][s] = solution
+                self.solution_iterations['iteration_names'][s] = "Iteration " + str(s + 1)
+
+            # Last solution iteration
+            self.solution_iterations['last_s'] = s
+
+            if printing:
+                print('Solution iterations imported from', filepath)
+
+    def manage_solution_iterations(self, p_dict={}):
+        """
+        Handles the solution iterations that we should already have as an attribute of the problem instance
+        """
+
+        # Error Checking
+        self.error_checking("Solutions")
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        if self.solution_iterations is not None and 'MA' in self.solution_name:
+            self.mdl_p['board_kind'] = 'Iterations'
+            self.mdl_p['animation_type'] = 'Matching Algorithm'
+
+        else:
+
+            # Animation based on the solutions in the solutions dictionary
+            if self.mdl_p['board_kind'] == 'Solution':
+                if self.solution_name is None:
+                    raise ValueError("Error. No solution initialized.")
+
+                solution_dict = {self.solution_name: self.solution}  # Just the activated solution
+            elif self.mdl_p['board_kind'] == 'Iterations' and self.mdl_p['animation_type'] is None:
+                if self.solution_dict is None:
+                    raise ValueError("Error. No solution dictionary initialized.")
+
+                self.mdl_p['animation_type'] = 'Solutions Dict'
+                solution_dict = self.solution_dict  # All the current solutions
+
+            # Grab the solutions
+            self.solution_iterations = {'solutions': {}, 'iteration_names': {}}
+            for s, solution_name in enumerate(solution_dict.keys()):
+                self.solution_iterations['solutions'][s] = self.solution_dict[solution_name]
+                self.solution_iterations['iteration_names'][s] = solution_name
+
+            # Last solution iteration
+            self.solution_iterations['last_s'] = s
+
+        # Error handling
+        if self.solution_iterations is None:
+            raise ValueError("Error. No solution iterations set yet. Cannot build the animation without them!")
+
+        # Determine which AFSCs to show
+        if self.mdl_p['afscs_to_show'] == 'All':  # All AFSCs
+            self.solution_iterations['afscs'] = self.parameters['afscs'][:self.parameters['M']]  # Don't want "*"
+            self.solution_iterations['J'] = self.parameters['J']
+        elif self.mdl_p['afscs_to_show'] in ['NRL', 'Rated', 'USSF']:
+            indices = np.where(p['acc_grp'] == self.mdl_p['afscs_to_show'])[0]
+            self.solution_iterations['afscs'] = self.parameters['afscs'][indices]
+            self.solution_iterations['J'] = self.parameters['J'][indices]
+        else:  # Needs to be a list of AFSCs
+            self.solution_iterations['afscs'] = np.array(self.mdl_p['afscs_to_show'])
+            self.solution_iterations['J'] = []
+            for afsc in self.solution_iterations['afscs']:
+                if afsc in self.parameters['afscs']:
+                    j = np.where(self.parameters['afscs'] == afsc)[0][0]
+                    self.solution_iterations['J'].append(j)
+                else:
+                    raise ValueError("Error. AFSC '" + afsc + "' not recognized as a valid AFSC.")
+            self.solution_iterations['J'] = np.array(self.solution_iterations['J'])  # Convert to numpy array
+
+        # Determine name of this CadetBoardFigure sequence
+        self.solution_iterations['sequence'] = self.data_name + ', ' + self.mdl_p['cadets_solved_for'] + ' Cadets, '
+        if self.mdl_p['animation_type'] is not None:
+            self.solution_iterations['sequence'] += self.mdl_p['animation_type'] + ', '
+        self.solution_iterations['sequence'] += self.mdl_p['afscs_solved_for'] + ' AFSCs'
+        if self.mdl_p['animation_type'] != 'Solutions Dict':
+            self.solution_iterations['sequence'] += ', ' + self.solution_name
+        else:
+            self.solution_iterations['sequence'] += ', (' + ', '.join(list(self.solution_dict.keys())) + ')'
+        if self.data_version != 'Default':
+            self.solution_iterations['sequence'] += ' (' + self.data_version + ')'
+
+    # Data Visualizations
+    def display_data_graph(self, p_dict={}, printing=None):
+        """
+        This method plots different aspects of the fixed parameters of the problem instance.
+        """
+
+        # Print statement
+        if printing is None:
+            printing = self.printing
+
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
+
+        # Initialize the AFSC Chart object
+        afsc_chart = afccp.core.visualizations.instance_graphs.AFSCsChart(self)
+
+        # Construct the specific chart
+        return afsc_chart.build(printing=printing)
+
+    def display_all_data_graphs(self, p_dict={}, printing=None):
+        """
+        This method runs through all the different versions of graphs we have and saves
+        them to the corresponding folder.
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Saving all data graphs to the corresponding folder...")
+
+        # Regular Charts
+        charts = []
+        for graph in ["Average Utility", "USAFA Proportion", "Average Merit", "AFOCD Data", "Eligible Quota"]:
+            p_dict["data_graph"] = graph
+            charts.append(self.display_data_graph(p_dict, printing=printing))
+
+        # Cadet Preference Analysis Charts
+        p_dict["data_graph"] = "Cadet Preference Analysis"
+        for version in range(1, 8):
+            p_dict["version"] = str(version)
+            charts.append(self.display_data_graph(p_dict, printing=printing))
+
+        return charts
+
+    # Results Visualizations
     def display_all_results_graphs(self, p_dict={}, printing=None):
         """
         Saves all charts for the current solution and for the solutions in the solution names list if specified
@@ -1444,19 +1615,19 @@ class CadetCareerProblem:
 
         # Update plot parameters if necessary
         for key in p_dict:
-            if key in self.plt_p:
-                self.plt_p[key] = p_dict[key]
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
             else:
 
                 # Exception
                 if key == "graph":
-                    self.plt_p["results_graph"] = p_dict["graph"]
+                    self.mdl_p["results_graph"] = p_dict["graph"]
 
                 else:
                     # If the parameter doesn't exist, we warn the user
                     print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
-        p_dict = copy.deepcopy(self.plt_p)
+        p_dict = copy.deepcopy(self.mdl_p)
 
         # If we specify the solution names, that means we want to view all of their individual charts as well
         # as the comparison charts
@@ -1497,9 +1668,9 @@ class CadetCareerProblem:
                                 print("Saving charts for solution '" + solution_name + "'...")
                             self.set_instance_solution(solution_name)
 
-                            for obj in self.plt_p["afsc_chart_versions"]:
+                            for obj in self.mdl_p["afsc_chart_versions"]:
                                 p_dict["objective"] = obj
-                                for version in self.plt_p["afsc_chart_versions"][obj]:
+                                for version in self.mdl_p["afsc_chart_versions"][obj]:
                                     p_dict["version"] = version
 
                                     try:
@@ -1515,7 +1686,7 @@ class CadetCareerProblem:
                         # Loop through each objective
                         for obj in self.value_parameters["objectives"]:
 
-                            if obj in self.plt_p["afsc_chart_versions"]:
+                            if obj in self.mdl_p["afsc_chart_versions"]:
                                 p_dict["objective"] = obj
 
                                 try:
@@ -1545,12 +1716,12 @@ class CadetCareerProblem:
             else:
 
                 # Loop through each objective and version
-                for obj in self.plt_p["afsc_chart_versions"]:
+                for obj in self.mdl_p["afsc_chart_versions"]:
 
                     if printing:
                         print("<Charts for objective '" + obj + "'>")
                     p_dict["objective"] = obj
-                    for version in self.plt_p["afsc_chart_versions"][obj]:
+                    for version in self.mdl_p["afsc_chart_versions"][obj]:
                         p_dict["version"] = version
 
                         try:
@@ -1566,7 +1737,7 @@ class CadetCareerProblem:
         """
 
         # Reset chart functional parameters
-        self.plt_p, _ = \
+        self.mdl_p, _ = \
             afccp.core.data.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Make sure we have a solution and a set of value parameters activated
@@ -1577,55 +1748,55 @@ class CadetCareerProblem:
 
         # Update plot parameters if necessary
         for key in p_dict:
-            if key in self.plt_p:
-                self.plt_p[key] = p_dict[key]
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
             else:
 
                 # Exception
                 if key == "graph":
-                    self.plt_p["results_graph"] = p_dict["graph"]
+                    self.mdl_p["results_graph"] = p_dict["graph"]
 
                 else:
                     # If the parameter doesn't exist, we warn the user
                     print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
         # Update plot parameters
-        self.plt_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self, results_chart=True)
+        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self, results_chart=True)
 
         # Determine which chart to show
-        if self.plt_p["results_graph"] in ["Measure", "Value"]:
+        if self.mdl_p["results_graph"] in ["Measure", "Value"]:
             chart = afccp.core.visualizations.instance_graphs.afsc_results_graph(self)
-        elif self.plt_p["results_graph"] == "Cadet Utility":
+        elif self.mdl_p["results_graph"] == "Cadet Utility":
             chart = afccp.core.visualizations.instance_graphs.cadet_utility_histogram(self)
-        elif self.plt_p["results_graph"] == "Utility vs. Merit":
+        elif self.mdl_p["results_graph"] == "Utility vs. Merit":
             chart = afccp.core.visualizations.instance_graphs.cadet_utility_merit_scatter(self)
 
         # Get necessary conditions for the multi-criteria chart
-        elif self.plt_p["results_graph"] == "Multi-Criteria Comparison":
-            if self.plt_p["compare_solutions"]:
-                if self.plt_p["solution_names"] is None:
+        elif self.mdl_p["results_graph"] == "Multi-Criteria Comparison":
+            if self.mdl_p["compare_solutions"]:
+                if self.mdl_p["solution_names"] is None:
                     # Pick all of the solutions in the dictionary
-                    self.plt_p["solution_names"] = list(self.solution_dict.keys())
+                    self.mdl_p["solution_names"] = list(self.solution_dict.keys())
 
                 # Determine AFSCs to show
-                if self.plt_p["comparison_afscs"] is None:
+                if self.mdl_p["comparison_afscs"] is None:
                     # Run through an algorithm to pick the AFSCs to show based on which ones change the most
-                    self.plt_p["comparison_afscs"] = \
+                    self.mdl_p["comparison_afscs"] = \
                         afccp.core.data.ccp_helping_functions.pick_most_changed_afscs(self)
 
                 # Get correct y-axis scale (scale to most cadets in biggest AFSC!)
                 quota_k = np.where(self.value_parameters["objectives"] == "Combined Quota")[0][0]
                 max_num = max([max(self.metrics_dict[self.vp_name][solution_name]["objective_measure"][
-                                   :, quota_k]) for solution_name in self.plt_p["solution_names"]])
+                                   :, quota_k]) for solution_name in self.mdl_p["solution_names"]])
 
                 # Loop through each solution and generate the charts
-                for solution_name in self.plt_p["solution_names"]:
+                for solution_name in self.mdl_p["solution_names"]:
 
                     # Get correct title and filename
-                    self.plt_p["title"] = solution_name + ": Multi-Criteria Results Across Certain AFSCs"
-                    self.plt_p["filename"] = "Multi_Criteria_Chart_" + solution_name + "_AFSCs"
-                    for afsc in self.plt_p["comparison_afscs"]:
-                        self.plt_p["filename"] += "_" + afsc
+                    self.mdl_p["title"] = solution_name + ": Multi-Criteria Results Across Certain AFSCs"
+                    self.mdl_p["filename"] = "Multi_Criteria_Chart_" + solution_name + "_AFSCs"
+                    for afsc in self.mdl_p["comparison_afscs"]:
+                        self.mdl_p["filename"] += "_" + afsc
 
                     # Set the correct solution
                     self.set_instance_solution(solution_name)
@@ -1635,21 +1806,21 @@ class CadetCareerProblem:
             else:
 
                 # Determine AFSCs to show
-                if self.plt_p["comparison_afscs"] is None:
+                if self.mdl_p["comparison_afscs"] is None:
                     raise ValueError("No AFSCs specified to compare")
                 else:  # AFSCs are specified
 
                     # Get correct title and filename
-                    self.plt_p["title"] = self.solution_name + ": Multi-Criteria Results Across Certain AFSCs"
-                    self.plt_p["filename"] = "Multi_Criteria_Chart_" + self.solution_name + "_AFSCs"
-                    for afsc in self.plt_p["comparison_afscs"]:
-                        self.plt_p["filename"] += "_" + afsc
+                    self.mdl_p["title"] = self.solution_name + ": Multi-Criteria Results Across Certain AFSCs"
+                    self.mdl_p["filename"] = "Multi_Criteria_Chart_" + self.solution_name + "_AFSCs"
+                    for afsc in self.mdl_p["comparison_afscs"]:
+                        self.mdl_p["filename"] += "_" + afsc
 
                     # Generate chart
                     chart = afccp.core.visualizations.instance_graphs.afsc_multi_criteria_graph(self)
 
         else:
-            raise ValueError("Graph '" + self.plt_p["results_graph"] + "' does not exist.")
+            raise ValueError("Graph '" + self.mdl_p["results_graph"] + "' does not exist.")
 
         return chart
 
@@ -1665,7 +1836,7 @@ class CadetCareerProblem:
             print("Generating results slides...")
 
         # Reset chart functional parameters
-        self.plt_p, _ = \
+        self.mdl_p, _ = \
             afccp.core.data.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Make sure we have a solution and a set of value parameters activated
@@ -1676,13 +1847,13 @@ class CadetCareerProblem:
 
         # Update plot parameters if necessary
         for key in p_dict:
-            if key in self.plt_p:
-                self.plt_p[key] = p_dict[key]
+            if key in self.mdl_p:
+                self.mdl_p[key] = p_dict[key]
             else:
 
                 # Exception
                 if key == "graph":
-                    self.plt_p["results_graph"] = p_dict["graph"]
+                    self.mdl_p["results_graph"] = p_dict["graph"]
 
                 else:
                     # If the parameter doesn't exist, we warn the user
@@ -1696,76 +1867,20 @@ class CadetCareerProblem:
         Method to generate the "Cadet Board" animation by calling the CadetBoardFigure class and applying the parameters
         as specified in the ccp helping functions.
         """
-        # Error Checking
-        self.error_checking("Solutions")
+
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        # Manage the solution iterations
+        self.manage_solution_iterations(p_dict)
 
         # Print updates
         if printing:
             print('Creating cadet board animation figures...')
 
-        if self.solution_iterations is not None and 'MA' in self.solution_name:
-            self.b['animation_type'] = 'Matching Algorithm Iterations'
-
-        # Animation based on the solutions in the solutions dictionary
-        if self.b['animation_type'] == 'Solutions Dict':
-            if self.solution_dict is None:
-                raise ValueError("Error. No solution dictionary initialized.")
-
-            # Grab the solutions
-            self.solution_iterations = {'solutions': {}, 'iteration_names': {}}
-            for s, solution_name in enumerate(self.solution_dict.keys()):
-                self.solution_iterations['solutions'][s] = self.solution_dict[solution_name]
-                self.solution_iterations['iteration_names'][s] = solution_name
-
-            # Last solution iteration
-            self.solution_iterations['last_s'] = s
-
-        # Error handling
-        if self.solution_iterations is None:
-            raise ValueError("Error. No solution iterations set yet. Cannot build the animation without them!")
-
-        # Determine which AFSCs to show
-        if self.b['afscs_to_show'] == 'all':  # All AFSCs
-            self.solution_iterations['afscs'] = self.parameters['afscs'][:self.parameters['M']]  # Don't want "*"
-            self.solution_iterations['J'] = self.parameters['J']
-        else:  # Needs to be a list of AFSCs
-            self.solution_iterations['afscs'] = np.array(self.b['afscs_to_show'])
-            self.solution_iterations['J'] = []
-            for afsc in self.solution_iterations['afscs']:
-                if afsc in self.parameters['afscs']:
-                    j = np.where(self.parameters['afscs'] == afsc)[0][0]
-                    self.solution_iterations['J'].append(j)
-                else:
-                    raise ValueError("Error. AFSC '" + afsc + "' not recognized as a valid AFSC.")
-            self.solution_iterations['J'] = np.array(self.solution_iterations['J'])  # Convert to numpy array
-
-        # Determine name of this solution sequence
-        version = ' '
-        if self.data_version != 'Default':
-            version = ' (' + self.data_version + ') '
-        self.solution_iterations['sequence'] = self.data_name + version
-        if self.b['animation_type'] == 'Solutions Dict':
-            self.solution_iterations['sequence'] += 'Solutions (' + ', '.join(list(self.solution_dict.keys())) + \
-                                                    ') M (' + str(len(self.solution_iterations['afscs'])) + ')'
-        elif self.b['animation_type'] == 'Matching Algorithm Iterations':
-            self.solution_iterations['sequence'] +=  'Matching Algorithm Iterations (' + self.solution_name + \
-                                                     ') M (' + str(len(self.solution_iterations['afscs'])) + ')'
-        else:
-            raise ValueError("Error. Current animation type is uncertain. Needs to be either 'Solutions Dict' or"
-                             " 'Matching Algorithm Iterations'.")
-
         # Call the figure object
-        cadet_board = afccp.core.visualizations.animation.CadetBoardFigure(self)
+        cadet_board = afccp.core.visualizations.animation.CadetBoardFigure(self, printing=printing)
         cadet_board.main()
-
-        # Print updates
-        if printing:
-            print('Done.')
 
     # Sensitivity Analysis
     def initial_overall_weights_pareto_analysis(self, p_dict={}, printing=None):
@@ -2042,44 +2157,5 @@ class CadetCareerProblem:
         # Goal Programming dataframe is an easy export (dataframe is already constructed)
         if "Goal Programming" in datasets and self.gp_df is not None:
             self.gp_df.to_csv(self.export_paths["Goal Programming"], index=False)
-
-    def export_matching_algorithm_iterations(self, printing=None):
-        """
-        Exports iterations of a matching algorithm to excel
-        """
-        if printing is None:
-            printing = self.printing
-
-        # Error handling
-        if self.solution_iterations is not None and 'MA' in self.solution_name:
-            pass
-        else:
-            raise ValueError("Unable to export matching algorithms. Either solution iterations is not initialized or "
-                             "the current solution is not a matching algorithm solution (MA)")
-
-        # Determine data version
-        version = ' '
-        if self.data_version != 'Default':
-            version = ' (' + self.data_version + ') '
-
-        # Get filepath
-        filepath = self.export_paths['Analysis & Results'] + self.data_name + version + self.solution_name + \
-                   ' Iterations.csv'
-        if printing:
-            print('Exporting matching algorithm iterations to ' + filepath + '...')
-
-        # Craft the dataset
-        df = pd.DataFrame({'Cadet': self.parameters['cadets']})
-        for s in self.solution_iterations['solutions']:
-            solution = self.solution_iterations['solutions'][s]
-            iteration_name = self.solution_iterations['iteration_names'][s]
-            afsc_solution = [self.parameters['afscs'][j] for j in solution]
-            df[iteration_name] = afsc_solution
-
-        # Export to csv
-        df.to_csv(filepath, index=False)
-
-        if printing:
-            print('Done.')
 
 

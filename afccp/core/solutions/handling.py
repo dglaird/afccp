@@ -249,11 +249,7 @@ def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
 
     # New objective to evaluate CFM preference lists
     elif objective == "Norm Score":
-        best_sum = np.sum(c for c in range(count))
-        worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
-        worst_sum = np.sum(c for c in worst_range)
-        achieved_sum = np.sum(p["a_pref_matrix"][cadets, j])
-        return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
+        return calculate_afsc_norm_score(cadets, j, p, count=count)
 
 def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True):
     """
@@ -528,6 +524,28 @@ def value_function(a, f_a, r, x):
 
     # Return value
     return val
+
+def calculate_afsc_norm_score(cadets, j, p, count=None):
+    """
+    This little function simply calculates the AFSC "Norm Score" value and returns it
+    """
+
+    # Re-calculate count if necessary
+    if count is None:
+        count = len(cadets)
+
+    # Best score sum we could achieve
+    best_sum = np.sum(c for c in range(count))
+
+    # Worst score sum we could receive
+    worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
+    worst_sum = np.sum(c for c in worst_range)
+
+    # Score sum we did receive
+    achieved_sum = np.sum(p["a_pref_matrix"][cadets, j])
+
+    # Normalize this score and return it
+    return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
 
 def calculate_additional_useful_metrics(metrics, p, vp):
     """

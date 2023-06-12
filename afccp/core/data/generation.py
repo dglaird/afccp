@@ -62,18 +62,10 @@ def generate_random_instance(N=1600, P=6, M=32):
 
     # Generate AFSCs
     p['afscs'] = np.array(['R' + str(j + 1) for j in range(M)])
-    p['acc_grp'] = np.array(['NRL' for _ in range(M)])
+    p['acc_grp'] = np.array([np.random.choice(['NRL', 'Rated', 'USSF']) for _ in range(M)])
 
     # Add an "*" to the list of AFSCs to be considered the "Unmatched AFSC"
     p["afscs"] = np.hstack((p["afscs"], "*"))
-
-    # Cadet preferences
-    utility = np.random.rand(N, M)  # random utility matrix
-    max_util = np.max(utility, axis=1)
-    p['utility'] = np.around(utility / np.array([[max_util[i]] for i in range(N)]), 2)
-    p['c_preferences'], p['c_utilities'] = get_utility_preferences(p)
-    p['c_preferences'] = p['c_preferences'][:, :P]
-    p['c_utilities'] = p['c_utilities'][:, :P]
 
     # Add degree tier qualifications to the set of parameters
     def generate_degree_tier_qualifications():
@@ -196,6 +188,15 @@ def generate_random_instance(N=1600, P=6, M=32):
 
         return p   # Return updated parameters
     p = generate_degree_tier_qualifications()
+
+    # Cadet preferences
+    utility = np.random.rand(N, M)  # random utility matrix
+    utility *= p['eligible']  # Remove ineligible choices
+    max_util = np.max(utility, axis=1)
+    p['utility'] = np.around(utility / np.array([[max_util[i]] for i in range(N)]), 2)
+    p['c_preferences'], p['c_utilities'] = get_utility_preferences(p)
+    p['c_preferences'] = p['c_preferences'][:, :P]
+    p['c_utilities'] = p['c_utilities'][:, :P]
 
     return p  # Return updated parameters
 

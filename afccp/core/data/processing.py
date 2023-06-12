@@ -348,6 +348,42 @@ def parameter_sets_additions(parameters):
                 else:
                     p["J^Fixed"][i] = j
 
+    # Create Cadet preferences
+    if 'c_pref_matrix' in p:
+        p['cadet_preferences'] = {}
+        for i in p['I']:
+
+            # Sort the cadet preferences
+            cadet_sorted_preferences = np.argsort(p['c_pref_matrix'][i, :])
+            p['cadet_preferences'][i] = []
+
+            # Loop through each AFSC in order of preference and add it to the cadet's list
+            for j in cadet_sorted_preferences:
+
+                # Only add AFSCs that the cadet is eligible for and expressed a preference for
+                if j in p['J^E'][i] and p['c_pref_matrix'][i, j] != 0:
+                    p['cadet_preferences'][i].append(j)
+
+            p['cadet_preferences'][i] = np.array(p['cadet_preferences'][i])  # Convert to numpy array
+
+    # Create AFSC preferences
+    if 'a_pref_matrix' in p:
+        p['afsc_preferences'] = {}
+        for j in p['J']:
+
+            # Sort the AFSC preferences
+            afsc_sorted_preferences = np.argsort(p['a_pref_matrix'][:, j])
+            p['afsc_preferences'][j] = []
+
+            # Loop through each AFSC in order of preference and add it to the cadet's list
+            for i in afsc_sorted_preferences:
+
+                # Only add cadets that are eligible for this AFSC and expressed a preference for it
+                if i in p['I^E'][j] and p['a_pref_matrix'][i, j] != 0:
+                    p['afsc_preferences'][j].append(i)
+
+            p['afsc_preferences'][j] = np.array(p['afsc_preferences'][j])  # Convert to numpy array
+
     return p
 
 

@@ -650,13 +650,18 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
               dictionary containing warm start variables used for initializing the VFT Pyomo model.
     """
 
-    # Shorthand
-    p, vp, gp, mdl_p = instance.parameters, instance.value_parameters, instance.gp_parameters, instance.mdl_p
+    # Different parameters are needed based on the model
+    if model_name == 'CadetBoard':
+        b, mdl_p = instance.b, instance.b  # It's weird, I know, but this works
+        mdl_p["solver_name"] = b['b_solver_name']  # Change the solver
+        mdl_p["pyomo_max_time"] = b['b_pyomo_max_time']  # Set the max time
+    else:
+        p, vp, gp, mdl_p = instance.parameters, instance.value_parameters, instance.gp_parameters, instance.mdl_p
 
-    # Adjust solver if necessary
-    if not mdl_p["approximate"] and model_name == "VFT":
-        if mdl_p["solver_name"] == 'cbc':
-            mdl_p["solver_name"] = 'ipopt'
+        # Adjust solver if necessary
+        if not mdl_p["approximate"] and model_name == "VFT":
+            if mdl_p["solver_name"] == 'cbc':
+                mdl_p["solver_name"] = 'ipopt'
 
     # Determine how the solver is called here
     if mdl_p["executable"] is None:
@@ -695,8 +700,8 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
     start_time = time.perf_counter()
     if mdl_p["pyomo_max_time"] is not None:
         if mdl_p["solver_name"] == 'mindtpy':
-            solver.solve(model, time_limit=mdl_p["pyomo_max_time"],
-                         mip_solver='cplex_persistent', nlp_solver='ipopt')
+            solver.solve(model, time_limit=mdl_p["pyomo_max_time"]),
+                         #mip_solver='cplex_persistent', nlp_solver='ipopt')
         elif mdl_p["solver_name"] == 'gurobi':
             solver.solve(model, options={'TimeLimit': mdl_p["pyomo_max_time"], 'IntFeasTol': 0.05})
         elif mdl_p["solver_name"] == 'ipopt':
@@ -711,9 +716,10 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             solver.solve(model)
     else:
         if mdl_p["solver_name"] == 'mindtpy':
+            model.pprint()
             solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
         else:
-            solver.solve(model)
+            solver.solve(model) #, tee=True)
 
     if printing:
         print("Model solved in", round(time.perf_counter() - start_time, 2), "seconds.")
@@ -741,6 +747,17 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                 print('Model solved.')
 
             return solution.astype(int), x
+
+    # "Cadet Board Figure" optimization model
+    elif model_name == 'CadetBoard':
+
+        # Get the values from the model and return them
+        x, y, s = {}, {}, model.s.value
+
+        for j in b['J^translated']:
+            idx = b['J^translated'][j]
+            x[j], y[j] = model.x[idx].value, model.y[idx].value
+        return s, x, y
 
     # VFT/Original Model specific actions
     else:
@@ -1183,4 +1200,171 @@ def determine_model_constraints(instance):
     solutions_df = pd.DataFrame(afsc_solutions)
     report_df = pd.DataFrame(report)
     return vp["constraint_type"], solutions_df, report_df
+
+
+# Cadet Board Animation
+def cadet_board_preprocess_model(board):
+    """
+    Doc string here
+    """
+
+    # Build Model
+    m = ConcreteModel()
+
+    # Shorthand
+    b = board.b
+
+    # Use the "Sorted" values for J and n
+    n = b['n^sorted']
+    J = np.arange(b['M'])
+    M = len(J)
+
+    # Get desired tuples of AFSCs
+    tuples = []
+    for i in J:
+        for j in J:
+            if i != j and (j, i) not in tuples:
+                tuples.append((i, j))
+
+    # ______________________________VARIABLE DEFINITIONS______________________________
+    m.s = Var(within=NonNegativeReals)  # Size of the cadet boxes (AFSC objective value)
+
+    # Coordinates of bottom left corner of AFSC j box
+    m.x = Var((j for j in J), within=NonNegativeReals)
+    m.y = Var((j for j in J), within=NonNegativeReals)
+
+    # ______________________________DUMMY VARIABLE DEFINITIONS______________________________
+    pass  # Here so pycharm doesn't yell at me for the constraint line above
+
+    if b['add_legend']:
+
+        # 1 if AFSC j is to the right of the left edge of the legend box, 0 otherwise
+        m.lga_r = Var((j for j in J), within=Binary)
+
+        # 1 if AFSC j is above the bottom edge of the legend box, 0 otherwise
+        m.lga_u = Var((j for j in J), within=Binary)
+
+    if b['simplified_model']:
+
+        # 1 if AFSC j is below AFSC j - 1, 0 otherwise
+        m.q = Var((j for j in np.arange(1, M)), within=Binary)
+
+    else:
+
+        # 1 if AFSC i is to the left of AFSC j
+        m.a_l = Var(((i, j) for i, j in tuples), within=Binary)
+
+        # 1 if AFSC i is to the right of AFSC j
+        m.a_r = Var(((i, j) for i, j in tuples), within=Binary)
+
+        # 1 if AFSC i is above AFSC j
+        m.a_u = Var(((i, j) for i, j in tuples), within=Binary)
+
+        # 1 if AFSC i is below AFSC j
+        m.a_d = Var(((i, j) for i, j in tuples), within=Binary)
+
+        # Toggle for if we want to incorporate the "row constraint"
+        if b['row_constraint']:
+
+            # 1 if AFSC j is on row k, 0 otherwise
+            m.lam = Var(((j, k) for j in J for k in range(b['n^rows'])), within=Binary)
+            m.y_row = Var((k for k in range(b['n^rows'])), within=NonNegativeReals)
+
+    # ______________________________OBJECTIVE FUNCTION______________________________
+    def objective_function(m):
+        return m.s
+
+    m.objective = Objective(rule=objective_function, sense=maximize)
+
+    # ____________________________________CONSTRAINTS_____________________________________
+    pass  # Here so pycharm doesn't yell at me for the constraint line above
+
+    # List of constraints that enforce AFSCs to stay within the borders
+    m.border_constraints = ConstraintList()
+
+    # List of constraints that enforce AFSCs to stay outside the legend box
+    m.legend_constraints = ConstraintList()
+
+    # More constraints
+    if b['simplified_model']:
+
+        # List of constraints that line up AFSCs in a nice grid
+        m.grid_constraints = ConstraintList()
+    else:
+
+        # List of constraints that keep AFSCs from overlapping
+        m.afsc_constraints = ConstraintList()
+
+        if b['row_constraint']:
+
+            # List of constraints that enforce the y row constraints
+            m.y_row_constraints = ConstraintList()
+            m.lam_constraints = ConstraintList()
+
+    # Loop through each AFSC
+    for j in J:
+
+        # Border
+        m.border_constraints.add(expr=m.x[j] >= b['bw^l'])  # Left Border
+        m.border_constraints.add(expr=m.x[j] + m.s * n[j] <= b['fw'] - b['bw^r'])  # Right Border
+        m.border_constraints.add(expr=m.y[j] >= b['bw^b'])  # Bottom Border
+        m.border_constraints.add(expr=m.y[j] + m.s * n[j] <= b['fh'] - b['bw^t'])  # Top Border
+
+        # Legend Dummy Definitions
+        if b['add_legend']:
+
+            m.legend_constraints.add(expr=m.x[j] + m.s * n[j] >= (b['fw'] - b['bw^r'] - b['lw']) * m.lga_r[j])
+            m.legend_constraints.add(expr=m.x[j] + m.s * n[j] <= (b['fw'] - b['bw^r'] - b['lw']) * (1 - m.lga_r[j]))
+            m.legend_constraints.add(expr=m.y[j] + m.s * n[j] >= (b['fh'] - b['bw^t'] - b['lh']) * m.lga_u[j])
+            m.legend_constraints.add(expr=m.y[j] + m.s * n[j] <= (b['fw'] - b['bw^t'] - b['lh']) * (1 - m.lga_u[j]))
+
+            # Enforce Legend Constraint
+            m.legend_constraints.add(expr=m.y[j] + m.s * n[j] <= b['fh'] - b['bw^t'] - b['lh'] * m.lga_r[j])
+            m.legend_constraints.add(expr=m.x[j] + m.s * n[j] <= b['fw'] - b['bw^r'] - b['lw'] * m.lga_u[j])
+
+        # Toggle for if we want to incorporate the "row constraint"
+        if b['row_constraint'] and not b['simplified_model']:
+
+            # y row constraints
+            m.y_row_constraints.add(
+                expr=m.y[j] == np.sum(m.lam[j, k] * (m.y_row[k] - n[j] * m.s) for k in range(b['n^rows'])))
+            m.lam_constraints.add(expr=np.sum(m.lam[j, k] for k in range(b['n^rows'])) == 1)
+
+    if b['simplified_model']:
+
+        # Pin the first AFSC to the left
+        m.grid_constraints.add(expr=m.x[0] <= b['bw^l'])
+
+        # Loop through each AFSC (after the first one)
+        for j in np.arange(1, M):
+
+            # Add the constraints to enforce the grid
+            m.grid_constraints.add(expr=m.y[j] <= m.y[j - 1] - (m.s * n[j] + b['abw^ud']) * m.q[j])
+            m.grid_constraints.add(expr=m.y[j] >= m.y[j - 1] * (1 - m.q[j]))
+            m.grid_constraints.add(expr=m.x[j] >= (m.x[j - 1] + m.s * n[j - 1] + b['abw^lr']) * (1 - m.q[j]))
+            m.grid_constraints.add(expr=m.x[j] <= b['bw^l'] * m.q[j] +
+                                        (m.x[j - 1] + m.s * n[j - 1] + b['abw^lr']) * (1 - m.q[j]))
+
+    else:
+
+        # Loop through all AFSC "tuples"
+        for i, j in tuples:
+
+            # AFSC i is to the left of AFSC j (1) or not (0)
+            m.afsc_constraints.add(expr=m.x[j] >= (m.x[i] + m.s * n[i] + b['abw^lr']) * m.a_l[i, j])
+
+            # AFSC i is to the right of AFSC j (1) or not (0)
+            m.afsc_constraints.add(expr=m.x[i] >= (m.x[j] + m.s * n[j] + b['abw^lr']) * m.a_r[i, j])
+
+            # AFSC i is above AFSC j (1) or not (0)
+            m.afsc_constraints.add(expr=m.y[i] >= (m.y[j] + m.s * n[j] + b['abw^ud']) * m.a_u[i, j])
+
+            # AFSC i is below AFSC j (1) or not (0)
+            m.afsc_constraints.add(expr=m.y[j] >= (m.y[i] + m.s * n[i] + b['abw^ud']) * m.a_d[i, j])
+
+            # The positional relationship between AFSC i and AFSC j has to meet one of the above conditions
+            m.afsc_constraints.add(expr=m.a_l[i, j] + m.a_r[i, j] + m.a_u[i, j] + m.a_d[i, j] >= 1)
+
+    return m
+
 

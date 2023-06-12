@@ -23,7 +23,7 @@ class AFSCsChart:
         # Load attributes
         self.parameters = instance.parameters
         self.value_parameters, self.vp_name = instance.value_parameters, instance.vp_name
-        self.ip = instance.plt_p  # "instance plot parameters"
+        self.ip = instance.mdl_p  # "instance plot parameters"
         self.metrics, self.solution, self.solution_name = instance.metrics, instance.solution, instance.solution_name
         self.data_name, self.data_version = instance.data_name, instance.data_version
 

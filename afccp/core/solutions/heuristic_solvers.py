@@ -128,7 +128,7 @@ def stable_marriage_model_solve(instance, printing=False):
 
     return matches
 
-
+# TODO: fix this algorithm to work with np.arrays rather than lists
 def matching_algorithm_1(instance, printing=True):
     """
     This is the Hospitals/Residents algorithm that matches cadets and AFSCs across all rated, space, and NRL positions.
@@ -180,7 +180,6 @@ def matching_algorithm_1(instance, printing=True):
         afsc_solution = np.array([proposals[cadet] for cadet in p['cadets']])
         solution_iterations['proposals'][iteration] = \
             np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
-
         counts = {afsc: len(np.where(afsc_solution == afsc)[0]) for afsc in p['afscs']}
 
         # Initialize matches information
