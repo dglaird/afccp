@@ -4,7 +4,6 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/env" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
-      <excludeFolder url="file://$MODULE_DIR$/afccp/executables/.ipynb_checkpoints" />
       <excludeFolder url="file://$MODULE_DIR$/archive/cfms" />
       <excludeFolder url="file://$MODULE_DIR$/.ipynb_checkpoints" />
       <excludeFolder url="file://$MODULE_DIR$/assets" />
@@ -13,6 +12,7 @@
       <excludeFolder url="file://$MODULE_DIR$/results" />
       <excludeFolder url="file://$MODULE_DIR$/solvers" />
       <excludeFolder url="file://$MODULE_DIR$/support" />
+      <excludeFolder url="file://$MODULE_DIR$/executables/.ipynb_checkpoints" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
