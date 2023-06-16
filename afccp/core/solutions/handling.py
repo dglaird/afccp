@@ -207,6 +207,52 @@ def fitness_function(chromosome, p, vp, mp, con_fail_dict=None):
     return vp['cadets_overall_weight'] * np.dot(vp['cadet_weight'], cadet_value) + \
            vp['afscs_overall_weight'] * np.dot(vp['afsc_weight'], afsc_value)
 
+
+def calculate_blocking_pairs(parameters, solution):
+    """
+    Calculate blocking pairs
+    """
+
+    # Convert preferences/matches to numpy arrays
+    a_preferences = {}
+    a_matches = {}
+    for afsc in p['afscs'][:p['M']]:
+        # Convert to numpy arrays
+        a_preferences[afsc] = np.array(afsc_preferences[afsc])
+        a_matches[afsc] = np.array(afsc_matches[afsc])
+
+    # Loop through all cadets and their assigned AFSCs
+    blocking_pairs = []
+    for i, j in enumerate(solution):
+
+        # Get names of cadet and assigned AFSC
+        cadet, afsc_matched = p['cadets'][i], p['afscs'][j]
+        c_preferences = np.array(cadet_preferences[cadet])
+
+        # Unmatched cadets are blocking pairs by definition
+        if afsc_matched == "*":
+            blocking_pairs.append((cadet, afsc_matched))
+        else:
+            cadet_choice = np.where(c_preferences == afsc_matched)[0][0]
+
+            # Loop through more desirable AFSCs than current matched
+            for afsc in c_preferences[:cadet_choice]:
+
+                # Where is this cadet ranked in the AFSC list?
+                afsc_choice_of_this_cadet = np.where(a_preferences[afsc] == cadet)[0][0]
+                num_matches = len(a_matches[afsc])  # Number of matches
+                worst_cadet = a_matches[afsc][num_matches - 1]  # Cadet at bottom of list
+
+                # The lowest rank of the assigned cadet
+                afsc_choice_of_worst_cadet = np.where(a_preferences[afsc] == worst_cadet)[0][0]
+
+                # Check for blocking pairs
+                if afsc_choice_of_this_cadet < afsc_choice_of_worst_cadet:
+                    blocking_pairs.append((cadet, afsc))
+                    break
+
+    return blocking_pairs
+
 # AFSC Objective Measure Calculation Functions
 def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
     """
@@ -545,6 +591,30 @@ def calculate_afsc_norm_score(cadets, j, p, count=None):
 
     # Score sum we did receive
     achieved_sum = np.sum(p["a_pref_matrix"][cadets, j])
+
+    # Normalize this score and return it
+    return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
+
+def calculate_afsc_norm_score_general(ranks, achieved_ranks):
+    """
+    This little function simply calculates the AFSC "Norm Score" value and returns it for
+    any given inputs of ranks
+    """
+    # Number of cadets assigned here
+    count = len(achieved_ranks)
+
+    # Only consider eligible cadets
+    eligible_indices = np.where(ranks != 0)[0]
+    eligible_ranks = ranks[eligible_indices]
+
+    # Determine the best and worst set of rankings in this list
+    worst_indices = np.argsort(eligible_ranks)[-count:][::-1]
+    worst_ranks = eligible_ranks[worst_indices]
+    best_indices = np.argsort(eligible_ranks)[:count]
+    best_ranks = eligible_ranks[best_indices]
+
+    # Calculate the sums
+    best_sum, achieved_sum, worst_sum = np.sum(best_ranks), np.sum(achieved_ranks), np.sum(worst_ranks)
 
     # Normalize this score and return it
     return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)

@@ -46,7 +46,7 @@ def initialize_file_information(data_name: str, data_version: str):
     sub_folders = ["Original & Supplemental", "Combined Data", "CFMs", "Model Input", "Analysis & Results"]
     sub_folder_files = {"Model Input": ["Cadets", "Cadets Preferences", "Cadets Utility", "Cadets Utility Constraints",
                                         "AFSCs", "AFSCs Preferences", "AFSCs Utility", "Value Parameters",
-                                        "Goal Programming"],
+                                        "Goal Programming", "ROTC Rated Interest", "ROTC Rated OM", "USAFA Rated OM"],
                         "Analysis & Results": ["Solutions"]}
 
     # Loop through each sub-folder in the above list and determine the filepaths for the various files
@@ -351,6 +351,7 @@ def parameter_sets_additions(parameters):
     # Create Cadet preferences
     if 'c_pref_matrix' in p:
         p['cadet_preferences'] = {}
+        p['num_cadet_choices'] = np.zeros(p['N'])
         for i in p['I']:
 
             # Sort the cadet preferences
@@ -365,6 +366,7 @@ def parameter_sets_additions(parameters):
                     p['cadet_preferences'][i].append(j)
 
             p['cadet_preferences'][i] = np.array(p['cadet_preferences'][i])  # Convert to numpy array
+            p['num_cadet_choices'][i] = len(p['cadet_preferences'][i])
 
     # Create AFSC preferences
     if 'a_pref_matrix' in p:
@@ -375,7 +377,7 @@ def parameter_sets_additions(parameters):
             afsc_sorted_preferences = np.argsort(p['a_pref_matrix'][:, j])
             p['afsc_preferences'][j] = []
 
-            # Loop through each AFSC in order of preference and add it to the cadet's list
+            # Loop through each cadet in order of preference and add them to the AFSC's list
             for i in afsc_sorted_preferences:
 
                 # Only add cadets that are eligible for this AFSC and expressed a preference for it
@@ -383,6 +385,27 @@ def parameter_sets_additions(parameters):
                     p['afsc_preferences'][j].append(i)
 
             p['afsc_preferences'][j] = np.array(p['afsc_preferences'][j])  # Convert to numpy array
+
+    # Determine AFSCs by Accessions Group
+    p['afscs_acc_grp'] = {}
+    if 'acc_grp' in p:
+        for acc_grp in ['NRL', 'Rated', 'USSF']:
+            indices = np.where(p['acc_grp'] == acc_grp)[0]
+            p['afscs_acc_grp'][acc_grp] = p['afscs'][indices]
+    else:  # Previously, we've only assigned NRL cadets so we assume that's what we're dealing with here
+        p['acc_grp'] = np.array(['NRL' for _ in p['J']])
+        p['afscs_acc_grp']['NRL'] = p['afscs']
+
+    # Determine eligible Rated cadets for both SOCs (cadets that are considered by the board)
+    cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
+    p["Rated Cadets"] = {}
+    p["Rated Cadet Index Dict"] = {}
+    for soc in cadets_dict:
+        if cadets_dict[soc] in p:  # If we have this array of cadets
+            p["Rated Cadets"][soc] = p[cadets_dict[soc]]
+            p["Rated Cadet Index Dict"][soc] = {i: idx for idx, i in enumerate(p["Rated Cadets"][soc])}
+
+
 
     return p
 
@@ -758,7 +781,8 @@ def import_preferences_data(import_filepaths, parameters):
 
     # Loop through the potential additional dataframes and import them if we have them
     datasets = {}
-    for dataset in ["Cadets Utility", "Cadets Preferences", "AFSCs Utility", "AFSCs Preferences"]:
+    for dataset in ["Cadets Utility", "Cadets Preferences", "AFSCs Utility", "AFSCs Preferences",
+                    "ROTC Rated Interest", "ROTC Rated OM", "USAFA Rated OM"]:
 
         # If we have the dataset, import it
         if dataset in import_filepaths:
@@ -798,6 +822,22 @@ def import_preferences_data(import_filepaths, parameters):
         p["afsc_utility"] = np.array(datasets["AFSCs Utility"].loc[:, afsc_1: afsc_M])
     if "AFSCs Preferences" in datasets:  # Load in the AFSC preferences dataframe
         p["a_pref_matrix"] = np.array(datasets["AFSCs Preferences"].loc[:, afsc_1: afsc_M])
+
+    # All USAFA Cadets
+    p['usafa_cadets'] = np.where(p['usafa'])[0]
+
+    # Rated dataframes
+    if "ROTC Rated Interest" in datasets:
+        r_afscs = list(datasets['ROTC Rated Interest'].columns[1:])
+        p['rr_interest_matrix'] = np.array(datasets['ROTC Rated Interest'].loc[:, r_afscs[0]:r_afscs[len(r_afscs) - 1]])
+    if "ROTC Rated OM" in datasets:
+        r_afscs = list(datasets['ROTC Rated OM'].columns[1:])
+        p['rr_om_matrix'] = np.array(datasets['ROTC Rated OM'].loc[:, r_afscs[0]:r_afscs[len(r_afscs) - 1]])
+        p['rr_om_cadets'] = np.array(datasets['ROTC Rated OM']['Cadet'])
+    if "USAFA Rated OM" in datasets:
+        r_afscs = list(datasets['USAFA Rated OM'].columns[1:])
+        p['ur_om_matrix'] = np.array(datasets['USAFA Rated OM'].loc[:, r_afscs[0]:r_afscs[len(r_afscs) - 1]])
+        p['ur_om_cadets'] = np.array(datasets['USAFA Rated OM']['Cadet'])
 
     # Return dictionary of parameters
     return p
@@ -1177,7 +1217,9 @@ def export_preferences_data(instance):
 
     # Dataset name translations
     parameter_trans_dict = {"utility": "Cadets Utility", "c_pref_matrix": "Cadets Preferences",
-                            "afsc_utility": "AFSCs Utility", "a_pref_matrix": "AFSCs Preferences"}
+                            "afsc_utility": "AFSCs Utility", "a_pref_matrix": "AFSCs Preferences",
+                            "rr_interest_matrix": "ROTC Rated Interest", "rr_om_matrix": "ROTC Rated OM",
+                            'ur_om_matrix': 'USAFA Rated OM'}
 
     # Loop through each potential dataset to export
     for parameter in parameter_trans_dict:
@@ -1187,10 +1229,20 @@ def export_preferences_data(instance):
             dataset = parameter_trans_dict[parameter]
 
             # Construct the dataframe
-            pref_df = pd.DataFrame({"Cadet": p["cadets"]})
+            if 'ROTC' in dataset:
+                cadet_indices = p["Rated Cadets"]['rotc']
+                pref_df = pd.DataFrame({"Cadet": p['cadets'][cadet_indices]})
+                afscs = p['afscs_acc_grp']['Rated']
+            elif 'USAFA' in dataset:
+                cadet_indices = p["Rated Cadets"]['usafa']
+                pref_df = pd.DataFrame({"Cadet": p['cadets'][cadet_indices]})
+                afscs = p['afscs_acc_grp']['Rated']
+            else:
+                pref_df = pd.DataFrame({"Cadet": p["cadets"]})
+                afscs = p["afscs"][:p["M"]]
 
             # Add the AFSC columns
-            for j, afsc in enumerate(p["afscs"][:p["M"]]):
+            for j, afsc in enumerate(afscs):
                 pref_df[afsc] = p[parameter][:, j]
 
             # Export the dataset

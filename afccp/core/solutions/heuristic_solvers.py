@@ -1,6 +1,7 @@
 # Import Libraries
 import time
 import numpy as np
+import copy
 import afccp.core.globals
 import afccp.core.solutions.handling
 
@@ -128,8 +129,8 @@ def stable_marriage_model_solve(instance, printing=False):
 
     return matches
 
-# TODO: fix this algorithm to work with np.arrays rather than lists
-def matching_algorithm_1(instance, printing=True):
+
+def matching_algorithm_1_old(instance, printing=True):
     """
     This is the Hospitals/Residents algorithm that matches cadets and AFSCs across all rated, space, and NRL positions.
     """
@@ -227,6 +228,97 @@ def matching_algorithm_1(instance, printing=True):
     afsc_solution = np.array([proposals[cadet] for cadet in p['cadets']])
     solution = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
     return solution, solution_iterations
+
+
+def matching_algorithm_1(instance, capacities=None, printing=True):
+    """
+    This is the Hospitals/Residents algorithm that matches cadets and AFSCs across all rated, space, and NRL positions.
+    """
+    if printing:
+        print("Solving the deferred acceptance algorithm (1)...")
+
+    # Shorthand
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
+
+    # Algorithm initialization
+    if capacities is None:
+        total_slots = p[mdl_p['capacity_parameter']]
+    else:  # In case this is used in a genetic algorithm
+        total_slots = capacities
+
+    # Array to keep track of what AFSC choice in their list the cadets are proposing to (python index at 0)
+    cadet_proposal_choice = np.zeros(p['N']).astype(int)  # Everyone proposes to their first choice initially
+
+    # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
+    if mdl_p['collect_solution_iterations']:
+        solution_iterations = {'proposals': {}, 'solutions': {}, 'iteration_names': {}, 'type': 'MA1'}
+
+    # Begin the simple Hospital/Residents Algorithm
+    total_rejections = np.zeros(p['M'])  # Number of rejections for each AFSC
+    total_matched = np.zeros(p['M'])  # Number of accepted cadets for each AFSC
+    exhausted_cadets = []  # Will contain the cadets that have exhausted (been rejected by) all of their preferences
+    iteration = 0  # First iteration of the algorithm
+    while np.sum(total_matched) + len(exhausted_cadets) < p['N'] and iteration <= 30:  # Stopping conditions
+
+        # Cadets propose to their top choice that hasn't been rejected
+        exhausted_cadets = np.where(cadet_proposal_choice >= p['num_cadet_choices'])[0]
+        proposals = np.array([p['cadet_preferences'][i][cadet_proposal_choice[i]] if i not in exhausted_cadets
+                              else p['M'] for i in p['I']])
+
+        # cadets = np.where(cad)
+
+        # Solution Iteration components (Proposals) and print statement
+        if mdl_p['collect_solution_iterations']:
+            solution_iterations['proposals'][iteration] = copy.deepcopy(proposals)
+        if mdl_p['ma_printing']:
+            print("\nIteration", iteration + 1)
+            counts = {p['afscs'][j]: len(np.where(proposals == j)[0]) for j in p['J']}
+
+        # Initialize matches information for this iteration
+        total_matched = np.zeros(p['M'])
+
+        # AFSCs accept their best cadets and reject the others
+        for j in p['J']:
+
+            # Loop through their preferred cadets from top to bottom
+            iteration_rejections = 0
+            for i in p['afsc_preferences'][j]:
+
+                # If the cadet is proposing to this AFSC, we have two options
+                if proposals[i] == j:
+
+                    # We haven't hit capacity, so we accept this cadet
+                    if total_matched[j] < total_slots[j]:
+                        total_matched[j] += 1
+
+                    # We're at capacity, so we reject this cadet
+                    else:
+
+                        # Essentially "delete" the preference from the cadet's list
+                        cadet_proposal_choice[i] += 1
+                        proposals[i] = p['M']  # index of the unmatched AFSC (*)
+
+                        # Collect additional information
+                        if mdl_p['ma_printing']:
+                            iteration_rejections += 1
+                            total_rejections[j] += 1
+
+        # Solution Iteration components
+        if mdl_p['collect_solution_iterations']:
+            solution_iterations['solutions'][iteration] = copy.deepcopy(proposals)
+            solution_iterations['iteration_names'][iteration] = 'Iteration ' + str(iteration + 1)
+
+        # Specific matching algorithm print statement
+        if mdl_p['ma_printing']:
+            print('Proposals:', counts)
+            print('Matched', {p['afscs'][j]: total_matched[j] for j in p['J']})
+            print('Rejected', {p['afscs'][j]: total_rejections[j] for j in p['J']})
+
+        iteration += 1 # Next iteration!
+
+    # Last solution iteration
+    solution_iterations['last_s'] = iteration - 1
+    return proposals, solution_iterations
 
 
 def greedy_model_solve(instance, printing=False):
@@ -462,10 +554,111 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
         return population[0], None
 
 
-def rotc_rated_algorithm():
+def rotc_rated_board_original(instance, printing=False):
     """
-    Description
+    The function assigns Rated AFSCs to ROTC cadets based on their preferences and the existing quotas for each
+    AFSC using the current rated board algorithm.
     """
 
-    # Load in example
-    pass
+    if printing:
+        print("Running status quo ROTC rated algorithm...")
+
+    # Shorthand
+    p = instance.parameters
+
+    # Cadets/AFSCs and their preferences
+    cadet_indices = p['Rated Cadets']['rotc']  # indices of the cadets in the full set of cadets
+    cadets, N = np.arange(len(cadet_indices)), len(cadet_indices)
+    afscs, M = p['afscs_acc_grp']['Rated'], len(p['afscs_acc_grp']['Rated'])
+    afsc_indices = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afscs])
+    afsc_om = {afscs[j]: p['rr_om_matrix'][:, j] for j in range(M)}  # list of OM percentiles for each AFSC
+    afsc_interest = {afscs[j]: p['rr_interest_matrix'][:, j] for j in range(M)}  # list of Rated interest from cadets
+    eligible = {afscs[j]: p['rr_om_matrix'][:, j] > 0 for j in range(M)}  # binary eligibility column for each AFSC
+
+    # Dictionary of dictionaries of cadets within each order of merit "level" for each AFSC
+    om_cl = {"High": (0.4, 1), "Med": (0.2, 0.4), "Low": (0.1, 0.2)}
+    om = {afsc: {level: np.where((afsc_om[afsc] >= om_cl[level][0]) &
+                                 (afsc_om[afsc] < om_cl[level][1]))[0] for level in om_cl} for afsc in afscs}
+
+    # Dictionary of dictionaries of cadets with each interest "level" for each AFSC
+    interest_levels = ["High", "Med", "Low", "None"]
+    interest = {afsc: {level: np.where(afsc_interest[afsc] == level)[0] for level in interest_levels} for afsc in afscs}
+
+    # Algorithm initialization
+    total_slots = {afscs[idx]: p['rotc_quota'][j] for idx, j in enumerate(afsc_indices)}
+    total_matched = {afsc: 0 for afsc in afscs}  # Number of matched cadets for each AFSC
+    matching = {afsc: True for afsc in afscs}  # Used in stopping conditions
+    assigned_afscs = {cadet: "" for cadet in cadets}
+
+    # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
+    solution_iterations = {'solutions': {}, 'iteration_names': {}, 'type': 'ROTC Rated Board',
+                           'cadets_solved_for': 'ROTC Rated', 'afscs_solved_for': 'Rated'}
+
+    # Phases of the Rated board where each tuple represents the level for (OM, Interest)
+    phases = [("High", "High"), ("High", "Med"), ("Med", "High"), ("Med", "Med"), ("Low", "High"), ("High", "Low"),
+              ("Low", "Med"), ("Med", "Low"), ("Low", "Low"), ("High", "None"), ("Med", "None"), ("Low", "None")]
+    phase_num = 0
+    s = 0  # for solution iterations
+    while any(matching.values()) and phase_num < len(phases):
+        phase = phases[phase_num]
+        om_level, interest_level = phase[0], phase[1]
+        phase_num += 1
+        if printing:
+            print("\nPhase", phase_num, om_level, "OM", "&", interest_level, "Interest")
+
+        # Loop through each Rated AFSC
+        for afsc in afscs:
+
+            # Get the ordered list of cadets we're considering in this phase
+            phase_cadets = np.intersect1d(om[afsc][om_level], interest[afsc][interest_level])
+            om_phase_cadets = afsc_om[afsc][phase_cadets]
+            indices = np.argsort(om_phase_cadets)[::-1]
+            ordered_cadets = phase_cadets[indices]
+
+            # Loop through each eligible cadet to assign them this AFSC if applicable
+            eligible_cadets = np.where(eligible[afsc])[0]
+            counter = 0
+            for cadet in ordered_cadets:
+
+                # The cadet has to be eligible for the AFSC to be considered
+                if cadet not in eligible_cadets:
+                    continue
+
+                # If we didn't already assign them an AFSC, and we've still got open slots left, the cadet gets matched
+                if assigned_afscs[cadet] == "" and total_matched[afsc] < total_slots[afsc]:
+                    assigned_afscs[cadet] = afsc
+                    total_matched[afsc] += 1
+                    counter += 1
+
+                # We've reached capacity for this AFSC
+                if total_matched[afsc] == total_slots[afsc]:
+                    matching[afsc] = False
+                    break
+
+            if counter != 0 and printing:
+                print(afsc, "Phase Matched:", counter, "  --->   Total Matched:", total_matched[afsc], "/",
+                      total_slots[afsc])
+
+            # Solution iteration components (convert to full solution)
+            afsc_solution = np.array([" " * 10 for _ in p['I']])
+            for cadet, i in enumerate(cadet_indices):
+                if assigned_afscs[cadet] in afscs:
+                    afsc_solution[i] = assigned_afscs[cadet]
+            indices = np.where(afsc_solution == " " * 10)[0]
+            afsc_solution[indices] = "*"
+            solution_iterations['solutions'][s] = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+            solution_iterations['iteration_names'][s] = \
+                "Phase " + str(phase_num) + " (" + om_level + ", " + interest_level + ") [" + afsc + "]"
+            s += 1
+
+    solution_iterations['last_s'] = s - 1
+
+    # Convert it back to a full solution with all cadets (anyone not matched to a Rated AFSC is unmatched)
+    afsc_solution = np.array([" " * 10 for _ in p['I']])
+    for cadet, i in enumerate(cadet_indices):
+        if assigned_afscs[cadet] in afscs:
+            afsc_solution[i] = assigned_afscs[cadet]
+    indices = np.where(afsc_solution == " " * 10)[0]
+    afsc_solution[indices] = "*"
+    solution = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+    return solution, solution_iterations

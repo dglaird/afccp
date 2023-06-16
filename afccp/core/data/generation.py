@@ -2,13 +2,15 @@ import random
 import numpy as np
 import pandas as pd
 import string
-from afccp.core.data.preferences import get_utility_preferences
+from afccp.core.data.preferences import get_utility_preferences, generate_rated_data
+from afccp.core.data.processing import parameter_sets_additions
 import afccp.core.data.values as afccp_dv
 
-def generate_random_instance(N=1600, P=6, M=32):
+def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
     """
     This procedure takes in the specified parameters (defined below) and then simulates new random "fixed" cadet/AFSC
     input parameters. These parameters are then returned and can be used to solve the VFT model.
+    :param generate_only_nrl: Only generate NRL AFSCs (default to False)
     :param N: number of cadets
     :param P: number of preferences allowed
     :param M: number of AFSCs
@@ -16,19 +18,13 @@ def generate_random_instance(N=1600, P=6, M=32):
     """
 
     # Initialize parameter dictionary
-    p = {'N': N, 'P': P, 'M': M, 'num_util': P}
-
-    # List of lowercase and uppercase letters
-    alphabet = string.ascii_letters
-
-    # Generate cadets
-    p['cadets'] = np.array([''.join(random.choices(alphabet, k=8)) for _ in range(N)])
+    # noinspection PyDictCreation
+    p = {'N': N, 'P': P, 'M': M, 'num_util': P, 'cadets': np.arange(N),
+         'minority': np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3]),
+         'male': np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3]),
+         'usafa': np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3]), 'merit': np.random.rand(N)}
 
     # Generate various features of the cadets
-    p['minority'] = np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3])
-    p['male'] = np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3])
-    p['usafa'] = np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3])
-    p['merit'] = np.random.rand(N)
     p['merit_all'] = p['merit']
     p['assigned'] = np.array(['' for _ in range(N)])
 
@@ -62,7 +58,11 @@ def generate_random_instance(N=1600, P=6, M=32):
 
     # Generate AFSCs
     p['afscs'] = np.array(['R' + str(j + 1) for j in range(M)])
-    p['acc_grp'] = np.array([np.random.choice(['NRL', 'Rated', 'USSF']) for _ in range(M)])
+
+    if generate_only_nrl:
+        p['acc_grp'] = np.array(["NRL" for _ in range(M)])
+    else:
+        p['acc_grp'] = np.array([np.random.choice(['NRL', 'Rated', 'USSF']) for _ in range(M)])
 
     # Add an "*" to the list of AFSCs to be considered the "Unmatched AFSC"
     p["afscs"] = np.hstack((p["afscs"], "*"))
@@ -78,72 +78,80 @@ def generate_random_instance(N=1600, P=6, M=32):
         p['Deg Tiers'] = np.array([[' ' * 10 for _ in range(4)] for _ in range(M)])
         for j in range(M):
 
-            # Determine what tiers to use on this AFSC
-            if N < 100:
-                random_number = np.random.rand()
-                if random_number < 0.2:
-                    tiers = ['M1', 'I2']
-                    p['Deg Tiers'][j, :] = ['M = 1', 'I = 0', '', '']
-                elif 0.2 < random_number < 0.4:
-                    tiers = ['D1', 'P2']
-                    target_num = round(np.random.rand(), 2)
-                    p['Deg Tiers'][j, :] = ['D > ' + str(target_num), 'P < ' + str(1 - target_num), '', '']
-                elif 0.4 < random_number < 0.6:
-                    tiers = ['P1']
-                    p['Deg Tiers'][j, :] = ['P = 1', '', '', '']
-                else:
-                    tiers = ['M1', 'P2']
-                    target_num = round(np.random.rand(), 2)
-                    p['Deg Tiers'][j, :] = ['M > ' + str(target_num), 'P < ' + str(1 - target_num), '', '']
-            else:
-                random_number = np.random.rand()
-                if random_number < 0.1:
-                    tiers = ['M1', 'I2']
-                    p['Deg Tiers'][j, :] = ['M = 1', 'I = 0', '', '']
-                elif 0.1 < random_number < 0.2:
-                    tiers = ['D1', 'P2']
-                    target_num = round(np.random.rand(), 2)
-                    p['Deg Tiers'][j, :] = ['D > ' + str(target_num), 'P < ' + str(1 - target_num), '', '']
-                elif 0.2 < random_number < 0.3:
-                    tiers = ['P1']
-                    p['Deg Tiers'][j, :] = ['P = 1', '', '', '']
-                elif 0.3 < random_number < 0.4:
-                    tiers = ['M1', 'P2']
-                    target_num = round(np.random.rand(), 2)
-                    p['Deg Tiers'][j, :] = ['M > ' + str(target_num), 'P < ' + str(1 - target_num), '', '']
-                elif 0.4 < random_number < 0.5:
-                    tiers = ['M1', 'D2', 'P3']
-                    target_num_1 = round(np.random.rand() * 0.7, 2)
-                    target_num_2 = round(np.random.rand() * (1 - target_num_1) * 0.8, 2)
-                    target_num_3 = round(1 - target_num_1 - target_num_2, 2)
-                    p['Deg Tiers'][j, :] = ['M > ' + str(target_num_1), 'D > ' + str(target_num_2),
-                                            'P < ' + str(target_num_3), '']
-                elif 0.5 < random_number < 0.6:
-                    tiers = ['D1', 'D2', 'P3']
-                    target_num_1 = round(np.random.rand() * 0.7, 2)
-                    target_num_2 = round(np.random.rand() * (1 - target_num_1) * 0.8, 2)
-                    target_num_3 = round(1 - target_num_1 - target_num_2, 2)
-                    p['Deg Tiers'][j, :] = ['D > ' + str(target_num_1), 'D > ' + str(target_num_2),
-                                            'P < ' + str(target_num_3), '']
-                elif 0.6 < random_number < 0.7:
-                    tiers = ['M1', 'D2', 'I3']
-                    target_num = round(np.random.rand(), 2)
-                    p['Deg Tiers'][j, :] = ['M > ' + str(target_num), 'D < ' + str(1 - target_num), 'I = 0', '']
-                elif 0.7 < random_number < 0.8:
-                    tiers = ['M1', 'P2', 'I3']
-                    target_num = round(np.random.rand(), 2)
-                    p['Deg Tiers'][j, :] = ['M > ' + str(target_num), 'P < ' + str(1 - target_num), 'I = 0', '']
-                else:
-                    tiers = ['M1', 'D2', 'P3', 'I4']
-                    target_num_1 = round(np.random.rand() * 0.7, 2)
-                    target_num_2 = round(np.random.rand() * (1 - target_num_1) * 0.8, 2)
-                    target_num_3 = round(1 - target_num_1 - target_num_2, 2)
-                    p['Deg Tiers'][j, :] = ['M > ' + str(target_num_1), 'D > ' + str(target_num_2),
-                                            'P < ' + str(target_num_3), 'I = 0']
+            if p['acc_grp'][j] == 'Rated':  # All Degrees eligible for Rated
+                p['qual'][:, j] = np.array(['P1' for _ in range(N)])
+                p['Deg Tiers'][j, :] = ['P = 1', 'I = 0', '', '']
 
-            # Generate the tiers for the cadets
-            c_tiers = np.random.randint(0, len(tiers), N)
-            p['qual'][:, j] = np.array([tiers[c_tiers[i]] for i in range(N)])
+                # Pick 20% of the cadets at random to be ineligible for this Rated AFSC
+                indices = random.sample(list(np.arange(N)), k=int(0.2 * N))
+                p['qual'][indices, j] = 'I2'
+            else:
+                # Determine what tiers to use on this AFSC
+                if N < 100:
+                    random_number = np.random.rand()
+                    if random_number < 0.2:
+                        tiers = ['M1', 'I2']
+                        p['Deg Tiers'][j, :] = ['M = 1', 'I = 0', '', '']
+                    elif 0.2 < random_number < 0.4:
+                        tiers = ['D1', 'P2']
+                        target_num = round(np.random.rand(), 2)
+                        p['Deg Tiers'][j, :] = ['D > ' + str(target_num), 'P < ' + str(1 - target_num), '', '']
+                    elif 0.4 < random_number < 0.6:
+                        tiers = ['P1']
+                        p['Deg Tiers'][j, :] = ['P = 1', '', '', '']
+                    else:
+                        tiers = ['M1', 'P2']
+                        target_num = round(np.random.rand(), 2)
+                        p['Deg Tiers'][j, :] = ['M > ' + str(target_num), 'P < ' + str(1 - target_num), '', '']
+                else:
+                    random_number = np.random.rand()
+                    if random_number < 0.1:
+                        tiers = ['M1', 'I2']
+                        p['Deg Tiers'][j, :] = ['M = 1', 'I = 0', '', '']
+                    elif 0.1 < random_number < 0.2:
+                        tiers = ['D1', 'P2']
+                        target_num = round(np.random.rand(), 2)
+                        p['Deg Tiers'][j, :] = ['D > ' + str(target_num), 'P < ' + str(1 - target_num), '', '']
+                    elif 0.2 < random_number < 0.3:
+                        tiers = ['P1']
+                        p['Deg Tiers'][j, :] = ['P = 1', '', '', '']
+                    elif 0.3 < random_number < 0.4:
+                        tiers = ['M1', 'P2']
+                        target_num = round(np.random.rand(), 2)
+                        p['Deg Tiers'][j, :] = ['M > ' + str(target_num), 'P < ' + str(1 - target_num), '', '']
+                    elif 0.4 < random_number < 0.5:
+                        tiers = ['M1', 'D2', 'P3']
+                        target_num_1 = round(np.random.rand() * 0.7, 2)
+                        target_num_2 = round(np.random.rand() * (1 - target_num_1) * 0.8, 2)
+                        target_num_3 = round(1 - target_num_1 - target_num_2, 2)
+                        p['Deg Tiers'][j, :] = ['M > ' + str(target_num_1), 'D > ' + str(target_num_2),
+                                                'P < ' + str(target_num_3), '']
+                    elif 0.5 < random_number < 0.6:
+                        tiers = ['D1', 'D2', 'P3']
+                        target_num_1 = round(np.random.rand() * 0.7, 2)
+                        target_num_2 = round(np.random.rand() * (1 - target_num_1) * 0.8, 2)
+                        target_num_3 = round(1 - target_num_1 - target_num_2, 2)
+                        p['Deg Tiers'][j, :] = ['D > ' + str(target_num_1), 'D > ' + str(target_num_2),
+                                                'P < ' + str(target_num_3), '']
+                    elif 0.6 < random_number < 0.7:
+                        tiers = ['M1', 'D2', 'I3']
+                        target_num = round(np.random.rand(), 2)
+                        p['Deg Tiers'][j, :] = ['M > ' + str(target_num), 'D < ' + str(1 - target_num), 'I = 0', '']
+                    elif 0.7 < random_number < 0.8:
+                        tiers = ['M1', 'P2', 'I3']
+                        target_num = round(np.random.rand(), 2)
+                        p['Deg Tiers'][j, :] = ['M > ' + str(target_num), 'P < ' + str(1 - target_num), 'I = 0', '']
+                    else:
+                        tiers = ['M1', 'D2', 'P3', 'I4']
+                        target_num_1 = round(np.random.rand() * 0.7, 2)
+                        target_num_2 = round(np.random.rand() * (1 - target_num_1) * 0.8, 2)
+                        target_num_3 = round(1 - target_num_1 - target_num_2, 2)
+                        p['Deg Tiers'][j, :] = ['M > ' + str(target_num_1), 'D > ' + str(target_num_2),
+                                                'P < ' + str(target_num_3), 'I = 0']
+
+                # Generate the tiers for the cadets
+                c_tiers = np.random.randint(0, len(tiers), N)
+                p['qual'][:, j] = np.array([tiers[c_tiers[i]] for i in range(N)])
 
         # NxM qual matrices with various features
         p["ineligible"] = (np.core.defchararray.find(p['qual'], "I") != -1) * 1
@@ -197,6 +205,12 @@ def generate_random_instance(N=1600, P=6, M=32):
     p['c_preferences'], p['c_utilities'] = get_utility_preferences(p)
     p['c_preferences'] = p['c_preferences'][:, :P]
     p['c_utilities'] = p['c_utilities'][:, :P]
+
+    # Update set of parameters
+    p = parameter_sets_additions(p)
+
+    # Add ROTC Rated preference data
+    p = generate_rated_data(p)
 
     return p  # Return updated parameters
 
@@ -325,3 +339,4 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
         vp['K^A'][j] = np.where(vp['objective_weight'][j] != 0)[0]
 
     return vp
+

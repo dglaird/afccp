@@ -35,11 +35,20 @@ class AFSCsChart:
         self.fig, self.ax = plt.subplots(figsize=self.ip['figsize'], facecolor=self.ip['facecolor'], tight_layout=True,
                                          dpi=self.ip['dpi'])
 
+        # Label dictionary for AFSC objectives
+        self.label_dict = {"Merit": "Average Merit", "USAFA Proportion": "USAFA Proportion",
+                           "Combined Quota": "Percent of PGL Target Met", "USAFA Quota": "Number of USAFA Cadets",
+                           "ROTC Quota": "Number of ROTC Cadets", "Mandatory": "Mandatory Degree Tier Proportion",
+                           "Desired": "Desired Degree Tier Proportion", "Permitted":
+                           "Permitted Degree Tier Proportion", "Male": "Proportion of Male Cadets",
+                           "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility",
+                           "Norm Score": "Normalized Preference Score", "Tier 1": "Degree Tier 1 Proportion",
+                           "Tier 2": "Degree Tier 2 Proportion", "Tier 3": "Degree Tier 3 Proportion",
+                           "Tier 4": "Degree Tier 4 Proportion"}
+
         # This is going to be a dictionary of all the various chart-specific components we need
-        self.c = {"afsc_indices": np.where(self.parameters["num_eligible"] <= self.ip["eligibility_limit"])[0],
-                  "add_legend": False}
-        self.c["afscs"] = self.parameters["afscs"][self.c["afsc_indices"]]
-        self.c["M"] = len(self.c["afscs"])
+        self.c = {"J": self.ip['J'], 'afscs': self.ip['afscs'], 'M': self.ip['M'],
+                  'y_max': self.ip['y_max'], 'legend_elements': None, 'use_calculated_y_max': False}
 
         # If we skip AFSCs
         if self.ip["skip_afscs"]:
@@ -51,6 +60,7 @@ class AFSCsChart:
         self.paths = {"Data": instance.export_paths["Analysis & Results"] + "Data Charts/",
                       "Results": instance.export_paths["Analysis & Results"] + "Results Charts/"}
 
+    # Main build method
     def build(self, chart_type="Data", printing=True):
         """
         Builds the specific chart based on what the user passes within the "instance plot parameters" (ip)
@@ -73,10 +83,61 @@ class AFSCsChart:
 
         elif chart_type == "Results":
 
+            # AFSC objective index and condense the AFSCs if this is an AFOCD objective
+            self.c['k'] = np.where(self.value_parameters['objectives'] == self.ip['objective'])[0][0]
+            self.condense_afscs_based_on_objective()
+
+            # Need to know number of cadets assigned
+            self.c['total_count'] = self.metrics["count"][self.c['J']]
+
+            # Determine if we sort the AFSCs by PGL or not
+            if self.ip['sort_by_pgl'] and 'quantity' in self.ip['version'] or self.ip['version'] == 'preference_chart':
+                quota = np.array([self.parameters['pgl'][j] for j in self.c['J']])
+
+                # Sort the AFSCs by the PGL
+                indices = np.argsort(quota)[::-1]
+                self.c['afscs'] = self.c['afscs'][indices]
+                self.c['total_count'] = self.c['total_count'][indices]
+                self.c['J'] = self.c['J'][indices]
+
+            if self.ip['results_graph'] == 'Solution Comparison':
+                self.results_solution_comparison_chart()
+            else:
+
+                if self.ip['objective'] != 'Extra':
+
+                    # Default y-label
+                    self.c['y_label'] = self.label_dict[self.ip['objective']]
+
+                    # Shared elements
+                    self.c['measure'] = self.metrics['objective_measure'][self.c['J'], self.c['k']]
+
+                    # Build the Merit Chart
+                    if self.ip['objective'] == 'Merit':
+                        self.results_merit_chart()
+
+                    # Demographic Chart
+                    elif self.ip['objective'] in ['USAFA Proportion', 'Male', 'Minority']:
+                        self.results_demographic_chart()
+
+                    # AFOCD Degree Tier Chart
+                    elif self.ip['objective'] in ['Mandatory', 'Desired', 'Permitted', 'Tier 1', 'Tier 2',
+                                                  'Tier 3', 'Tier 4']:
+                        self.results_degree_tier_chart()
+
+                    # Combined Quota Chart
+                    elif self.ip['objective'] == 'Combined Quota':
+                        self.results_quota_chart()
+
+                    # Cadet/AFSC Preference Chart
+                    elif self.ip['objective'] in ['Utility', 'Norm Score']:
+                        self.results_preference_chart()
+
+
             # Get filename
             if self.ip["filename"] is None:
-                self.ip["filename"] = \
-                    self.data_name + " (" + self.data_version + ") " + self.ip["data_graph"] + " (Results).png"
+                self.ip["filename"] = self.data_name + " (" + self.data_version + ") " + self.ip['objective'] + ' ' + \
+                                      self.ip["results_graph"] + " [" + self.ip['version'] + "] (Results).png"
         else:
             raise ValueError("Error. Invalid AFSC 'main' chart type value of '" +
                              chart_type + "'. Valid inputs are 'Data' or 'Results'.")
@@ -99,10 +160,11 @@ class AFSCsChart:
 
         # Y axis
         self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
+        self.ax.set(ylim=(0, self.c["y_max"]))
 
         # Legend
-        if self.c["add_legend"]:
-            self.ax.legend(handles=self.c["legend_elements"], edgecolor='black', loc="upper right",
+        if self.ip["add_legend_afsc_chart"] and self.c['legend_elements'] is not None:
+            self.ax.legend(handles=self.c["legend_elements"], edgecolor='black', loc=self.ip['legend_loc'],
                            fontsize=self.ip['legend_size'], ncol=1, labelspacing=1, handlelength=0.8, handletextpad=0.2,
                            borderpad=0.2, handleheight=2)
 
@@ -119,6 +181,100 @@ class AFSCsChart:
         # Return the chart
         return self.fig
 
+    # Chart helper methods
+    def condense_afscs_based_on_objective(self):
+        """
+        This method reduces the AFSCs we're looking at based on the AFSCs that have a non-zero objective weight
+        for AFOCD objectives
+        """
+
+        # If it's an AFOCD objective, we only take the AFSCs that have that objective
+        if self.ip['objective'] in ['Mandatory', 'Desired', 'Permitted', 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4']:
+            self.c['J'] = np.array([j for j in self.c['J'] if self.c['k'] in self.value_parameters['K^A'][j]]).astype(int)
+            self.c['afscs'] = self.parameters['afscs'][self.c['J']]
+            self.c['M'] = len(self.c['afscs'])
+
+            # Make sure we're not skipping AFSCs at this point
+            self.c["tick_indices"] = np.arange(self.c["M"]).astype(int)
+
+        # Make sure at least one AFSC has this objective selected
+        if self.c['M'] == 0:
+            raise ValueError("Error. No AFSCs have objective '" + self.ip["objective"] + "'.")
+
+    def determine_y_max_and_y_ticks(self):
+        """
+        This method calculates the correct y_max and y_ticks for this chart in place
+        """
+        # Y max
+        self.c['y_max'] = self.ip['y_max'] * max(self.c['total_count'])
+        if 100 <= self.c['y_max'] < 150:
+            self.c['y_ticks'] = [50, 100, 150]
+        elif 150 <= self.c['y_max'] < 200:
+            self.c['y_ticks'] = [50, 100, 150, 200]
+        elif 200 <= self.c['y_max'] < 250:
+            self.c['y_ticks'] = [50, 100, 150, 200, 250]
+        elif 250 <= self.c['y_max'] < 300:
+            self.c['y_ticks'] = [50, 100, 150, 200, 250, 300]
+        elif self.c['y_max'] >= 300:
+            self.c['y_ticks'] = [50, 100, 150, 200, 250, 300, 350]
+        else:
+            self.c['y_ticks'] = [50]
+
+    def construct_gradient_chart(self, parameter_to_use='utility'):
+        """
+        Constructs the gradient chart with "DIY color bar"
+        """
+
+        # Shorthand
+        p = self.parameters
+
+        for index, j in enumerate(self.c['J']):
+            cadets = np.where(self.solution == j)[0]
+
+            # What are we plotting
+            if 'parameter_to_use' == 'utility':
+                measure = p["utility"][cadets, j]
+            else:
+                measure = p["merit"][cadets]
+
+            # Plot the bar
+            uq = np.unique(measure)
+            count_sum = 0
+            for val in uq:
+                count = len(np.where(measure == val)[0])
+
+                if parameter_to_use == 'utility':
+                    c = (1 - val, 0, val)  # Blue to Red
+                else:
+                    c = str(val)  # Grayscale
+                self.ax.bar([index], count, bottom=count_sum, color=c)
+                count_sum += count
+
+            # Add the text
+            self.ax.text(index, self.c['total_count'][index] + 2, int(self.c['total_count'][index]),
+                         fontsize=self.ip["text_size"], horizontalalignment='center')
+
+        # DIY Colorbar
+        h = (100 / 245) * self.c['y_max']
+        w1 = 0.8
+        w2 = 0.74
+        vals = np.arange(101) / 100
+        current_height = (150 / 245) * self.c['y_max']
+        self.ax.add_patch(Rectangle((self.c['M'] - 2, current_height), w1, h, edgecolor='black', facecolor='black',
+                                    fill=True, lw=2))
+        self.ax.text(self.c['M'] - 3.3, (245 / 245) * self.c['y_max'], '100%', fontsize=self.ip["xaxis_tick_size"])
+        self.ax.text(self.c['M'] - 2.8, current_height, '0%', fontsize=self.ip["xaxis_tick_size"])
+        self.ax.text((self.c['M'] - 0.95), (166 / 245) * self.c['y_max'], 'Cadet Satisfaction',
+                    fontsize=self.ip["xaxis_tick_size"], rotation=270)
+        for val in vals:
+            if parameter_to_use == 'utility':
+                c = (1 - val, 0, val)  # Blue to Red
+            else:
+                c = str(val)  # Grayscale
+            self.ax.add_patch(Rectangle((self.c['M'] - 1.95, current_height), w2, h / 101, facecolor=c, fill=True))
+            current_height += h / 101
+
+    # "Data" Visualizations
     def data_average_chart(self):
         """
         This method builds the "Average Merit", "USAFA Proportion", and "Average Utility" data graph charts. They are
@@ -130,16 +286,16 @@ class AFSCsChart:
 
         # Get correct metrics and targets
         if self.ip['data_graph'] == "Average Merit":
-            metric = np.array([np.mean(p['merit'][p['I^E'][j]]) for j in self.c["afsc_indices"]])
+            metric = np.array([np.mean(p['merit'][p['I^E'][j]]) for j in self.c["J"]])
             target = 0.5
         elif self.ip['data_graph'] == 'USAFA Proportion':
-            metric = np.array([len(p['I^D']['USAFA Proportion'][j]) / len(p['I^E'][j]) for j in self.c["afsc_indices"]])
+            metric = np.array([len(p['I^D']['USAFA Proportion'][j]) / len(p['I^E'][j]) for j in self.c["J"]])
             target = p['usafa_proportion']
         else:
             if self.ip["eligibility"]:
-                metric = np.array([np.mean(p['utility'][p['I^E'][j], j]) for j in self.c["afsc_indices"]])
+                metric = np.array([np.mean(p['utility'][p['I^E'][j], j]) for j in self.c["J"]])
             else:
-                metric = np.array([np.mean(p['utility'][:, j]) for j in self.c["afsc_indices"]])
+                metric = np.array([np.mean(p['utility'][:, j]) for j in self.c["J"]])
             target = None
 
         # Axis Adjustments
@@ -155,11 +311,14 @@ class AFSCsChart:
         # Get correct label, title
         self.c['y_label'] = self.ip['data_graph']
         if self.ip['title'] is None:
-            self.ip['title'] = self.ip['data_graph'] + ' Across Eligible Cadets for AFSCs with <= ' + \
-                          str(self.ip['eligibility_limit']) + ' Eligible Cadets'
+            self.ip['title'] = self.ip['data_graph'] + ' Across '
             if self.ip['data_graph'] == 'Average Utility' and not self.ip['eligibility']:
-                self.ip['title'] = self.ip['data_graph'] + ' Across All Cadets for AFSCs with <= ' + \
-                              str(self.ip['eligibility_limit']) + ' Eligible Cadets'
+                self.ip['title'] += 'All Cadets'
+            else:
+                self.ip['title'] += 'Eligible Cadets'
+            if self.ip['eligibility_limit'] != p['N']:
+                self.ip['title'] += ' for AFSCs with <= ' + \
+                                    str(self.ip['eligibility_limit']) + ' Eligible Cadets'
 
     def data_afocd_chart(self):
         """
@@ -170,16 +329,15 @@ class AFSCsChart:
         p = self.parameters
 
         # Legend
-        self.c["add_legend"] = True
         self.c["legend_elements"] = [
             Patch(facecolor=self.ip["bar_colors"]["Permitted"], label='Permitted', edgecolor='black'),
             Patch(facecolor=self.ip["bar_colors"]["Desired"], label='Desired', edgecolor='black'),
             Patch(facecolor=self.ip["bar_colors"]["Mandatory"], label='Mandatory', edgecolor='black')]
 
         # Get metrics
-        mandatory_count = np.array([np.sum(p['mandatory'][:, j]) for j in self.c["afsc_indices"]])
-        desired_count = np.array([np.sum(p['desired'][:, j]) for j in self.c["afsc_indices"]])
-        permitted_count = np.array([np.sum(p['permitted'][:, j]) for j in self.c["afsc_indices"]])
+        mandatory_count = np.array([np.sum(p['mandatory'][:, j]) for j in self.c["J"]])
+        desired_count = np.array([np.sum(p['desired'][:, j]) for j in self.c["J"]])
+        permitted_count = np.array([np.sum(p['permitted'][:, j]) for j in self.c["J"]])
 
         # Bar Chart
         self.ax.bar(self.c["afscs"], mandatory_count, color=self.ip["bar_colors"]["Mandatory"], edgecolor='black')
@@ -194,8 +352,10 @@ class AFSCsChart:
         # Get correct text
         self.c["y_label"] = "Number of Cadets"
         if self.ip['title'] is None:
-            self.ip['title'] = 'AFOCD Degree Tier Breakdown for AFSCs with <= ' + \
-                               str(self.ip['eligibility_limit']) + ' Eligible Cadets'
+            self.ip['title'] = 'AFOCD Degree Tier Breakdown'
+            if self.ip['eligibility_limit'] != p['N']:
+                self.ip['title'] += ' for AFSCs with <= ' + \
+                                    str(self.ip['eligibility_limit']) + ' Eligible Cadets'
 
     def data_preference_chart(self):
         """
@@ -205,9 +365,6 @@ class AFSCsChart:
 
         # Shorthand
         p = self.parameters
-
-        # Legend
-        self.c["add_legend"] = True
 
         # Choice Counts
         top_3_count = np.array([sum(p["Choice Count"][choice][j] for choice in [0, 1, 2]) for j in p["J"]])
@@ -307,7 +464,6 @@ class AFSCsChart:
 
         # Version 5
         elif self.ip["version"] == "5":
-            self.c["add_legend"] = False
 
             # Build a gradient
             for j in p["J"]:
@@ -433,13 +589,12 @@ class AFSCsChart:
         p = self.parameters
 
         # Legend
-        self.c["add_legend"] = True
         self.c["legend_elements"] = [Patch(facecolor='blue', label='Eligible Cadets', edgecolor='black'),
                                      Patch(facecolor='black', alpha=0.5, label='AFSC Quota', edgecolor='black')]
 
         # Get metrics
-        eligible_count = p["num_eligible"][self.c["afsc_indices"]]
-        quota = p['pgl'][self.c["afsc_indices"]]
+        eligible_count = p["num_eligible"][self.c["J"]]
+        quota = p['pgl'][self.c["J"]]
 
         # Bar Chart
         self.ax.bar(self.c["afscs"], eligible_count, color='blue', edgecolor='black')
@@ -451,8 +606,893 @@ class AFSCsChart:
         # Get correct text
         self.c["y_label"] = "Number of Cadets"
         if self.ip['title'] is None:
-            self.ip['title'] = 'Eligible Cadets and Quotas for AFSCs with <= ' + \
+            self.ip['title'] = 'Eligible Cadets and Quotas'
+            if self.ip['eligibility_limit'] != p['N']:
+                self.ip['title'] += ' for AFSCs with <= ' + \
                                str(self.ip['eligibility_limit']) + ' Eligible Cadets'
+
+    # "Results" Visualizations
+    def results_solution_comparison_chart(self):
+        """
+        This method plots the solution comparison chart for the chosen objective specified
+        """
+
+        # Shorthand
+        p, vp, m_dict = self.parameters, self.value_parameters, self.metrics_dict[self.vp_name]
+        k = self.c['k']
+
+        # Make sure at least one AFSC has this objective selected
+        if self.c['M'] == 0:
+            raise ValueError("Error. No AFSCs have objective '" + ip["objective"] + "'.")
+
+        # Keep track of useful variables
+        x_under, x_over = [], []
+        quota_percent_filled, max_quota_percent = np.zeros(self.c['M']), np.zeros(self.c['M'])
+        self.c['legend_elements'] = []
+        max_measure = np.zeros(self.c['M'])
+        y_top = 0
+
+        # Loop through each solution
+        for s, solution in enumerate(self.ip["solution_names"]):
+
+            # Calculate objective measure
+            measure = m_dict[solution]["objective_measure"][self.c['J'], k]
+            if self.ip["objective"] == "Combined Quota":
+
+                # Assign the right color to the AFSCs
+                for idx, j in enumerate(self.c['J']):
+
+                    # Get bounds
+                    value_list = vp['objective_value_min'][j, k].split(",")
+                    ub = float(value_list[1].strip())  # upper bound
+                    quota = p["pgl"][j]
+
+                    # Constraint violations
+                    if quota > measure[idx]:
+                        x_under.append(idx)
+                    elif measure[idx] > ub:
+                        x_over.append(idx)
+
+                    quota_percent_filled[idx] = measure[idx] / quota
+                    max_quota_percent[idx] = ub / quota
+
+                # Top dot location
+                y_top = max(y_top, max(quota_percent_filled))
+
+                # Plot the points
+                self.ax.scatter(self.c['afscs'], quota_percent_filled, color=self.ip["colors"][solution],
+                                marker=self.ip["markers"][solution], alpha=self.ip["alpha"], edgecolor='black',
+                                s=self.ip["dot_size"], zorder=self.ip["zorder"][solution])
+
+            else:
+
+                # Plot the points
+                self.ax.scatter(self.c['afscs'], measure, color=self.ip["colors"][solution],
+                                marker=self.ip["markers"][solution], alpha=self.ip["alpha"], edgecolor='black',
+                                s=self.ip["dot_size"], zorder=self.ip["zorder"][solution])
+
+            max_measure = np.array([max(max_measure[idx], measure[idx]) for idx in range(self.c['M'])])
+            element = mlines.Line2D([], [], color=self.ip["colors"][solution], marker=self.ip["markers"][solution],
+                                    linestyle='None', markeredgecolor='black', markersize=15, label=solution,
+                                    alpha=self.ip["alpha"])
+            self.c['legend_elements'].append(element)
+
+        # Lines to the top solution's dot
+        if self.ip["objective"] not in ["Combined Quota", "Mandatory", "Desired", "Permitted", 'Tier 1', 'Tier 2',
+                                        'Tier 3', 'Tier 4']:
+            for idx in range(self.c['M']):
+                self.ax.plot((idx, idx), (0, max_measure[idx]), color='black', linestyle='--', zorder=1, alpha=0.5,
+                              linewidth=2)
+
+        # Objective Specific elements
+        if self.ip["objective"] == "Merit":
+
+            # Tick marks and extra lines
+            self.c['y_ticks'] = [0, 0.35, 0.50, 0.65, 0.80, 1]
+            self.ax.plot((-1, 50), (0.65, 0.65), color='black', linestyle='-', zorder=1, alpha=1, linewidth=1.5)
+            self.ax.plot((-1, 50), (0.5, 0.5), color='black', linestyle='--', zorder=1, alpha=1, linewidth=1.5)
+            self.ax.plot((-1, 50), (0.35, 0.35), color='black', linestyle='-', zorder=1, alpha=1, linewidth=1.5)
+
+            # Set the max for the y-axis
+            self.c['y_max'] = self.ip['y_max'] * np.max(max_measure)
+
+        elif self.ip["objective"] in ["USAFA Proportion", "Male", "Minority"]:
+
+            # Demographic Proportion elements
+            prop_dict = {"USAFA Proportion": "usafa_proportion", "Male": "male_proportion",
+                         "Minority": "minority_proportion"}
+            up_lb = round(p[prop_dict[self.ip["objective"]]] - 0.15, 2)
+            up_ub = round(p[prop_dict[self.ip["objective"]]] + 0.15, 2)
+            up = round(p[prop_dict[self.ip["objective"]]], 2)
+            self.c['y_ticks'] = [0, up_lb, up, up_ub, 1]
+
+            # Add lines for the ranges
+            self.ax.axhline(y=up, color='black', linestyle='--', alpha=0.5)
+            self.ax.axhline(y=up_lb, color='blue', linestyle='-', alpha=0.5)
+            self.ax.axhline(y=up_ub, color='blue', linestyle='-', alpha=0.5)
+
+            # Set the max for the y-axis
+            self.c['y_max'] = self.ip['y_max'] * np.max(max_measure)
+
+        elif self.ip["objective"] in ["Mandatory", "Desired", "Permitted", "Tier 1", "Tier 2", 'Tier 3', "Tier 4"]:
+
+            # Degree Tier elements
+            self.c['y_ticks'] = [0, 0.2, 0.4, 0.6, 0.8, 1]
+            minimums = np.zeros(self.c['M'])
+            maximums = np.zeros(self.c['M'])
+
+            # Assign the right color to the AFSCs
+            for idx, j in enumerate(self.c['J']):
+                if "Increasing" in vp["value_functions"][j, k]:
+                    minimums[idx] = vp['objective_target'][j, k]
+                    maximums[idx] = 1
+                else:
+                    minimums[idx] = 0
+                    maximums[idx] = vp['objective_target'][j, k]
+
+            # Calculate ranges
+            y = [(minimums[idx], maximums[idx]) for idx in range(self.c['M'])]
+            y_lines = [(0, minimums[idx]) for idx in range(self.c['M'])]
+
+            # Plot bounds
+            self.ax.scatter(range(self.c['M']), minimums, c="black", marker="_", linewidth=2, zorder=1)
+            self.ax.scatter(range(self.c['M']), maximums, c="black", marker="_", linewidth=2, zorder=1)
+
+            # Constraint Range
+            self.ax.plot((range(self.c['M']), range(self.c['M'])), ([i for (i, j) in y], [j for (i, j) in y]),
+                          c="black", zorder=1)
+
+            # Line from x-axis to constraint range
+            self.ax.plot((range(self.c['M']), range(self.c['M'])), ([i for (i, j) in y_lines], [j for (i, j) in y_lines]),
+                          c="black", zorder=1, alpha=0.5, linestyle='--', linewidth=2)
+
+        elif self.ip["objective"] == "Combined Quota":
+
+            # Y axis adjustments
+            self.c['y_ticks'] = [0, 0.5, 1, 1.5, 2]
+            self.c['y_max'] = self.ip['y_max'] * y_top
+
+            # Lines
+            y_mins = np.repeat(1, self.c['M'])
+            y_maxs = max_quota_percent
+            y = [(y_mins[idx], y_maxs[idx]) for idx in range(self.c['M'])]
+            y_under = [(quota_percent_filled[idx], 1) for idx in x_under]
+            y_over = [(max_quota_percent[idx], quota_percent_filled[idx]) for idx in x_over]
+
+            # Plot Bounds
+            self.ax.scatter(self.c['afscs'], y_mins, c=np.repeat('black', self.c['M']), marker="_", linewidth=2, zorder=1)
+            self.ax.scatter(self.c['afscs'], y_maxs, c=np.repeat('black', self.c['M']), marker="_", linewidth=2, zorder=1)
+
+            # Plot Range Lines
+            self.ax.plot((range(self.c['M']), range(self.c['M'])), ([i for (i, j) in y], [j for (i, j) in y]),
+                         c='black', zorder=1)
+            self.ax.plot((x_under, x_under), ([i for (i, j) in y_under], [j for (i, j) in y_under]), c='black',
+                         linestyle='--', zorder=1)
+            self.ax.plot((x_over, x_over), ([i for (i, j) in y_over], [j for (i, j) in y_over]), c='black',
+                          linestyle='--', zorder=1)
+            self.ax.plot((range(self.c['M']), range(self.c['M'])), (np.zeros(self.c['M']), np.ones(self.c['M'])),
+                         c='black', linestyle='--', alpha=0.3, zorder=1)
+
+            # Quota Line
+            self.ax.axhline(y=1, color='black', linestyle='-', alpha=0.5, zorder=1)
+
+        elif self.ip["objective"] in ["Utility", "Norm Score"]:
+
+            # Tick marks and extra lines
+            self.c['y_ticks'] = [0, 0.2, 0.4, 0.6, 0.8, 1]
+
+        # Get y-label
+        self.c['y_label'] = self.label_dict[self.ip['objective']]
+
+        # Get names of Solutions
+        solution_names = ', '.join(self.ip["solution_names"])
+
+        # Create the title!
+        if self.ip["title"] is None:
+            self.ip['title'] = solution_names + ' ' + self.label_dict[self.ip["objective"]] + " Across Each AFSC"
+
+        # Update the version of the data using the solution names
+        self.ip['version'] = solution_names
+
+    def results_merit_chart(self):
+        """
+        This method constructs the different charts showing the "Balance Merit" objective
+        """
+
+        # Shorthand
+        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
+        colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
+
+        if self.ip["version"] == "large_only_bar":
+
+            # Get the title and filename
+            self.ip["title"] = "Average Merit Across Each Large AFSC"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+
+            # Y-axis
+            self.c['use_calculated_y_max'] = True
+            self.c['y_max'] = self.ip['y_max']  # * np.max(measure)
+            self.c['y_ticks'] = [0, 0.35, 0.50, 0.65, 0.80, 1]
+
+            # Assign the right color to the AFSCs
+            for j in range(self.c['M']):
+                if 0.35 <= measure[j] <= 0.65:
+                    colors[j] = self.ip['bar_colors']["merit_within"]
+                elif measure[j] > 0.65:
+                    colors[j] = self.ip['bar_colors']["merit_above"]
+                else:
+                    colors[j] = self.ip['bar_colors']["merit_below"]
+
+            # Add lines for the ranges
+            self.ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.5)
+            self.ax.axhline(y=0.35, color='blue', linestyle='-', alpha=0.5)
+            self.ax.axhline(y=0.65, color='blue', linestyle='-', alpha=0.5)
+
+            # Bar Chart
+            self.ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=self.ip["alpha"])
+
+        elif self.ip["version"] == "bar":
+
+            # Get the title and filename
+            self.ip["title"] = "Average Merit Across Each AFSC"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+
+            # Set the max for the y-axis
+            self.c['use_calculated_y_max'] = True
+            self.c['y_max'] = self.ip['y_max']  # * np.max(measure)
+
+            # Merit elements
+            self.c['y_ticks'] = [0, 0.35, 0.50, 0.65, 0.80, 1]
+            self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["small_afscs"], label='Small AFSC'),
+                                         Patch(facecolor=self.ip['bar_colors']["large_afscs"], label='Large AFSC'),
+                                         mlines.Line2D([], [], color="blue", linestyle='-', label="Bound")]
+
+            # Assign the right color to the AFSCs
+            for j in range(self.c['M']):
+                if quota[j] >= 40:
+                    colors[j] = self.ip['bar_colors']["large_afscs"]
+                else:
+                    colors[j] = self.ip['bar_colors']["small_afscs"]
+
+                # Add the text
+                self.ax.text(j, measure[j] + 0.013, round(measure[j], 2),
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+
+            # Add lines for the ranges
+            self.ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.5)
+            self.ax.axhline(y=0.35, color='blue', linestyle='-', alpha=0.5)
+            self.ax.axhline(y=0.65, color='blue', linestyle='-', alpha=0.5)
+
+            # Bar Chart
+            self.ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=self.ip["alpha"])
+
+        elif self.ip["version"] == "quantity_bar_gradient":
+
+            # Get the title and label
+            self.ip["title"] = "Cadet Merit Breakdown Across Each AFSC"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+            self.c['y_label'] = "Number of Cadets"
+
+            # Calculate y-axis attributes
+            self.determine_y_max_and_y_ticks()
+
+            # Build the gradient chart
+            self.construct_gradient_chart(parameter_to_use='merit')
+
+        else:  # quantity_bar_proportion  (Quartiles in this case)
+
+            # Update the title
+            self.ip["title"] = "Cadet Quartiles Across Each AFSC"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+            self.c['y_label'] = "Number of Cadets"
+
+            # Legend
+            self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["quartile_1"], label='1st Quartile'),
+                                         Patch(facecolor=self.ip['bar_colors']["quartile_2"], label='2nd Quartile'),
+                                         Patch(facecolor=self.ip['bar_colors']["quartile_3"], label='3rd Quartile'),
+                                         Patch(facecolor=self.ip['bar_colors']["quartile_4"], label='4th Quartile')]
+
+            # Calculate y-axis attributes
+            self.determine_y_max_and_y_ticks()
+
+            percentile_dict = {1: (0.75, 1), 2: (0.5, 0.75), 3: (0.25, 0.5), 4: (0, 0.25)}
+            for index, j in enumerate(self.c['J']):
+                cadets = np.where(self.solution == j)[0]
+                merit = p["merit"][cadets]
+
+                # Loop through each quartile
+                count_sum = 0
+                for q in [4, 3, 2, 1]:
+                    lb, ub = percentile_dict[q][0], percentile_dict[q][1]
+                    count = len(np.where((merit <= ub) & (merit > lb))[0])
+                    self.ax.bar([index], count, bottom=count_sum,
+                                color=self.ip['bar_colors']["quartile_" + str(q)], zorder=2)
+                    count_sum += count
+
+                    # Put a number on the bar
+                    if count >= 10:
+                        if q == 1:
+                            c = "white"
+                        else:
+                            c = "black"
+                        self.ax.text(index, (count_sum - count / 2 - 2), int(count), color=c,
+                                     zorder=3, fontsize=self.ip["bar_text_size"], horizontalalignment='center')
+
+                # Add the text and an outline
+                self.ax.text(index, self.c['total_count'][index] + 2, int(self.c['total_count'][index]),
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+                self.ax.bar([index], self.c['total_count'][index], color="black", zorder=1, edgecolor="black")
+
+    def results_demographic_chart(self):
+        """
+        Chart to visualize the demographics of the solution
+        """
+
+        # Shorthand
+        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
+        colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
+
+        # Demographic Proportion elements
+        prop_dict = {"USAFA Proportion": "usafa_proportion", "Male": "male_proportion",
+                     "Minority": "minority_proportion"}
+        legend_dict = {"USAFA Proportion": "USAFA Proportion", "Male": "Male Proportion",
+                       "Minority": "Minority Proportion"}
+        up_lb = round(p[prop_dict[self.ip["objective"]]] - 0.15, 2)
+        up_ub = round(p[prop_dict[self.ip["objective"]]] + 0.15, 2)
+        up = round(p[prop_dict[self.ip["objective"]]], 2)
+
+        if self.ip["version"] == "large_only_bar":
+
+            # Get the title and filename
+            self.ip["title"] = legend_dict[self.ip["objective"]] + " Across Large AFSCs"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+
+            # Set the max for the y-axis
+            self.c['use_calculated_y_max'] = True
+            self.c['y_max'] = self.ip['y_max']  # * np.max(measure)
+            self.c['y_ticks'] = [0, up_lb, up, up_ub, 1]
+
+            # Legend elements
+            self.c['legend_elements'] = [
+                Patch(facecolor=self.ip['bar_colors']["large_within"], label=str(up_lb) + ' < ' + legend_dict[
+                    self.ip["objective"]] + ' < ' + str(up_ub)), Patch(facecolor=self.ip['bar_colors']["large_else"],
+                                                                       label='Otherwise')]
+
+            # Assign the right color to the AFSCs
+            for j in range(self.c['M']):
+                if up_lb <= measure[j] <= up_ub:
+                    colors[j] = self.ip['bar_colors']["large_within"]
+                else:
+                    colors[j] = self.ip['bar_colors']["large_else"]
+
+            # Add lines for the ranges
+            self.ax.axhline(y=up, color='black', linestyle='--', alpha=0.5)
+            self.ax.axhline(y=up_lb, color='blue', linestyle='-', alpha=0.5)
+            self.ax.axhline(y=up_ub, color='blue', linestyle='-', alpha=0.5)
+
+            # Bar Chart
+            self.ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=self.ip["alpha"])
+
+        elif self.ip["version"] == "bar":
+
+            # Get the title and filename
+            self.ip["title"] = legend_dict[self.ip["objective"]] + " Across Each AFSC"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+
+            # Y-axis
+            self.c['use_calculated_y_max'] = True
+            self.c['y_max'] = self.ip['y_max']  # * np.max(measure)
+            self.c['y_ticks'] = [0, up_lb, up, up_ub, 1]
+
+            # Legend elements
+            self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["small_afscs"], label='Small AFSC'),
+                                         Patch(facecolor=self.ip['bar_colors']["large_afscs"], label='Large AFSC'),
+                                         mlines.Line2D([], [], color="blue", linestyle='-', label="Bound")]
+
+            # Assign the right color to the AFSCs
+            for j in range(self.c['M']):
+                if quota[j] >= 40:
+                    colors[j] = self.ip['bar_colors']["large_afscs"]
+                else:
+                    colors[j] = self.ip['bar_colors']["small_afscs"]
+
+                # Add the text
+                self.ax.text(j, measure[j] + 0.013, round(measure[j], 2),
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+
+            # Add lines for the ranges
+            self.ax.axhline(y=up, color='black', linestyle='--', alpha=0.5)
+            self.ax.axhline(y=up_lb, color='blue', linestyle='-', alpha=0.5)
+            self.ax.axhline(y=up_ub, color='blue', linestyle='-', alpha=0.5)
+
+            # Bar Chart
+            self.ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=self.ip["alpha"])
+
+        elif self.ip["version"] == "preference_chart":
+            self.c['y_label'] = "Number of Cadets"
+
+            # Objective specific components
+            if self.ip["objective"] == "USAFA Proportion":
+
+                # Get the title and filename
+                self.ip["title"] = "USAFA/ROTC Non-Volunteers Across Each AFSC"
+                if self.ip["solution_in_title"]:
+                    self.ip['title'] = self.solution_name + ": " + self.ip['title']
+                classes = ["USAFA", "ROTC"]
+
+            elif self.ip["objective"] == "Male":
+
+                # Get the title and filename
+                self.ip["title"] = "Male/Female Non-Volunteers Across Each AFSC"
+                if self.ip["solution_in_title"]:
+                    self.ip['title'] = self.solution_name + ": " + self.ip['title']
+                classes = ["Male", "Female"]
+
+            else:  # Minority
+
+                # Get the title and filename
+                self.ip["title"] = "Minority/Non-Minority Non-Volunteers Across Each AFSC"
+                if self.ip["solution_in_title"]:
+                    self.ip['title'] = self.solution_name + ": " + self.ip['title']
+                classes = ["Minority", "Non-Minority"]
+
+            # Calculate y-axis attributes
+            self.determine_y_max_and_y_ticks()
+
+            # Categories! (Volunteers/Non-Volunteers)
+            categories = ["Volunteer", "Non-Volunteer"]
+
+            # Get the counts for each category and class
+            counts = {cls: {cat: np.zeros(self.c['M']) for cat in categories} for cls in classes}
+            dem = classes[0].lower()  # reference demographic (male, usafa, minority, etc.)
+            for index, afsc in enumerate(afscs):
+                j = np.where(p["afscs"] == afsc)[0][0]
+                cadets_assigned = np.where(self.solution == j)[0]
+                cadets_with_demographic = np.where(p[dem] == 1)[0]
+                cadets_class = {classes[0]: np.intersect1d(cadets_assigned, cadets_with_demographic),
+                                classes[1]: np.array([cadet for cadet in cadets_assigned if
+                                                      cadet not in cadets_with_demographic])}
+
+                # Determine volunteer status
+                if categories == ["Volunteer", "Non-Volunteer"]:
+                    cadets_with_category = np.where(p["utility"][:, j] > 0)[0]
+                    cadets_cat = {"Volunteer": np.intersect1d(cadets_assigned, cadets_with_category),
+                                  "Non-Volunteer": np.array(
+                                      [cadet for cadet in cadets_assigned if cadet not in cadets_with_category])}
+
+                # Loop through each demographic
+                for cls in classes:
+                    for cat in categories:
+                        counts[cls][cat][index] = len(np.intersect1d(cadets_class[cls], cadets_cat[cat]))
+
+            # Legend
+            self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors'][cls.lower()],
+                                               label=cls, edgecolor='black') for cls in classes]
+            self.c['legend_elements'].append(
+                Patch(facecolor=self.ip['bar_colors']["Non-Volunteer"], label="Non-Volunteer"))
+
+            # Loop through each AFSC to plot the bars
+            for index, afsc in enumerate(afscs):
+
+                # Plot the AFOCD bars
+                count_sum = 0
+                for cls in classes[::-1]:
+                    for cat in categories[::-1]:
+
+                        if cat == "Volunteer":
+                            color = self.ip["bar_colors"][cls.lower()]
+                        else:
+                            color = self.ip['bar_colors'][cat]
+
+                        # Plot the bars
+                        count = counts[cls][cat][index]
+                        self.ax.bar([index], count, bottom=count_sum, edgecolor="black", color=color)
+                        count_sum += count
+
+                        # Put a number on the bar
+                        if count >= 10:
+
+                            if cls in ["Male", "USAFA", "Minority"]:
+                                color = "white"
+                            else:
+                                color = "black"
+                            self.ax.text(index, (count_sum - count / 2 - 2), int(count), color=color,
+                                         zorder=2, fontsize=self.ip["bar_text_size"], horizontalalignment='center')
+
+                # Add the text
+                self.ax.text(index, self.c['total_count'][index] + 2, int(self.c['total_count'][index]),
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+
+        else:  # Sorted Sized Bar Chart
+            self.c['y_label'] = "Number of Cadets"
+
+            # Objective specific components
+            if self.ip["objective"] == "USAFA Proportion":
+                self.ip["title"] = "Source of Commissioning Breakdown Across Each AFSC"
+                class_1_color = self.ip['bar_colors']["usafa"]
+                class_2_color = self.ip['bar_colors']["rotc"]
+
+                # Legend
+                self.c['legend_elements'] = [Patch(facecolor=class_1_color, label='USAFA'),
+                                             Patch(facecolor=class_2_color, label='ROTC')]
+
+            elif self.ip["objective"] == "Minority":
+                self.ip["title"] = "Minority/Non-Minority Breakdown Across Each AFSC"
+                class_1_color = self.ip['bar_colors']["minority"]
+                class_2_color = self.ip['bar_colors']["non-minority"]
+
+                # Legend
+                self.c['legend_elements'] = [Patch(facecolor=class_1_color, label='Minority'),
+                                             Patch(facecolor=class_2_color, label='Non-Minority')]
+
+            else:
+                self.ip["title"] = "Gender Breakdown Across Each AFSC"
+                class_1_color = self.ip['bar_colors']["male"]
+                class_2_color = self.ip['bar_colors']["female"]
+
+                # Legend
+                self.c['legend_elements'] = [Patch(facecolor=class_1_color, label='Male'),
+                                             Patch(facecolor=class_2_color, label='Female')]
+
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+
+            # Calculate y-axis attributes
+            self.determine_y_max_and_y_ticks()
+
+            # Get "class" objective measures (number of cadets with demographic)
+            class_1 = measure * self.c['total_count']
+            class_2 = (1 - measure) * self.c['total_count']
+            self.ax.bar(afscs, class_2, color=class_2_color, zorder=2, edgecolor="black")
+            self.ax.bar(afscs, class_1, bottom=class_2, color=class_1_color, zorder=2, edgecolor="black")
+            for j, afsc in enumerate(afscs):
+                if class_2[j] >= 10:
+                    self.ax.text(j, class_2[j] / 2, int(class_2[j]), color="black",
+                                 zorder=3, fontsize=self.ip["bar_text_size"], horizontalalignment='center')
+                if class_1[j] >= 10:
+                    self.ax.text(j, class_2[j] + class_1[j] / 2, int(class_1[j]), color="white", zorder=3,
+                                 fontsize=self.ip["bar_text_size"], horizontalalignment='center')
+
+                # Add the text and an outline
+                self.ax.text(j, self.c['total_count'][j] + 2, round(measure[j], 2), fontsize=self.ip["text_size"],
+                             horizontalalignment='center')
+
+    def results_degree_tier_chart(self):
+        """
+        Builds the degree tier results chart
+        """
+
+        # Shorthand
+        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
+        colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
+
+        # Get the title
+        self.ip["title"] = self.ip["objective"] + " Proportion Across Each AFSC"
+        if self.ip["solution_in_title"]:
+            self.ip['title'] = self.solution_name + ": " + self.ip['title']
+
+        # Set the max for the y-axis
+        self.c['use_calculated_y_max'] = True
+        self.c['y_max'] = self.ip['y_max']  # * np.max(measure)
+
+        minimums = np.zeros(self.c['M'])
+        maximums = np.zeros(self.c['M'])
+        x_under = []
+        x_over = []
+        x_within = []
+
+        # Assign the right color to the AFSCs
+        for index, j in enumerate(self.c['J']):
+            if "Increasing" in vp["value_functions"][j, k]:
+                minimums[index] = vp['objective_target'][j, k]
+                maximums[index] = 1
+            else:
+                minimums[index] = 0
+                maximums[index] = vp['objective_target'][j, k]
+
+            if minimums[index] <= measure[index] <= maximums[index]:
+                colors[index] = "blue"
+                x_within.append(index)
+            else:
+                colors[index] = "red"
+                if measure[index] < minimums[index]:
+                    x_under.append(index)
+                else:
+                    x_over.append(index)
+
+        # Plot points
+        self.ax.scatter(afscs, measure, c=colors, linewidths=4, s=self.ip["dot_size"], zorder=3)
+
+        # Calculate ranges
+        y_within = [(minimums[j], maximums[j]) for j in x_within]
+        y_under_ranges = [(minimums[j], maximums[j]) for j in x_under]
+        y_over_ranges = [(minimums[j], maximums[j]) for j in x_over]
+        y_under = [(measure[j], minimums[j]) for j in x_under]
+        y_over = [(maximums[j], measure[j]) for j in x_over]
+
+        # Plot bounds
+        self.ax.scatter(afscs, minimums, c="black", marker="_", linewidth=2)
+        self.ax.scatter(afscs, maximums, c="black", marker="_", linewidth=2)
+
+        # Plot Ranges
+        self.ax.plot((x_within, x_within), ([i for (i, j) in y_within], [j for (i, j) in y_within]),
+                     c="black")
+        self.ax.plot((x_under, x_under), ([i for (i, j) in y_under_ranges], [j for (i, j) in y_under_ranges]),
+                     c="black")
+        self.ax.plot((x_over, x_over),([i for (i, j) in y_over_ranges], [j for (i, j) in y_over_ranges]), c="black")
+
+        # How far off
+        self.ax.plot((x_under, x_under), ([i for (i, j) in y_under], [j for (i, j) in y_under]), c='red', linestyle='--')
+        self.ax.plot((x_over, x_over), ([i for (i, j) in y_over], [j for (i, j) in y_over]), c='red', linestyle='--')
+
+    def results_quota_chart(self):
+        """
+        This method produces the "Combined Quota" chart for each AFSC
+        """
+
+        # Shorthand
+        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
+        colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
+
+        if self.ip["version"] == "dot":
+
+            # Get the title and filename
+            self.ip["title"] = "Percent of PGL Target Met Across Each AFSC"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+
+            # Set the max for the y-axis
+            self.c['use_calculated_y_max'] = True
+            self.c['y_ticks'] = [0, 0.5, 1, 1.5, 2]
+
+            # Degree Tier elements
+            x_under = []
+            x_over = []
+            x_within = []
+            quota_percent_filled = np.zeros(self.c['M'])
+            max_quota_percent = np.zeros(self.c['M'])
+
+            # Assign the right color to the AFSCs
+            for index, j in enumerate(self.c['J']):
+
+                # Get bounds
+                value_list = vp['objective_value_min'][j, k].split(",")
+                max_measure = float(value_list[1].strip())
+                if quota[index] > measure[index]:
+                    colors[index] = "red"
+                    x_under.append(index)
+                elif quota[index] <= measure[index] <= max_measure:
+                    colors[index] = "blue"
+                    x_within.append(index)
+                else:
+                    colors[index] = "orange"
+                    x_over.append(index)
+
+                quota_percent_filled[index] = measure[index] / quota[index]
+                max_quota_percent[index] = max_measure / quota[index]
+
+            # Plot points
+            self.ax.scatter(afscs, quota_percent_filled, c=colors, linewidths=4, s=self.ip["dot_size"], zorder=3)
+
+            # Set the max for the y-axis
+            self.c['y_max'] = self.ip['y_max'] * np.max(quota_percent_filled)
+
+            # Lines
+            y_mins = np.repeat(1, self.c['M'])
+            y_maxs = max_quota_percent
+            y = [(y_mins[j], y_maxs[j]) for j in range(self.c['M'])]
+            y_under = [(quota_percent_filled[j], 1) for j in x_under]
+            y_over = [(max_quota_percent[j], quota_percent_filled[j]) for j in x_over]
+
+            # Plot Bounds
+            self.ax.scatter(afscs, y_mins, c=np.repeat('blue', self.c['M']), marker="_", linewidth=2)
+            self.ax.scatter(afscs, y_maxs, c=np.repeat('blue', self.c['M']), marker="_", linewidth=2)
+
+            # Plot Range Lines
+            self.ax.plot((np.arange(self.c['M']), np.arange(self.c['M'])), ([i for (i, j) in y], [j for (i, j) in y]),
+                         c='blue')
+            self.ax.plot((x_under, x_under), ([i for (i, j) in y_under], [j for (i, j) in y_under]), c='red',
+                    linestyle='--')
+            self.ax.plot((x_over, x_over), ([i for (i, j) in y_over], [j for (i, j) in y_over]), c='orange',
+                    linestyle='--')
+            self.ax.plot((np.arange(self.c['M']), np.arange(self.c['M'])), (np.zeros(self.c['M']), np.ones(self.c['M'])),
+                         c='black', linestyle='--', alpha=0.3)
+
+            # Quota Line
+            self.ax.axhline(y=1, color='black', linestyle='-', alpha=0.5)
+
+            # Put quota text
+            y_top = round(max(quota_percent_filled))
+            y_spacing = (y_top / 80)
+            for j in range(self.c['M']):
+                if int(measure[j]) >= 100:
+                    self.ax.text(j, quota_percent_filled[j] + 1.4 * y_spacing, int(measure[j]),
+                                 fontsize=self.ip["xaxis_tick_size"], multialignment='right',
+                                 horizontalalignment='center')
+                elif int(measure[j]) >= 10:
+                    self.ax.text(j, quota_percent_filled[j] + y_spacing, int(measure[j]),
+                                 fontsize=self.ip["xaxis_tick_size"], multialignment='right',
+                                 horizontalalignment='center')
+                else:
+                    self.ax.text(j, quota_percent_filled[j] + y_spacing, int(measure[j]),
+                                 fontsize=self.ip["xaxis_tick_size"], multialignment='right',
+                                 horizontalalignment='center')
+
+        else:  # quantity_bar
+
+            # Get the title and filename
+            self.ip["title"] = "Number of Cadets Assigned to Each AFSC against PGL"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+            self.c['y_label'] = self.label_dict[self.ip["objective"]]
+
+            # Calculate y-axis attributes
+            self.determine_y_max_and_y_ticks()
+
+            # Legend
+            self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["pgl"], label='PGL Target',
+                                               edgecolor="black"),
+                                         Patch(facecolor=self.ip['bar_colors']["surplus"],
+                                               label='Cadets Exceeding PGL Target', edgecolor="black"),
+                                         Patch(facecolor=self.ip['bar_colors']["failed_pgl"], label='PGL Target Not Met',
+                                               edgecolor="black")]
+
+            # Add the text and quota lines
+            for j in range(self.c['M']):
+
+                # Add the text
+                self.ax.text(j, measure[j] + 2, int(measure[j]),
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+
+                # Determine which category the AFSC falls into
+                line_color = "black"
+                if measure[j] > quota[j]:
+                    self.ax.bar([j], quota[j], color=self.ip['bar_colors']["pgl"], edgecolor="black")
+                    self.ax.bar([j], measure[j] - quota[j], bottom=quota[j],
+                                color=self.ip['bar_colors']["surplus"], edgecolor="black")
+                elif measure[j] < quota[j]:
+                    self.ax.bar([j], measure[j], color=self.ip['bar_colors']["failed_pgl"], edgecolor="black")
+                    self.ax.plot((j - 0.4, j - 0.4), (quota[j], measure[j]),
+                            color=self.ip['bar_colors']["failed_pgl"], linestyle="--", zorder=2)
+                    self.ax.plot((j + 0.4, j + 0.4), (quota[j], measure[j]),
+                            color=self.ip['bar_colors']["failed_pgl"], linestyle="--", zorder=2)
+                    line_color = self.ip['bar_colors']["failed_pgl"]
+                else:
+                    self.ax.bar([j], measure[j], color=self.ip['bar_colors']["pgl"], edgecolor="black")
+
+                # Add the PGL lines
+                self.ax.plot((j - 0.4, j + 0.4), (quota[j], quota[j]), color=line_color, linestyle="-", zorder=2)
+
+    def results_preference_chart(self):
+        """
+        This method builds the charts for cadet/AFSC preferences
+        """
+
+        # Shorthand
+        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
+        colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
+
+        if self.ip["version"] == "quantity_bar_proportion":
+
+            # Counts
+            counts = {"bottom_choices": np.zeros(self.c['M']), "mid_choices": np.zeros(self.c['M']),
+                      "top_choices": np.zeros(self.c['M'])}
+
+            if self.ip["objective"] == "Utility":
+
+                # Get the title
+                self.ip["title"] = "Cadet Preference Breakdown Across Each AFSC"
+
+                # Legend
+                self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["top_choices"],
+                                                   label='Top 3 Choices', edgecolor='black'),
+                                             Patch(facecolor=self.ip['bar_colors']["mid_choices"],
+                                                   label='Next 3 Choices', edgecolor='black'),
+                                             Patch(facecolor=self.ip['bar_colors']["bottom_choices"],
+                                                   label='Non-Volunteer', edgecolor='black')]
+
+                # Cadet Choice Counts
+                for index, j in enumerate(self.c['J']):
+                    counts['top_choices'][index] = metrics['choice_counts']['TOTAL']['Top 3'][j]
+                    counts['mid_choices'][index] = metrics['choice_counts']['TOTAL']['Next 3'][j]
+                    counts['bottom_choices'][index] = metrics['choice_counts']['TOTAL']['Non-Volunteers'][j]
+
+
+            else:
+
+                # Get the title
+                self.ip["title"] = "AFSC Preference Breakdown"
+
+                # Legend
+                self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["top_choices"], label='Top Third',
+                                                   edgecolor='black'),
+                                             Patch(facecolor=self.ip['bar_colors']["mid_choices"], label='Middle Third',
+                                                   edgecolor='black'),
+                                             Patch(facecolor=self.ip['bar_colors']["bottom_choices"],
+                                                   label='Bottom Third', edgecolor='black')]
+
+                # AFSC Choice Counts
+                for i, j in enumerate(self.solution):
+                    if j in self.c['J']:
+                        index = np.where(self.c['J'] == j)[0][0]
+                        if p["afsc_utility"][i, j] < 1 / 3:
+                            counts["bottom_choices"][index] += 1
+                        elif p["afsc_utility"][i, j] < 2 / 3:
+                            counts["mid_choices"][index] += 1
+                        else:
+                            counts["top_choices"][index] += 1
+
+            # Set title and label
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+            self.c['y_label'] = "Number of Cadets"
+
+            # Calculate y-axis attributes
+            self.determine_y_max_and_y_ticks()
+
+            # Loop through each AFSC to plot the bars
+            for index, j in enumerate(self.c["J"]):
+
+                count_sum = 0
+                for cat in counts:
+                    text_color = "black"
+
+                    # Plot the bars
+                    count = counts[cat][index]
+                    self.ax.bar([index], count, bottom=count_sum, edgecolor="black", color=self.ip['bar_colors'][cat])
+                    count_sum += count
+
+                    # Put a number on the bar
+                    if count >= 10:
+                        self.ax.text(index, (count_sum - count / 2 - 2), int(count), color=text_color, zorder=2,
+                                     fontsize=self.ip["bar_text_size"], horizontalalignment='center')
+
+                # Add the text
+                self.ax.text(index, self.c['total_count'][index] + 2, int(self.c['total_count'][index]),
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+
+        elif self.ip["version"] in ["dot", "bar"]:
+
+            # Get the title and filename
+            self.ip["title"] = self.label_dict[self.ip["objective"]] + " Across Each AFSC"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+
+            # Average Utility Chart (simple)
+            self.c['y_ticks'] = [0, 0.2, 0.4, 0.6, 0.8, 1]
+            self.c['use_calculated_y_max'] = True
+            self.ax.bar(afscs, measure, color="black", edgecolor='black', alpha=self.ip["alpha"])
+
+            for j in range(self.c['M']):
+
+                # Add the text
+                self.ax.text(j, measure[j] + 0.013, round(measure[j], 2), fontsize=self.ip["text_size"],
+                             horizontalalignment='center')
+
+        elif self.ip["version"] == "quantity_bar_gradient":
+
+            # Get the title and filename
+            self.ip["title"] = "Cadet Satisfaction Breakdown Across Each AFSC"
+            if self.ip["solution_in_title"]:
+                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+            self.c['y_label'] = 'Number of Cadets'
+
+            # Calculate y-axis attributes
+            self.determine_y_max_and_y_ticks()
+
+            # Build the gradient chart
+            self.construct_gradient_chart(parameter_to_use='utility')
 
 
 # Value Parameters
@@ -630,1651 +1670,6 @@ def individual_weight_graph(instance):
 
     if ip["save"]:
         fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
-                    bbox_inches='tight')
-
-    return fig
-
-
-# Results
-def afsc_results_graph(instance):
-    """
-    Displays an AFSC-based results chart
-    """
-
-    # Shorthand
-    ip = instance.plt_p
-    p = instance.parameters
-    vp = instance.value_parameters
-    y_max = ip["y_max"]
-
-    # Create figure
-    fig, ax = plt.subplots(figsize=ip['figsize'], facecolor=ip['facecolor'], tight_layout=True, dpi=ip['dpi'])
-
-    # Initially assume we have a tick mark for every AFSC (unless we're skipping them)
-    afscs = p["afscs"][:len(p["afscs"]) - 1]  # Remove the * unmatched cadets
-    M = len(afscs)
-    indices = np.arange(M)  # Indices of AFSCs we will plot
-    if ip["skip_afscs"]:  # Indices of AFSCs we will label (can skip sometimes)
-        tick_indices = np.arange(1, M, 2).astype(int)
-    else:
-        tick_indices = indices
-
-    # Check if we're comparing solutions or just showing one solution
-    if ip["compare_solutions"]:  # Comparing two or more solutions (Dot charts)
-
-        # Shorthand
-        m_dict = instance.metrics_dict[ip["vp_name"]]
-        vp = instance.vp_dict[ip["vp_name"]]  # In case the set of value parameters doesn't match current selected one
-
-        # We're plotting the value(s) for a particular objective (or overall Value)
-        if ip["results_graph"] == "Value":
-
-            # Initialize some chart elements
-            y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
-            max_value = np.zeros(M)
-            min_value = np.repeat(1000, M)
-            max_solution = np.zeros(M).astype(int)
-            legend_elements = []
-
-            # Loop through each solution
-            for s, solution in enumerate(ip["solution_names"]):
-
-                # Determine what kind of objective we're showing
-                if ip["objective"] == "Overall":
-                    value = m_dict[solution]["afsc_value"]
-                    y_label = "Overall Value"
-                else:
-                    if ip["objective"] not in vp["objectives"]:
-                        raise ValueError("Error, objective '" + str(ip["objective"]) + "' is not in list of objectives")
-                    else:
-                        k = np.where(vp["objectives"] == ip["objective"])[0][0]
-                        indices = np.where(vp["objective_weight"][:, k] != 0)[0]
-                        value = m_dict[solution]["objective_value"][indices, k]
-                        afscs = p["afscs"][indices]
-                        M = len(afscs)
-                        y_label = ip["objective"] + " Value"
-                        if M < p["M"]:
-                            tick_indices = np.arange(len(afscs))  # Make sure we're not skipping AFSCs at this point
-
-                # Dot Chart
-                ax.scatter(afscs, value, color=ip["colors"][solution], marker=ip["markers"][solution],
-                           alpha=ip["alpha"], edgecolor='black', s=ip["dot_size"], zorder=2)
-
-                max_value = np.array([max(max_value[j], value[j]) for j in range(M)])
-                min_value = np.array([min(min_value[j], value[j]) for j in range(M)])
-                for j in range(M):
-                    if max_value[j] == value[j]:
-                        max_solution[j] = s
-                element = mlines.Line2D([], [], color=ip["colors"][solution], marker=ip["markers"][solution],
-                                        linestyle='None', markeredgecolor='black', markersize=ip["marker_size"],
-                                        label=solution, alpha=ip["alpha"])
-                legend_elements.append(element)
-
-            # Add dot lines
-            for j in range(M):
-                ax.plot((j, j), (0, max_value[j]), color='black', linestyle='--', zorder=1, alpha=0.4, linewidth=2)
-
-            ax.legend(handles=legend_elements, edgecolor='black', fontsize=ip["legend_size"], loc='upper left',
-                      ncol=ip["num_solutions"], columnspacing=0.5, handletextpad=0.05, borderaxespad=0.5, borderpad=0.2)
-
-            if ip["title"] is None:
-
-                # Create the title!
-                if ip["num_solutions"] == 1:
-                    ip['title'] = ip["solution_names"][0] + " " + ip["objective"] + " AFSC Value Chart"
-                elif ip["num_solutions"] == 2:
-                    ip['title'] = ip["solution_names"][0] + " and " + ip["solution_names"][1] + \
-                                  ip["objective"] + " AFSC Value Chart"
-                elif ip["num_solutions"] == 3:
-                    ip['title'] = ip["solution_names"][0] + ", " + ip["solution_names"][1] + \
-                                  ", and " + ip["solution_names"][2] + ip["objective"] + " AFSC Value Chart"
-                else:
-                    ip['title'] = ip["solution_names"][0] + ", " + ip["solution_names"][1] + \
-                                  ", " + ip["solution_names"][2] + ", and " + ip["solution_names"][3] + \
-                                  " " + ip["objective"] + " AFSC Value Chart"
-
-        # We're plotting the measure(s) for a particular objective
-        else:
-            label_dict = {"Merit": "Average Merit", "USAFA Proportion": "USAFA Proportion",
-                          "Combined Quota": "Percent of PGL Target Met", "USAFA Quota": "Number of USAFA Cadets",
-                          "ROTC Quota": "Number of ROTC Cadets", "Mandatory": "Mandatory Degree Tier Proportion",
-                          "Desired": "Desired Degree Tier Proportion", "Permitted":
-                              "Permitted Degree Tier Proportion", "Male": "Proportion of Male Cadets",
-                          "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility",
-                          "Norm Score": "Normalized Preference Score"}
-
-            # Get the correct objective elements
-            k = np.where(vp["objectives"] == ip["objective"])[0][0]
-            y_label = label_dict[ip["objective"]]
-            if ip["objective"] in ["Merit", "USAFA Proportion", "Male", "Minority"] and ip["all_afscs"]:
-                indices = np.arange(M)
-            else:
-                indices = np.where(vp["objective_weight"][:, k] != 0)[0]
-                afscs = p["afscs"][indices]
-                M = len(afscs)  # Number of AFSCs being plotted
-                if M < p["M"]:
-                    tick_indices = np.arange(len(afscs))  # Make sure we're not skipping AFSCs at this point
-
-            # Make sure at least one AFSC has this objective selected
-            if len(afscs) == 0:
-                raise ValueError("Error. No AFSCs have objective '" + ip["objective"] + "'.")
-
-            # Shared elements
-            legend_elements = []
-            max_measure = np.zeros(M)
-            if ip["title"] is None:
-
-                # Create the title!
-                if ip["num_solutions"] == 1:
-                    ip['title'] = ip["solution_names"][0] + " " + label_dict[ip["objective"]] + " Across Each AFSC"
-                elif ip["num_solutions"] == 2:
-                    ip['title'] = ip["solution_names"][0] + " and " + ip["solution_names"][1] + \
-                                  " " + label_dict[ip["objective"]] + " Across Each AFSC"
-                elif ip["num_solutions"] == 3:
-                    ip['title'] = ip["solution_names"][0] + ", " + ip["solution_names"][1] + \
-                                  ", and " + ip["solution_names"][2] + " " + \
-                                  label_dict[ip["objective"]] + " Across Each AFSC"
-                else:
-                    ip['title'] = ip["solution_names"][0] + ", " + ip["solution_names"][1] + \
-                                  ", " + ip["solution_names"][2] + ", and " + ip["solution_names"][3] + \
-                                  " " + label_dict[ip["objective"]] + " Across Each AFSC"
-
-            # Matters for Quota and AFOCD objectives
-            x_under = []
-            x_over = []
-            quota_percent_filled = np.zeros(M)
-            max_quota_percent = np.zeros(M)
-            y_top = 0
-
-            # Loop through each solution
-            for s, solution in enumerate(ip["solution_names"]):
-
-                # Calculate objective measure
-                measure = m_dict[solution]["objective_measure"][indices, k]
-                if ip["objective"] == "Combined Quota":
-
-                    # Assign the right color to the AFSCs
-                    for j in range(M):
-
-                        # Get bounds
-                        value_list = vp['objective_value_min'][j, k].split(",")
-                        ub = float(value_list[1].strip())  # upper bound
-                        if "pgl" in p:
-                            quota = p["pgl"][j]
-                        else:
-                            quota = p['quota'][j]
-
-                        # Constraint violations
-                        if quota > measure[j]:
-                            x_under.append(j)
-                        elif measure[j] > ub:
-                            x_over.append(j)
-
-                        quota_percent_filled[j] = measure[j] / quota
-                        max_quota_percent[j] = ub / quota
-
-                    # Top dot location
-                    y_top = max(y_top, max(quota_percent_filled))
-
-                    # Plot the points
-                    ax.scatter(afscs, quota_percent_filled, color=ip["colors"][solution],
-                               marker=ip["markers"][solution], alpha=ip["alpha"], edgecolor='black',
-                               s=ip["dot_size"], zorder=ip["zorder"][solution])
-
-                else:
-
-                    # Plot the points
-                    ax.scatter(afscs, measure, color=ip["colors"][solution], marker=ip["markers"][solution],
-                               alpha=ip["alpha"], edgecolor='black', s=ip["dot_size"],
-                               zorder=ip["zorder"][solution])
-
-                max_measure = np.array([max(max_measure[j], measure[j]) for j in range(M)])
-                element = mlines.Line2D([], [], color=ip["colors"][solution], marker=ip["markers"][solution],
-                                        linestyle='None', markeredgecolor='black', markersize=15, label=solution,
-                                        alpha=ip["alpha"])
-                legend_elements.append(element)
-
-            # Lines to the top solution's dot
-            if ip["objective"] not in ["Combined Quota", "Mandatory", "Desired", "Permitted"]:
-                for j in range(M):
-                    ax.plot((j, j), (0, max_measure[j]), color='black', linestyle='--', zorder=1, alpha=0.5,
-                            linewidth=2)
-
-            # Objective Specific elements
-            if ip["objective"] == "Merit":
-
-                # Tick marks and extra lines
-                y_ticks = [0, 0.35, 0.50, 0.65, 0.80, 1]
-                ax.plot((-1, 50), (0.65, 0.65), color='black', linestyle='-', zorder=1, alpha=1, linewidth=1.5)
-                ax.plot((-1, 50), (0.5, 0.5), color='black', linestyle='--', zorder=1, alpha=1, linewidth=1.5)
-                ax.plot((-1, 50), (0.35, 0.35), color='black', linestyle='-', zorder=1, alpha=1, linewidth=1.5)
-
-                # Set the max for the y-axis
-                y_max = y_max * np.max(max_measure)
-
-            elif ip["objective"] in ["USAFA Proportion", "Male", "Minority"]:
-
-                # Demographic Proportion elements
-                prop_dict = {"USAFA Proportion": "usafa_proportion", "Male": "male_proportion",
-                             "Minority": "minority_proportion"}
-                up_lb = round(p[prop_dict[ip["objective"]]] - 0.15, 2)
-                up_ub = round(p[prop_dict[ip["objective"]]] + 0.15, 2)
-                up = round(p[prop_dict[ip["objective"]]], 2)
-                y_ticks = [0, up_lb, up, up_ub, 1]
-
-                # Add lines for the ranges
-                ax.axhline(y=up, color='black', linestyle='--', alpha=0.5)
-                ax.axhline(y=up_lb, color='blue', linestyle='-', alpha=0.5)
-                ax.axhline(y=up_ub, color='blue', linestyle='-', alpha=0.5)
-
-                # Set the max for the y-axis
-                y_max = y_max * np.max(max_measure)
-
-            elif ip["objective"] in ["Mandatory", "Desired", "Permitted"]:
-
-                # Degree Tier elements
-                y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
-                minimums = np.zeros(M)
-                maximums = np.zeros(M)
-
-                # Assign the right color to the AFSCs
-                for j, loc in enumerate(indices):
-                    if "Increasing" in vp["value_functions"][loc, k]:
-                        minimums[j] = vp['objective_target'][loc, k]
-                        maximums[j] = 1
-                    else:
-                        minimums[j] = 0
-                        maximums[j] = vp['objective_target'][loc, k]
-
-                # Calculate ranges
-                y = [(minimums[j], maximums[j]) for j in range(M)]
-                y_lines = [(0, minimums[j]) for j in range(M)]
-
-                # Plot bounds
-                ax.scatter(range(M), minimums, c="black", marker="_", linewidth=2, zorder=1)
-                ax.scatter(range(M), maximums, c="black", marker="_", linewidth=2, zorder=1)
-
-                # Constraint Range
-                ax.plot((range(M), range(M)), ([i for (i, j) in y], [j for (i, j) in y]),
-                        c="black", zorder=1)
-
-                # Line from x-axis to constraint range
-                ax.plot((range(M), range(M)), ([i for (i, j) in y_lines], [j for (i, j) in y_lines]),
-                        c="black", zorder=1, alpha=0.5, linestyle='--', linewidth=2)
-
-            elif ip["objective"] == "Combined Quota":
-
-                # Y axis adjustments
-                y_ticks = [0, 0.5, 1, 1.5, 2]
-                y_max = y_max * y_top
-
-                # Lines
-                y_mins = np.repeat(1, M)
-                y_maxs = max_quota_percent
-                y = [(y_mins[i], y_maxs[i]) for i in range(M)]
-                y_under = [(quota_percent_filled[j], 1) for j in x_under]
-                y_over = [(max_quota_percent[j], quota_percent_filled[j]) for j in x_over]
-
-                # Plot Bounds
-                ax.scatter(indices, y_mins, c=np.repeat('black', M), marker="_", linewidth=2, zorder=1)
-                ax.scatter(indices, y_maxs, c=np.repeat('black', M), marker="_", linewidth=2, zorder=1)
-
-                # Plot Range Lines
-                ax.plot((indices, indices), ([i for (i, j) in y], [j for (i, j) in y]), c='black', zorder=1)
-                ax.plot((x_under, x_under), ([i for (i, j) in y_under], [j for (i, j) in y_under]), c='black',
-                        linestyle='--', zorder=1)
-                ax.plot((x_over, x_over), ([i for (i, j) in y_over], [j for (i, j) in y_over]), c='black',
-                        linestyle='--',
-                        zorder=1)
-                ax.plot((indices, indices), (np.zeros(M), np.ones(M)), c='black', linestyle='--', alpha=0.3,
-                        zorder=1)
-
-                # Quota Line
-                ax.axhline(y=1, color='black', linestyle='-', alpha=0.5, zorder=1)
-
-            elif ip["objective"] in ["Utility", "Norm Score"]:
-
-                # Tick marks and extra lines
-                y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
-
-            # Create a legend
-            if legend_elements is not None:
-                ax.legend(handles=legend_elements, edgecolor='black', fontsize=ip["legend_size"],
-                          ncol=2, columnspacing=0.5, handletextpad=0.05, borderaxespad=0.5, borderpad=0.2)
-
-    else:  # Viewing one solution (Can be bar charts)
-
-        # We're plotting the value for a particular objective (or overall Value)
-        if ip["results_graph"] == "Value":
-
-            # Initialize some chart specifics
-            y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
-
-            # Determine what kind of objective we're showing
-            if ip["objective"] == "Overall":
-                value = instance.metrics["afsc_value"]
-                y_label = "Overall Value"
-            else:
-                if ip["objective"] not in vp["objectives"]:
-                    raise ValueError("Error, objective '" + str(ip["objective"]) + "' is not in list of objectives")
-                else:
-                    k = np.where(vp["objectives"] == ip["objective"])[0][0]
-                    indices = np.where(vp["objective_weight"][:, k] != 0)[0]
-                    value = instance.metrics["objective_value"][indices, k]
-                    afscs = p["afscs"][indices]
-                    y_label = ip["objective"] + " Value"
-                    if len(afscs) < p["M"]:
-                        tick_indices = np.arange(len(afscs))  # Make sure we're not skipping AFSCs at this point
-
-            if ip["title"] is None:
-                ip['title'] = instance.solution_name + " " + ip["objective"] + " AFSC Value Chart"
-
-            # Bar Chart
-            ax.bar(afscs, value, color=ip["bar_color"], alpha=ip["alpha"], edgecolor='black')
-
-        # We're plotting the measure for a particular objective
-        else:
-
-            legend_elements = None  # Assume there is no legend until there is one
-            use_calculated_y_max = False
-            if ip["objective"] != "Extra":
-
-                label_dict = {"Merit": "Average Merit", "USAFA Proportion": "USAFA Proportion",
-                              "Combined Quota": "Percent of PGL Target Met", "USAFA Quota": "Number of USAFA Cadets",
-                              "ROTC Quota": "Number of ROTC Cadets", "Mandatory": "Mandatory Degree Tier Proportion",
-                              "Desired": "Desired Degree Tier Proportion", "Permitted":
-                                  "Permitted Degree Tier Proportion", "Male": "Proportion of Male Cadets",
-                              "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility",
-                              "Norm Score": "Normalized Preference Score"}
-
-                # Get the correct objective elements
-                k = np.where(vp["objectives"] == ip["objective"])[0][0]
-                y_label = label_dict[ip["objective"]]
-
-                if ip["objective"] in ["Merit", "USAFA Proportion", "Male", "Minority"] and ip["all_afscs"]:
-                    measure = instance.metrics["objective_measure"][:, k]
-                else:
-                    indices = np.where(vp["objective_weight"][:, k] != 0)[0]
-                    measure = instance.metrics["objective_measure"][indices, k]
-                    afscs = p["afscs"][indices]
-                    M = len(afscs)  # Number of AFSCs being plotted
-                    if M < p["M"]:
-                        tick_indices = np.arange(len(afscs))  # Make sure we're not skipping AFSCs at this point
-
-                # Make sure at least one AFSC has this objective selected
-                if len(afscs) == 0:
-                    raise ValueError("Error. No AFSCs have objective '" + ip["objective"] + "'.")
-
-                # Get the correct quota
-                if "pgl" in p:
-                    quota = p["pgl"][indices]
-                else:
-                    quota = p["quota"][indices]
-
-                # Shared elements
-                colors = np.array([" " * 10 for _ in range(len(afscs))])
-
-                # Objective specific elements
-                if ip["objective"] == "Merit":
-
-                    if ip["version"] == "large_only_bar":
-
-                        # Get the title and filename
-                        ip["title"] = "Average Merit Across Each Large AFSC"
-                        ip["filename"] = instance.solution_name + " Merit_Average_Large_AFSCs"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-
-                        # Set the max for the y-axis
-                        use_calculated_y_max = True
-                        y_max = y_max  # * np.max(measure)
-
-                        # Merit elements
-                        y_ticks = [0, 0.35, 0.50, 0.65, 0.80, 1]
-
-                        # Assign the right color to the AFSCs
-                        for j in range(len(afscs)):
-                            if 0.35 <= measure[j] <= 0.65:
-                                colors[j] = ip['bar_colors']["merit_within"]
-                            elif measure[j] > 0.65:
-                                colors[j] = ip['bar_colors']["merit_above"]
-                            else:
-                                colors[j] = ip['bar_colors']["merit_below"]
-
-                        # Add lines for the ranges
-                        ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.5)
-                        ax.axhline(y=0.35, color='blue', linestyle='-', alpha=0.5)
-                        ax.axhline(y=0.65, color='blue', linestyle='-', alpha=0.5)
-
-                        # Bar Chart
-                        ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=ip["alpha"])
-
-                    elif ip["version"] == "bar":
-
-                        # Get the title and filename
-                        ip["title"] = "Average Merit Across Each AFSC"
-                        ip["filename"] = instance.solution_name + " Merit_Average_All_AFSCs"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-
-                        # Set the max for the y-axis
-                        use_calculated_y_max = True
-                        y_max = y_max  # * np.max(measure)
-
-                        # Merit elements
-                        y_ticks = [0, 0.35, 0.50, 0.65, 0.80, 1]
-                        legend_elements = [Patch(facecolor=ip['bar_colors']["small_afscs"], label='Small AFSC'),
-                                           Patch(facecolor=ip['bar_colors']["large_afscs"], label='Large AFSC'),
-                                           mlines.Line2D([], [], color="blue", linestyle='-', label="Bound")]
-
-                        # Assign the right color to the AFSCs
-                        for j in range(len(afscs)):
-                            if quota[j] >= 40:
-                                colors[j] = ip['bar_colors']["large_afscs"]
-                            else:
-                                colors[j] = ip['bar_colors']["small_afscs"]
-
-                            # Add the text
-                            ax.text(j, measure[j] + 0.013, round(measure[j], 2),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-
-                        # Add lines for the ranges
-                        ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.5)
-                        ax.axhline(y=0.35, color='blue', linestyle='-', alpha=0.5)
-                        ax.axhline(y=0.65, color='blue', linestyle='-', alpha=0.5)
-
-                        # Bar Chart
-                        ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=ip["alpha"])
-
-                    elif ip["version"] == "quantity_bar_gradient":
-
-                        # Get the title and filename
-                        ip["title"] = "Cadet Merit Breakdown Across Each AFSC"
-                        ip["filename"] = instance.solution_name + " Merit_PGL_Sorted_Gradient"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-                        label_dict["Merit"] = "Number of Cadets"
-                        y_label = label_dict[ip["objective"]]
-
-                        # Plot the number of cadets and the PGL
-                        if "pgl" in p:
-                            quota = p["pgl"][indices]
-                        else:
-                            quota = p["quota"][indices]
-
-                        # Need to know number of cadets assigned
-                        quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
-                        total_count = instance.metrics["objective_measure"][:, quota_k]
-
-                        # Sort the AFSCs by the PGL
-                        if ip["sort_by_pgl"]:
-                            indices = np.argsort(quota)[::-1]
-
-                        # Sort the AFSCs by the number of cadets assigned
-                        else:
-                            indices = np.argsort(total_count)[::-1]
-
-                        afscs = afscs[indices]
-                        measure = measure[indices]
-                        total_count = total_count[indices]
-
-                        # Y max
-                        y_max = y_max * max(total_count)
-                        if 100 <= y_max < 150:
-                            y_ticks = [50, 100, 150]
-                        elif 150 <= y_max < 200:
-                            y_ticks = [50, 100, 150, 200]
-                        elif 200 <= y_max < 250:
-                            y_ticks = [50, 100, 150, 200, 250]
-                        elif 250 <= y_max < 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300]
-                        elif y_max >= 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                        else:
-                            y_ticks = [50]
-
-                        for index, afsc in enumerate(afscs):
-                            j = np.where(p["afscs"] == afsc)[0][0]
-                            cadets = np.where(instance.solution == j)[0]
-                            merit = p["merit"][cadets]
-                            uq = np.unique(merit)
-                            count_sum = 0
-                            for val in uq:
-                                count = len(np.where(merit == val)[0])
-                                # c = (1 - val, 0, val)  # Blue to Red
-                                c = str(val)  # Grayscale
-                                ax.bar([index], count, bottom=count_sum, color=c, zorder=2)
-                                count_sum += count
-
-                            # Add an outline
-                            ax.bar([index], total_count[index], color="black", zorder=1, edgecolor="black")
-
-                            # Add the text
-                            ax.text(index, total_count[index] + 2, int(total_count[index]),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-
-                        # DIY Colorbar
-                        h = (100 / 245) * y_max
-                        w1 = 0.8
-                        w2 = 0.74
-                        vals = np.arange(101) / 100
-                        current_height = (150 / 245) * y_max
-                        ax.add_patch(Rectangle((M - 2, current_height), w1, h, edgecolor='black', facecolor='black',
-                                               fill=True, lw=2))
-                        ax.text(M - 3.3, (245 / 245) * y_max, '100%', fontsize=ip["xaxis_tick_size"])
-                        ax.text(M - 2.8, current_height, '0%', fontsize=ip["xaxis_tick_size"])
-                        ax.text((M - 0.95), (166 / 245) * y_max, 'Cadet Percentile', fontsize=ip["xaxis_tick_size"],
-                                rotation=270)
-                        for val in vals:
-                            # c = (1 - val, 0, val)  # Blue to Red
-                            c = str(val)  # Grayscale
-                            ax.add_patch(Rectangle((M - 1.95, current_height), w2, h / 101, color=c, fill=True))
-                            current_height += h / 101
-
-                    else:  # quantity_bar_proportion  (Quartiles in this case)
-
-                        # Get the title and filename
-                        ip["title"] = "Cadet Quartiles Across Each AFSC"
-                        ip["filename"] = instance.solution_name + " Merit_PGL_Sorted_Quartile"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-                        label_dict["Merit"] = "Number of Cadets"
-                        y_label = label_dict[ip["objective"]]
-
-                        # Legend
-                        legend_elements = [Patch(facecolor=ip['bar_colors']["quartile_1"], label='1st Quartile'),
-                                           Patch(facecolor=ip['bar_colors']["quartile_2"], label='2nd Quartile'),
-                                           Patch(facecolor=ip['bar_colors']["quartile_3"], label='3rd Quartile'),
-                                           Patch(facecolor=ip['bar_colors']["quartile_4"], label='4th Quartile')]
-
-                        # Plot the number of cadets and the PGL
-                        if "pgl" in p:
-                            quota = p["pgl"][indices]
-                        else:
-                            quota = p["quota"][indices]
-
-                        # Need to know number of cadets assigned
-                        quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
-                        total_count = instance.metrics["objective_measure"][:, quota_k]
-
-                        # Sort the AFSCs by the PGL
-                        if ip["sort_by_pgl"]:
-                            indices = np.argsort(quota)[::-1]
-
-                        # Sort the AFSCs by the number of cadets assigned
-                        else:
-                            indices = np.argsort(total_count)[::-1]
-
-                        afscs = afscs[indices]
-                        total_count = total_count[indices]
-
-                        # Y max
-                        y_max = y_max * max(total_count)
-                        if 100 <= y_max < 150:
-                            y_ticks = [50, 100, 150]
-                        elif 150 <= y_max < 200:
-                            y_ticks = [50, 100, 150, 200]
-                        elif 200 <= y_max < 250:
-                            y_ticks = [50, 100, 150, 200, 250]
-                        elif 250 <= y_max < 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300]
-                        elif y_max >= 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                        else:
-                            y_ticks = [50]
-
-                        percentile_dict = {1: (0.75, 1), 2: (0.5, 0.75), 3: (0.25, 0.5), 4: (0, 0.25)}
-                        for index, afsc in enumerate(afscs):
-                            j = np.where(p["afscs"] == afsc)[0][0]
-                            cadets = np.where(instance.solution == j)[0]
-                            merit = p["merit"][cadets]
-
-                            # Loop through each quartile
-                            count_sum = 0
-                            for q in [4, 3, 2, 1]:
-                                lb, ub = percentile_dict[q][0], percentile_dict[q][1]
-                                count = len(np.where((merit <= ub) & (merit > lb))[0])
-                                ax.bar([index], count, bottom=count_sum,
-                                       color=ip['bar_colors']["quartile_" + str(q)], zorder=2)
-                                count_sum += count
-
-                                # Put a number on the bar
-                                if count >= 10:
-                                    if q == 1:
-                                        c = "white"
-                                    else:
-                                        c = "black"
-                                    ax.text(index - 0.2, (count_sum - count / 2 - 2), int(count), color=c,
-                                            zorder=3, fontsize=ip["bar_text_size"])
-
-                            # Add the text and an outline
-                            ax.text(index, total_count[index] + 2, int(total_count[index]),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-                            ax.bar([index], total_count[index], color="black", zorder=1, edgecolor="black")
-
-                elif ip["objective"] in ["USAFA Proportion", "Male", "Minority"]:
-
-                    # Demographic Proportion elements
-                    prop_dict = {"USAFA Proportion": "usafa_proportion", "Male": "male_proportion",
-                                 "Minority": "minority_proportion"}
-                    legend_dict = {"USAFA Proportion": "USAFA Proportion", "Male": "Male Proportion",
-                                   "Minority": "Minority Proportion"}
-                    up_lb = round(p[prop_dict[ip["objective"]]] - 0.15, 2)
-                    up_ub = round(p[prop_dict[ip["objective"]]] + 0.15, 2)
-                    up = round(p[prop_dict[ip["objective"]]], 2)
-
-                    if ip["version"] == "large_only_bar":
-                        y_ticks = [0, up_lb, up, up_ub, 1]
-                        legend_elements = [Patch(facecolor=ip['bar_colors']["large_within"],
-                                                 label=str(up_lb) + ' < ' + legend_dict[
-                                                     ip["objective"]] + ' < ' + str(up_ub)),
-                                           Patch(facecolor=ip['bar_colors']["large_else"], label='Otherwise')]
-
-                        # Get the title and filename
-                        ip["title"] = legend_dict[ip["objective"]] + " Across Large AFSCs"
-                        split_words = legend_dict[ip["objective"]].split(" ")
-                        ip["filename"] = instance.solution_name + " " + split_words[0] + "_" + \
-                                         split_words[1] + "_Large_AFSCs"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-
-                        # Set the max for the y-axis
-                        use_calculated_y_max = True
-                        y_max = y_max  # * np.max(measure)
-
-                        # Assign the right color to the AFSCs
-                        for j in range(len(afscs)):
-                            if up_lb <= measure[j] <= up_ub:
-                                colors[j] = ip['bar_colors']["large_within"]
-                            else:
-                                colors[j] = ip['bar_colors']["large_else"]
-
-                        # Add lines for the ranges
-                        ax.axhline(y=up, color='black', linestyle='--', alpha=0.5)
-                        ax.axhline(y=up_lb, color='blue', linestyle='-', alpha=0.5)
-                        ax.axhline(y=up_ub, color='blue', linestyle='-', alpha=0.5)
-
-                        # Bar Chart
-                        ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=ip["alpha"])
-
-                    elif ip["version"] == "bar":
-
-                        # Get the title and filename
-                        ip["title"] = legend_dict[ip["objective"]] + " Across Each AFSC"
-                        split_words = legend_dict[ip["objective"]].split(" ")
-                        ip["filename"] = instance.solution_name + " " + split_words[0] + "_" + \
-                                         split_words[1] + "_All_AFSCs"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-
-                        # Set the max for the y-axis
-                        use_calculated_y_max = True
-                        y_max = y_max  # * np.max(measure)
-
-                        # Merit elements
-                        y_ticks = [0, up_lb, up, up_ub, 1]
-                        legend_elements = [Patch(facecolor=ip['bar_colors']["small_afscs"], label='Small AFSC'),
-                                           Patch(facecolor=ip['bar_colors']["large_afscs"], label='Large AFSC'),
-                                           mlines.Line2D([], [], color="blue", linestyle='-', label="Bound")]
-
-                        # Assign the right color to the AFSCs
-                        for j in range(len(afscs)):
-                            if quota[j] >= 40:
-                                colors[j] = ip['bar_colors']["large_afscs"]
-                            else:
-                                colors[j] = ip['bar_colors']["small_afscs"]
-
-                            # Add the text
-                            ax.text(j, measure[j] + 0.013, round(measure[j], 2),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-
-                        # Add lines for the ranges
-                        ax.axhline(y=up, color='black', linestyle='--', alpha=0.5)
-                        ax.axhline(y=up_lb, color='blue', linestyle='-', alpha=0.5)
-                        ax.axhline(y=up_ub, color='blue', linestyle='-', alpha=0.5)
-
-                        # Bar Chart
-                        ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=ip["alpha"])
-
-                    elif ip["version"] == "preference_chart":
-
-                        if ip["objective"] == "USAFA Proportion":
-
-                            # Get the title and filename
-                            ip["title"] = "USAFA/ROTC Non-Volunteers Across Each AFSC"
-                            ip["filename"] = instance.solution_name + " SOC_Preference_AFSCs"
-                            if ip["solution_in_title"]:
-                                ip['title'] = instance.solution_name + ": " + ip['title']
-                            y_label = "Number of Cadets"
-                            classes = ["USAFA", "ROTC"]
-
-                        elif ip["objective"] == "Male":
-
-                            # Get the title and filename
-                            ip["title"] = "Male/Female Non-Volunteers Across Each AFSC"
-                            ip["filename"] = instance.solution_name + " Gender_Preference_AFSCs"
-                            if ip["solution_in_title"]:
-                                ip['title'] = instance.solution_name + ": " + ip['title']
-                            y_label = "Number of Cadets"
-                            classes = ["Male", "Female"]
-
-                        else:  # Minority
-
-                            # Get the title and filename
-                            ip["title"] = "Minority/Non-Minority Non-Volunteers Across Each AFSC"
-                            ip["filename"] = instance.solution_name + " Minority_Preference_AFSCs"
-                            if ip["solution_in_title"]:
-                                ip['title'] = instance.solution_name + ": " + ip['title']
-                            y_label = "Number of Cadets"
-                            classes = ["Minority", "Non-Minority"]
-
-                        # Get the correct quota
-                        if "pgl" in p:
-                            quota = p["pgl"][indices]
-                        else:
-                            quota = p["quota"][indices]
-
-                        # Need to know number of cadets assigned
-                        quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
-                        total_count = instance.metrics["objective_measure"][:, quota_k]
-
-                        # Sort the AFSCs by the PGL
-                        if ip["sort_by_pgl"]:
-                            indices = np.argsort(quota)[::-1]
-
-                        # Sort the AFSCs by the number of cadets assigned
-                        else:
-                            indices = np.argsort(total_count)[::-1]
-
-                        # Categories! (Volunteers/Non-Volunteers)
-                        categories = ["Volunteer", "Non-Volunteer"]
-
-                        # Sort AFSCs
-                        afscs = afscs[indices]
-                        total_count = total_count[indices]
-
-                        # Get the counts for each category and class
-                        counts = {cls: {cat: np.zeros(M) for cat in categories} for cls in classes}
-                        dem = classes[0].lower()  # reference demographic (male, usafa, minority, etc.)
-                        for index, afsc in enumerate(afscs):
-                            j = np.where(p["afscs"] == afsc)[0][0]
-                            cadets_assigned = np.where(instance.solution == j)[0]
-                            cadets_with_demographic = np.where(p[dem] == 1)[0]
-
-                            cadets_class = {classes[0]: np.intersect1d(cadets_assigned, cadets_with_demographic),
-                                            classes[1]: np.array([
-                                                cadet for cadet in cadets_assigned if
-                                                cadet not in cadets_with_demographic])}
-
-                            if categories == ["Volunteer", "Non-Volunteer"]:
-                                cadets_with_category = np.where(p["utility"][:, j] > 0)[0]
-                                cadets_cat = {"Volunteer": np.intersect1d(cadets_assigned, cadets_with_category),
-                                              "Non-Volunteer": np.array([
-                                                  cadet for cadet in cadets_assigned if
-                                                  cadet not in cadets_with_category])}
-
-                            for cls in classes:
-                                for cat in categories:
-                                    counts[cls][cat][index] = len(np.intersect1d(cadets_class[cls], cadets_cat[cat]))
-
-                            # if j == 0:
-                            #     print(cadets, dem_cadets)
-                            #     print(non_dem_cadets)
-
-                        # Legend
-                        legend_elements = [Patch(facecolor=ip['bar_colors'][cls.lower()], label=cls) for cls in classes]
-                        legend_elements.append(Patch(facecolor=ip['bar_colors']["Non-Volunteer"],
-                                                     label="Non-Volunteer"))
-
-                        # Labels and tick marks
-                        y_max = y_max * max(total_count)
-                        if 100 <= y_max < 150:
-                            y_ticks = [50, 100, 150]
-                        elif 150 <= y_max < 200:
-                            y_ticks = [50, 100, 150, 200]
-                        elif 200 <= y_max < 250:
-                            y_ticks = [50, 100, 150, 200, 250]
-                        elif 250 <= y_max < 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300]
-                        elif y_max >= 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                        else:
-                            y_ticks = [50]
-
-                        # Loop through each AFSC to plot the bars
-                        for index, afsc in enumerate(afscs):
-
-                            # Plot the AFOCD bars
-                            count_sum = 0
-                            for cls in classes[::-1]:
-                                for cat in categories[::-1]:
-
-                                    if cat == "Volunteer":
-                                        color = ip["bar_colors"][cls.lower()]
-                                    else:
-                                        color = ip['bar_colors'][cat]
-
-                                    # Plot the bars
-                                    count = counts[cls][cat][index]
-                                    ax.bar([index], count, bottom=count_sum, edgecolor="black",
-                                           color=color)
-                                    count_sum += count
-
-                                    # Put a number on the bar
-                                    if count >= 10:
-
-                                        if cls in ["Male", "USAFA", "Minority"]:
-                                            color = "white"
-                                        else:
-                                            color = "black"
-                                        ax.text(index, (count_sum - count / 2 - 2),
-                                                int(count), color=color, zorder=2, fontsize=ip["bar_text_size"],
-                                                horizontalalignment='center')
-
-                            # Add the text
-                            ax.text(index, total_count[index] + 2, int(total_count[index]),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-
-                    else:  # Sorted Sized Bar Chart
-
-                        # Get the title and filename
-                        if ip["objective"] == "USAFA Proportion":
-                            ip["title"] = "Source of Commissioning Breakdown Across Each AFSC"
-                            ip["filename"] = instance.solution_name + " SOC_Sorted_Proportion"
-                            label_dict["USAFA Proportion"] = "Number of Cadets"
-
-                            class_1_color = ip['bar_colors']["usafa"]
-                            class_2_color = ip['bar_colors']["rotc"]
-
-                            # Legend
-                            legend_elements = [Patch(facecolor=class_1_color, label='USAFA'),
-                                               Patch(facecolor=class_2_color, label='ROTC')]
-
-                        elif ip["objective"] == "Minority":
-                            ip["title"] = "Minority/Non-Minority Breakdown Across Each AFSC"
-                            ip["filename"] = instance.solution_name + " Minority_Sorted_Proportion"
-                            label_dict["Minority"] = "Number of Cadets"
-
-                            class_1_color = ip['bar_colors']["minority"]
-                            class_2_color = ip['bar_colors']["non-minority"]
-
-                            # Legend
-                            legend_elements = [Patch(facecolor=class_1_color, label='Minority'),
-                                               Patch(facecolor=class_2_color, label='Non-Minority')]
-
-                        else:
-                            ip["title"] = "Gender Breakdown Across Each AFSC"
-                            label_dict["Male"] = "Number of Cadets"
-                            ip["filename"] = instance.solution_name + " Gender_Sorted_Proportion"
-
-                            class_1_color = ip['bar_colors']["male"]
-                            class_2_color = ip['bar_colors']["female"]
-
-                            # Legend
-                            legend_elements = [Patch(facecolor=class_1_color, label='Male'),
-                                               Patch(facecolor=class_2_color, label='Female')]
-
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-                        y_label = label_dict[ip["objective"]]
-
-                        # Plot the number of cadets and the PGL
-                        if "pgl" in p:
-                            quota = p["pgl"][indices]
-                        else:
-                            quota = p["quota"][indices]
-
-                        # Need to know number of cadets assigned
-                        quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
-                        total_count = instance.metrics["objective_measure"][:, quota_k]
-
-                        # Sort the AFSCs by the PGL
-                        if ip["sort_by_pgl"]:
-                            indices = np.argsort(quota)[::-1]
-
-                        # Sort the AFSCs by the number of cadets assigned
-                        else:
-                            indices = np.argsort(total_count)[::-1]
-
-                        afscs = afscs[indices]
-                        total_count = total_count[indices]
-                        measure = measure[indices]
-
-                        # Y max
-                        y_max = y_max * max(total_count)
-                        if 100 <= y_max < 150:
-                            y_ticks = [50, 100, 150]
-                        elif 150 <= y_max < 200:
-                            y_ticks = [50, 100, 150, 200]
-                        elif 200 <= y_max < 250:
-                            y_ticks = [50, 100, 150, 200, 250]
-                        elif 250 <= y_max < 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300]
-                        elif y_max >= 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                        else:
-                            y_ticks = [50]
-
-                        class_1 = measure * total_count
-                        class_2 = (1 - measure) * total_count
-                        ax.bar(afscs, class_2, color=class_2_color, zorder=2, edgecolor="black")
-                        ax.bar(afscs, class_1, bottom=class_2, color=class_1_color, zorder=2,
-                               edgecolor="black")
-                        for j, afsc in enumerate(afscs):
-                            if class_2[j] >= 10:
-                                ax.text(j, class_2[j] / 2, int(class_2[j]), color="black",
-                                        zorder=3, fontsize=ip["bar_text_size"], horizontalalignment='center')
-                            if class_1[j] >= 10:
-                                ax.text(j, class_2[j] + class_1[j] / 2, int(class_1[j]),
-                                        color="white", zorder=3, fontsize=ip["bar_text_size"],
-                                        horizontalalignment='center')
-
-                            # Add the text and an outline
-                            ax.text(j, total_count[j] + 2, round(measure[j], 2), fontsize=ip["text_size"],
-                                    horizontalalignment='center')
-                            # ax.bar([j], total_count[j], color="black", zorder=1, edgecolor="black")
-
-                elif ip["objective"] in ["Mandatory", "Desired", "Permitted"]:
-
-                    # Get the title and filename
-                    ip["title"] = ip["objective"] + " Proportion Across Each AFSC"
-                    ip["filename"] = instance.solution_name + " " + ip["objective"] + "_Proportion_AFSCs"
-                    if ip["solution_in_title"]:
-                        ip['title'] = instance.solution_name + ": " + ip['title']
-
-                    # Degree Tier elements
-                    use_calculated_y_max = True
-                    y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
-                    minimums = np.zeros(M)
-                    maximums = np.zeros(M)
-                    x_under = []
-                    x_over = []
-                    x_within = []
-
-                    # Assign the right color to the AFSCs
-                    for j, loc in enumerate(indices):
-                        if "Increasing" in vp["value_functions"][loc, k]:
-                            minimums[j] = vp['objective_target'][loc, k]
-                            maximums[j] = 1
-                        else:
-                            minimums[j] = 0
-                            maximums[j] = vp['objective_target'][loc, k]
-
-                        if minimums[j] <= measure[j] <= maximums[j]:
-                            colors[j] = "blue"
-                            x_within.append(j)
-                        else:
-                            colors[j] = "red"
-                            if measure[j] < minimums[j]:
-                                x_under.append(j)
-                            else:
-                                x_over.append(j)
-
-                    # Plot points
-                    ax.scatter(afscs, measure, c=colors, linewidths=4, s=ip["dot_size"], zorder=3)
-
-                    # Calculate ranges
-                    y_within = [(minimums[j], maximums[j]) for j in x_within]
-                    y_under_ranges = [(minimums[j], maximums[j]) for j in x_under]
-                    y_over_ranges = [(minimums[j], maximums[j]) for j in x_over]
-                    y_under = [(measure[j], minimums[j]) for j in x_under]
-                    y_over = [(maximums[j], measure[j]) for j in x_over]
-
-                    # Plot bounds
-                    ax.scatter(afscs, minimums, c="black", marker="_", linewidth=2)
-                    ax.scatter(afscs, maximums, c="black", marker="_", linewidth=2)
-
-                    # Plot Ranges
-                    ax.plot((x_within, x_within), ([i for (i, j) in y_within], [j for (i, j) in y_within]),
-                            c="black")
-                    ax.plot((x_under, x_under),
-                            ([i for (i, j) in y_under_ranges], [j for (i, j) in y_under_ranges]), c="black")
-                    ax.plot((x_over, x_over),
-                            ([i for (i, j) in y_over_ranges], [j for (i, j) in y_over_ranges]), c="black")
-
-                    # How far off
-                    ax.plot((x_under, x_under), ([i for (i, j) in y_under], [j for (i, j) in y_under]), c='red',
-                            linestyle='--')
-                    ax.plot((x_over, x_over), ([i for (i, j) in y_over], [j for (i, j) in y_over]), c='red',
-                            linestyle='--')
-
-                elif ip["objective"] == "Combined Quota":
-
-                    if ip["version"] == "dot":
-
-                        # Get the title and filename
-                        ip["title"] = "Percent of PGL Target Met Across Each AFSC"
-                        ip["filename"] = instance.solution_name + " Quota_PGL_Percent"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-
-                        # Degree Tier elements
-                        use_calculated_y_max = True
-                        y_ticks = [0, 0.5, 1, 1.5, 2]
-                        x_under = []
-                        x_over = []
-                        x_within = []
-                        quota_percent_filled = np.zeros(M)
-                        max_quota_percent = np.zeros(M)
-
-                        # Assign the right color to the AFSCs
-                        for j in range(M):
-
-                            # Get bounds
-                            value_list = vp['objective_value_min'][j, k].split(",")
-
-                            if "pgl" in p:
-                                quota = p["pgl"][j]
-                            else:
-                                quota = p['quota'][j]
-                            max_measure = float(value_list[1].strip())
-                            if quota > measure[j]:
-                                colors[j] = "red"
-                                x_under.append(j)
-                            elif quota <= measure[j] <= max_measure:
-                                colors[j] = "blue"
-                                x_within.append(j)
-                            else:
-                                colors[j] = "orange"
-                                x_over.append(j)
-
-                            quota_percent_filled[j] = measure[j] / quota
-                            max_quota_percent[j] = max_measure / quota
-
-                        # Plot points
-                        ax.scatter(afscs, quota_percent_filled, c=colors, linewidths=4, s=ip["dot_size"], zorder=3)
-
-                        # Set the max for the y-axis
-                        y_max = y_max * np.max(quota_percent_filled)
-
-                        # Lines
-                        y_mins = np.repeat(1, M)
-                        y_maxs = max_quota_percent
-                        y = [(y_mins[j], y_maxs[j]) for j in range(M)]
-                        y_under = [(quota_percent_filled[j], 1) for j in x_under]
-                        y_over = [(max_quota_percent[j], quota_percent_filled[j]) for j in x_over]
-
-                        # Plot Bounds
-                        ax.scatter(afscs, y_mins, c=np.repeat('blue', M), marker="_", linewidth=2)
-                        ax.scatter(afscs, y_maxs, c=np.repeat('blue', M), marker="_", linewidth=2)
-
-                        # Plot Range Lines
-                        ax.plot((indices, indices), ([i for (i, j) in y], [j for (i, j) in y]), c='blue')
-                        ax.plot((x_under, x_under), ([i for (i, j) in y_under], [j for (i, j) in y_under]), c='red',
-                                linestyle='--')
-                        ax.plot((x_over, x_over), ([i for (i, j) in y_over], [j for (i, j) in y_over]), c='orange',
-                                linestyle='--')
-                        ax.plot((indices, indices), (np.zeros(M), np.ones(M)), c='black', linestyle='--', alpha=0.3)
-
-                        # Quota Line
-                        ax.axhline(y=1, color='black', linestyle='-', alpha=0.5)
-
-                        # Put quota text
-                        y_top = round(max(quota_percent_filled))
-                        y_spacing = (y_top / 80)
-                        for j in indices:
-                            if int(measure[j]) >= 100:
-                                ax.text(j, quota_percent_filled[j] + 1.4 * y_spacing, int(measure[j]),
-                                        fontsize=ip["xaxis_tick_size"],
-                                        multialignment='right')
-                            elif int(measure[j]) >= 10:
-                                ax.text(j + 0.2, quota_percent_filled[j] + y_spacing, int(measure[j]),
-                                        fontsize=ip["xaxis_tick_size"],
-                                        multialignment='right')
-                            else:
-                                ax.text(j + 0.2, quota_percent_filled[j] + y_spacing, int(measure[j]),
-                                        fontsize=ip["xaxis_tick_size"],
-                                        multialignment='right')
-
-                    else:  # quantity_bar
-
-                        # Get the title and filename
-                        ip["title"] = "Number of Cadets Assigned to Each AFSC against PGL"
-                        ip["filename"] = instance.solution_name + " Quota_PGL_Sorted_Size"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-                        label_dict["Combined Quota"] = "Number of Cadets"
-                        y_label = label_dict[ip["objective"]]
-
-                        # Plot the number of cadets and the PGL
-                        if "pgl" in p:
-                            quota = p["pgl"]
-                        else:
-                            quota = p["quota"]
-
-                        # Sort the AFSCs by the PGL
-                        if ip["sort_by_pgl"]:
-                            indices = np.argsort(quota)[::-1]
-
-                        # Sort the AFSCs by the number of cadets assigned
-                        else:
-                            indices = np.argsort(measure)[::-1]
-                        afscs = afscs[indices]
-                        measure = measure[indices]
-                        quota = quota[indices]
-
-                        # Legend
-                        legend_elements = [Patch(facecolor=ip['bar_colors']["pgl"], label='PGL Target',
-                                                 edgecolor="black"),
-                                           Patch(facecolor=ip['bar_colors']["surplus"],
-                                                 label='Cadets Exceeding PGL Target', edgecolor="black"),
-                                           Patch(facecolor=ip['bar_colors']["failed_pgl"], label='PGL Target Not Met',
-                                                 edgecolor="black")]
-
-                        # Y max
-                        y_max = y_max * max(measure)
-                        if 100 <= y_max < 150:
-                            y_ticks = [50, 100, 150]
-                        elif 150 <= y_max < 200:
-                            y_ticks = [50, 100, 150, 200]
-                        elif 200 <= y_max < 250:
-                            y_ticks = [50, 100, 150, 200, 250]
-                        elif 250 <= y_max < 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300]
-                        elif y_max >= 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                        else:
-                            y_ticks = [50]
-
-                        # Add the text and quota lines
-                        for j in range(M):
-
-                            # Add the text
-                            ax.text(j, measure[j] + 2, int(measure[j]),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-
-                            # Determine which category the AFSC falls into
-                            line_color = "black"
-                            if measure[j] > quota[j]:
-                                ax.bar([j], quota[j], color=ip['bar_colors']["pgl"], edgecolor="black")
-                                ax.bar([j], measure[j] - quota[j], bottom=quota[j],
-                                       color=ip['bar_colors']["surplus"], edgecolor="black")
-                            elif measure[j] < quota[j]:
-                                ax.bar([j], measure[j], color=ip['bar_colors']["failed_pgl"], edgecolor="black")
-                                ax.plot((j - 0.4, j - 0.4), (quota[j], measure[j]),
-                                        color=ip['bar_colors']["failed_pgl"], linestyle="--", zorder=2)
-                                ax.plot((j + 0.4, j + 0.4), (quota[j], measure[j]),
-                                        color=ip['bar_colors']["failed_pgl"], linestyle="--", zorder=2)
-                                line_color = ip['bar_colors']["failed_pgl"]
-                            else:
-                                ax.bar([j], measure[j], color=ip['bar_colors']["pgl"], edgecolor="black")
-
-                            # Add the PGL lines
-                            ax.plot((j - 0.4, j + 0.4), (quota[j], quota[j]), color=line_color, linestyle="-", zorder=2)
-
-                elif ip["objective"] in ["Utility", "Norm Score"]:
-
-                    if ip["version"] == "quantity_bar_proportion":
-
-                        # Counts
-                        counts = {"bottom_choices": np.zeros(M), "mid_choices": np.zeros(M), "top_choices": np.zeros(M)}
-
-                        if ip["objective"] == "Utility":
-
-                            # Get the title and filename
-                            ip["title"] = "Cadet Preference Breakdown Across Each AFSC"
-                            ip["filename"] = instance.solution_name + " Cadet_Preference_Sorted"
-
-                            # Legend
-                            legend_elements = [Patch(facecolor=ip['bar_colors']["top_choices"], label='Top 3 Choices',
-                                                     edgecolor='black'),
-                                               Patch(facecolor=ip['bar_colors']["mid_choices"],
-                                                     label='Next 3 Choices', edgecolor='black'),
-                                               Patch(facecolor=ip['bar_colors']["bottom_choices"],
-                                                     label='Non-Volunteer',
-                                                     edgecolor='black')]
-
-                            # Convert utility matrix to utility columns
-                            preferences, utilities_array = get_utility_preferences(p)
-
-                            # Get cadet preference counts
-                            for i, j in enumerate(instance.solution):
-                                afsc = p["afscs"][j]
-                                if afsc != "*":
-                                    if afsc in preferences[i, 0:3]:
-                                        counts["top_choices"][j] += 1
-                                    elif afsc in preferences[i, 3:6]:
-                                        counts["mid_choices"][j] += 1
-                                    else:
-                                        counts["bottom_choices"][j] += 1
-                        else:
-
-                            # Get the title and filename
-                            ip["title"] = "AFSC Preference Breakdown"
-                            ip["filename"] = instance.solution_name + " AFSC_Preference_Sorted"
-
-                            # Legend
-                            legend_elements = [Patch(facecolor=ip['bar_colors']["top_choices"], label='Top Third',
-                                                     edgecolor='black'),
-                                               Patch(facecolor=ip['bar_colors']["mid_choices"],
-                                                     label='Middle Third', edgecolor='black'),
-                                               Patch(facecolor=ip['bar_colors']["bottom_choices"],
-                                                     label='Bottom Third',
-                                                     edgecolor='black')]
-
-                            # Find each cadet's percentile relative to their assigned AFSC
-                            for i, j in enumerate(instance.solution):
-
-                                afsc = p["afscs"][j]
-                                if afsc != "*":
-                                    if p["afsc_utility"][i, j] < 1/3:
-                                        counts["bottom_choices"][j] += 1
-                                    elif p["afsc_utility"][i, j] < 2/3:
-                                        counts["mid_choices"][j] += 1
-                                    else:
-                                        counts["top_choices"][j] += 1
-
-                        # Set title and label
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-                        y_label = "Number of Cadets"
-
-                        # Need to know number of cadets assigned
-                        quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
-                        total_count = instance.metrics["objective_measure"][:, quota_k]
-
-                        # Plot the number of cadets and the PGL
-                        if "pgl" in p:
-                            quota = p["pgl"]
-                        else:
-                            quota = p["quota"]
-
-                        # Sort the AFSCs by the PGL
-                        if ip["sort_by_pgl"]:
-                            indices = np.argsort(quota)[::-1]
-
-                        # Sort the AFSCs by the number of cadets assigned
-                        else:
-                            indices = np.argsort(total_count)[::-1]
-
-                        # Re-sort the stuff we care about
-                        afscs = afscs[indices]
-                        for cat in counts:
-                            counts[cat] = counts[cat][indices]
-                        # counts = {counts[cat][indices] for cat in counts}  # Why doesn't this work????
-                        total_count = total_count[indices]
-
-                        # Y max
-                        y_max = y_max * max(total_count)
-                        if 100 <= y_max < 150:
-                            y_ticks = [50, 100, 150]
-                        elif 150 <= y_max < 200:
-                            y_ticks = [50, 100, 150, 200]
-                        elif 200 <= y_max < 250:
-                            y_ticks = [50, 100, 150, 200, 250]
-                        elif 250 <= y_max < 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300]
-                        elif y_max >= 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                        else:
-                            y_ticks = [50]
-
-                        # Loop through each AFSC to plot the bars
-                        for index, afsc in enumerate(afscs):
-
-                            count_sum = 0
-                            for cat in counts:
-                                text_color = "black"
-
-                                # Plot the bars
-                                count = counts[cat][index]
-                                ax.bar([index], count, bottom=count_sum, edgecolor="black",
-                                       color=ip['bar_colors'][cat])
-                                count_sum += count
-
-                                # Put a number on the bar
-                                if count >= 10:
-
-                                    ax.text(index, (count_sum - count / 2 - 2),
-                                            int(count), color=text_color, zorder=2, fontsize=ip["bar_text_size"],
-                                            horizontalalignment='center')
-
-                            # Add the text
-                            ax.text(index, total_count[index] + 2, int(total_count[index]),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-
-                    elif ip["version"] in ["dot", "bar"]:
-
-                        # Get the title and filename
-                        ip["title"] = label_dict[ip["objective"]] + " Across Each AFSC"
-                        ip["filename"] = instance.solution_name +  ip["objective"] + " _Average_AFSC"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-
-                        # Average Utility Chart (simple)
-                        y_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
-                        use_calculated_y_max = True
-                        ax.bar(afscs, measure, color="black", edgecolor='black', alpha=ip["alpha"])
-
-                        for j in range(M):
-
-                            # Add the text
-                            ax.text(j, measure[j] + 0.013, round(measure[j], 2),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-
-                    elif ip["version"] == "quantity_bar_gradient":
-
-                        # Get the title and filename
-                        ip["title"] = "Cadet Satisfaction Breakdown Across Each AFSC"
-                        ip["filename"] = instance.solution_name + " Cadet_Satisfaction_Gradient"
-                        if ip["solution_in_title"]:
-                            ip['title'] = instance.solution_name + ": " + ip['title']
-                        label_dict["Utility"] = "Number of Cadets"
-                        y_label = label_dict[ip["objective"]]
-
-                        # Need to know number of cadets assigned
-                        quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
-                        total_count = instance.metrics["objective_measure"][:, quota_k]
-
-                        # Plot the number of cadets and the PGL
-                        if "pgl" in p:
-                            quota = p["pgl"]
-                        else:
-                            quota = p["quota"]
-
-                        # Sort the AFSCs by the PGL
-                        if ip["sort_by_pgl"]:
-                            indices = np.argsort(quota)[::-1]
-
-                        # Sort the AFSCs by the number of cadets assigned
-                        else:
-                            indices = np.argsort(total_count)[::-1]
-
-                        afscs = afscs[indices]
-                        total_count = total_count[indices]
-
-                        # Y max
-                        y_max = y_max * max(total_count)
-                        if 100 <= y_max < 150:
-                            y_ticks = [50, 100, 150]
-                        elif 150 <= y_max < 200:
-                            y_ticks = [50, 100, 150, 200]
-                        elif 200 <= y_max < 250:
-                            y_ticks = [50, 100, 150, 200, 250]
-                        elif 250 <= y_max < 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300]
-                        elif y_max >= 300:
-                            y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                        else:
-                            y_ticks = [50]
-
-                        for index, afsc in enumerate(afscs):
-                            j = np.where(p["afscs"] == afsc)[0][0]
-                            cadets = np.where(instance.solution == j)[0]
-                            utility = p["utility"][cadets, j]
-                            uq = np.unique(utility)
-                            count_sum = 0
-                            for val in uq:
-                                count = len(np.where(utility == val)[0])
-                                c = (1 - val, 0, val)
-                                ax.bar([index], count, bottom=count_sum, color=c)
-                                count_sum += count
-
-                            # Add the text
-                            ax.text(index, total_count[index] + 2, int(total_count[index]),
-                                    fontsize=ip["text_size"], horizontalalignment='center')
-
-                        # DIY Colorbar
-                        h = (100 / 245) * y_max
-                        w1 = 0.8
-                        w2 = 0.74
-                        vals = np.arange(101) / 100
-                        current_height = (150 / 245) * y_max
-                        ax.add_patch(Rectangle((M - 2, current_height), w1, h, edgecolor='black', facecolor='black',
-                                               fill=True, lw=2))
-                        ax.text(M - 3.3, (245 / 245) * y_max, '100%', fontsize=ip["xaxis_tick_size"])
-                        ax.text(M - 2.8, current_height, '0%', fontsize=ip["xaxis_tick_size"])
-                        ax.text((M - 0.95), (166 / 245) * y_max, 'Cadet Satisfaction', fontsize=ip["xaxis_tick_size"],
-                                rotation=270)
-                        for val in vals:
-                            c = (1 - val, 0, val)
-                            ax.add_patch(Rectangle((M - 1.95, current_height), w2, h / 101, facecolor=c, fill=True))
-                            current_height += h / 101
-
-            else:
-
-                if ip["version"] == "AFOCD_proportion":
-
-                    # Get the title and filename
-                    ip["title"] = "AFOCD Degree Tier Proportion Across Each AFSC"
-                    ip["filename"] = instance.solution_name + " AFOCD_Proportion_AFSCs"
-                    if ip["solution_in_title"]:
-                        ip['title'] = instance.solution_name + ": " + ip['title']
-                    y_label = "Number of Cadets"
-
-                    # Get the correct quota
-                    if "pgl" in p:
-                        quota = p["pgl"][indices]
-                    else:
-                        quota = p["quota"][indices]
-
-                    # Need to know number of cadets assigned
-                    quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
-                    total_count = instance.metrics["objective_measure"][:, quota_k]
-
-                    # Sort the AFSCs by the PGL
-                    if ip["sort_by_pgl"]:
-                        indices = np.argsort(quota)[::-1]
-
-                    # Sort the AFSCs by the number of cadets assigned
-                    else:
-                        indices = np.argsort(total_count)[::-1]
-
-                    # AFOCD
-                    afocd_objectives = ["Mandatory", "Desired", "Permitted"]
-                    afocd_k = {objective: np.where(vp["objectives"] == objective)[0][0] for objective in
-                               afocd_objectives}
-                    afocd_count = {
-                        objective: total_count * instance.metrics["objective_measure"][:, afocd_k[objective]]
-                        for objective in afocd_objectives}
-                    afocd_count = {objective: afocd_count[objective][indices] for objective in
-                                   afocd_objectives}  # Re-sort
-
-                    # Sort AFSCs
-                    afscs = afscs[indices]
-                    total_count = total_count[indices]
-
-                    # Legend
-                    legend_elements = [Patch(facecolor=ip['bar_colors'][objective], label=objective) for
-                                       objective in ["Permitted", "Desired", "Mandatory"]]
-
-                    # Labels and tick marks
-                    y_max = y_max * max(total_count)
-                    if 100 <= y_max < 150:
-                        y_ticks = [50, 100, 150]
-                    elif 150 <= y_max < 200:
-                        y_ticks = [50, 100, 150, 200]
-                    elif 200 <= y_max < 250:
-                        y_ticks = [50, 100, 150, 200, 250]
-                    elif 250 <= y_max < 300:
-                        y_ticks = [50, 100, 150, 200, 250, 300]
-                    elif y_max >= 300:
-                        y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                    else:
-                        y_ticks = [50]
-
-                    # Loop through each AFSC to plot the bars
-                    for index, afsc in enumerate(afscs):
-
-                        # Plot the AFOCD bars
-                        count_sum = 0
-                        for objective in afocd_objectives:
-
-                            # Plot AFOCD bars
-                            count = afocd_count[objective][index]
-                            ax.bar([index], count, bottom=count_sum, edgecolor='black',
-                                   color=ip['bar_colors'][objective])
-                            count_sum += count
-
-                            # Put a number on the bar
-                            if count >= 10:
-
-                                prop = count / total_count[index]
-                                if objective == "Permitted":
-                                    color = "black"
-                                else:
-                                    color = "white"
-                                ax.text(index, (count_sum - count / 2 - 2),
-                                        round(prop, 2), color=color, zorder=2, fontsize=ip["bar_text_size"],
-                                        horizontalalignment='center')
-
-                        # Add the text
-                        ax.text(index, total_count[index] + 2, int(total_count[index]),
-                                fontsize=ip["text_size"], horizontalalignment='center')
-
-                if ip["version"] == "gender_preference":
-
-                    # Get the title and filename
-                    ip["title"] = "Male/Female Non-Volunteers Across Each AFSC"
-                    ip["filename"] = instance.solution_name + " Gender_Preference_AFSCs"
-                    if ip["solution_in_title"]:
-                        ip['title'] = instance.solution_name + ": " + ip['title']
-                    y_label = "Number of Cadets"
-
-                    # Get the correct quota
-                    if "pgl" in p:
-                        quota = p["pgl"][indices]
-                    else:
-                        quota = p["quota"][indices]
-
-                    # Need to know number of cadets assigned
-                    quota_k = np.where(vp["objectives"] == "Combined Quota")[0][0]
-                    total_count = instance.metrics["objective_measure"][:, quota_k]
-
-                    # Sort the AFSCs by the PGL
-                    if ip["sort_by_pgl"]:
-                        indices = np.argsort(quota)[::-1]
-
-                    # Sort the AFSCs by the number of cadets assigned
-                    else:
-                        indices = np.argsort(total_count)[::-1]
-
-                    # Classes and Category counts
-                    classes = ["Male", "Female"]
-                    categories = ["Volunteer", "Non-Volunteer"]
-
-                    # Sort AFSCs
-                    afscs = afscs[indices]
-                    total_count = total_count[indices]
-
-                    # Get the counts for each category and class
-                    counts = {cls: {cat: np.zeros(M) for cat in categories} for cls in classes}
-                    dem = classes[0].lower()  # reference demographic (male, usafa, minority, etc.)
-                    for index, afsc in enumerate(afscs):
-                        j = np.where(p["afscs"] == afsc)[0][0]
-                        cadets_assigned = np.where(instance.solution == j)[0]
-                        cadets_with_demographic = np.where(p[dem] == 1)[0]
-
-                        cadets_class = {classes[0]: np.intersect1d(cadets_assigned, cadets_with_demographic),
-                                        classes[1]: np.array([
-                                            cadet for cadet in cadets_assigned if
-                                            cadet not in cadets_with_demographic])}
-
-                        if categories == ["Volunteer", "Non-Volunteer"]:
-                            cadets_with_category = np.where(p["utility"][:, j] > 0)[0]
-                            cadets_cat = {"Volunteer": np.intersect1d(cadets_assigned, cadets_with_category),
-                                          "Non-Volunteer": np.array([
-                                              cadet for cadet in cadets_assigned if cadet not in cadets_with_category])}
-
-                        for cls in classes:
-                            for cat in categories:
-                                counts[cls][cat][index] = len(np.intersect1d(cadets_class[cls], cadets_cat[cat]))
-
-                    # Create the legend
-                    legend_elements = [Patch(facecolor=ip['bar_colors'][cls.lower()], label=cls) for cls in classes]
-                    legend_elements.append(Patch(facecolor=ip['bar_colors'][categories[1]], label=categories[1]))
-
-                    # Labels and tick marks
-                    y_max = y_max * max(total_count)
-                    if 100 <= y_max < 150:
-                        y_ticks = [50, 100, 150]
-                    elif 150 <= y_max < 200:
-                        y_ticks = [50, 100, 150, 200]
-                    elif 200 <= y_max < 250:
-                        y_ticks = [50, 100, 150, 200, 250]
-                    elif 250 <= y_max < 300:
-                        y_ticks = [50, 100, 150, 200, 250, 300]
-                    elif y_max >= 300:
-                        y_ticks = [50, 100, 150, 200, 250, 300, 350]
-                    else:
-                        y_ticks = [50]
-
-                    # Loop through each AFSC to plot the bars
-                    for index, afsc in enumerate(afscs):
-
-                        # Plot the AFOCD bars
-                        count_sum = 0
-                        for cls in classes[::-1]:
-                            for cat in categories[::-1]:
-
-                                if cat == "Volunteer":
-                                    color = ip["bar_colors"][cls.lower()]
-                                else:
-                                    color = ip['bar_colors'][cat]
-
-                                # Plot the bars
-                                count = counts[cls][cat][index]
-                                ax.bar([index], count, bottom=count_sum, edgecolor="black",
-                                       color=color)
-                                count_sum += count
-
-                                # Put a number on the bar
-                                if count >= 10:
-
-                                    if cls in ["Male", "USAFA", "Minority"]:
-                                        color = "white"
-                                    else:
-                                        color = "black"
-                                    ax.text(index, (count_sum - count / 2 - 2),
-                                            int(count), color=color, zorder=2, fontsize=ip["bar_text_size"],
-                                            horizontalalignment='center')
-
-                        # Add the text
-                        ax.text(index, total_count[index] + 2, int(total_count[index]),
-                                fontsize=ip["text_size"], horizontalalignment='center')
-
-                else:
-                    pass
-
-        # Create a legend
-        if legend_elements is not None:
-            ax.legend(handles=legend_elements, edgecolor='black', fontsize=ip["legend_size"],
-                      ncol=1, columnspacing=0.5, handletextpad=0.3, borderaxespad=0.5, borderpad=0.2)
-
-    # Labels
-    ax.set_ylabel(y_label)
-    ax.yaxis.label.set_size(ip["label_size"])
-    ax.set_xlabel("AFSCs")
-    ax.xaxis.label.set_size(ip["label_size"])
-
-    # Y ticks
-    ax.set_yticks(y_ticks)
-    ax.tick_params(axis="y", labelsize=ip["yaxis_tick_size"])
-    ax.set_yticklabels(y_ticks)
-    ax.margins(y=0)
-
-    if ip["y_exact_max"] is None or use_calculated_y_max:
-        ax.set(ylim=(0, y_max))
-    else:
-        ax.set(ylim=(0, ip["y_exact_max"]))
-
-    # X ticks
-    ax.set_xticklabels(afscs[tick_indices], rotation=ip["afsc_rotation"])
-    ax.set_xticks(tick_indices)
-    ax.tick_params(axis="x", labelsize=ip["afsc_tick_size"])
-    ax.set(xlim=(-1, len(afscs)))
-
-    # Title
-    if ip["display_title"]:
-        ax.set_title(ip["title"], fontsize=ip["title_size"])
-
-    # Filename
-    if ip["filename"] is None:
-        ip["filename"] = ip["title"]
-
-    # Save
-    if ip['save']:
-        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
                     bbox_inches='tight')
 
     return fig
