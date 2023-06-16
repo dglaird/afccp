@@ -25,7 +25,7 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         AFSC values, cadet values, constraint failures, overall values, and additional useful metrics.
     """
 
-
+# DELTE THIS COMMENT
     # Shorthand
     p, vp = parameters, value_parameters
 
