@@ -38,7 +38,7 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
         p['pgl'][j] = max(10, np.random.normal(1000 / M, 100))
 
     # Scale PGL and force integer values and minimum of 1
-    p['pgl'] = np.around((p['pgl'] / np.sum(p['pgl'])) * N * 0.9)
+    p['pgl'] = np.around((p['pgl'] / np.sum(p['pgl'])) * N * 0.8)
     indices = np.where(p['pgl'] == 0)[0]
     p['pgl'][indices] = 1
 
@@ -50,7 +50,7 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
     p['rotc_quota'] = p['pgl'] - p['usafa_quota']
 
     # Min/Max
-    p['quota_min'], p['quota_max'] = p['pgl'], np.around(p['pgl'] * (1 + np.random.rand(M) * 0.5))
+    p['quota_min'], p['quota_max'] = p['pgl'], np.around(p['pgl'] * (1 + np.random.rand(M) * 0.3))
 
     # Target is a random integer between the minimum and maximum targets
     target = np.around(p['quota_min'] + np.random.rand(M) * (p['quota_max'] - p['quota_min']))
@@ -199,7 +199,6 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
 
     # Cadet preferences
     utility = np.random.rand(N, M)  # random utility matrix
-    utility *= p['eligible']  # Remove ineligible choices
     max_util = np.max(utility, axis=1)
     p['utility'] = np.around(utility / np.array([[max_util[i]] for i in range(N)]), 2)
     p['c_preferences'], p['c_utilities'] = get_utility_preferences(p)
@@ -208,9 +207,6 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
 
     # Update set of parameters
     p = parameter_sets_additions(p)
-
-    # Add ROTC Rated preference data
-    p = generate_rated_data(p)
 
     return p  # Return updated parameters
 

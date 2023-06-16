@@ -321,9 +321,10 @@ def parameter_sets_additions(parameters):
         p['minority_proportion'] = np.mean(p['minority'])
         p['I^D']['Minority'] = [np.intersect1d(p['I^E'][j], minority) for j in p['J']]
 
-    # Add an extra column to the utility matrix for cadets who are unmatched
+    # Add an extra column to the utility matrix for cadets who are unmatched (if it hasn't already been added)
     zeros_vector = np.array([[0] for _ in range(p["N"])])
-    p["utility"] = np.hstack((p["utility"], zeros_vector))
+    if np.shape(p['utility']) == (p['N'], p['M']):
+        p["utility"] = np.hstack((p["utility"], zeros_vector))
 
     # Merit
     if 'merit' in p:
@@ -483,6 +484,24 @@ def parameter_sanity_check(instance):
                       + str(num_qual) + " 'eligible' cadets (qual matrix). There are " + str(len(both_lists)) +
                       " cadets in both sets. \nCFM list but not qual cadets:", cfm_not_qual,
                       "\nQual but not CFM list cadets:", qual_not_cfm)
+
+            # Make sure that all eligibility pairs line up
+            if 'c_pref_matrix' in p:
+
+                for i, cadet in enumerate(p['cadets']):
+
+                    on_afsc_list = p['a_pref_matrix'][i, j] > 0
+                    on_cadet_list = p['c_pref_matrix'][i, j] > 0
+
+                    if on_cadet_list and not on_afsc_list:
+                        issue += 1
+                        print(issue, "ISSUE: AFSC '" + afsc + "' is on cadet '" + str(cadet) + "' (index=" +
+                              str(i) + ")'s preference list (c_pref_matrix) but the cadet is not on their preference "
+                                       "list (a_pref_matrix).")
+                    elif on_afsc_list and not on_cadet_list:
+                        issue += 1
+                        print(issue, "ISSUE: Cadet '" + str(cadet) + "' (index=" + str(i) + ") is on AFSC '" + afsc +
+                              "'s preference list (a_pref_matrix) but the AFSC is not on their preference list (c_pref_matrix).")
 
         # Validate AFOCD tier objectives
         for objective in ["Mandatory", "Desired", "Permitted", "Tier 1", "Tier 2", "Tier 3", "Tier 4"]:
@@ -747,6 +766,7 @@ def import_cadets_data(import_filepaths, parameters):
     p["P"] = len([col for col in cadets_df.columns if 'Pref_' in col])
     p["num_util"] = min(10, p["P"])
     if p["P"] != 0:
+
         # Get the preferences and utilities columns from the cadets dataframe
         p["c_preferences"] = np.array(cadets_df.loc[:, "Pref_1": "Pref_" + str(p['P'])])
         p["c_utilities"] = np.array(cadets_df.loc[:, "Util_1": "Util_" + str(p["num_util"])])

@@ -378,12 +378,12 @@ class CadetCareerProblem:
                                                                                                  cadets_as_well)
         self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
 
-    def generate_fake_afsc_preferences(self):
+    def generate_fake_afsc_preferences(self, fix_cadet_eligibility=False):
         """
         Uses the VFT parameters to generate simulated AFSC preferences
         """
         self.parameters = afccp.core.data.preferences.generate_fake_afsc_preferences(
-            self.parameters, self.value_parameters)
+            self.parameters, self.value_parameters, fix_cadet_eligibility=fix_cadet_eligibility)
         self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
 
     def convert_afsc_preferences_to_percentiles(self):

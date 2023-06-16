@@ -240,14 +240,14 @@ def calculate_blocking_pairs(parameters, solution, only_return_count=False):
 
         # Matched cadets need to be calculated
         else:
-            cadet_choice = p['c_pref_matrix'][i, j]
+            cadet_choice = np.where(p['cadet_preferences'][i] == j)[0][0]
 
             # Loop through more desirable AFSCs than current matched
             for j_compare in p['cadet_preferences'][i][:cadet_choice]:
 
                 # Where is this cadet ranked in the AFSC list?
                 afsc_choice_of_this_cadet = p['a_pref_matrix'][i, j_compare]
-                matched_cadet_ranks = p['a_pref_matrix'][cadets_matched[j], j_compare]
+                matched_cadet_ranks = p['a_pref_matrix'][cadets_matched[j_compare], j_compare]
 
                 # The lowest rank of the assigned cadet
                 afsc_choice_of_worst_cadet = np.max(matched_cadet_ranks)

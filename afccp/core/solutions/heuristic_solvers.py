@@ -259,7 +259,7 @@ def matching_algorithm_1(instance, capacities=None, printing=True):
     total_matched = np.zeros(p['M'])  # Number of accepted cadets for each AFSC
     exhausted_cadets = []  # Will contain the cadets that have exhausted (been rejected by) all of their preferences
     iteration = 0  # First iteration of the algorithm
-    while np.sum(total_matched) + len(exhausted_cadets) < p['N'] and iteration <= 30:  # Stopping conditions
+    while np.sum(total_matched) + len(exhausted_cadets) < p['N']:  # Stopping conditions
 
         # Cadets propose to their top choice that hasn't been rejected
         exhausted_cadets = np.where(cadet_proposal_choice >= p['num_cadet_choices'])[0]

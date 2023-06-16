@@ -89,9 +89,10 @@ def convert_utility_matrices_preferences(parameters, cadets_as_well=False):
     return p
 
 
-def generate_fake_afsc_preferences(parameters, value_parameters=None):
+def generate_fake_afsc_preferences(parameters, value_parameters=None, fix_cadet_eligibility=False):
     """
     This function generates fake AFSC utilities/preferences using AFOCD, merit, cadet preferences etc.
+    :param fix_cadet_eligibility: if we want to fix the cadet preferences based on eligibility
     :param value_parameters: set of cadet/AFSC weight and value parameters
     :param parameters: cadet/AFSC fixed data
     :return: parameters
@@ -125,20 +126,45 @@ def generate_fake_afsc_preferences(parameters, value_parameters=None):
                     p["afsc_utility"] += merit * vp['objective_weight'][:, k].T
                 else:
                     p["afsc_utility"] += p[objective.lower()][:, :p["M"]] * vp['objective_weight'][:, k].T
-
     p["afsc_utility"] *= p["eligible"]  # They have to be eligible!
 
-    # Create AFSC Preference Matrix
+    if fix_cadet_eligibility:  # We just start over from scratch with cadet preferences
+        p['c_pref_matrix'] = np.zeros([p["N"], p["M"]]).astype(int)
+        p['cadet_preferences'] = {}
+
+        # Add a column to the eligible matrix for the unmatched AFSC (just to get the below multiplication to work)
+        eligible = copy.deepcopy(p['eligible'])
+        eligible = np.hstack((eligible, np.array([[0] for _ in range(p["N"])])))
+        p['utility'] *= eligible  # They have to be eligible!
+        for i in p["I"]:
+
+            # Sort the utilities to get the preference list
+            utilities = p["utility"][i, :p["M"]]
+            ineligible_indices = np.where(eligible[i, :p["M"]] == 0)[0]
+            sorted_indices = np.argsort(utilities)[::-1][:p['M'] - len(ineligible_indices)]
+            p['cadet_preferences'][i] = sorted_indices
+
+            # Since 'cadet_preferences' is an array of AFSC indices, we can do this
+            p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
+
+    # Create AFSC Preferences
     p["a_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
+    p['afsc_preferences'] = {}
     for j in p["J"]:
+
+        # Loop through each cadet one more time to fix them on the AFSC list
+        for i in p['I']:
+            if p['c_pref_matrix'][i, j] == 0:
+                p['afsc_utility'][i, j] = 0
 
         # Sort the utilities to get the preference list
         utilities = p["afsc_utility"][:, j]
-        nonzero_indices = np.where(utilities > 0)[0]
-        sorted_indices = np.argsort(utilities[nonzero_indices])[::-1]
-        for rank, util in enumerate(utilities[nonzero_indices][sorted_indices]):
-            i = np.where(utilities == util)[0][0]
-            p["a_pref_matrix"][i, j] = rank + 1  # Add one so the #1 guy isn't a zero!
+        ineligible_indices = np.where(utilities == 0)[0]
+        sorted_indices = np.argsort(utilities)[::-1][:p['N'] - len(ineligible_indices)]
+        p['afsc_preferences'][j] = sorted_indices
+
+        # Since 'afsc_preferences' is an array of AFSC indices, we can do this
+        p['a_pref_matrix'][p['afsc_preferences'][j], j] = np.arange(1, len(p['afsc_preferences'][j]) + 1)
 
     return p
 
@@ -278,11 +304,28 @@ def remove_ineligible_cadet_choices(parameters):
     # Shorthand
     p = parameters
 
+    # This is my final correction for preferences to make it all match up
     for i in p['I']:
         for j in p['J']:
             if i not in p['I^E'][j]:
                 p['c_pref_matrix'][i, j] = 0
                 p['a_pref_matrix'][i, j] = 0
+            else:
+                # If there's already an ineligible tier in this AFSC, we use it
+                if "I = 0" in p['Deg Tiers'][j]:
+                    val = "I" + str(p['t_count'][j])
+                else:
+                    val = "I" + str(p['t_count'][j] + 1)
+                if p['a_pref_matrix'][i, j] == 0:
+                    p['c_pref_matrix'][i, j] = 0
+                    p['qual'][i, j] = val
+                    p['eligible'][i, j] = 0
+                    p['ineligible'][i, j] = 0
+                if p['c_pref_matrix'][i, j] == 0:
+                    p['a_pref_matrix'][i, j] = 0
+                    p['qual'][i, j] = val
+                    p['eligible'][i, j] = 0
+                    p['ineligible'][i, j] = 0
 
     return p  # Return parameters
 
