@@ -1125,6 +1125,25 @@ class CadetCareerProblem:
             constraint_type_df.to_excel(writer, sheet_name="Constraints", index=False)
             solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
 
+    def genetic_matching_algorithm(self, p_dict={}, printing=None):
+        """
+        This method solves the problem instance using "Genetic Matching Algorithm"
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Get the solution and solution iterations we need
+        solution = afccp.core.solutions.heuristic_solvers.genetic_matching_algorithm(
+            self, printing=printing)
+
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="GMA")
+
+        return solution
+
     # Solution Handling
     def find_ineligible_cadets(self, fix_it=True):
         """

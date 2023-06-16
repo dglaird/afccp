@@ -1,6 +1,7 @@
 # Import Libraries
 import time
 import numpy as np
+import random
 import copy
 import afccp.core.globals
 import afccp.core.solutions.handling
@@ -264,8 +265,6 @@ def matching_algorithm_1(instance, capacities=None, printing=True):
         exhausted_cadets = np.where(cadet_proposal_choice >= p['num_cadet_choices'])[0]
         proposals = np.array([p['cadet_preferences'][i][cadet_proposal_choice[i]] if i not in exhausted_cadets
                               else p['M'] for i in p['I']])
-
-        # cadets = np.where(cad)
 
         # Solution Iteration components (Proposals) and print statement
         if mdl_p['collect_solution_iterations']:
@@ -662,3 +661,162 @@ def rotc_rated_board_original(instance, printing=False):
     afsc_solution[indices] = "*"
     solution = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
     return solution, solution_iterations
+
+
+def genetic_matching_algorithm(instance, printing=False):
+    """
+    CHatGPT GMA docstring
+    """
+
+    # Shorthand
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
+
+    # Define functions
+    def initialize_population():
+        """
+        Function to initialize all the "chromosomes" for this GA
+        """
+        population = np.array([np.zeros(p['M']) for _ in range(mdl_p['gma_pop_size'])])
+        for c in range(mdl_p['gma_pop_size']):
+            for j in p['J']:
+                capacity = int(random.choice(capacity_options[j]))
+                population[c, j] = capacity
+
+        return population
+
+    def fitness_function(chromosome):
+        """
+        Evaluates the chromosome (capacities for MA1)
+        """
+
+        # Run the algorithm using these capacities
+        solution, _ = matching_algorithm_1(instance, capacities=chromosome, printing=False)
+
+        # Evaluate blocking pairs
+        return afccp.core.solutions.handling.calculate_blocking_pairs(p, solution, only_return_count=True)
+
+    def multi_point_crossover(genome1, genome2):
+        """
+        Take two parent genomes, crossover the genes at multiple points and return two offspring solutions
+        :param genome1: first parent genome
+        :param genome2: second parent genome
+        :return: offspring
+        """
+        points = np.sort(np.random.choice(crossover_positions, size=mdl_p["gma_num_crossover_points"], replace=False))
+        start_points = np.append(0, points)
+        stop_points = np.append(points, p['M'] - 1)
+        child1 = np.zeros(p['M']).astype(int)
+        child2 = np.zeros(p['M']).astype(int)
+        flip = 1
+        for i in range(len(start_points)):
+            if flip == 1:
+                child1[start_points[i]:stop_points[i] + 1] = genome2[start_points[i]:stop_points[i] + 1]
+                child2[start_points[i]:stop_points[i] + 1] = genome1[start_points[i]:stop_points[i] + 1]
+            else:
+                child1[start_points[i]:stop_points[i] + 1] = genome1[start_points[i]:stop_points[i] + 1]
+                child2[start_points[i]:stop_points[i] + 1] = genome2[start_points[i]:stop_points[i] + 1]
+
+            flip = flip * -1
+
+        return child1, child2
+
+    def mutation(genome):
+        """
+        Takes a genome, and picks a random cadet index to mutate with some probability.
+        This means we can swap an AFSC for one cadet individually
+        :param genome: solution vector
+        :return: mutated genome
+        """
+        for _ in range(mdl_p["gma_mutations"]):
+            j = np.random.choice(p['J'])  # Random AFSC
+
+            # Pick random new capacity for AFSC j
+            min, max = p['quota_min'][j], p['quota_max'][j]
+            capacity_options = np.arange(min, max + 1).astype(int)
+            capacity = int(random.choice(capacity_options))
+            genome[j] = capacity if (np.random.uniform() < mdl_p["gma_mutation_rate"]) else genome[j]
+
+        return genome
+
+    # Determine range of capacities for all AFSCs
+    capacity_options = {}
+    for j in p['J']:
+        min, max = p['quota_min'][j], p['quota_max'][j]
+        capacity_options[j] = np.arange(min, max + 1).astype(int)
+
+    # Rank Selection Parameters
+    rank_weights = (np.arange(1, mdl_p["gma_pop_size"] + 1)[::-1]) ** 1.2
+    rank_weights = rank_weights / sum(rank_weights)
+    rank_choices = np.arange(mdl_p["gma_pop_size"])
+
+    # Multi-Point Crossover Parameters
+    crossover_positions = np.arange(1, p['M'] - 1)
+
+    # Initialize population
+    population = initialize_population()
+
+    # Initialize fitness scores
+    fitness = np.zeros(mdl_p['gma_pop_size'])
+    for c in range(mdl_p['gma_pop_size']):
+        fitness[c] = fitness_function(population[c])
+
+    # Sort Population by Fitness
+    sorted_indices = fitness.argsort()
+    fitness = fitness[sorted_indices]
+    population = population[sorted_indices]
+
+    # Main Loop
+    start_time = time.perf_counter()
+    generation = 0
+    generating = True
+    while generating:
+
+        # Evaluate population
+        for c in range(2, mdl_p['gma_pop_size']):
+            fitness[c] = fitness_function(population[c])
+
+        # Sort Population by Fitness
+        sorted_indices = fitness.argsort()
+        fitness = fitness[sorted_indices]
+        population = population[sorted_indices]
+
+        # Print statements
+        if mdl_p['gma_printing']:
+            print('Generation', generation, 'Fitness', fitness)
+
+        # Create next generation
+        next_generation = population[:2]  # the best two solutions are kept for the next generation
+        for twins in range(int((mdl_p["gma_pop_size"] / 2) - 1)):  # create the offspring
+
+            # Select parents for mating
+            c1, c2 = np.random.choice(rank_choices, size=2, replace=False, p=rank_weights)
+            parent_1, parent_2 = population[c1], population[c2]
+
+            # Apply crossover function
+            offspring_1, offspring_2 = multi_point_crossover(parent_1, parent_2)
+
+            # Mutate genomes of offspring
+            offspring_1 = mutation(offspring_1)
+            offspring_2 = mutation(offspring_2)
+
+            # Add this pair to the next generation
+            offsprings = np.vstack((offspring_1, offspring_2))
+            next_generation = np.vstack((next_generation, offsprings))
+
+        # Next Generation
+        population = next_generation
+        generation += 1
+
+        # Stopping conditions
+        if mdl_p['stopping_conditions'] == 'Time':
+            if (time.perf_counter() - start_time) < mdl_p['gma_max_time']:
+                generating = False
+        elif mdl_p['stopping_conditions'] == 'Generations':
+            if generation >= mdl_p['gma_num_generations']:
+                generating = False
+
+    # Return solution (running algorithm using the best capacities)
+    solution, _ = matching_algorithm_1(instance, capacities=population[0], printing=False)
+    return solution
+
+

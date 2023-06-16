@@ -217,6 +217,7 @@ solvers/
 support/
 assets/
 cfms/
+executables/
 test.py
 cfm_rule_generation.py
 afccp/core/problem_class_05012023.py

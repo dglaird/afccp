@@ -103,6 +103,11 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
     # Add additional metrics components (Non-VFT stuff)
     metrics = calculate_additional_useful_metrics(metrics, p, vp)
 
+    # Calculate blocking pairs
+    if 'a_pref_matrix' in p:
+        metrics['blocking_pairs'] = calculate_blocking_pairs(p, solution)
+        metrics['num_blocking_pairs'] = len(metrics['blocking_pairs'])
+
     # Print statement
     if printing:
         if approximate:
@@ -111,6 +116,7 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             model_type = 'exact'
         print("Measured " + model_type + " solution objective value: " + str(round(metrics['z'], 4)) +
               ". Unmatched cadets: " + str(metrics["num_unmatched"]) +
+              ". Blocking pairs: " + str(metrics['num_blocking_pairs']) +
               ". Ineligible cadets: " + str(metrics['num_ineligible']) + ".")
 
     # Return the metrics
@@ -207,51 +213,59 @@ def fitness_function(chromosome, p, vp, mp, con_fail_dict=None):
     return vp['cadets_overall_weight'] * np.dot(vp['cadet_weight'], cadet_value) + \
            vp['afscs_overall_weight'] * np.dot(vp['afsc_weight'], afsc_value)
 
-
-def calculate_blocking_pairs(parameters, solution):
+def calculate_blocking_pairs(parameters, solution, only_return_count=False):
     """
     Calculate blocking pairs
     """
 
-    # Convert preferences/matches to numpy arrays
-    a_preferences = {}
-    a_matches = {}
-    for afsc in p['afscs'][:p['M']]:
-        # Convert to numpy arrays
-        a_preferences[afsc] = np.array(afsc_preferences[afsc])
-        a_matches[afsc] = np.array(afsc_matches[afsc])
+    # Shorthand
+    p = parameters
+
+    # Dictionary of cadets matched to each AFSC in this solution
+    cadets_matched = {j: np.where(solution == j)[0] for j in p['J']}
 
     # Loop through all cadets and their assigned AFSCs
     blocking_pairs = []
+    blocking_pair_count = 0
+
+    # Loop through each cadet, AFSC pair
     for i, j in enumerate(solution):
 
-        # Get names of cadet and assigned AFSC
-        cadet, afsc_matched = p['cadets'][i], p['afscs'][j]
-        c_preferences = np.array(cadet_preferences[cadet])
-
         # Unmatched cadets are blocking pairs by definition
-        if afsc_matched == "*":
-            blocking_pairs.append((cadet, afsc_matched))
+        if j == p['M']:
+            if only_return_count:
+                blocking_pair_count += 1
+            else:
+                blocking_pairs.append((i, j))
+                blocking_pair_count += 1
+
+        # Matched cadets need to be calculated
         else:
-            cadet_choice = np.where(c_preferences == afsc_matched)[0][0]
+            cadet_choice = p['c_pref_matrix'][i, j]
 
             # Loop through more desirable AFSCs than current matched
-            for afsc in c_preferences[:cadet_choice]:
+            for j_compare in p['cadet_preferences'][i][:cadet_choice]:
 
                 # Where is this cadet ranked in the AFSC list?
-                afsc_choice_of_this_cadet = np.where(a_preferences[afsc] == cadet)[0][0]
-                num_matches = len(a_matches[afsc])  # Number of matches
-                worst_cadet = a_matches[afsc][num_matches - 1]  # Cadet at bottom of list
+                afsc_choice_of_this_cadet = p['a_pref_matrix'][i, j_compare]
+                matched_cadet_ranks = p['a_pref_matrix'][cadets_matched[j], j_compare]
 
                 # The lowest rank of the assigned cadet
-                afsc_choice_of_worst_cadet = np.where(a_preferences[afsc] == worst_cadet)[0][0]
+                afsc_choice_of_worst_cadet = np.max(matched_cadet_ranks)
 
                 # Check for blocking pairs
                 if afsc_choice_of_this_cadet < afsc_choice_of_worst_cadet:
-                    blocking_pairs.append((cadet, afsc))
+                    if only_return_count:
+                        blocking_pair_count += 1
+                    else:
+                        blocking_pairs.append((i, j))
+                        blocking_pair_count += 1
                     break
 
-    return blocking_pairs
+    if only_return_count:
+        return blocking_pair_count
+    else:
+        return blocking_pairs
 
 # AFSC Objective Measure Calculation Functions
 def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):

@@ -189,8 +189,12 @@ def initialize_instance_functional_parameters(N):
         "initialize_new_heuristics": False, 'gather_all_metrics': True,
 
         # Matching Algorithm Parameters
-        'ma_printing': True, 'capacity_parameter': 'quota_max', 'rotc_rated_board_afsc_order': None,
+        'ma_printing': False, 'capacity_parameter': 'quota_max', 'rotc_rated_board_afsc_order': None,
         'collect_solution_iterations': True,
+
+        # Genetic Matching Algorithm Parameters
+        "gma_pop_size": 4, 'gma_max_time': 20, 'gma_num_crossover_points': 2, 'gma_mutations': 1,
+        'gma_mutation_rate': 1, 'gma_printing': False, 'stopping_conditions': 'Time', 'gma_num_generations': 200,
 
         # Genetic Algorithm Parameters
         "pop_size": 12, "ga_max_time": 60, "num_crossover_points": 3, "initialize": True, "ga_printing": True,
