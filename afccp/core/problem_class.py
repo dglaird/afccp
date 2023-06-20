@@ -1,31 +1,33 @@
 # Import libraries
 from typing import Any
-
 import os
-
 import pandas as pd
 import numpy as np
 import math
-import afccp.core.globals
-import afccp.core.data.simulation_functions
-import afccp.core.data.values
-import afccp.core.data.ccp_helping_functions
-import afccp.core.visualizations.slides
-import afccp.core.visualizations.instance_graphs
-import afccp.core.comprehensive_functions
-import afccp.core.data.processing
-import afccp.core.data.preferences
-import afccp.core.solutions.handling
-import afccp.core.visualizations.animation
-import afccp.core.data.generation
 import datetime
 import glob
 import copy
 import time
+import afccp.core.globals
+import afccp.core.data.simulation_functions
+import afccp.core.data.values
+import afccp.core.data.ccp_helping_functions
+import afccp.core.data.processing
+import afccp.core.data.preferences
+import afccp.core.data.generation
+import afccp.core.solutions.handling
+import afccp.core.solutions.algorithms
+import afccp.core.visualizations.animation
+import afccp.core.visualizations.instance_graphs
+import afccp.core.comprehensive_functions
 
 # Import pyomo models if library is installed
 if afccp.core.globals.use_pyomo:
-    import afccp.core.solutions.pyomo_models
+    import afccp.core.solutions.optimization
+
+# Import pptx script if we have the library installed
+if afccp.core.globals.use_pptx:
+    import afccp.core.visualizations.slides
 
 
 # Main Problem Class
@@ -327,7 +329,7 @@ class CadetCareerProblem:
                     else:
                         val = "I" + str(p['t_count'][j] + 1)
                         print(j, "AFSC '" + afsc + "' doesn't have an ineligible tier in the Deg Tiers section"
-                                                "of the AFSCs.csv file. Please add one.")
+                                                " of the AFSCs.csv file. Please add one.")
 
                     # Update qual matrix
                     print(j, "Making", len(preference_ineligible_cadets), "more cadets ineligible for '" + afsc +
@@ -435,6 +437,15 @@ class CadetCareerProblem:
         """
         self.parameters = afccp.core.data.preferences.remove_ineligible_cadet_choices(self.parameters)
         self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+
+    def update_cadet_columns_from_matrices(self):
+        """
+        Updates the preference and utilities columns from c_pref_matrix
+        """
+
+        # Update parameters
+        self.parameters['c_preferences'], self.parameters['c_utilities'] = \
+            afccp.core.data.preferences.get_utility_preferences_from_preference_array(self.parameters)
 
     # Specify Value Parameters
     def set_instance_value_parameters(self, vp_name=None):
@@ -756,7 +767,7 @@ class CadetCareerProblem:
         # Do we want to create new rewards/penalties for this problem instance by iterating with the model?
         if self.mdl_p["get_new_rewards_penalties"]:
 
-            gc["Raw Reward"], gc["Raw Penalty"] = afccp.core.solutions.pyomo_models.calculate_rewards_penalties(
+            gc["Raw Reward"], gc["Raw Penalty"] = afccp.core.solutions.optimization.calculate_rewards_penalties(
                 self, printing=printing)
             min_p = min([penalty for penalty in gc["Raw Penalty"] if penalty != 0])
             min_r = min(gc["Raw Reward"])
@@ -775,7 +786,7 @@ class CadetCareerProblem:
         # Update the "mu" and "lam" parameters with our new Reward/Penalty terms
         self.gp_parameters = afccp.core.data.values.translate_vft_to_gp_parameters(self)
 
-    # Solve Models
+    # Very basic methods to generate solutions
     def generate_random_solution(self, p_dict={}, printing=None):
         """
         Generate random solution by assigning cadets to AFSCs that they're eligible for
@@ -797,9 +808,9 @@ class CadetCareerProblem:
 
         return solution
 
-    def stable_matching(self, p_dict={}, printing=None):
+    def greedy_method(self, p_dict={}, printing=None):
         """
-        This method solves the stable marriage heuristic for an initial solution
+        This method solves the greedy heuristic for an initial solution
         """
         self.error_checking("Value Parameters")
         if printing is None:
@@ -809,13 +820,13 @@ class CadetCareerProblem:
         self.reset_functional_parameters(p_dict)
 
         # Generate solution
-        solution = afccp.core.solutions.heuristic_solvers.stable_marriage_model_solve(self, printing=printing)
+        solution = afccp.core.solutions.algorithms.greedy_model_solve(self, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="Stable")
-
+        self.solution_handling(solution, solution_method="Greedy")
         return solution
 
+    # Matching algorithms
     def rotc_rated_board_original(self, p_dict={}, printing=None):
         """
         This method solves the problem instance using "Matching Algorithm 1"
@@ -827,11 +838,36 @@ class CadetCareerProblem:
         self.reset_functional_parameters(p_dict)
 
         # Get the solution and solution iterations we need
-        solution, self.solution_iterations = afccp.core.solutions.heuristic_solvers.rotc_rated_board_original(
+        solution, self.solution_iterations = afccp.core.solutions.algorithms.rotc_rated_board_original(
             self, printing=printing)
 
         # Determine what to do with the solution
         self.solution_handling(solution, solution_method="ROTCRatedBoard")
+
+        return solution
+
+    def soc_rated_matching_algorithm(self, p_dict={}, printing=None):
+        """
+        This is the Hospitals/Residents algorithm that matches or reserves cadets to their Rated AFSCs based on the SOC.
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Get the solution and solution iterations we need
+        solution, reserves, self.solution_iterations = afccp.core.solutions.algorithms.soc_rated_matching_algorithm(
+            self, soc=self.mdl_p['soc'], printing=printing)
+
+        # Determine what to do with the solution
+        self.solution_handling(reserves, solution_method="Rated " + self.mdl_p['soc'].upper() + " HR (Reserves)")
+        self.solution_handling(solution, solution_method="Rated " + self.mdl_p['soc'].upper() + " HR (Matches)")
+
+        # Add these results to the parameters (J^Fixed and J^Reserved)
+        if self.mdl_p['incorporate_rated_results']:
+            self.parameters = afccp.core.solutions.handling.incorporate_rated_results_in_parameters(
+                self, printing=printing)
 
         return solution
 
@@ -846,7 +882,7 @@ class CadetCareerProblem:
         self.reset_functional_parameters(p_dict)
 
         # Get the solution and solution iterations we need
-        solution, self.solution_iterations = afccp.core.solutions.heuristic_solvers.matching_algorithm_1(
+        solution, self.solution_iterations = afccp.core.solutions.algorithms.matching_algorithm_1(
             self, printing=printing)
 
         # Determine what to do with the solution
@@ -854,100 +890,7 @@ class CadetCareerProblem:
 
         return solution
 
-    def greedy_method(self, p_dict={}, printing=None):
-        """
-        This method solves the greedy heuristic for an initial solution
-        """
-        self.error_checking("Value Parameters")
-        if printing is None:
-            printing = self.printing
-
-        # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
-
-        # Generate solution
-        solution = afccp.core.solutions.heuristic_solvers.greedy_model_solve(self, printing=printing)
-
-        # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="Greedy")
-        return solution
-
-    def genetic_algorithm(self, p_dict={}, printing=None):
-        """
-        This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
-        solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve
-        from there
-        """
-        self.error_checking("Value Parameters")
-        if printing is None:
-            printing = self.printing
-
-        # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
-
-        # Dictionary of failed constraints across all solutions
-        # (should be off by *no more than* one cadet due to rounding)
-        con_fail_dict = None
-
-        # Get a starting population of solutions if applicable!
-        if self.mdl_p["initialize"]:
-
-            if self.mdl_p["initial_solutions"] is None:
-
-                if self.solution_dict is None:
-                    raise ValueError("Error. No solutions in dictionary.")
-
-                else:
-                    if self.mdl_p["solution_names"] is None:
-
-                        # Get list of initial solutions
-                        initial_solutions = np.array(
-                            [self.solution_dict[solution_name] for solution_name in self.solution_dict])
-                        solution_names = list(self.solution_dict.keys())
-
-                    else:
-
-                        # If we just pass "Solution" instead of ["Solution"]
-                        if type(self.mdl_p["solution_names"]) == str:
-                            self.mdl_p["solution_names"] = [self.mdl_p["solution_names"]]
-
-                        # Get list of initial solutions
-                        initial_solutions = np.array(
-                            [self.solution_dict[solution_name] for solution_name in self.mdl_p["solution_names"]])
-                        solution_names = self.mdl_p["solution_names"]
-
-                    if printing:
-                        print("Running Genetic Algorithm with initial solutions:", solution_names)
-
-            else:
-
-                # Get list of initial solutions
-                initial_solutions = self.mdl_p["initial_solutions"]
-                if printing:
-                    print("Running Genetic Algorithm with", len(initial_solutions), "initial solutions...")
-
-            # Get dictionary of failed constraints
-            if self.mdl_p["pyomo_constraint_based"]:
-                con_fail_dict = self.get_full_constraint_fail_dictionary(initial_solutions, printing=printing)
-        else:
-
-            if printing:
-                print("Running Genetic Algorithm with no initial solutions (not advised!)...")
-            initial_solutions = None
-
-        # Generate the solution
-        solution, time_eval_df = afccp.core.solutions.heuristic_solvers.genetic_algorithm(
-            self, initial_solutions, con_fail_dict, printing=printing)
-
-        # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="Genetic")
-
-        # Return the final solution and maybe the time evaluation dataframe if needed
-        if self.mdl_p["time_eval"]:
-            return time_eval_df, solution
-        else:
-            return solution
-
+    # Optimization models
     def solve_vft_pyomo_model(self, p_dict={}, printing=None):
         """
         Solve the VFT model using pyomo
@@ -959,10 +902,15 @@ class CadetCareerProblem:
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
+        # Add Rated SOC algorithm results to the parameters (J^Fixed and J^Reserved)
+        if self.mdl_p['incorporate_rated_results']:
+            self.parameters = afccp.core.solutions.handling.incorporate_rated_results_in_parameters(
+                self, printing=printing)
+
         # Build the model and then solve it
-        model, q = afccp.core.solutions.pyomo_models.vft_model_build(self, printing=printing)
+        model, q = afccp.core.solutions.optimization.vft_model_build(self, printing=printing)
         start_time = time.perf_counter()  # Start the timer to solve the model
-        solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.pyomo_models.solve_pyomo_model(
+        solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.optimization.solve_pyomo_model(
             self, model, "VFT", q=q, printing=printing)
         solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
 
@@ -987,9 +935,9 @@ class CadetCareerProblem:
         self.reset_functional_parameters(p_dict)
 
         # Build the model and then solve it
-        model = afccp.core.solutions.pyomo_models.original_model_build(self, printing=printing)
+        model = afccp.core.solutions.optimization.original_model_build(self, printing=printing)
         start_time = time.perf_counter()  # Start the timer to solve the model
-        solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.pyomo_models.solve_pyomo_model(
+        solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.optimization.solve_pyomo_model(
             self, model, "Original", printing=printing)
         solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
 
@@ -1018,9 +966,9 @@ class CadetCareerProblem:
             self.vft_to_gp_parameters(self.mdl_p)
 
         # Build the model and then solve it
-        model = afccp.core.solutions.pyomo_models.gp_model_build(self, printing=printing)
+        model = afccp.core.solutions.optimization.gp_model_build(self, printing=printing)
         start_time = time.perf_counter()  # Start the timer to solve the model
-        solution, x = afccp.core.solutions.pyomo_models.solve_pyomo_model(self, model, "GP", printing=printing)
+        solution, x = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "GP", printing=printing)
         solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
 
         # Determine what to do with the solution
@@ -1110,7 +1058,7 @@ class CadetCareerProblem:
                              "make sure the current set of value parameters has active constraints.")
 
         # Run the function!
-        constraint_type, solutions_df, report_df = afccp.core.solutions.pyomo_models.determine_model_constraints(self)
+        constraint_type, solutions_df, report_df = afccp.core.solutions.optimization.determine_model_constraints(self)
 
         # Build constraint type dataframe
         constraint_type_df = pd.DataFrame({'AFSC': self.parameters['afscs'][:self.parameters["M"]]})
@@ -1125,6 +1073,83 @@ class CadetCareerProblem:
             constraint_type_df.to_excel(writer, sheet_name="Constraints", index=False)
             solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
 
+    # Meta-heuristics
+    def genetic_algorithm(self, p_dict={}, printing=None):
+        """
+        This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
+        solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve
+        from there
+        """
+        self.error_checking("Value Parameters")
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Dictionary of failed constraints across all solutions
+        # (should be off by *no more than* one cadet due to rounding)
+        con_fail_dict = None
+
+        # Get a starting population of solutions if applicable!
+        if self.mdl_p["initialize"]:
+
+            if self.mdl_p["initial_solutions"] is None:
+
+                if self.solution_dict is None:
+                    raise ValueError("Error. No solutions in dictionary.")
+
+                else:
+                    if self.mdl_p["solution_names"] is None:
+
+                        # Get list of initial solutions
+                        initial_solutions = np.array(
+                            [self.solution_dict[solution_name] for solution_name in self.solution_dict])
+                        solution_names = list(self.solution_dict.keys())
+
+                    else:
+
+                        # If we just pass "Solution" instead of ["Solution"]
+                        if type(self.mdl_p["solution_names"]) == str:
+                            self.mdl_p["solution_names"] = [self.mdl_p["solution_names"]]
+
+                        # Get list of initial solutions
+                        initial_solutions = np.array(
+                            [self.solution_dict[solution_name] for solution_name in self.mdl_p["solution_names"]])
+                        solution_names = self.mdl_p["solution_names"]
+
+                    if printing:
+                        print("Running Genetic Algorithm with initial solutions:", solution_names)
+
+            else:
+
+                # Get list of initial solutions
+                initial_solutions = self.mdl_p["initial_solutions"]
+                if printing:
+                    print("Running Genetic Algorithm with", len(initial_solutions), "initial solutions...")
+
+            # Get dictionary of failed constraints
+            if self.mdl_p["pyomo_constraint_based"]:
+                con_fail_dict = self.get_full_constraint_fail_dictionary(initial_solutions, printing=printing)
+        else:
+
+            if printing:
+                print("Running Genetic Algorithm with no initial solutions (not advised!)...")
+            initial_solutions = None
+
+        # Generate the solution
+        solution, time_eval_df = afccp.core.solutions.algorithms.genetic_algorithm(
+            self, initial_solutions, con_fail_dict, printing=printing)
+
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="Genetic")
+
+        # Return the final solution and maybe the time evaluation dataframe if needed
+        if self.mdl_p["time_eval"]:
+            return time_eval_df, solution
+        else:
+            return solution
+
     def genetic_matching_algorithm(self, p_dict={}, printing=None):
         """
         This method solves the problem instance using "Genetic Matching Algorithm"
@@ -1136,7 +1161,7 @@ class CadetCareerProblem:
         self.reset_functional_parameters(p_dict)
 
         # Get the solution and solution iterations we need
-        solution = afccp.core.solutions.heuristic_solvers.genetic_matching_algorithm(
+        solution = afccp.core.solutions.algorithms.genetic_matching_algorithm(
             self, printing=printing)
 
         # Determine what to do with the solution
@@ -1619,6 +1644,7 @@ class CadetCareerProblem:
 
         # Data Visualizations
 
+    # Data Visualizations
     def display_data_graph(self, p_dict={}, printing=None):
         """
         This method plots different aspects of the fixed parameters of the problem instance.
@@ -1789,7 +1815,7 @@ class CadetCareerProblem:
         # Construct the specific chart
         return afsc_chart.build(chart_type="Results", printing=printing)
 
-    def generate_slides(self, p_dict={}, printing=None):
+    def generate_results_slides(self, p_dict={}, printing=None):
         """
         Method to generate the results slides for a particular problem instance with solution
         """
@@ -1800,32 +1826,41 @@ class CadetCareerProblem:
         if printing:
             print("Generating results slides...")
 
-        # Reset chart functional parameters
-        self.mdl_p, _ = \
-            afccp.core.data.ccp_helping_functions.initialize_instance_functional_parameters(self.parameters["N"])
-
-        # Make sure we have a solution and a set of value parameters activated
-        if self.value_parameters is None:
-            raise ValueError("Error. No value parameters selected")
-        elif self.solution is None:
-            raise ValueError("Error. No solution selected")
-
-        # Update plot parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
-
-                # Exception
-                if key == "graph":
-                    self.mdl_p["results_graph"] = p_dict["graph"]
-
-                else:
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.error_checking('Solution')
 
         # Call the function to generate the slides
-        afccp.core.visualizations.slides.generate_results_slides(self)
+        if afccp.core.globals.use_pptx:
+            afccp.core.visualizations.slides.generate_results_slides(self)
+        else:
+            print('PPTX library not installed.')
+
+        if printing:
+            print('Done.')
+
+    def generate_animation_slides(self, p_dict={}, printing=None):
+        """
+        Method to generate the animation slides for a particular problem instance and solution iterations
+        """
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Generating animation slides...")
+
+        # Manage the solution iterations
+        self.manage_solution_iterations(p_dict)
+
+        # Call the function to generate the slides
+        if afccp.core.globals.use_pptx:
+            afccp.core.visualizations.slides.create_animation_slides(self)
+        else:
+            print('PPTX library not installed.')
+
+        if printing:
+            print('Done.')
 
     def generate_cadet_board_animation(self, p_dict={}, printing=None):
         """
@@ -1846,6 +1881,9 @@ class CadetCareerProblem:
         # Call the figure object
         cadet_board = afccp.core.visualizations.animation.CadetBoardFigure(self, printing=printing)
         cadet_board.main()
+
+        # Generate the slides to go with this
+        self.generate_animation_slides(p_dict, printing)
 
     def similarity_plot(self, p_dict={}, set_to_instance=True, printing=None):
         """
@@ -2170,5 +2208,29 @@ class CadetCareerProblem:
         # Goal Programming dataframe is an easy export (dataframe is already constructed)
         if "Goal Programming" in datasets and self.gp_df is not None:
             self.gp_df.to_csv(self.export_paths["Goal Programming"], index=False)
+
+    def export_solution_results(self, printing=None):
+        """
+        This function exports the metrics for one solution back to excel for review
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Make sure we have a solution
+        self.error_checking('Solution')
+
+        # Filepath to export to
+        filename = self.data_name + " " + self.solution_name + ".xlsx"
+        filepath = self.export_paths['Analysis & Results'] + filename
+
+        # Print statement
+        if printing:
+            print("Exporting solution", self.solution_name, "results to " + filepath + "...")
+
+        # Export results
+        afccp.core.data.processing.export_solution_results_excel(self, filepath)
+
+        if printing:
+            print("Done.")
 
 

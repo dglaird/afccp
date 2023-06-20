@@ -57,6 +57,16 @@ else:
     use_manifold = False
     print("Sklearn Manifold module unavailable.")
 
+# Only import pptx if we have the package installed!
+global use_pptx
+if spec := importlib.util.find_spec("pptx"):
+    from pptx import Presentation
+    use_pptx = True
+    print("Python PPTX module found.")
+else:
+    use_pptx = False
+    print("Python PPTX module unavailable.")
+
 # Importing pandas dataframe function
 def import_data(filepath, sheet_name=None, specify_engine=True):
     """

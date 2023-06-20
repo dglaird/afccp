@@ -6,13 +6,13 @@ import afccp.core.data.preferences
 import afccp.core.data.values
 import afccp.core.data.simulation_functions
 import afccp.core.visualizations.instance_graphs
-import afccp.core.solutions.heuristic_solvers
+import afccp.core.solutions.algorithms
 import afccp.core.visualizations.more_graphs
 import afccp.core.data.processing
 import copy
 
 if afccp.core.globals.use_pyomo:
-    import afccp.core.solutions.pyomo_models
+    import afccp.core.solutions.optimization
     from pyomo.environ import *
 
 

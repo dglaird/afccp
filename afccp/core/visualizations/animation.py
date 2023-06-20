@@ -13,7 +13,7 @@ import afccp.core.solutions.handling
 
 # Import pyomo models if library is installed
 if afccp.core.globals.use_pyomo:
-    import afccp.core.solutions.pyomo_models
+    import afccp.core.solutions.optimization
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl
@@ -74,8 +74,16 @@ class CadetBoardFigure:
         # Cadets in the "denominator" basically
         if self.b['cadets_solved_for'] == 'ROTC Rated':
             self.b['cadets'] = self.p['Rated Cadets']['rotc']
+            self.b['max_afsc'] = self.p['rotc_quota']
+            self.b['min_afsc'] = self.p['rotc_quota']
+        elif self.b['cadets_solved_for'] == 'USAFA Rated':
+            self.b['cadets'] = self.p['Rated Cadets']['usafa']
+            self.b['max_afsc'] = self.p['usafa_quota']
+            self.b['min_afsc'] = self.p['usafa_quota']
         else:
             self.b['cadets'] = self.p['I']
+            self.b['max_afsc'] = self.p['quota_max']
+            self.b['min_afsc'] = self.p['pgl']
         self.b['N'] = len(self.b['cadets'])
 
         # These are attributes to use in the title of each iteration
@@ -134,7 +142,7 @@ class CadetBoardFigure:
                     self.solution_iteration_frame(s, cadets_to_show='cadets_matched')
 
             # Matching Algorithm Proposals & Rejections
-            elif self.b['type'] in ['MA1']:
+            elif self.b['type'] in ['MA1', 'Rated SOC HR']:
 
                 if self.printing:  # "Plus 2" to account for orientation and final solution frames
                     print("Creating " + str(len(self.b['solutions']) + 2) + " animation images...")
@@ -196,7 +204,7 @@ class CadetBoardFigure:
                 self.b['N^u'] = len(self.b['unassigned_cadets'])  # number of cadets left unmatched
 
         # Determine number of cadet boxes for AFSCs based on nearest square
-        squares_required = [max(self.b['max_assigned'][j], self.p['quota_max'][j]) for j in self.b['J']]
+        squares_required = [max(self.b['max_assigned'][j], self.b['max_afsc'][j]) for j in self.b['J']]
         n = np.ceil(np.sqrt(squares_required)).astype(int)
         n2 = (np.ceil(np.sqrt(squares_required)) ** 2).astype(int)
         self.b['n'] = {j: n[idx] for idx, j in enumerate(self.b['J'])}
@@ -254,10 +262,10 @@ class CadetBoardFigure:
             raise ValueError("Pyomo not installed.")
 
         # Build the model
-        model = afccp.core.solutions.pyomo_models.cadet_board_preprocess_model(self)
+        model = afccp.core.solutions.optimization.cadet_board_preprocess_model(self)
 
         # Get coordinates and size of boxes by solving the model
-        self.b['s'], self.b['x'], self.b['y'] = afccp.core.solutions.pyomo_models.solve_pyomo_model(
+        self.b['s'], self.b['x'], self.b['y'] = afccp.core.solutions.optimization.solve_pyomo_model(
             self, model, "CadetBoard", q=None, printing=self.printing)
 
         if self.printing:
@@ -317,6 +325,7 @@ class CadetBoardFigure:
                 self.b['afsc_fontsize'][j] = self.b['afsc_title_size']
                 va = 'bottom'
 
+            # AFSC text
             self.b['afsc_name_text'][j] = self.ax.text(x, y, self.p['afscs'][j], fontsize=self.b['afsc_fontsize'][j],
                                                        horizontalalignment='center', verticalalignment=va,
                                                        color=self.b['text_color'])
@@ -327,10 +336,10 @@ class CadetBoardFigure:
             for i in range(self.b['n^2'][j]):  # All cadet boxes
 
                 # If we are under the maximum number of cadets allowed
-                if i + 1 <= self.p['quota_max'][j]:
+                if i + 1 <= self.b['max_afsc'][j]:
 
                     # If we are under the PGL
-                    if i + 1 <= self.p['pgl'][j]:
+                    if i + 1 <= self.b['min_afsc'][j]:
                         linestyle = self.b['pgl_linestyle']
                         color = self.b['pgl_color']
                         alpha = self.b['pgl_alpha']
@@ -428,7 +437,7 @@ class CadetBoardFigure:
             if len(cadets) > 0:
 
                 # Change the colors of the circles based on the desired method
-                self.change_circle_features(j, cadets)
+                self.change_circle_features(s, j, cadets)
 
                 # Hide the circles that aren't in the solution
                 for i in range(len(cadets), self.b['max_assigned'][j]):
@@ -509,7 +518,7 @@ class CadetBoardFigure:
         # Return the sorted cadets
         return cadets_sorted
 
-    def change_circle_features(self, j, cadets):
+    def change_circle_features(self, s, j, cadets):
         """
         This method determines the color and edgecolor of the circles to show
         """
@@ -573,6 +582,25 @@ class CadetBoardFigure:
 
                 # Show the circle
                 self.b['c_circles'][j][i].set_visible(True)
+
+        elif self.b['focus'] == 'Reserves':
+
+            # Change the cadet circles to reflect the appropriate colors
+            for i, cadet in enumerate(cadets):
+                if cadet in self.b['matches'][s]:
+                    color = self.b['matched_slot_color']
+                elif cadet in self.b['reserves'][s]:
+                    color = self.b['reserved_slot_color']
+                else:
+                    color = self.b['unmatched_color']
+
+                # Change circle color
+                self.b['c_circles'][j][i].set_facecolor(color)
+
+                # Show the circle
+                self.b['c_circles'][j][i].set_visible(True)
+
+
 
     def update_afsc_text(self, s, j):
         """

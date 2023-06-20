@@ -136,8 +136,9 @@ class AFSCsChart:
 
             # Get filename
             if self.ip["filename"] is None:
-                self.ip["filename"] = self.data_name + " (" + self.data_version + ") " + self.ip['objective'] + ' ' + \
-                                      self.ip["results_graph"] + " [" + self.ip['version'] + "] (Results).png"
+                self.ip["filename"] = self.data_name + " (" + self.data_version + ") " + self.solution_name + " " + \
+                                      self.ip['objective'] + ' ' + self.ip["results_graph"] + " [" + \
+                                      self.ip['version'] + "] (Results).png"
         else:
             raise ValueError("Error. Invalid AFSC 'main' chart type value of '" +
                              chart_type + "'. Valid inputs are 'Data' or 'Results'.")

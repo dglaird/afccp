@@ -96,20 +96,10 @@ def original_model_build(instance, printing=False):
     m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
 
     # Fixing variables if necessary
-    for i, afsc in enumerate(p["assigned"]):
-        j = np.where(p["afscs"] == afsc)[0]  # AFSC index
+    for i in p['J^Fixed']:
 
-        # Check if the cadet is actually assigned an AFSC already (it's not blank)
-        if len(j) != 0:
-            j = j[0]  # Actual index
-
-            # Check if the cadet is assigned to an AFSC they're not eligible for
-            if j not in p["J^E"][i]:
-                raise ValueError("Cadet " + str(i) + " assigned to '" + afsc + "' but is not eligible for it. "
-                                                                               "Adjust the qualification matrix!")
-
-            # Fix the variable
-            m.x[i, j].fix(1)
+        # Fix the variable
+        m.x[i, j].fix(p['J^Fixed'][i])
 
     # ___________________________________OBJECTIVE FUNCTION__________________________________
     def objective_function(m):
@@ -320,22 +310,11 @@ def vft_model_build(instance, printing=False):
                             # 1 if AFSC j objective measure k is on line segment between breakpoints l and l + 1; 0 o/w
                             m.y[j, k, l] = instance.mdl_p["warm_start"]['y'][j, k, l]
 
-        # Fixing variables if necessary
-        if "assigned" in p:
-            for i, afsc in enumerate(p["assigned"]):
-
-                if afsc in p["afscs"]:
-                    j = np.where(p["afscs"] == afsc)[0][0]  # AFSC index
-                else:
-                    continue  # Skip the cadet if the assigned AFSC is not "valid"
-
-                # Check if the cadet is assigned to an AFSC they're not eligible for
-                if j not in p["J^E"][i]:
-                    raise ValueError("Cadet " + str(i) + " assigned to '" + afsc + "' but is not eligible for it. "
-                                                                                   "Adjust the qualification matrix!")
+            # Fixing variables if necessary
+            for i in p['J^Fixed']:
 
                 # Fix the variable
-                m.x[i, j].fix(1)
+                m.x[i, j].fix(p['J^Fixed'][i])
 
         # Return model (m)
         return m
@@ -361,6 +340,12 @@ def vft_model_build(instance, printing=False):
     m.one_afsc_constraints = ConstraintList()
     for i in p['I']:
         m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
+
+    # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
+    if 'J^Reserved' in p:
+        m.reserved_afsc_constraints = ConstraintList()
+        for i in p['J^Reserved']:
+            m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if vp["J^USAFA"] is not None:
@@ -1048,7 +1033,7 @@ def determine_model_constraints(instance):
     adj_instance.value_parameters = vp  # Set to instance
 
     # Build the model
-    model, q = afccp.core.solutions.pyomo_models.vft_model_build(adj_instance)
+    model, q = afccp.core.solutions.optimization.vft_model_build(adj_instance)
     print("Done. Solving model with no constraints active...")
 
     # Initialize Report

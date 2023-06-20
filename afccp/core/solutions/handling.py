@@ -249,6 +249,15 @@ def calculate_blocking_pairs(parameters, solution, only_return_count=False):
                 afsc_choice_of_this_cadet = p['a_pref_matrix'][i, j_compare]
                 matched_cadet_ranks = p['a_pref_matrix'][cadets_matched[j_compare], j_compare]
 
+                # No one has been assigned to this more desirable AFSC (another blocking pair situation)
+                if len(matched_cadet_ranks) == 0:
+                    if only_return_count:
+                        blocking_pair_count += 1
+                    else:
+                        blocking_pairs.append((i, j))
+                        blocking_pair_count += 1
+                    break
+
                 # The lowest rank of the assigned cadet
                 afsc_choice_of_worst_cadet = np.max(matched_cadet_ranks)
 
@@ -761,5 +770,53 @@ def similarity_coordinates(similarity_matrix):
         print('Sklearn manifold not available')
 
     return coordinates
+
+def incorporate_rated_results_in_parameters(instance, printing=True):
+    """
+    This function extracts the results from the two Rated solutions (for both USAFA & ROTC)
+    and fixes those cadets that were "matched" from the algorithm and constrains the individuals
+    that had "reserved" slots from the algorithm
+    """
+
+    # Shorthand
+    p, vp, solutions = instance.parameters, instance.value_parameters, instance.solution_dict
+
+    # Make sure we have the solutions from both SOCs with matches and reserves
+    for soc in ['USAFA', 'ROTC']:
+        for kind in ['Reserves', 'Matches']:
+            solution_name = "Rated " + soc.upper() + " HR (" + kind + ")"
+            if solution_name not in solutions:
+                return p  # We don't have the required solutions!
+
+    # Matched cadets get fixed in the solution!
+    counts = {'Reserved': {"USAFA": 0, "ROTC": 0}, 'Matched': {"USAFA": 0, "ROTC": 0}}
+    for soc in ['USAFA', 'ROTC']:
+        solution = solutions["Rated " + soc.upper() + " HR (Matches)"]
+        matched_cadets = np.where(solution != p['M'])[0]
+        for i in matched_cadets:
+            p['J^Fixed'][i] = solution[i]
+            counts["Matched"][soc] += 1
+
+
+    # Reserved cadets AFSC selection is constrained to be AT LEAST their reserved Rated slot
+    p['J^Reserved'] = {}
+    for soc in ['USAFA', 'ROTC']:
+        solution = solutions["Rated " + soc.upper() + " HR (Reserves)"]
+        reserved_cadets = np.where(solution != p['M'])[0]
+        for i in reserved_cadets:
+            j = solution[i]
+            choice = np.where(p['cadet_preferences'][i] == j)[0][0]
+            p['J^Reserved'][i] = p['cadet_preferences'][i][:choice + 1]
+            counts["Reserved"][soc] += 1
+
+    if printing:
+        print_str = "Rated SOC Algorithm Results ["
+        for soc in ['USAFA', 'ROTC']:
+            for kind in ["Matched", "Reserved"]:
+                print_str += soc + ' ' + kind + ' Cadets: ' + str(int(counts[kind][soc])) + '. '
+        print(print_str[:-1] + "]")
+
+    return p  # Return the parameters!
+
 
 

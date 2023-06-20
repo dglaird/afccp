@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import pandas as pd
+import xlsxwriter
 import copy
 import afccp.core.globals
 import afccp.core.data.preprocessing
@@ -330,16 +331,21 @@ def parameter_sets_additions(parameters):
     if 'merit' in p:
         p['sum_merit'] = p['merit'].sum()  # should be close to N/2
 
+    # USAFA/ROTC cadets
+    if 'usafa' in p:
+        p['usafa_cadets'] = np.where(p['usafa'])[0]
+        p['rotc_cadets'] = np.where(p['usafa'] == 0)[0]
+
     # Already Assigned cadets
+    p["J^Fixed"] = {}
     if "assigned" in p:
-        p["J^Fixed"] = {}
 
         for i, afsc in enumerate(p["assigned"]):
             j = np.where(p["afscs"] == afsc)[0]  # AFSC index
 
             # Check if the cadet is actually assigned an AFSC already (it's not blank)
             if len(j) != 0:
-                j = j[0]  # Actual index
+                j = int(j[0])  # Actual index
 
                 # Check if the cadet is assigned to an AFSC they're not eligible for
                 if j not in p["J^E"][i]:
@@ -349,64 +355,8 @@ def parameter_sets_additions(parameters):
                 else:
                     p["J^Fixed"][i] = j
 
-    # Create Cadet preferences
-    if 'c_pref_matrix' in p:
-        p['cadet_preferences'] = {}
-        p['num_cadet_choices'] = np.zeros(p['N'])
-        for i in p['I']:
-
-            # Sort the cadet preferences
-            cadet_sorted_preferences = np.argsort(p['c_pref_matrix'][i, :])
-            p['cadet_preferences'][i] = []
-
-            # Loop through each AFSC in order of preference and add it to the cadet's list
-            for j in cadet_sorted_preferences:
-
-                # Only add AFSCs that the cadet is eligible for and expressed a preference for
-                if j in p['J^E'][i] and p['c_pref_matrix'][i, j] != 0:
-                    p['cadet_preferences'][i].append(j)
-
-            p['cadet_preferences'][i] = np.array(p['cadet_preferences'][i])  # Convert to numpy array
-            p['num_cadet_choices'][i] = len(p['cadet_preferences'][i])
-
-    # Create AFSC preferences
-    if 'a_pref_matrix' in p:
-        p['afsc_preferences'] = {}
-        for j in p['J']:
-
-            # Sort the AFSC preferences
-            afsc_sorted_preferences = np.argsort(p['a_pref_matrix'][:, j])
-            p['afsc_preferences'][j] = []
-
-            # Loop through each cadet in order of preference and add them to the AFSC's list
-            for i in afsc_sorted_preferences:
-
-                # Only add cadets that are eligible for this AFSC and expressed a preference for it
-                if i in p['I^E'][j] and p['a_pref_matrix'][i, j] != 0:
-                    p['afsc_preferences'][j].append(i)
-
-            p['afsc_preferences'][j] = np.array(p['afsc_preferences'][j])  # Convert to numpy array
-
-    # Determine AFSCs by Accessions Group
-    p['afscs_acc_grp'] = {}
-    if 'acc_grp' in p:
-        for acc_grp in ['NRL', 'Rated', 'USSF']:
-            indices = np.where(p['acc_grp'] == acc_grp)[0]
-            p['afscs_acc_grp'][acc_grp] = p['afscs'][indices]
-    else:  # Previously, we've only assigned NRL cadets so we assume that's what we're dealing with here
-        p['acc_grp'] = np.array(['NRL' for _ in p['J']])
-        p['afscs_acc_grp']['NRL'] = p['afscs']
-
-    # Determine eligible Rated cadets for both SOCs (cadets that are considered by the board)
-    cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
-    p["Rated Cadets"] = {}
-    p["Rated Cadet Index Dict"] = {}
-    for soc in cadets_dict:
-        if cadets_dict[soc] in p:  # If we have this array of cadets
-            p["Rated Cadets"][soc] = p[cadets_dict[soc]]
-            p["Rated Cadet Index Dict"][soc] = {i: idx for idx, i in enumerate(p["Rated Cadets"][soc])}
-
-
+    # Cadet preference/rated cadet set additions
+    p = more_parameter_additions(p)
 
     return p
 
@@ -657,6 +607,20 @@ def parameter_sanity_check(instance):
                       "' but is not in set of constrained objectives: vp['K^C'][j]. This is a mistake so",
                       "please update the set of value parameters using 'instance.update_value_parameters()'.")
 
+    # Loop through each cadet to check preferences and utility values
+    for i in p['I']:
+        if 'c_preferences' in p and 'c_pref_matrix' in p:
+            for choice in range(p['P']):
+                afsc = p['c_preferences'][i, choice]
+                if afsc in p['afscs']:
+                    j = np.where(p['afscs'] == afsc)[0][0]
+                    if p['c_pref_matrix'][i, j] != choice + 1:
+                        issue += 1
+                        print(issue, "ISSUE: Cadet", p['cadets'][i], "has AFSC '" + afsc + "' in position '"
+                              + str(choice + 1) + "' in the Cadets.csv file, but it is ranked '" +
+                              str(p['c_pref_matrix'][i, j]) + "' from the Cadets Preferences.csv file.")
+                        break  # Don't need to check the rest of this cadets' preferences
+
     # Loop through each objective to see if there are any null values in the objective target array
     for k, objective in enumerate(vp["objectives"]):
         num_null = pd.isnull(vp["objective_target"][:, k]).sum()
@@ -666,6 +630,105 @@ def parameter_sanity_check(instance):
                   str(num_null) + " null target values ('objective_target').")
 
     print('Done,', issue, "issues found.")
+
+
+def more_parameter_additions(parameters):
+    """
+    This function adds even more parameter sets to "parameters"
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Create Cadet preferences
+    if 'c_pref_matrix' in p:
+        p['cadet_preferences'] = {}
+        p['num_cadet_choices'] = np.zeros(p['N'])
+        for i in p['I']:
+
+            # Sort the cadet preferences
+            cadet_sorted_preferences = np.argsort(p['c_pref_matrix'][i, :])
+            p['cadet_preferences'][i] = []
+
+            # Loop through each AFSC in order of preference and add it to the cadet's list
+            for j in cadet_sorted_preferences:
+
+                # Only add AFSCs that the cadet is eligible for and expressed a preference for
+                if j in p['J^E'][i] and p['c_pref_matrix'][i, j] != 0:
+                    p['cadet_preferences'][i].append(j)
+
+            p['cadet_preferences'][i] = np.array(p['cadet_preferences'][i])  # Convert to numpy array
+            p['num_cadet_choices'][i] = len(p['cadet_preferences'][i])
+
+    # Create AFSC preferences
+    if 'a_pref_matrix' in p:
+        p['afsc_preferences'] = {}
+        for j in p['J']:
+
+            # Sort the AFSC preferences
+            afsc_sorted_preferences = np.argsort(p['a_pref_matrix'][:, j])
+            p['afsc_preferences'][j] = []
+
+            # Loop through each cadet in order of preference and add them to the AFSC's list
+            for i in afsc_sorted_preferences:
+
+                # Only add cadets that are eligible for this AFSC and expressed a preference for it
+                if i in p['I^E'][j] and p['a_pref_matrix'][i, j] != 0:
+                    p['afsc_preferences'][j].append(i)
+
+            p['afsc_preferences'][j] = np.array(p['afsc_preferences'][j])  # Convert to numpy array
+
+    # Determine AFSCs by Accessions Group
+    p['afscs_acc_grp'] = {}
+    if 'acc_grp' in p:
+        for acc_grp in ['NRL', 'Rated', 'USSF']:
+            p['J^' + acc_grp] = np.where(p['acc_grp'] == acc_grp)[0]
+            p['afscs_acc_grp'][acc_grp] = p['afscs'][p['J^' + acc_grp]]
+    else:  # Previously, we've only assigned NRL cadets so we assume that's what we're dealing with here
+        p['acc_grp'] = np.array(['NRL' for _ in p['J']])
+        p['afscs_acc_grp']['NRL'] = p['afscs']
+
+    # Determine eligible Rated cadets for both SOCs (cadets that are considered by the board)
+    cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
+    p["Rated Cadets"] = {}
+    p["Rated Cadet Index Dict"] = {}
+    p['Rated Choices'] = {}  # Dictionary of Rated cadet choices (only Rated AFSCs) by SOC
+    p['Num Rated Choices'] = {}  # Number of Rated cadet choices by SOC
+    for soc in cadets_dict:
+
+        # If we already have the array of cadets from the dataset
+        if cadets_dict[soc] in p:
+            p["Rated Cadets"][soc] = p[cadets_dict[soc]]
+            p["Rated Cadet Index Dict"][soc] = {i: idx for idx, i in enumerate(p["Rated Cadets"][soc])}
+
+        # If we don't have this dataset, we check to see if we have Rated AFSCs
+        elif 'Rated' in p['afscs_acc_grp']:
+
+            # Add Rated cadets in order to each SOC list
+            p["Rated Cadets"][soc] = []
+            for i in p[soc + '_cadets']:
+                for j in p['J^Rated']:
+                    if j in p['J^E'][i]:
+                        p["Rated Cadets"][soc].append(i)
+                        break
+
+            # Convert to numpy array and get translation dictionary
+            p["Rated Cadets"][soc] = np.array(p["Rated Cadets"][soc])
+            p["Rated Cadet Index Dict"][soc] = {i: idx for idx, i in enumerate(p["Rated Cadets"][soc])}
+
+        # Get Rated preferences (where we strip out all NRL/USSF choices
+        if soc in p['Rated Cadets']:
+            p['Rated Choices'][soc] = {}
+            p['Num Rated Choices'][soc] = {i: 0 for i in p["Rated Cadets"][soc]}
+            for i in p["Rated Cadets"][soc]:
+                rated_order = []
+                for j in p['cadet_preferences'][i]:
+                    if j in p['J^Rated']:
+                        rated_order.append(j)
+                        p['Num Rated Choices'][soc][i] += 1
+                p['Rated Choices'][soc][i] = np.array(rated_order)
+
+    return p
 
 
 # Data Imports
@@ -1394,3 +1457,55 @@ def export_solutions_data(instance):
 
     # Export 'Solutions' dataframe
     solutions_df.to_csv(instance.export_paths["Solutions"], index=False)
+
+
+# Solution Results excel file
+def export_solution_results_excel(instance, filepath):
+    """
+    This function exports the metrics for one solution back to excel for review
+    """
+
+    # Shorthand
+    p, vp, metrics = instance.parameters, instance.value_parameters, instance.metrics
+
+    # Create a Pandas Excel writer using XlsxWriter as the engine.
+    writer = pd.ExcelWriter(filepath, engine='xlsxwriter')
+
+    # Get the xlsxwriter objects from the dataframe writer object.
+    workbook = writer.book
+    worksheet = workbook.add_worksheet("Main")
+
+    # Write something
+    worksheet.write('C5', "Test")
+
+    # AFSC Objective measures dataframe
+    df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
+    for k, objective in enumerate(vp['objectives']):
+        df[objective] = np.around(metrics['objective_measure'][:, k], 2)
+
+    # Convert the dataframe to an XlsxWriter Excel object.
+    df.to_excel(writer, sheet_name='Objective Measures', index=False)
+
+    # AFSC Constraint Fail dataframe
+    df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
+    for k, objective in enumerate(vp['objectives']):
+        df[objective] = metrics['objective_constraint_fail'][:, k]
+
+    # Convert the dataframe to an XlsxWriter Excel object.
+    df.to_excel(writer, sheet_name='Constraint Fails', index=False)
+
+    # AFSC Objective values dataframe
+    df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
+    for k, objective in enumerate(vp['objectives']):
+        values = np.empty((p['M']))
+        values[:] = np.nan
+        np.put(values, vp['J^A'][k], np.around(metrics['objective_value'][vp['J^A'][k], k], 2))
+
+        df[objective] = values
+
+    # Convert the dataframe to an XlsxWriter Excel object.
+    df.to_excel(writer, sheet_name='Objective Values', index=False)
+
+    # Save the workbook (writer object)
+    writer.save()
+

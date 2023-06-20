@@ -134,7 +134,7 @@ def initialize_instance_functional_parameters(N):
     mdl_p = {
 
         # Parameters for the animation (CadetBoardFigure)
-        'board_kind': 'Solution', 'b_figsize': (20, 10), 's': 1, 'fw': 100,
+        'board_kind': 'Solution', 'b_figsize': (19, 10), 's': 1, 'fw': 100,
         'fh_ratio': 0.5, 'bw^t_ratio': 0.05, 'bw^l_ratio': 0, 'bw^r_ratio': 0, 'b_title': None,
         'bw^b_ratio': 0, 'bw^u_ratio': 0.02, 'abw^lr_ratio': 0.01, 'abw^ud_ratio': 0.02, 'b_title_size': 30,
         'lh_ratio': 0.1, 'lw_ratio': 0.1, 'dpi': 200, 'pgl_linestyle': '-', 'pgl_color': 'gray',
@@ -190,7 +190,7 @@ def initialize_instance_functional_parameters(N):
 
         # Matching Algorithm Parameters
         'ma_printing': False, 'capacity_parameter': 'quota_max', 'rotc_rated_board_afsc_order': None,
-        'collect_solution_iterations': True,
+        'collect_solution_iterations': True, 'soc': 'usafa', 'incorporate_rated_results': True,
 
         # Genetic Matching Algorithm Parameters
         "gma_pop_size": 4, 'gma_max_time': 20, 'gma_num_crossover_points': 2, 'gma_mutations': 1,
@@ -218,6 +218,9 @@ def initialize_instance_functional_parameters(N):
 
         # Value Parameter Generation
         "new_vp_weight": 100, "num_breakpoints": 24,
+
+        # Slide Parameters
+        "ch_top": 2.35, "ch_left": 0.59, "ch_height": 4.64, "ch_width": 8.82,
     }
 
     # AFSC Measure Chart Versions
@@ -262,6 +265,9 @@ def initialize_instance_functional_parameters(N):
     mdl_p['all_other_choice_colors'] = '#ff000a'
     mdl_p['choice_colors'] = choice_colors
     mdl_p['interest_colors'] = {'High': '#3700ff', 'Med': '#dad725', 'Low': '#ff9100', 'None': '#ff000a'}
+    mdl_p['reserved_slot_color'] = "#5070af"
+    mdl_p['matched_slot_color'] = "#dccc23"
+    mdl_p['unmatched_color'] = "#85847a"
 
     # Add these elements to the main dictionary
     mdl_p["afsc_chart_versions"] = afsc_chart_versions
