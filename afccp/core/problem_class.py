@@ -331,10 +331,11 @@ class CadetCareerProblem:
                         print(j, "AFSC '" + afsc + "' doesn't have an ineligible tier in the Deg Tiers section"
                                                 " of the AFSCs.csv file. Please add one.")
 
-                    # Update qual matrix
-                    print(j, "Making", len(preference_ineligible_cadets), "more cadets ineligible for '" + afsc +
-                          "' by altering their qualification to '" + val + "'. ")
-                    self.parameters['qual'][preference_ineligible_cadets, j] = val
+                    # Update qual matrix if needed
+                    if len(preference_ineligible_cadets) > 0:
+                        print(j, "Making", len(preference_ineligible_cadets), "more cadets ineligible for '" + afsc +
+                              "' by altering their qualification to '" + val + "'. ")
+                        self.parameters['qual'][preference_ineligible_cadets, j] = val
 
             # NRL AFSC
             else:
@@ -408,7 +409,23 @@ class CadetCareerProblem:
         if printing:
             print("Converting problem instance '" + self.data_name + "' to new instance '" + new_letter + "'...")
 
-        return afccp.core.comprehensive_functions.scrub_real_afscs_from_instance(self, new_letter)
+        return afccp.core.comprehensive_functions.convert_instance_to_from_scrubbed(self, new_letter, translation_dict=None)
+
+    def convert_back_to_real_instance(self, translation_dict, data_name, printing=None):
+        """
+        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
+        :param printing: If we should print status update
+        :param translation_dict: Dictionary generated from the scrubbed instance method
+        :param data_name: Data Name of the new instance
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Converting problem instance '" + self.data_name + "' back to instance '" + data_name + "'...")
+
+        return afccp.core.comprehensive_functions.convert_instance_to_from_scrubbed(
+            self, translation_dict=translation_dict, data_name=data_name)
 
     def generate_rated_data(self):
         """
@@ -446,6 +463,15 @@ class CadetCareerProblem:
         # Update parameters
         self.parameters['c_preferences'], self.parameters['c_utilities'] = \
             afccp.core.data.preferences.get_utility_preferences_from_preference_array(self.parameters)
+
+    def update_preference_matrices(self):
+        """
+        This method takes the preference arrays and re-creates the preference
+        matrices based on the cadets/AFSCs on each list
+        """
+
+        # Update parameters
+        self.parameters = afccp.core.data.preferences.update_preference_matrices(self.parameters)
 
     # Specify Value Parameters
     def set_instance_value_parameters(self, vp_name=None):
@@ -1539,7 +1565,7 @@ class CadetCareerProblem:
         if printing:
             print('Done.')
 
-    def import_solution_iterations(self, sequence_name, printing=None):
+    def import_solution_iterations(self, sequence_name, type="MA1", printing=None):
         """
         Exports iterations of a matching algorithm to excel
         """
@@ -1552,7 +1578,7 @@ class CadetCareerProblem:
             raise ValueError("Error. Sequence '" + str(sequence_name) + "' not found in 'Cadet Board' figure.")
         sequence_folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/' + sequence_name
         sequence_folder = os.listdir(sequence_folder_path)
-        self.solution_iterations = {}  # Initialize dictionary
+        self.solution_iterations = {'type': type}  # Initialize dictionary
 
         # Get proposals if applicable
         if 'Solution Iterations (Proposals).csv' in sequence_folder:
@@ -1641,8 +1667,6 @@ class CadetCareerProblem:
         if self.data_version != 'Default':
             self.solution_iterations['sequence'] += ' (' + self.data_version + ')'
         self.solution_iterations['sequence'] += ' ' + str(self.mdl_p['M']) + " AFSCs Displayed"
-
-        # Data Visualizations
 
     # Data Visualizations
     def display_data_graph(self, p_dict={}, printing=None):
@@ -1884,6 +1908,15 @@ class CadetCareerProblem:
 
         # Generate the slides to go with this
         self.generate_animation_slides(p_dict, printing)
+
+    def solve_cadet_board_model_direct(self, filepath):
+        """
+        This method runs the cadet board model directly from the parameters in the csv at the specified
+        filepath. We read and write back to this filepath
+        """
+
+        # Run function
+        afccp.core.solutions.optimization.solve_cadet_board_model_direct_from_board_parameters(self, filepath)
 
     def similarity_plot(self, p_dict={}, set_to_instance=True, printing=None):
         """

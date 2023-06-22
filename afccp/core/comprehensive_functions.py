@@ -470,23 +470,50 @@ def determine_model_constraints(instance, printing=True):
     return vp["constraint_type"], solutions_df, report_df
 
 
-def scrub_real_afscs_from_instance(instance, new_letter="H"):
+def convert_instance_to_from_scrubbed(instance, new_letter=None, translation_dict=None, data_name='Unknown'):
     """
     This function takes in a problem instance and scrubs the AFSC names by sorting them by their PGL targets.
     """
 
     # Load parameters
     p = copy.deepcopy(instance.parameters)
-    real_afscs = p["afscs"][:p["M"]]
 
-    # Sort indices
-    t_indices = np.argsort(p["pgl"])[::-1]
-
-    # Translate parameters
+    # Initialize AFSC information
+    current_afscs_unsorted = p["afscs"][:p["M"]]
     new_p = copy.deepcopy(p)
-    new_p["afscs"] = np.array([new_letter + str(j + 1) for j in p["J"]])
-    new_p["afscs"] = np.hstack((new_p["afscs"], "*"))
-    sorted_real_afscs = copy.deepcopy(real_afscs[t_indices])
+
+    # We're going from original to scrubbed
+    if new_letter is not None:
+        data_name = new_letter
+
+        # Sort indices
+        t_indices = np.argsort(p["pgl"])[::-1]
+
+        # Translate AFSCs (and then sort the current list of AFSCs)
+        new_p["afscs"] = np.array([new_letter + str(j + 1) for j in p["J"]])
+        new_p["afscs"] = np.hstack((new_p["afscs"], "*"))  # Add "unmatched" AFSC
+        current_afscs = copy.deepcopy(current_afscs_unsorted[t_indices])
+
+        translation_dict = {}
+        for index, afsc in enumerate(current_afscs_unsorted):
+            j = np.where(current_afscs == afsc)[0][0]
+            translation_dict[afsc] = new_p['afscs'][j]
+
+    # We're going from scrubbed to original
+    else:
+
+        # Translate AFSCs (Really weird sorting going on...sorry)
+        new_p["afscs"] = np.array(list(translation_dict.keys()))
+        new_p["afscs"] = np.hstack((new_p["afscs"], "*"))  # Add "unmatched" AFSC
+        flipped_translation_dict = {translation_dict[afsc]: afsc for afsc in translation_dict}
+        real_order_scrubbed_afscs = np.array(list(flipped_translation_dict.keys()))
+        scrubbed_order_indices = np.array(
+            [np.where(real_order_scrubbed_afscs==afsc)[0][0] for afsc in current_afscs_unsorted])
+        scrubbed_order_real_afscs = new_p['afscs'][scrubbed_order_indices]
+        current_afscs = real_order_scrubbed_afscs
+
+        # Get sorted indices
+        t_indices = np.array([np.where(scrubbed_order_real_afscs==afsc)[0][0] for afsc in new_p["afscs"][:p["M"]]])
 
     # Loop through each key in the parameter dictionary to translate it
     for key in p:
@@ -505,12 +532,12 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
 
     # Get assigned AFSC vector
     for i, real_afsc in enumerate(p["assigned"]):
-        if real_afsc in real_afscs:
-            j = np.where(sorted_real_afscs == real_afsc)[0][0]
+        if real_afsc in current_afscs:
+            j = np.where(current_afscs == real_afsc)[0][0]
             new_p["assigned"][i] = new_p["afscs"][j]
 
     # Set additions, and add to the instance
-    instance.parameters = afccp.core.handling.data_processing.parameter_sets_additions(new_p)
+    instance.parameters = afccp.core.data.processing.parameter_sets_additions(new_p)
 
     # Translate value parameters
     if instance.vp_dict is not None:
@@ -539,7 +566,7 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
                 new_str = ""
                 for index, real_afsc in enumerate(usafa_afscs):
                     real_afsc = str(real_afsc.strip())
-                    j = np.where(sorted_real_afscs == real_afsc)[0][0]
+                    j = np.where(current_afscs == real_afsc)[0][0]
                     usafa_afscs[index] = new_p["afscs"][j]
                     if index == len(usafa_afscs) - 1:
                         new_str += usafa_afscs[index]
@@ -564,11 +591,8 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
 
             # Set additions
             instance.vp_dict[vp_name] = \
-                afccp.core.handling.value_parameter_handling.value_parameters_sets_additions(
-                    instance.parameters, instance.vp_dict[vp_name])
+                afccp.core.data.values.value_parameters_sets_additions(instance.parameters, instance.vp_dict[vp_name])
 
-        # Grab the first set of value parameters for the instance
-        instance.set_instance_value_parameters()
     else:
         instance.vp_dict = None
 
@@ -585,12 +609,11 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
             for i, j in enumerate(real_solution):
                 if j != p["M"]:
                     real_afsc = p["afscs"][j]
-                    j = np.where(sorted_real_afscs == real_afsc)[0][0]
+                    j = np.where(current_afscs == real_afsc)[0][0]
                     new_solutions_dict[solution_name][i] = j
 
-        # Set it to the instance
+        # Save solutions dictionary
         instance.solution_dict = new_solutions_dict
-        instance.set_instance_solution()
 
     else:
         instance.solution_dict = None
@@ -600,15 +623,15 @@ def scrub_real_afscs_from_instance(instance, new_letter="H"):
         for i in p["I"]:
             for pref in range(p["P"]):
                 real_afsc = p["c_preferences"][i, pref]
-                if real_afsc in sorted_real_afscs:
-                    j = np.where(sorted_real_afscs == real_afsc)[0][0]
+                if real_afsc in current_afscs:
+                    j = np.where(current_afscs == real_afsc)[0][0]
                     new_p["c_preferences"][i, pref] = new_p["afscs"][j]
 
     # Instance Attributes
-    instance.data_name, instance.data_version = new_letter, "Default"
+    instance.data_name, instance.data_version = data_name, "Default"
     instance.import_paths, instance.export_paths = None, None
 
-    return instance
+    return instance, translation_dict
 
 
 def populate_initial_ga_solutions(instance, printing=True):

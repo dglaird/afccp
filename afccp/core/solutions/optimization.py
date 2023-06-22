@@ -1188,16 +1188,13 @@ def determine_model_constraints(instance):
 
 
 # Cadet Board Animation
-def cadet_board_preprocess_model(board):
+def cadet_board_preprocess_model(b):
     """
     Doc string here
     """
 
     # Build Model
     m = ConcreteModel()
-
-    # Shorthand
-    b = board.b
 
     # Use the "Sorted" values for J and n
     n = b['n^sorted']
@@ -1351,5 +1348,66 @@ def cadet_board_preprocess_model(board):
             m.afsc_constraints.add(expr=m.a_l[i, j] + m.a_r[i, j] + m.a_u[i, j] + m.a_d[i, j] >= 1)
 
     return m
+
+
+def solve_cadet_board_model_direct_from_board_parameters(instance, filepath):
+    """
+    Solve the cadet board animation model (only meant to run on Griffen's mac)
+    """
+
+    # Initialize b
+    b = instance.mdl_p
+
+    # Figure Height
+    b['fh'] = b['fw'] * b['fh_ratio']
+
+    # Border Widths
+    for i in ['t', 'l', 'r', 'b', 'u']:
+        b['bw^' + i] = b['fw'] * b['bw^' + i + '_ratio']
+
+    # AFSC border/buffer widths
+    b['abw^lr'] = b['fw'] * b['abw^lr_ratio']
+    b['abw^ud'] = b['fw'] * b['abw^ud_ratio']
+
+    # Legend width/height
+    if b['add_legend']:
+        b['lw'] = b['fw'] * b['lw_ratio']
+        b['lh'] = b['fw'] * b['lh_ratio']
+    else:
+        b['lw'], b['lh'] = 0, 0
+
+    # Load in "b_df"
+    b_df = afccp.core.globals.import_csv_data(filepath)
+
+    # We assume this dataframe is already sorted by 'n'
+    b['n^sorted'] = np.array(b_df['n'])
+    b['M'] = len(b['n^sorted'])
+
+    # Create model
+    model = cadet_board_preprocess_model(b)
+
+    # Get executable
+    b["executable"] = afccp.core.globals.paths['solvers'] + b["b_solver_name"]
+
+    # Solve Model
+    print('Solving CadetBoard Model instance with solver ' + b["b_solver_name"] + '...')
+    start_time = time.perf_counter()
+    solver = SolverFactory(b["b_solver_name"], executable=b["executable"])
+    solver.solve(model)
+    print("Model solved in", round(time.perf_counter() - start_time, 2), "seconds.")
+
+    # Get the values from the model and return them
+    x, y, s = [], [], model.s.value
+    for j in range(b['M']):
+        x.append(model.x[j].value)
+        y.append(model.y[j].value)
+
+    # Load values back into dataframe
+    b_df['x'], b_df['y'], b_df['s'] = x, y, s
+
+    # Export to csv
+    b_df.to_csv(filepath, index=False)
+
+
 
 

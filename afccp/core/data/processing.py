@@ -717,7 +717,7 @@ def more_parameter_additions(parameters):
             p["Rated Cadet Index Dict"][soc] = {i: idx for idx, i in enumerate(p["Rated Cadets"][soc])}
 
         # Get Rated preferences (where we strip out all NRL/USSF choices
-        if soc in p['Rated Cadets']:
+        if soc in p['Rated Cadets'] and 'cadet_preferences' in p:
             p['Rated Choices'][soc] = {}
             p['Num Rated Choices'][soc] = {i: 0 for i in p["Rated Cadets"][soc]}
             for i in p["Rated Cadets"][soc]:
@@ -1315,11 +1315,11 @@ def export_preferences_data(instance):
             if 'ROTC' in dataset:
                 cadet_indices = p["Rated Cadets"]['rotc']
                 pref_df = pd.DataFrame({"Cadet": p['cadets'][cadet_indices]})
-                afscs = p['afscs_acc_grp']['Rated']
+                afscs = [afsc for afsc in p['afscs_acc_grp']['Rated'] if '_U' not in afsc]
             elif 'USAFA' in dataset:
                 cadet_indices = p["Rated Cadets"]['usafa']
                 pref_df = pd.DataFrame({"Cadet": p['cadets'][cadet_indices]})
-                afscs = p['afscs_acc_grp']['Rated']
+                afscs = [afsc for afsc in p['afscs_acc_grp']['Rated'] if '_R' not in afsc]
             else:
                 pref_df = pd.DataFrame({"Cadet": p["cadets"]})
                 afscs = p["afscs"][:p["M"]]

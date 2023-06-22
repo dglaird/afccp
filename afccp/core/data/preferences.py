@@ -5,7 +5,7 @@ import copy
 import afccp.core.globals
 
 
-# "Fixed" Parameter Procedures
+# Preference functions
 def get_utility_preferences(parameters):
     """
     Converts utility matrix into two arrays of preferences and utilities (NxP for each)
@@ -181,17 +181,10 @@ def convert_afsc_preferences_to_percentiles(parameters):
     p = parameters
 
     # Get normalized percentiles (Average of 0.5)
-    p["afsc_utility"] = (p["N"] - p["a_pref_matrix"]) / p["N"]  # Too simple!
-
-    # # First weed out all those who are ineligible for each AFSC
-    # p["afsc_utility"] = np.ones((p["N"], p["M"]))
-    # for j in p["J"]:
-    #
-    #     p["afsc_utility"][:, j] = (p["num_eligible"][j] - p["a_pref_matrix"][:, j]) / p["num_eligible"][j]
-
-
-    # All ineligible cadets are given percentiles of 0
-    p["afsc_utility"] *= p["eligible"]
+    p["afsc_utility"] = np.zeros([p['N'], p['M']])
+    for j in p['J']:
+        p['afsc_utility'][p['afsc_preferences'][j], j] = \
+            np.arange(1, len(p['afsc_preferences'][j]) + 1)[::-1] / len(p['afsc_preferences'][j])
 
     return p
 
@@ -328,6 +321,33 @@ def remove_ineligible_cadet_choices(parameters):
                     p['ineligible'][i, j] = 0
 
     return p  # Return parameters
+
+
+def update_preference_matrices(parameters):
+    """
+    This method takes the preference arrays and re-creates the preference
+    matrices based on the cadets/AFSCs on each list
+    """
+    # Shorthand
+    p = parameters
+
+    # Update the cadet preference matrix (c_pref_matrix)
+    if 'cadet_preferences' in p:
+
+        # Since 'cadet_preferences' is an array of AFSC indices, we can do this
+        p['c_pref_matrix'] = np.zeros([p['N'], p['M']]).astype(int)
+        for i in p['I']:
+            p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
+
+    # Update the AFSC preference matrix (a_pref_matrix)
+    if 'afsc_preferences' in p:
+
+        # Since 'afsc_preferences' is an array of cadet indices, we can do this
+        p['a_pref_matrix'] = np.zeros([p['N'], p['M']]).astype(int)
+        for j in p['J']:
+            p['a_pref_matrix'][p['afsc_preferences'][j], j] = np.arange(1, len(p['afsc_preferences'][j]) + 1)
+
+    return p
 
 
 

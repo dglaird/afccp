@@ -63,28 +63,35 @@ class CadetBoardFigure:
         else:
             self.b['lw'], self.b['lh'] = 0, 0
 
-        # Basic information about this sequence for the animation
-        self.b['afscs'], self.b['J'] = self.mdl_p['afscs'], self.mdl_p['J']
-        self.b['M'] = len(self.b['afscs'])
-
         # Loop through all the key value pairs of solution iterations and add them to "b"
         for key in self.solution_iterations:
             self.b[key] = self.solution_iterations[key]
+
+        # Basic information about this sequence for the animation
+        self.b['afscs'] = self.mdl_p['afscs']
 
         # Cadets in the "denominator" basically
         if self.b['cadets_solved_for'] == 'ROTC Rated':
             self.b['cadets'] = self.p['Rated Cadets']['rotc']
             self.b['max_afsc'] = self.p['rotc_quota']
             self.b['min_afsc'] = self.p['rotc_quota']
+            self.b['afscs'] = np.array([afsc for afsc in self.b['afscs'] if "_U" not in afsc])
         elif self.b['cadets_solved_for'] == 'USAFA Rated':
             self.b['cadets'] = self.p['Rated Cadets']['usafa']
             self.b['max_afsc'] = self.p['usafa_quota']
             self.b['min_afsc'] = self.p['usafa_quota']
+            self.b['afscs'] = np.array([afsc for afsc in self.b['afscs'] if "_R" not in afsc])
         else:
             self.b['cadets'] = self.p['I']
             self.b['max_afsc'] = self.p['quota_max']
             self.b['min_afsc'] = self.p['pgl']
+
+        # Correct cadet parameters
         self.b['N'] = len(self.b['cadets'])
+
+        # Correct AFSC parameters
+        self.b['M'] = len(self.b['afscs'])
+        self.b['J'] = np.array([np.where(afsc == self.p['afscs'])[0][0] for afsc in self.b['afscs']])
 
         # These are attributes to use in the title of each iteration
         self.num_unmatched = self.b['N']
@@ -120,11 +127,22 @@ class CadetBoardFigure:
 
         # Create the rest of the main figure
         self.calculate_cadet_box_x_y()
-        self.initialize_board()
+
+        # Save the board parameters
+        self.export_board_parameters()
+
+        # Build out the orientation slides
+        if self.b['build_orientation_slides']:
+
+            # Orientation slides first
+            self.orientation_slides()
+        else:
+
+            # Initialize the board!
+            self.initialize_board()
 
         # Create all the iteration frames
         if self.b['save_iteration_frames']:
-            self.export_board_parameters()  # Save the board parameters
 
             # Make the "focus" directory if needed
             folder_path = self.paths['Analysis & Results'] + 'Cadet Board/' + self.b['sequence']
@@ -225,6 +243,42 @@ class CadetBoardFigure:
         self.b['n^sorted'] = {index: sorted_n[index] for index in range(self.b['M'])}  # Translate 'new n' to 'real n'
         self.b['J^translated'] = {sorted_J[index]: index for index in range(self.b['M'])}  # Translate 'real j' to 'new j'
 
+    def orientation_slides(self):
+        """
+        Build out the orientation slides for a particular sequence (intended to be used on ONE AFSC)
+        """
+
+        # Make the "orientation" directory if needed
+        folder_path = self.paths['Analysis & Results'] + 'Cadet Board/' + self.b['sequence']
+        if 'Orientation' not in os.listdir(folder_path):
+            os.mkdir(folder_path + '/Orientation')
+
+        # Save the "zero" slide (just black screen)
+        filepath = folder_path + '/Orientation/0.png'
+        self.fig.savefig(filepath)
+
+        # Create first frame
+        self.initialize_board(include_surplus=False)
+
+        # Save the real first frame
+        filepath = folder_path + '/Orientation/1.png'
+        self.fig.savefig(filepath)
+
+        # Reset Figure
+        self.fig, self.ax = plt.subplots(figsize=self.b['b_figsize'], tight_layout=True, dpi=self.b['dpi'],
+                                         facecolor=self.b['figure_color'])
+        self.ax.set_facecolor(self.b['figure_color'])
+        self.ax.set_aspect('equal', adjustable='box')
+        self.ax.set(xlim=(0, self.b['fw']))
+        self.ax.set(ylim=(0, self.b['fh']))
+
+        # Create second frame
+        self.initialize_board(include_surplus=True)
+
+        # Save the second frame
+        filepath = folder_path + '/Orientation/2.png'
+        self.fig.savefig(filepath)
+
     # Determine layout of board
     def calculate_afsc_x_y_through_algorithm(self):
         """
@@ -262,7 +316,7 @@ class CadetBoardFigure:
             raise ValueError("Pyomo not installed.")
 
         # Build the model
-        model = afccp.core.solutions.optimization.cadet_board_preprocess_model(self)
+        model = afccp.core.solutions.optimization.cadet_board_preprocess_model(self.b)
 
         # Get coordinates and size of boxes by solving the model
         self.b['s'], self.b['x'], self.b['y'] = afccp.core.solutions.optimization.solve_pyomo_model(
@@ -294,7 +348,7 @@ class CadetBoardFigure:
                     self.b['cb_coords'][j][i] = (x_i, y_i)
                     i += 1
 
-    def initialize_board(self):
+    def initialize_board(self, include_surplus=True):
         """
         This method takes all the necessary board parameters and constructs the board to then be manipulated in other
         algorithms based on what the user wants to do.
@@ -356,7 +410,8 @@ class CadetBoardFigure:
                                                                 alpha=alpha, edgecolor=self.b['cb_edgecolor'])
 
                     # Add the patch to the figure
-                    self.ax.add_patch(self.b['c_boxes'][j][i])
+                    if include_surplus or linestyle == self.b['pgl_linestyle']:
+                        self.ax.add_patch(self.b['c_boxes'][j][i])
 
                 # If we are under the maximum number of cadets assigned to this AFSC across the solutions
                 if i + 1 <= self.b['max_assigned'][j]:
@@ -373,27 +428,6 @@ class CadetBoardFigure:
 
                     # Hide the circle
                     self.b['c_circles'][j][i].set_visible(False)
-
-        if self.b['draw_containers']:
-
-            # Build box around main container
-            self.b['container'] = patches.Rectangle((self.b['bw^l'], self.b['bw^b']), self.b['fw'] - self.b['bw^r'] -
-                                                    self.b['bw^l'], self.b['fh'] - self.b['bw^t'] - self.b['bw^b'],
-                                          linestyle='-', linewidth=1, edgecolor='black', facecolor='none')
-            self.ax.add_patch(self.b['container'])
-
-            # Build box around legend
-            self.b['legend_box'] = patches.Rectangle((self.b['fw'] - self.b['bw^r'] - self.b['lw'], self.b['fh'] -
-                                                      self.b['bw^t'] - self.b['lh']), self.b['lw'], self.b['lh'],
-                                                     linestyle='-', linewidth=1, edgecolor='black', facecolor='none')
-            self.ax.add_patch(self.b['legend_box'])
-
-        # Build unmatched cadets box if necessary
-        if self.b['N^u'] > 0:
-            self.b['unmatched_box'] = patches.Rectangle((self.b['bw^l'], self.b['bw^b']), self.b['fw'] - self.b['bw^r'] -
-                                                        self.b['bw^l'], self.b['bw^b'] + self.b['n^urow'] * self.b['s'],
-                                                        linestyle='-', linewidth=1, edgecolor='black', facecolor='none')
-            self.ax.add_patch(self.b['unmatched_box'])
 
         # Remove tick marks
         self.ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
@@ -599,8 +633,6 @@ class CadetBoardFigure:
 
                 # Show the circle
                 self.b['c_circles'][j][i].set_visible(True)
-
-
 
     def update_afsc_text(self, s, j):
         """
