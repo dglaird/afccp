@@ -89,6 +89,13 @@ def value_parameters_sets_additions(parameters, value_parameters, printing=False
             vp["objective_min"][j, k] = float(value_list[0].strip())
             vp["objective_max"][j, k] = float(value_list[1].strip())
 
+    # "Global Utility" matrix
+    if "afsc_utility" in p and "cadet_utility" in p:
+        vp['global_utility'] = np.zeros([p['N'], p['M'] + 1])
+        for j in p['J']:
+            vp['global_utility'][:, j] = vp['cadets_overall_weight'] * p['cadet_utility'][:, j] + \
+                                         vp['afscs_overall_weight'] * p['afsc_utility'][:, j]
+
     return vp
 
 

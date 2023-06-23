@@ -203,7 +203,7 @@ def initialize_instance_functional_parameters(N):
 
         # Pyomo General Parameters
         "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
-        "executable": None, "exe_extension": False,
+        "executable": None, "exe_extension": False, "assignment_model_obj": "Global Utility",
 
         # VFT Model Parameters
         "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,

@@ -12,13 +12,24 @@ dir_path = os.getcwd() + "/"
 global paths
 paths = {"instances": dir_path + "instances/",
          "solvers": dir_path + "solvers/",
-         "support": dir_path + "support/"}
+         "support": dir_path + "support/",
+         "files": dir_path + "files/"}
 for folder in paths:
 
     # If we don't have the folder, we make one
     if not os.path.exists(folder):
         print("Folder '" + folder + "' not in current working directory. Creating it now...")
         os.makedirs(folder)
+
+    # Necessary support sub-folders
+    if folder == 'support':
+        for sub_folder in ['data', 'value parameters defaults']:
+            sub_folder_path = paths['support'] + sub_folder
+
+            # If we don't have the folder, we make one
+            if not os.path.exists(sub_folder_path):
+                print("Support sub-folder '" + sub_folder + "' not in current working directory. Creating it now...")
+                os.makedirs(sub_folder_path)
 
 # Available instances
 global instances_available

@@ -10,7 +10,7 @@ import numpy as np
 from PIL import ImageTk, Image
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
-from afccp.core.problem_class import CadetCareerProblem
+from afccp.core.main import CadetCareerProblem
 
 # The GUI global object
 global root

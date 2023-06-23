@@ -61,17 +61,17 @@ def clean_problem_instance_preferences_utilities(afscs, original_preferences, or
 
 def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=True):
     """
-    This procedure takes in a list of AFSCs, CIP codes, and optionally a second set of CIP codes
-    (the cadets' second degrees) and generates a qual matrix for this year's specific cadets. AFOCD c/ao October 2022,
+    This procedure takes in a list of AFSCs, numpy array of CIP codes, and optionally a second array of CIP codes
+    (the cadets' second degrees) and generates a qual matrix for this year's specific cadets. AFOCD c/ao April 2023,
     however discussions with CFMs have altered the AFOCD "unofficially" but we honor these modifications as they're
-    directly from the CFM. They should go into effect in future AFOCD iterations. (The Latest Modification: Apr 2023)
+    directly from the CFM. They should go into effect in future AFOCD iterations. (The Latest Modification: Jun 2023)
     This qualification matrix incorporates both tier and requirement (M1, D2, etc.)
     :return: None
     """
 
     # AFOCD CLASSIFICATION
-    N = len(cip1)
-    M = len(afscs)
+    N = len(cip1)  # Number of Cadets
+    M = len(afscs)  # Number of AFSCs we're building the qual matrix for
     cips = {1: cip1, 2: cip2}
     qual = {}
     if cip2 is None:
@@ -92,7 +92,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
             for j, afsc in enumerate(afscs):
 
                 # Rated
-                if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0", "92T1", "92T2", "92T3"]:
+                if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0", "92T1", "92T2", "92T3", "11XX_R", "11XX_U"]:
                     qual[d][i, j] = "P1"
 
                 # Aerospace Physiologist
@@ -187,15 +187,18 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                     else:
                         qual[d][i, j] = 'I4'
 
-                # Weather and Environmental Sciences (DOESN'T MAKE SENSE)
+                # Weather and Environmental Sciences (Current a/o Apr '23 AFOCD)
                 elif afsc == '15W':
                     if cip[:4] == '4004':
                         qual[d][i, j] = 'M1'
-                    elif cip[:2] in ['27', '41'] or (cip[:2] == '40' and cip[:4] != '4004') or \
-                            cip[:4] in ['3008', '3030']:
+                    elif cip[:2] in ['27', '40', '41'] or cip[:4] in ['3008', '3030'] or cip in \
+                            ['140902', '140903', '141201', '143010', '141401', '143701', '143901']:
                         qual[d][i, j] = 'P2'
+                    elif cip in ['030104', '110102', '110101', '110803', '110201', '110701', '110802', '110104',
+                                 '110804']:
+                        qual[d][i, j] = 'P3'
                     else:
-                        qual[d][i, j] = 'I3'
+                        qual[d][i, j] = 'I4'
 
                 # Cyberspace Operations
                 elif afsc in ['17D', '17S', '17X', '17S1S']:
@@ -234,9 +237,9 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                     else:
                         qual[d][i, j] = 'P3'
 
-                # Logistics Readiness  (Current a/o 4/28/2023)
+                # Logistics Readiness: Conversations w/CFMs changed this! (Current a/o 4/28/2023)
                 elif afsc == '21R':
-                    if true_tiers:
+                    if true_tiers:  # More accurate than current AFOCD a/o Apr '23
                         cip_list = ['520203', '520409', '142501', '490199', '520209', '499999', '521001', '520201',
                                     '140101', '143501', '280799', '450601', '520601', '520304', '520899', '520213',
                                     '520211', '143701', '110802']
@@ -259,8 +262,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                             qual[d][i, j] = 'P3'
 
                 # Security Forces
-                elif afsc == '31P':
-                    if true_tiers:
+                elif afsc == '31P':  # Conversations w/CFMs changed this! (Current a/o 4/28/2023)
+                    if true_tiers:  # More accurate than current AFOCD a/o Apr '23
                         qual[d][i, j] = 'P1'
                     else:
                         d_list6 = ['450902', '430301', '430302', '430303', '430304', '439999', '450401', '451101',
@@ -286,9 +289,9 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                     else:
                         qual[d][i, j] = 'I2'
 
-                # Civil Engineering: Electrical Engineer
+                # Civil Engineering: Electrical Engineer  *added 1447 per CFM conversation 2 Jun '23
                 elif afsc == '32EXE':
-                    if cip[:4] == '1410':
+                    if cip[:4] in ['1410', '1447']:
                         qual[d][i, j] = 'M1'
                     else:
                         qual[d][i, j] = 'I2'
@@ -300,11 +303,12 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                     else:
                         qual[d][i, j] = 'I2'
 
-                # Civil Engineering: General Engineer
+                # Civil Engineering: General Engineer  *Updated AFOCD a/o 30 Apr '23 w/further adjustments a/o 2 Jun '23
                 elif afsc == '32EXG':
-                    if cip[:4] in ['1408', '1410'] or cip in ['140401', '141401', '141901', '143301', '143501']:
+                    if cip[:4] in ['1408', '1410'] or cip in ['140401', '141401', '141901', '143301', '143501',
+                                                              '144701']:
                         qual[d][i, j] = 'M1'
-                    elif cip in ["140701"] or cip[:4] in ["1405", "1425", "1402", "5220"]:
+                    elif cip in ["140701"] or cip[:4] in ["1405", "1425", "1402", "5220", '1510']:  # added 1510
                         qual[d][i, j] = 'D2'  # FY23 added a desired tier to 32EXG!
                     else:
                         qual[d][i, j] = 'I3'
@@ -456,9 +460,9 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                     else:
                         qual[d][i, j] = 'P3'
 
-                # This shouldn't happen... but all others!
+                # This shouldn't happen... but here's some error checking!
                 else:
-                    qual[d][i, j] = 'I5'
+                    raise ValueError("Error. AFSC '" + str(afsc) + "' not a valid AFSC that this code recognizes.")
 
     # If CIP2 is not specified, we just take the qual matrix from the first degrees
     if cip2 is None:
@@ -477,7 +481,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                 qual_2 = qual[2][i, j]
 
                 # If the first degree qualification is higher (lower number ex. 1 < 2), we take that. Otherwise, #2
-                if int(qual_1[1]) < int(qual_2[1]):
+                if int(qual_1[1]) < int(qual_2[1]):  # "M1, D2" -> "1 < 2" for example
                     qual_matrix[i, j] = qual_1
                 else:
                     qual_matrix[i, j] = qual_2

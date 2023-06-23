@@ -7,6 +7,7 @@ import copy
 import afccp.core.globals
 import afccp.core.data.preprocessing
 import afccp.core.data.values
+import afccp.core.data.preferences
 
 
 # File & Parameter Handling
@@ -279,19 +280,11 @@ def parameter_sets_additions(parameters):
     p['J'] = np.arange(p['M'])
     p['J^E'] = [np.where(p['eligible'][i, :])[0] for i in p['I']]  # set of AFSCs that cadet i is eligible for
 
-    # set of AFSCs that cadet i has placed a preference for and is also eligible for
-    non_zero_utils_j = [np.where(p['utility'][i, :] > 0)[0] for i in p['I']]
-    p["J^P"] = [np.intersect1d(p['J^E'][i], non_zero_utils_j[i]) for i in p['I']]
-
     # AFSC Indexed Sets
     p['I^E'] = [np.where(p['eligible'][:, j])[0] for j in p['J']]  # set of cadets that are eligible for AFSC j
 
     # Number of eligible cadets for each AFSC
     p["num_eligible"] = np.array([len(p['I^E'][j]) for j in p['J']])
-
-    # set of cadets that have placed a preference for AFSC j and are eligible for AFSC j
-    non_zero_utils_i = [np.where(p['utility'][:, j] > 0)[0] for j in p['J']]
-    p["I^P"] = [np.intersect1d(p['I^E'][j], non_zero_utils_i[j]) for j in p['J']]
 
     # More cadet preference sets if we have the "cadet preference columns"
     if "c_preferences" in p:
@@ -727,6 +720,24 @@ def more_parameter_additions(parameters):
                         rated_order.append(j)
                         p['Num Rated Choices'][soc][i] += 1
                 p['Rated Choices'][soc][i] = np.array(rated_order)
+
+
+    # If we haven't already created the "cadet_utility" matrix, we do that here
+    if 'cadet_utility' not in p:
+
+        # Build out cadet_utility using cadet preferences
+        if 'cadet_preferences' in p:
+            p = afccp.core.data.preferences.create_new_cadet_utility_matrix(p)
+        else:
+            p['cadet_utility'] = np.around(copy.deepcopy(p['utility']), 4)
+
+    # set of AFSCs that cadet i has placed a preference for and is also eligible for
+    non_zero_utils_j = [np.where(p['cadet_utility'][i, :] > 0)[0] for i in p['I']]
+    p["J^P"] = [np.intersect1d(p['J^E'][i], non_zero_utils_j[i]) for i in p['I']]
+
+    # set of cadets that have placed a preference for AFSC j and are eligible for AFSC j
+    non_zero_utils_i = [np.where(p['cadet_utility'][:, j] > 0)[0] for j in p['J']]
+    p["I^P"] = [np.intersect1d(p['I^E'][j], non_zero_utils_i[j]) for j in p['J']]
 
     return p
 
@@ -1211,6 +1222,16 @@ def export_afscs_data(instance):
         for t in range(4):
             afscs_columns["Deg Tier " + str(t + 1)] = p["Deg Tiers"][:, t]
 
+    # Degree Tier Counts
+    if "Tier 1" in p['I^D']:
+        for t in ['1', '2', '3', '4']:
+            afscs_columns['Deg Tier ' + t + ' Count'] = [len(p['I^D']['Tier ' + t][j]) for j in p['J']]
+
+    # Preference Counts
+    if 'Choice Count' in p:
+        for choice in p['Choice Count']:
+            afscs_columns['Choice ' + str(choice + 1)] = p['Choice Count'][choice]
+
     # Create dataframe
     afscs_df = pd.DataFrame(afscs_columns)
 
@@ -1475,37 +1496,215 @@ def export_solution_results_excel(instance, filepath):
     workbook = writer.book
     worksheet = workbook.add_worksheet("Main")
 
-    # Write something
-    worksheet.write('C5', "Test")
+    # Make the background white initially
+    white_format = workbook.add_format({'bold': False, 'font_color': 'black', 'bg_color': 'white',
+                                       'font_size': 14, 'font_name': 'Calibri'})
+    for r in range(200):
+        for c in range(50):
+            worksheet.write(r, c, '', white_format)
 
-    # AFSC Objective measures dataframe
-    df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
-    for k, objective in enumerate(vp['objectives']):
-        df[objective] = np.around(metrics['objective_measure'][:, k], 2)
+    # Merge cells
+    merge_format = workbook.add_format({'bold': True, 'font_color': 'black', 'bg_color': 'white',
+                                       'font_size': 14, 'font_name': 'Calibri', 'align': 'center',
+                                        'valign': 'vcenter', 'border_color': 'black', 'border': 1})
+    worksheet.merge_range("B2:D2", "VFT Overall Metrics", merge_format)
+    worksheet.merge_range("F2:G2", "Additional Metrics", merge_format)
+    worksheet.write('I2', 'Preference', merge_format)
+    worksheet.write('J2', 'Count', merge_format)
+    worksheet.write('K2', 'Proportion', merge_format)
 
-    # Convert the dataframe to an XlsxWriter Excel object.
-    df.to_excel(writer, sheet_name='Objective Measures', index=False)
+    # Objective Value
+    obj_format = workbook.add_format({'bold': True, 'font_color': 'black', 'bg_color': 'yellow',
+                                      'font_size': 14, 'font_name': 'Calibri', 'align': 'center',
+                                      'valign': 'vcenter', 'border_color': 'black', 'border': 1})
+    worksheet.merge_range("C6:D6", round(metrics['z'], 4), obj_format)
 
-    # AFSC Constraint Fail dataframe
-    df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
-    for k, objective in enumerate(vp['objectives']):
-        df[objective] = metrics['objective_constraint_fail'][:, k]
+    # Other cells
+    cell_format = workbook.add_format({'bold': False, 'font_color': 'black', 'bg_color': 'white',
+                                       'font_size': 14, 'font_name': 'Calibri', 'align': 'center',
+                                        'valign': 'vcenter', 'border_color': 'black', 'border': 1})
+    worksheet.write('B3', 'VFT', cell_format)
+    worksheet.write('B4', 'Cadets', cell_format)
+    worksheet.write('B5', 'AFSCs', cell_format)
+    worksheet.write('B6', 'Z', cell_format)
+    worksheet.write('C3', 'Value', cell_format)
+    worksheet.write('D3', 'Weight', cell_format)
 
-    # Convert the dataframe to an XlsxWriter Excel object.
-    df.to_excel(writer, sheet_name='Constraint Fails', index=False)
+    # Basic format
+    cell_format = workbook.add_format({'bold': False, 'font_color': 'black', 'bg_color': 'white',
+                                        'font_size': 14, 'font_name': 'Calibri', 'border_color': 'black', 'border': 1})
 
-    # AFSC Objective values dataframe
-    df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
-    for k, objective in enumerate(vp['objectives']):
-        values = np.empty((p['M']))
-        values[:] = np.nan
-        np.put(values, vp['J^A'][k], np.around(metrics['objective_value'][vp['J^A'][k], k], 2))
+    # Choice Counts
+    choice_dict = {1: "First", 2: "Second", 3: "Third", 4: "Fourth", 5: "Fifth", 6: "Sixth", 7: "Seventh",
+                   8: "Eighth", 9: "Ninth", 10: "Tenth"}
+    for choice in choice_dict:
+        worksheet.write("J" + str(2 + choice), int(metrics['cadet_choice_counts'][choice]), cell_format)
+        worksheet.write("I" + str(2 + choice), choice_dict[choice], cell_format)
+        worksheet.write("K" + str(2 + choice), round(metrics['cadet_choice_counts'][choice] / p['N'], 3), cell_format)
+    worksheet.write("I" + str(3 + choice), "All Others", cell_format)
+    worksheet.write("J" + str(3 + choice), int(metrics['cadet_choice_counts']['All Others']), cell_format)
+    worksheet.write("K" + str(3 + choice), round(metrics['cadet_choice_counts']["All Others"] / p['N'], 3), cell_format)
 
-        df[objective] = values
+    # Additional metrics
+    worksheet.write('F3', 'Blocking Pairs', cell_format)
+    worksheet.write('G3', metrics['num_blocking_pairs'], cell_format)
+    worksheet.write('F4', 'Ineligible Cadets', cell_format)
+    worksheet.write('G4', metrics['num_ineligible'], cell_format)
+    worksheet.write('F5', 'Unmatched Cadets', cell_format)
+    worksheet.write('G5', metrics['num_unmatched'], cell_format)
+    worksheet.write('F6', 'Average Cadet Choice', cell_format)
+    worksheet.write('G6', metrics['average_cadet_choice'], cell_format)
+    worksheet.write('F7', 'Average Normalized AFSC Score', cell_format)
+    worksheet.write('G7', metrics['weighted_average_afsc_score'], cell_format)
+    worksheet.write('F8', 'Failed Constraints', cell_format)
+    worksheet.write('G8', metrics['total_failed_constraints'], cell_format)
 
-    # Convert the dataframe to an XlsxWriter Excel object.
-    df.to_excel(writer, sheet_name='Objective Values', index=False)
+    # VFT Metrics
+    worksheet.write('C4', round(metrics['cadets_overall_value'], 4), cell_format)
+    worksheet.write('C5', round(metrics['afscs_overall_value'], 4), cell_format)
+    worksheet.write('D4', round(vp['cadets_overall_weight'], 4), cell_format)
+    worksheet.write('D5', round(vp['afscs_overall_weight'], 4), cell_format)
 
-    # Save the workbook (writer object)
-    writer.save()
+    # Draw bigger borders
+    draw_frame_border_outside(workbook, worksheet, 1, 1, 5, 3, color='black', width=2)
+    draw_frame_border_outside(workbook, worksheet, 1, 5, 7, 2, color='black', width=2)
+    draw_frame_border_outside(workbook, worksheet, 1, 8, 12, 3, color='black', width=2)
+
+    # Adjust Column Widths
+    column_widths = {0: 1.50, 4: 1.50, 5: 31, 7: 1.50, 8: 14, 10: 12}
+    for c in column_widths:
+        worksheet.set_column(c, c, column_widths[c])
+
+    def export_results_dfs():
+        """
+        This nested function is here to export all other dataframes
+        """
+
+        # AFSC Objective measures dataframe
+        df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
+        for k, objective in enumerate(vp['objectives']):
+            df[objective] = np.around(metrics['objective_measure'][:, k], 2)
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        df.to_excel(writer, sheet_name='Objective Measures', index=False)
+
+        # AFSC Constraint Fail dataframe
+        df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
+        for k, objective in enumerate(vp['objectives']):
+            df[objective] = metrics['objective_constraint_fail'][:, k]
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        df.to_excel(writer, sheet_name='Constraint Fails', index=False)
+
+        # AFSC Objective values dataframe
+        df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
+        for k, objective in enumerate(vp['objectives']):
+            values = np.empty((p['M']))
+            values[:] = np.nan
+            np.put(values, vp['J^A'][k], np.around(metrics['objective_value'][vp['J^A'][k], k], 2))
+
+            df[objective] = values
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        df.to_excel(writer, sheet_name='Objective Values', index=False)
+
+        # Solution Dataframe
+        df = pd.DataFrame({'Cadet': p['cadets']})
+        df['USAFA'] = p['usafa']
+        df['Merit'] = p['merit']
+        df["Matched"] = metrics['afsc_solution']
+        df['Cadet Choice'] = metrics['cadet_choice']
+        df['AFSC Choice'] = metrics['afsc_choice']
+        df['Cadet Utility'] = metrics['cadet_utility_achieved']
+        df['AFSC Utility'] = metrics['afsc_utility_achieved']
+        df['Global Utility'] = metrics['global_utility_achieved']
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        df.to_excel(writer, sheet_name='Solution', index=False)
+
+        # Solution/X Matrix
+        if instance.x is not None:
+            df = pd.DataFrame({'Cadet': p['cadets']})
+            df[instance.solution_name] = instance.metrics['afsc_solution']
+            for j, afsc in enumerate(p['afscs'][:p['M']]):
+                df[afsc] = instance.x[:, j]
+
+            # Convert the dataframe to an XlsxWriter Excel object.
+            df.to_excel(writer, sheet_name='X', index=False)
+
+        # Save the workbook (writer object)
+        writer.save()
+    export_results_dfs()
+
+def draw_frame_border_outside(workbook, worksheet, first_row, first_col, rows_count, cols_count,
+                              color='#0000FF', width=2):
+
+    # verify type of data passed in
+    if first_row <= 0:
+        first_row = 1
+    if first_col <= 0:
+        first_col = 1
+    cols_count = abs(cols_count)
+    rows_count = abs(rows_count)
+
+    # top left corner
+    worksheet.conditional_format(first_row - 1, first_col,
+                                 first_row - 1, first_col,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'bottom': width, 'border_color': color})})
+    worksheet.conditional_format(first_row, first_col - 1,
+                                 first_row, first_col - 1,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'right': width, 'border_color': color})})
+    # top right corner
+    worksheet.conditional_format(first_row - 1, first_col + cols_count - 1,
+                                 first_row - 1, first_col + cols_count - 1,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'bottom': width, 'border_color': color})})
+    worksheet.conditional_format(first_row, first_col + cols_count,
+                                 first_row, first_col + cols_count,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'left': width, 'border_color': color})})
+    # bottom left corner
+    worksheet.conditional_format(first_row + rows_count - 1, first_col - 1,
+                                 first_row + rows_count - 1, first_col - 1,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'right': width, 'border_color': color})})
+    worksheet.conditional_format(first_row + rows_count, first_col,
+                                 first_row + rows_count, first_col,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'top': width, 'border_color': color})})
+    # bottom right corner
+    worksheet.conditional_format(first_row + rows_count - 1, first_col + cols_count,
+                                 first_row + rows_count - 1, first_col + cols_count,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'left': width, 'border_color': color})})
+    worksheet.conditional_format(first_row + rows_count, first_col + cols_count - 1,
+                                 first_row + rows_count, first_col + cols_count - 1,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'top': width, 'border_color': color})})
+    # top
+    worksheet.conditional_format(first_row - 1, first_col + 1,
+                                 first_row - 1, first_col + cols_count - 2,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'bottom': width, 'border_color': color})})
+    # left
+    worksheet.conditional_format(first_row + 1, first_col - 1,
+                                 first_row + rows_count - 2, first_col - 1,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'right': width, 'border_color': color})})
+    # bottom
+    worksheet.conditional_format(first_row + rows_count, first_col + 1,
+                                 first_row + rows_count, first_col + cols_count - 2,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'top': width, 'border_color': color})})
+    # right
+    worksheet.conditional_format(first_row + 1, first_col + cols_count,
+                                 first_row + rows_count - 2, first_col + cols_count,
+                                 {'type': 'formula', 'criteria': 'True',
+                                  'format': workbook.add_format({'left': width, 'border_color': color})})
+
+
+
+
 

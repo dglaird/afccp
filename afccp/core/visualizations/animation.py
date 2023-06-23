@@ -38,7 +38,7 @@ class CadetBoardFigure:
         self.printing = printing
 
         # Load in hex values/colors
-        filepath = afccp.core.globals.paths['support'] + 'data/value_hex_translation.xlsx'
+        filepath = afccp.core.globals.paths['files'] + 'value_hex_translation.xlsx'
         if self.mdl_p['use_rainbow_hex']:
             hex_df = afccp.core.globals.import_data(filepath, sheet_name='Rainbow')
         else:

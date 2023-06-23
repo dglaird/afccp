@@ -35,7 +35,7 @@ def greedy_model_solve(instance, printing=False):
 
     # Overall Utility Matrix
     overall_utility = vp['afscs_overall_weight'] * (afsc_utility.T * vp['afsc_weight'][:, np.newaxis]).T + \
-                      vp['cadets_overall_weight'] * p['utility'][:, :p["M"]] * vp['cadet_weight'][:, np.newaxis] + \
+                      vp['cadets_overall_weight'] * p['cadet_utility'][:, :p["M"]] * vp['cadet_weight'][:, np.newaxis] + \
                       p['ineligible'] * -100
 
     # Begin Greedy Algorithm to match the cadets using overall utility matrix
@@ -359,8 +359,14 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     # Shorthand
     p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
 
+    # Slight change to Rated AFSCs (Remove SOC specific slots)
+    if soc == 'usafa':
+        rated_J = np.array([j for j in p['J^Rated'] if '_R' not in p['afscs'][j]])
+    else:
+        rated_J = np.array([j for j in p['J^Rated'] if '_U' not in p['afscs'][j]])
+
     # Algorithm initialization
-    total_slots = {j: p[soc + "_quota"][j] for j in p['J^Rated']}
+    total_slots = {j: p[soc + "_quota"][j] for j in rated_J}
     cadets = p['Rated Cadets'][soc]
     N = len(cadets)
 
@@ -377,17 +383,17 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
                                'afscs_solved_for': 'Rated'}
 
     # Begin the simple Hospital/Residents Algorithm
-    total_rejections = {j: 0 for j in p['J^Rated']}  # Number of rejections for each AFSC
-    total_matched = {j: 0 for j in p['J^Rated']}  # Number of accepted cadets for each AFSC
+    total_rejections = {j: 0 for j in rated_J}  # Number of rejections for each AFSC
+    total_matched = {j: 0 for j in rated_J}  # Number of accepted cadets for each AFSC
     exhausted_cadets = []  # Will contain the cadets that have exhausted (been rejected by) all of their preferences
     iteration = 0  # First iteration of the algorithm
-    while sum([total_matched[j] for j in p['J^Rated']]) + len(exhausted_cadets) < N:  # Stopping conditions
+    while sum([total_matched[j] for j in rated_J]) + len(exhausted_cadets) < N:  # Stopping conditions
 
         # Cadets propose to their top choice that hasn't been rejected
         proposals = {i: p['Rated Choices'][
             soc][i][cadet_proposal_choice[i]] if i not in exhausted_cadets else p['M'] for i in cadets}
         proposal_array = np.array([proposals[i] if i in cadets else p['M'] for i in p['I']])
-        counts = {p['afscs'][j]: len(np.where(proposal_array == j)[0]) for j in p['J^Rated']}
+        counts = {p['afscs'][j]: len(np.where(proposal_array == j)[0]) for j in rated_J}
 
         # Solution Iteration components (Proposals) and print statement
         if mdl_p['collect_solution_iterations']:
@@ -396,10 +402,10 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
             print("\nIteration", iteration + 1)
 
         # Initialize matches information for this iteration
-        total_matched = {j: 0 for j in p['J^Rated']}
+        total_matched = {j: 0 for j in rated_J}
 
         # AFSCs accept their best cadets and reject the others
-        for j in p['J^Rated']:
+        for j in rated_J:
 
             # Loop through their preferred cadets from top to bottom
             iteration_rejections = 0
@@ -433,7 +439,7 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
             solution_array = np.array([proposals[i] if i in cadets else p['M'] for i in p['I']])
             matches, reserves = [], []
             for i in cadets:
-                if proposals[i] in p['J^Rated']:
+                if proposals[i] in rated_J:
                     if first_choice[i] == proposals[i]:
                         matches.append(i)
                     else:
@@ -466,7 +472,7 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     for i in p['I']:
         solution[i], reserves[i] = p['M'], p['M']  # Default to unmatched
         if i in cadets:
-            if proposals[i] in p['J^Rated']:
+            if proposals[i] in rated_J:
                 if first_choice[i] == proposals[i]:
                     solution[i] = proposals[i]
                 else:

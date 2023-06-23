@@ -215,7 +215,6 @@ instances/
 results/
 solvers/
 support/
-assets/
 cfms/
 executables/
 test.py

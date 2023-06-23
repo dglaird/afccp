@@ -74,7 +74,7 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
 
     # Loop through all cadets to assign their values
     for i in p['I']:
-        metrics['cadet_value'][i] = np.sum(x[i, j] * p['utility'][i, j] for j in p['J^E'][i])
+        metrics['cadet_value'][i] = np.sum(x[i, j] * p['cadet_utility'][i, j] for j in p['J^E'][i])
         if metrics['cadet_value'][i] < vp['cadet_value_min'][i]:
             metrics['cadet_constraint_fail'][i] = 1
             metrics['total_failed_constraints'] += 1
@@ -201,7 +201,7 @@ def fitness_function(chromosome, p, vp, mp, con_fail_dict=None):
             return 0
 
     # Calculate Cadet Value
-    cadet_value = np.array([p['utility'][i, int(chromosome[i])] for i in p['I']])
+    cadet_value = np.array([p['cadet_utility'][i, int(chromosome[i])] for i in p['I']])
     for i in vp['I^C']:
 
         # If we fail this constraint, we return an objective value of 0
@@ -315,7 +315,7 @@ def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
 
     # Maximize cadet utility
     elif objective == 'Utility':
-        return np.mean(p['utility'][cadets, j])
+        return np.mean(p['cadet_utility'][cadets, j])
 
     # New objective to evaluate CFM preference lists
     elif objective == "Norm Score":
@@ -352,7 +352,7 @@ def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True)
     # Get count variables for this AFSC
     count = np.sum(x[i, j] for i in p['I^E'][j])
     if approximate:
-        num_cadets = p['quota_e'][j]  # estimated number of cadets
+        num_cadets = int(p['quota_e'][j])  # estimated number of cadets
     else:
         num_cadets = count  # actual number of cadets
 
@@ -376,7 +376,7 @@ def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True)
 
     # Maximize cadet utility
     elif objective == "Utility":
-        numerator = np.sum(p['utility'][i, j] * x[i, j] for i in p['I^E'][j])
+        numerator = np.sum(p['cadet_utility'][i, j] * x[i, j] for i in p['I^E'][j])
         return numerator / num_cadets, numerator  # Measure, Numerator
 
     # New objective to evaluate CFM preference lists
@@ -597,7 +597,7 @@ def value_function(a, f_a, r, x):
 
 def calculate_afsc_norm_score(cadets, j, p, count=None):
     """
-    This little function simply calculates the AFSC "Norm Score" value and returns it
+    This function simply calculates the AFSC "Norm Score" value and returns it
     """
 
     # Re-calculate count if necessary
@@ -619,7 +619,7 @@ def calculate_afsc_norm_score(cadets, j, p, count=None):
 
 def calculate_afsc_norm_score_general(ranks, achieved_ranks):
     """
-    This little function simply calculates the AFSC "Norm Score" value and returns it for
+    This function simply calculates the AFSC "Norm Score" value and returns it for
     any given inputs of ranks
     """
     # Number of cadets assigned here
@@ -661,20 +661,38 @@ def calculate_additional_useful_metrics(metrics, p, vp):
     # Convert back to solution array
     solution = np.array([np.where(p['afscs'] == metrics['afsc_solution'][i])[0][0] for i in p["I"]])
 
-    # Calculate average cadet choice
-    choices = np.zeros(p["N"])
-    for i, j in enumerate(solution):
-        if j in p['J']:
-            choices[i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
-        else:
-            choices[i] = np.max(p['c_pref_matrix'][i, :]) + 1  # Unassigned cadet choice
-    metrics['average_cadet_choice'] = round(np.mean(choices), 2)
+    # Only calculate these metrics if we have the right parameters
+    if 'c_pref_matrix' in p and 'a_pref_matrix' in p:
 
-    # Calculate average cadet choice for each AFSC individually
-    metrics['afsc_average_cadet_choice'] = np.zeros(p['M'])
-    for j in p['J']:
-        cadets = np.where(solution == j)[0]
-        metrics['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
+        # Calculate various metrics achieved
+        metrics['cadet_choice'] = np.zeros(p["N"]).astype(int)
+        metrics['afsc_choice'] = np.zeros(p['N']).astype(int)
+        metrics['cadet_utility_achieved'] = np.zeros(p['N'])
+        metrics['afsc_utility_achieved'] = np.zeros(p['N'])
+        metrics['global_utility_achieved'] = np.zeros(p['N'])
+        for i, j in enumerate(solution):
+            if j in p['J']:
+                metrics['cadet_choice'][i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
+                metrics['afsc_choice'][i] = np.where(p['afsc_preferences'][j] == i)[0][0] + 1  # Where is the cadet ranked
+                metrics['cadet_utility_achieved'][i] = p['cadet_utility'][i, j]
+                metrics['afsc_utility_achieved'][i] = p['afsc_utility'][i, j]
+                metrics['global_utility_achieved'][i] = vp['global_utility'][i, j]
+            else:
+                metrics['cadet_choice'][i] = np.max(p['c_pref_matrix'][i, :]) + 1  # Unassigned cadet choice
+        metrics['average_cadet_choice'] = round(np.mean(metrics['cadet_choice']), 2)
+
+        # Calculate average cadet choice for each AFSC individually
+        metrics['afsc_average_cadet_choice'] = np.zeros(p['M'])
+        for j in p['J']:
+            cadets = np.where(solution == j)[0]
+            metrics['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
+
+    # Cadet Choice Counts
+    metrics['cadet_choice_counts'] = {}
+    for choice in np.arange(1, 11):  # Just looking at top 10
+        metrics['cadet_choice_counts'][choice] = len(np.where(metrics['cadet_choice'] == choice)[0])
+    metrics['cadet_choice_counts']['All Others'] = int(p['N'] - sum(
+        [metrics['cadet_choice_counts'][choice] for choice in np.arange(1, 11)]))
 
     # Save the counts for each AFSC separately from the objective_measure matrix
     quota_k = np.where(vp['objectives'] == 'Combined Quota')[0][0]

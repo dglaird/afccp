@@ -18,7 +18,7 @@ import afccp.core.data.generation
 import afccp.core.solutions.handling
 import afccp.core.solutions.algorithms
 import afccp.core.visualizations.animation
-import afccp.core.visualizations.instance_graphs
+import afccp.core.visualizations.charts
 import afccp.core.comprehensive_functions
 
 # Import pyomo models if library is installed
@@ -119,7 +119,7 @@ class CadetCareerProblem:
                 self.gp_df = afccp.core.globals.import_csv_data(self.import_paths["Goal Programming"])
             else:  # Default "GP" file
                 self.gp_df = afccp.core.globals.import_data(
-                    afccp.core.globals.paths["support"] + "data/gp_parameters.xlsx")
+                    afccp.core.globals.paths["files"] + "gp_parameters.xlsx")
 
             # Import the "Value Parameters" data dictionary
             self.vp_dict = afccp_dp.import_value_parameters_data(self.import_paths, self.parameters,
@@ -289,6 +289,37 @@ class CadetCareerProblem:
         parameters = afccp.core.data.processing.parameter_sets_additions(parameters)
         self.parameters = copy.deepcopy(parameters)
 
+    def convert_to_scrubbed_instance(self, new_letter, printing=None):
+        """
+        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
+        :param printing: If we should print status update
+        :param new_letter: New letter to assign to this problem instance
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Converting problem instance '" + self.data_name + "' to new instance '" + new_letter + "'...")
+
+        return afccp.core.comprehensive_functions.convert_instance_to_from_scrubbed(self, new_letter, translation_dict=None)
+
+    def convert_back_to_real_instance(self, translation_dict, data_name, printing=None):
+        """
+        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
+        :param printing: If we should print status update
+        :param translation_dict: Dictionary generated from the scrubbed instance method
+        :param data_name: Data Name of the new instance
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Converting problem instance '" + self.data_name + "' back to instance '" + data_name + "'...")
+
+        return afccp.core.comprehensive_functions.convert_instance_to_from_scrubbed(
+            self, translation_dict=translation_dict, data_name=data_name)
+
+    # Adjust Preferences
     def update_qualification_matrix_from_afsc_preferences(self):
         """
         This method updates the qualification matrix based on the "real" eligibility imbedded in the
@@ -397,57 +428,6 @@ class CadetCareerProblem:
         self.parameters = afccp.core.data.preferences.convert_afsc_preferences_to_percentiles(self.parameters)
         self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
 
-    def convert_to_scrubbed_instance(self, new_letter, printing=None):
-        """
-        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
-        :param printing: If we should print status update
-        :param new_letter: New letter to assign to this problem instance
-        """
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print("Converting problem instance '" + self.data_name + "' to new instance '" + new_letter + "'...")
-
-        return afccp.core.comprehensive_functions.convert_instance_to_from_scrubbed(self, new_letter, translation_dict=None)
-
-    def convert_back_to_real_instance(self, translation_dict, data_name, printing=None):
-        """
-        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
-        :param printing: If we should print status update
-        :param translation_dict: Dictionary generated from the scrubbed instance method
-        :param data_name: Data Name of the new instance
-        """
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print("Converting problem instance '" + self.data_name + "' back to instance '" + data_name + "'...")
-
-        return afccp.core.comprehensive_functions.convert_instance_to_from_scrubbed(
-            self, translation_dict=translation_dict, data_name=data_name)
-
-    def generate_rated_data(self):
-        """
-        This method generates Rated data for USAFA and ROTC if it doesn't already exist. This data can then also be
-        exported back as a csv for reference.
-        """
-
-        # Generate Rated Data
-        self.parameters = afccp.core.data.preferences.generate_rated_data(self.parameters)
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
-
-    def construct_rated_preferences_from_om_by_soc(self):
-        """
-        This method takes the two OM Rated matrices (from both SOCs) and then zippers them together to
-        create a combined "1-N" list for the Rated AFSCs. The AFSC preference matrix is updated as well as the
-        AFSC preference lists
-        """
-
-        # Generate Rated Preferences
-        self.parameters = afccp.core.data.preferences.construct_rated_preferences_from_om_by_soc(self.parameters)
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
-
     def remove_ineligible_choices(self):
         """
         Uses the qual matrix to remove ineligible pairs from both AFSC and cadet preferences
@@ -472,6 +452,28 @@ class CadetCareerProblem:
 
         # Update parameters
         self.parameters = afccp.core.data.preferences.update_preference_matrices(self.parameters)
+
+    # Adjust Rated Data
+    def generate_rated_data(self):
+        """
+        This method generates Rated data for USAFA and ROTC if it doesn't already exist. This data can then also be
+        exported back as a csv for reference.
+        """
+
+        # Generate Rated Data
+        self.parameters = afccp.core.data.preferences.generate_rated_data(self.parameters)
+        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+
+    def construct_rated_preferences_from_om_by_soc(self):
+        """
+        This method takes the two OM Rated matrices (from both SOCs) and then zippers them together to
+        create a combined "1-N" list for the Rated AFSCs. The AFSC preference matrix is updated as well as the
+        AFSC preference lists
+        """
+
+        # Generate Rated Preferences
+        self.parameters = afccp.core.data.preferences.construct_rated_preferences_from_om_by_soc(self.parameters)
+        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
 
     # Specify Value Parameters
     def set_instance_value_parameters(self, vp_name=None):
@@ -763,7 +765,7 @@ class CadetCareerProblem:
         """
         afccp.core.data.processing.parameter_sanity_check(self)
 
-    # noinspection PyDictCreation
+    # noinspection PyDictCreation  # Rebecca's model stuff!
     def vft_to_gp_parameters(self, p_dict={}, printing=None):
         """
         Converts the instance parameters and value parameters to parameters used by Rebecca's model
@@ -957,11 +959,14 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
+        # One little "switch" to get the original model objective function
+        p_dict['assignment_model_obj'] = "Original Utility"
+
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
         # Build the model and then solve it
-        model = afccp.core.solutions.optimization.original_model_build(self, printing=printing)
+        model = afccp.core.solutions.optimization.assignment_model_build(self, printing=printing)
         start_time = time.perf_counter()  # Start the timer to solve the model
         solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.optimization.solve_pyomo_model(
             self, model, "Original", printing=printing)
@@ -969,6 +974,37 @@ class CadetCareerProblem:
 
         # Determine what to do with the solution
         self.solution_handling(solution, solution_method="OG", x=x)
+
+        # Return the solution and potentially the time it took to solve the model
+        if self.mdl_p["time_eval"]:
+            return solution, solve_time
+        else:
+            return solution
+
+    def solve_assignment_pyomo_model(self, p_dict={}, printing=None):
+        """
+        Solve the "generalized assignment problem" model with the new global utility matrix constructed
+        from the AFSC and Cadet Utility matrices
+        """
+        self.error_checking("Pyomo Model")
+        if printing is None:
+            printing = self.printing
+
+        # One little "switch" to get the new assignment model objective function
+        p_dict['assignment_model_obj'] = "Global Utility"
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Build the model and then solve it
+        model = afccp.core.solutions.optimization.assignment_model_build(self, printing=printing)
+        start_time = time.perf_counter()  # Start the timer to solve the model
+        solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.optimization.solve_pyomo_model(
+            self, model, "Assignment Model", printing=printing)
+        solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
+
+        # Determine what to do with the solution
+        self.solution_handling(solution, solution_method="APM", x=x)
 
         # Return the solution and potentially the time it took to solve the model
         if self.mdl_p["time_eval"]:
@@ -1067,37 +1103,6 @@ class CadetCareerProblem:
 
         # Return solution
         return self.solution
-
-    def solve_for_constraints(self, p_dict={}):
-        """
-        This method iteratively adds constraints to the model to find which ones should be included based on
-        feasibility and in order of importance
-        """
-        self.error_checking("Pyomo Model")
-
-        # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
-
-        # If no constraints are turned on right now...
-        if np.sum(self.value_parameters["constraint_type"]) == 0:
-            raise ValueError("No active constraints to search for, "
-                             "make sure the current set of value parameters has active constraints.")
-
-        # Run the function!
-        constraint_type, solutions_df, report_df = afccp.core.solutions.optimization.determine_model_constraints(self)
-
-        # Build constraint type dataframe
-        constraint_type_df = pd.DataFrame({'AFSC': self.parameters['afscs'][:self.parameters["M"]]})
-        for k, objective in enumerate(self.value_parameters['objectives']):
-            constraint_type_df[objective] = constraint_type[:, k]
-
-        # Export to excel
-        filepath = self.export_paths['Analysis & Results'] + self.data_name + " " + self.vp_name + \
-                   " Constraint Report (" + self.data_version + ").xlsx"
-        with pd.ExcelWriter(filepath) as writer:
-            report_df.to_excel(writer, sheet_name="Report", index=False)
-            constraint_type_df.to_excel(writer, sheet_name="Constraints", index=False)
-            solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
 
     # Meta-heuristics
     def genetic_algorithm(self, p_dict={}, printing=None):
@@ -1683,7 +1688,7 @@ class CadetCareerProblem:
         self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
 
         # Initialize the AFSC Chart object
-        afsc_chart = afccp.core.visualizations.instance_graphs.AFSCsChart(self)
+        afsc_chart = afccp.core.visualizations.charts.AFSCsChart(self)
 
         # Construct the specific chart
         return afsc_chart.build(printing=printing)
@@ -1753,7 +1758,7 @@ class CadetCareerProblem:
                 print("Creating AFSC weight chart...")
 
         # Build the chart
-        chart = afccp.core.visualizations.instance_graphs.individual_weight_graph(self)
+        chart = afccp.core.visualizations.charts.individual_weight_graph(self)
 
         if printing:
             chart.show()
@@ -1834,7 +1839,7 @@ class CadetCareerProblem:
             self.error_checking('Solution')
 
         # Initialize the AFSC Chart object
-        afsc_chart = afccp.core.visualizations.instance_graphs.AFSCsChart(self)
+        afsc_chart = afccp.core.visualizations.charts.AFSCsChart(self)
 
         # Construct the specific chart
         return afsc_chart.build(chart_type="Results", printing=printing)
@@ -1961,12 +1966,43 @@ class CadetCareerProblem:
         coords = afccp.core.data.preferences.solution_similarity_coordinates(similarity_matrix)
 
         # Plot similarity
-        chart = afccp.core.visualizations.instance_graphs.solution_similarity_graph(self, coords)
+        chart = afccp.core.visualizations.charts.solution_similarity_graph(self, coords)
 
         if printing:
             chart.show()
 
     # Sensitivity Analysis
+    def solve_for_constraints(self, p_dict={}):
+        """
+        This method iteratively adds constraints to the model to find which ones should be included based on
+        feasibility and in order of importance
+        """
+        self.error_checking("Pyomo Model")
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # If no constraints are turned on right now...
+        if np.sum(self.value_parameters["constraint_type"]) == 0:
+            raise ValueError("No active constraints to search for, "
+                             "make sure the current set of value parameters has active constraints.")
+
+        # Run the function!
+        constraint_type, solutions_df, report_df = afccp.core.solutions.optimization.determine_model_constraints(self)
+
+        # Build constraint type dataframe
+        constraint_type_df = pd.DataFrame({'AFSC': self.parameters['afscs'][:self.parameters["M"]]})
+        for k, objective in enumerate(self.value_parameters['objectives']):
+            constraint_type_df[objective] = constraint_type[:, k]
+
+        # Export to excel
+        filepath = self.export_paths['Analysis & Results'] + self.data_name + " " + self.vp_name + \
+                   " Constraint Report (" + self.data_version + ").xlsx"
+        with pd.ExcelWriter(filepath) as writer:
+            report_df.to_excel(writer, sheet_name="Report", index=False)
+            constraint_type_df.to_excel(writer, sheet_name="Constraints", index=False)
+            solutions_df.to_excel(writer, sheet_name="Solutions", index=False)
+
     def initial_overall_weights_pareto_analysis(self, p_dict={}, printing=None):
         """
         Takes the current set of value parameters and solves the VFT approximate model solution multiple times
@@ -2042,7 +2078,7 @@ class CadetCareerProblem:
         filepath = self.export_paths['Analysis & Results'] + self.data_name + " " + self.vp_name + " (" + \
                    self.data_version + ") Pareto Analysis.xlsx"
 
-        iself.error_checking("Pyomo Model")
+        self.error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
@@ -2137,7 +2173,7 @@ class CadetCareerProblem:
             except:
                 raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
 
-        return afccp.core.visualizations.instance_graphs.pareto_graph(pareto_df)
+        return afccp.core.visualizations.charts.pareto_graph(pareto_df)
 
     def display_afsc_objective_weights_chart(self, current_set=True, afsc=None, printing=None, colors=None,
                                              save=False, figsize=(14, 6), facecolor="white", title=None,
@@ -2171,7 +2207,7 @@ class CadetCareerProblem:
             yaxis_tick_size = 30
             xaxis_tick_size = 30
 
-        chart = afccp.core.visualizations.instance_graphs.afsc_objective_weights_graph(
+        chart = afccp.core.visualizations.charts.afsc_objective_weights_graph(
             self.parameters, vp_dict, afsc, colors=colors, save=save, figsize=figsize, facecolor=facecolor, title=title,
             legend_size=legend_size, display_title=display_title, label_size=label_size, title_size=title_size,
             xaxis_tick_size=xaxis_tick_size, yaxis_tick_size=yaxis_tick_size, bar_color=bar_color)
@@ -2253,7 +2289,7 @@ class CadetCareerProblem:
         self.error_checking('Solution')
 
         # Filepath to export to
-        filename = self.data_name + " " + self.solution_name + ".xlsx"
+        filename = self.data_name + " " + self.solution_name + " (" + self.vp_name + ").xlsx"
         filepath = self.export_paths['Analysis & Results'] + filename
 
         # Print statement

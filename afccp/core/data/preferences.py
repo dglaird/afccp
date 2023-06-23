@@ -81,7 +81,7 @@ def convert_utility_matrices_preferences(parameters, cadets_as_well=False):
         for i in p["I"]:
 
             # Sort the utilities to get the preference list
-            utilities = p["utility"][i, :p["M"]]
+            utilities = p["cadet_utility"][i, :p["M"]]
             sorted_indices = np.argsort(utilities)[::-1]
             preferences = np.argsort(
                 sorted_indices) + 1  # Add 1 to change from python index (at 0) to rank (start at 1)
@@ -135,11 +135,11 @@ def generate_fake_afsc_preferences(parameters, value_parameters=None, fix_cadet_
         # Add a column to the eligible matrix for the unmatched AFSC (just to get the below multiplication to work)
         eligible = copy.deepcopy(p['eligible'])
         eligible = np.hstack((eligible, np.array([[0] for _ in range(p["N"])])))
-        p['utility'] *= eligible  # They have to be eligible!
+        p['cadet_utility'] *= eligible  # They have to be eligible!
         for i in p["I"]:
 
             # Sort the utilities to get the preference list
-            utilities = p["utility"][i, :p["M"]]
+            utilities = p["cadet_utility"][i, :p["M"]]
             ineligible_indices = np.where(eligible[i, :p["M"]] == 0)[0]
             sorted_indices = np.argsort(utilities)[::-1][:p['M'] - len(ineligible_indices)]
             p['cadet_preferences'][i] = sorted_indices
@@ -348,6 +348,41 @@ def update_preference_matrices(parameters):
             p['a_pref_matrix'][p['afsc_preferences'][j], j] = np.arange(1, len(p['afsc_preferences'][j]) + 1)
 
     return p
+
+
+def create_new_cadet_utility_matrix(parameters):
+    """
+    This function creates a new "cadet_utility" matrix using normalized preferences and
+    the original "utility" matrix.
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Initialize matrix
+    p['cadet_utility'] = np.zeros([p['N'], p['M'] + 1])  # Additional column for unmatched cadets
+
+    # Loop through each cadet
+    for i in p['I']:
+
+        # 1, 2, 3, 4, ..., N  (Pure rankings)
+        rankings = np.arange(p['num_cadet_choices'][i]) + 1
+
+        # 1, 0.8, 0.6, 0.4, ..., 1 / N  (Scale rankings to range from 1 to 0)
+        normalized_rankings = 1 - (rankings / np.max(rankings)) + (1 / np.max(rankings))
+
+        # 1, 0.75, 0, 0, etc. (From utility matrix)
+        original_utilities = p['utility'][i, p['cadet_preferences'][i]]
+
+        # "New" Utilities based on a weighted sum of normalized rankings and original utilities
+        new_utilities = np.around(0.5 * normalized_rankings + 0.5 * original_utilities, 4)
+
+        # Put these new utilities back into the utility matrix in the appropriate spots
+        p['cadet_utility'][i, p['cadet_preferences'][i]] = new_utilities
+
+    # Return parameters
+    return p
+
 
 
 

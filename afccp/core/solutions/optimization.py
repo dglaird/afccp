@@ -16,7 +16,7 @@ logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 warnings.filterwarnings('ignore')
 
 # Main Model Building
-def original_model_build(instance, printing=False):
+def assignment_model_build(instance, printing=False):
     """
     Converts the parameters and value parameters to the pyomo data structure
 
@@ -53,53 +53,55 @@ def original_model_build(instance, printing=False):
 
     Example:
         instance = ProblemInstance()
-        model = original_model_build(instance, printing=True)
+        model = assignment_model_build(instance, printing=True)
         ...
     """
 
-    if printing:
-        print("Building original model...")
-
     # Shorthand
-    p = instance.parameters
-    vp = instance.value_parameters
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
 
-    # Utility/Cost Matrix
-    c = np.zeros([p['N'], p['M']])
-    for i in p['I']:
-        for j in p['J^E'][i]:  # Only looping through AFSCs that the cadet is eligible for
+    # *New* Utility/Cost Matrix based on CFM preferences and cadet preferences
+    if mdl_p['assignment_model_obj'] == 'Global Utility':
+        c = vp['global_utility']
 
-            # If AFSC j is a preference for cadet i
-            if p['utility'][i, j] > 0:
+        if printing:
+            print("Building assignment problem model...")
 
-                if p['mandatory'][i, j] == 1:
-                    c[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 250
-                elif p['desired'][i, j] == 1:
-                    c[i, j] = 10 * p['merit'][i] * p['utility'][i, j] + 150
-                else:  # Permitted, though it could also be an "exception"
-                    c[i, j] = 10 * p['merit'][i] * p['utility'][i, j]
+    # Original Model Utility/Cost Matrix
+    else:
 
-            # If it is not a preference for cadet i
-            else:
+        if printing:
+            print("Building original model...")
 
-                if p['mandatory'][i, j] == 1:
-                    c[i, j] = 100 * p['merit'][i]
-                elif p['desired'][i, j] == 1:
-                    c[i, j] = 50 * p['merit'][i]
-                else:  # Permitted, though it could also be an "exception"
-                    c[i, j] = 0
+        c = np.zeros([p['N'], p['M']])
+        for i in p['I']:
+            for j in p['J^E'][i]:  # Only looping through AFSCs that the cadet is eligible for
+
+                # If AFSC j is a preference for cadet i
+                if p['cadet_utility'][i, j] > 0:
+
+                    if p['mandatory'][i, j] == 1:
+                        c[i, j] = 10 * p['merit'][i] * p['cadet_utility'][i, j] + 250
+                    elif p['desired'][i, j] == 1:
+                        c[i, j] = 10 * p['merit'][i] * p['cadet_utility'][i, j] + 150
+                    else:  # Permitted, though it could also be an "exception"
+                        c[i, j] = 10 * p['merit'][i] * p['cadet_utility'][i, j]
+
+                # If it is not a preference for cadet i
+                else:
+
+                    if p['mandatory'][i, j] == 1:
+                        c[i, j] = 100 * p['merit'][i]
+                    elif p['desired'][i, j] == 1:
+                        c[i, j] = 50 * p['merit'][i]
+                    else:  # Permitted, though it could also be an "exception"
+                        c[i, j] = 0
 
     # Build Model
     m = ConcreteModel()
 
     # ___________________________________VARIABLE DEFINITION_________________________________
-    m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
-
-    # Fixing variables if necessary
-    for i in p['J^Fixed']:
-
-        # Fix the variable
-        m.x[i, j].fix(p['J^Fixed'][i])
+    m = common_optimization_model_x_handling(m, p, vp)  # Define x along with additional functional constraints
 
     # ___________________________________OBJECTIVE FUNCTION__________________________________
     def objective_function(m):
@@ -109,23 +111,6 @@ def original_model_build(instance, printing=False):
 
     # ________________________________________CONSTRAINTS_____________________________________
     pass
-
-    # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
-    m.one_afsc_constraints = ConstraintList()
-    for i in p['I']:
-        m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
-
-    # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
-    if vp["J^USAFA"] is not None:
-        # This is a pretty arbitrary constraint and will only be used for real class years
-        real_n = instance.mdl_p['real_usafa_n']  # Total number of USAFA cadets (Line/Non-Line)
-        cap = 0.05 * real_n
-
-        # USAFA 5% Cap Constraint
-        def usafa_afscs_rule(m):
-            return np.sum(np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j]) for j in vp["J^USAFA"]) <= cap
-
-        m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
 
     # AFSC Objective Measure Constraints (Optional decision-maker constraints)
     m.measure_constraints = ConstraintList()
@@ -138,13 +123,13 @@ def original_model_build(instance, printing=False):
 
             # Calculate AFSC objective measure components
             measure, numerator = afccp.core.solutions.handling.calculate_objective_measure_matrix(
-                m.x, j, objective, p, vp, approximate=True)
+                m.x, j, vp['objectives'][k], p, vp, approximate=True)
 
             # Add AFSC objective measure constraint
             m = add_objective_measure_constraint(m, j, k, measure, numerator, p, vp)
 
     if printing:
-        print("Done. Solving original model...")
+        print("Done. Solving model...")
 
     return m  # Return model
 
@@ -269,7 +254,7 @@ def vft_model_build(instance, printing=False):
     q = adjust_parameters()  # Call the function
 
     # _________________________________VARIABLE DEFINITIONS_________________________________
-    m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)  # main decision variable (x)
+    m = common_optimization_model_x_handling(m, p, vp)  # Define x along with additional functional constraints
     m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)  # AFSC objective value
     m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in q['L'][j, k]),
                 within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
@@ -310,12 +295,6 @@ def vft_model_build(instance, printing=False):
                             # 1 if AFSC j objective measure k is on line segment between breakpoints l and l + 1; 0 o/w
                             m.y[j, k, l] = instance.mdl_p["warm_start"]['y'][j, k, l]
 
-            # Fixing variables if necessary
-            for i in p['J^Fixed']:
-
-                # Fix the variable
-                m.x[i, j].fix(p['J^Fixed'][i])
-
         # Return model (m)
         return m
 
@@ -329,38 +308,12 @@ def vft_model_build(instance, printing=False):
         return vp['afscs_overall_weight'] * np.sum(vp['afsc_weight'][j] * np.sum(
             vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) for j in p['J']) + \
                vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * np.sum(
-            p['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+            p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
     m.objective = Objective(rule=objective_function, sense=maximize)
 
     # ____________________________________CONSTRAINTS_____________________________________
     pass  # Here so pycharm doesn't yell at me for the constraint line above
-
-    # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
-    m.one_afsc_constraints = ConstraintList()
-    for i in p['I']:
-        m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
-
-    # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
-    if 'J^Reserved' in p:
-        m.reserved_afsc_constraints = ConstraintList()
-        for i in p['J^Reserved']:
-            m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
-
-    # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
-    if vp["J^USAFA"] is not None:
-        cap = 0.05 * instance.mdl_p["real_usafa_n"]  # Total number of graduating USAFA cadets (Line & Non-line cadets)
-
-        # USAFA 5% Cap Constraint
-        def usafa_afscs_rule(m):
-            """
-            This is the 5% USAFA graduating class cap constraint for certain AFSCs (support AFSCs). I will note that
-            as of Mar '23 this constraint is effectively null and void! Still here for documentation however and for any
-            potential future experiment
-            """
-            return np.sum(np.sum(m.x[i, j] for i in p['I^D']['USAFA Proportion'][j]) for j in vp["J^USAFA"]) <= cap
-
-        m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
 
     # Value Function Constraints: Linking main methodology with value function methodology
     m.measure_vf_constraints = ConstraintList()  # 20a in Thesis
@@ -375,9 +328,8 @@ def vft_model_build(instance, printing=False):
     m.lambda_positive = ConstraintList()  # Lambda domain (20h)
     m.f_value_positive = ConstraintList()  # AFSC objective value domain
 
-    # Cadet/AFSC Value Constraints (Optional decision-maker constraints)
+    # AFSC Value Constraints (Optional decision-maker constraints)
     m.min_afsc_value_constraints = ConstraintList()
-    m.min_cadet_value_constraints = ConstraintList()
 
     # AFSC Objective Measure Constraints (Optional decision-maker constraints)
     m.measure_constraints = ConstraintList()
@@ -428,12 +380,6 @@ def vft_model_build(instance, printing=False):
             m.min_afsc_value_constraints.add(expr=np.sum(
                 vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) >= vp['afsc_value_min'][j])
 
-    # Cadet value constraint
-    for i in p['I']:
-        if vp['cadet_value_min'][i] != 0:
-            m.min_cadet_value_constraints.add(expr=np.sum(
-                p['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) >= vp['cadet_value_min'][i])
-
     # AFSCs Overall Min Value
     def afsc_min_value_constraint(m):
         return vp['afscs_overall_value_min'] <= np.sum(vp['afsc_weight'][j] * np.sum(
@@ -445,7 +391,7 @@ def vft_model_build(instance, printing=False):
     # Cadets Overall Min Value
     def cadet_min_value_constraint(m):
         return vp['cadets_overall_value_min'] <= np.sum(vp['cadet_weight'][i] * np.sum(
-            p['utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+            p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
     if vp['cadets_overall_value_min'] != 0:
         m.cadet_min_value_constraint = Constraint(rule=cadet_min_value_constraint)
@@ -744,7 +690,7 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             x[j], y[j] = model.x[idx].value, model.y[idx].value
         return s, x, y
 
-    # VFT/Original Model specific actions
+    # VFT/Assignment Model specific actions
     else:
 
         # Obtain solution from the model
@@ -778,7 +724,7 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                         max_util = 0
                         max_j = 0
                         for j in p["J^P"][i]:
-                            if p["utility"][i, j] >= max_util:
+                            if p['cadet_utility'][i, j] >= max_util:
                                 max_j = j
                                 max_util = max_util
                         solution[i] = int(max_j)
@@ -937,7 +883,7 @@ def calculate_rewards_penalties(instance, printing=True):
     return rewards, penalties
 
 
-# VFT Model Helper Functions
+# Optimization Model Helper Functions
 def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
     """
     Add an objective measure constraint to the model.
@@ -993,6 +939,58 @@ def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
 
     # Return the model
     return m
+
+
+def common_optimization_model_x_handling(m, p, vp):
+    """
+    This function takes in the optimization model, parameters, and value parameters
+    and then adds components that are common to all of my *main* optimization models
+    (VFT and the 2 generalized assignment problem models).
+    """
+
+    # Define the x-variable
+    m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
+
+    # Fixing variables if necessary
+    for i in p['J^Fixed']:
+
+        # Fix the variable
+        m.x[i, j].fix(p['J^Fixed'][i])
+
+    # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
+    m.one_afsc_constraints = ConstraintList()
+    for i in p['I']:
+        m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
+
+    # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
+    if 'J^Reserved' in p:
+        m.reserved_afsc_constraints = ConstraintList()
+        for i in p['J^Reserved']:
+            m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
+
+    # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
+    if vp["J^USAFA"] is not None:
+        cap = 0.05 * instance.mdl_p["real_usafa_n"]  # Total number of graduating USAFA cadets
+
+        # USAFA 5% Cap Constraint
+        def usafa_afscs_rule(m):
+            """
+            This is the 5% USAFA graduating class cap constraint for certain AFSCs (support AFSCs). I will note that
+            as of Mar '23 this constraint is effectively null and void! Still here for documentation however and for any
+            potential future experiment
+            """
+            return np.sum(np.sum(m.x[i, j] for i in p['usafa_cadets']) for j in vp["J^USAFA"]) <= cap
+
+        m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
+
+    # Cadet value constraint (Could work on any optimization model)
+    m.min_cadet_value_constraints = ConstraintList()
+    for i in p['I']:
+        if vp['cadet_value_min'][i] != 0:
+            m.min_cadet_value_constraints.add(expr=np.sum(
+                p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) >= vp['cadet_value_min'][i])
+
+    return m  # Return the model
 
 
 # VFT Constraint Placing Algorithm

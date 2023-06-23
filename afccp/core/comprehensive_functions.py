@@ -5,7 +5,7 @@ import pandas as pd
 import afccp.core.data.preferences
 import afccp.core.data.values
 import afccp.core.data.simulation_functions
-import afccp.core.visualizations.instance_graphs
+import afccp.core.visualizations.charts
 import afccp.core.solutions.algorithms
 import afccp.core.visualizations.more_graphs
 import afccp.core.data.processing
@@ -152,7 +152,7 @@ def piecewise_sanity_check(a=None, f_a=None, x=None, graph=True, printing=True):
         if graph:
             x, y = value_function_points(a, f_a)
 
-            chart = afccp.core.visualizations.instance_graphs.value_function_graph(
+            chart = afccp.core.visualizations.charts.value_function_graph(
                 x, y, x_point, f_x_point, breakpoints=[a, f_a])
             chart.show()
 
@@ -216,7 +216,7 @@ def plot_value_function(instance, printing=False):
         x, y = vp['a'][j][k], vp['f^hat'][j][k]
 
     # Plot the function  (We also overwrite the figsize)
-    chart = afccp.core.visualizations.instance_graphs.value_function_graph(
+    chart = afccp.core.visualizations.charts.value_function_graph(
         x, y, title=ip["title"], label_size=ip["label_size"],
         yaxis_tick_size=ip["yaxis_tick_size"], xaxis_tick_size=ip["xaxis_tick_size"], figsize=(10, 10),
         facecolor=ip["facecolor"], display_title=ip["display_title"], save=ip["save"], x_label=x_label,

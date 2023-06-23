@@ -14553,7 +14553,7 @@ def OLEA_scoring_placeholder(instance='instance'):
     os.chdir(dir_path)
 
     # Import main problem class
-    from afccp.core.problem_class import CadetCareerProblem
+    from afccp.core.main import CadetCareerProblem
 
     # Create new random instance
     instance = CadetCareerProblem("2023OLEA", printing=True)  # 'Random', N=10, M=2, P=2, printing=True)
