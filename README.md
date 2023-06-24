@@ -19,8 +19,11 @@ I created this project for the completion of my master's thesis and continue to 
     - [Data](#data)
         - [Parameters](#parameters)
         - [Value Parameters](#value-parameters)
-    - [Solutions](#pyomo-models)
-    - [Simulation Functions](#simulation-functions)
+    - [Solutions](#solutions)
+        - [Algorithms](#algorithms)
+        - [Optimization](#optimization)
+        - [Handling](#handling)
+    - [Visualizations](#visualizations)
 - [Credits](#credits)
 - [License](#license)
 
