@@ -144,7 +144,8 @@ def initialize_instance_functional_parameters(N):
         'b_solver_name': 'couenne', 'b_pyomo_max_time': None, 'row_constraint': False, 'n^rows': 3,
         'simplified_model': True, 'use_pyomo_model': True, 'sort_cadets_by': 'AFSC Preferences', 'add_legend': False,
         'draw_containers': False, 'figure_color': 'black', 'text_color': 'white', 'afsc_text_to_show': 'Norm Score',
-        'use_rainbow_hex': True, 'build_orientation_slides': False,
+        'use_rainbow_hex': True, 'build_orientation_slides': True, 'b_legend': True, 'b_legend_size': 20,
+        'b_legend_marker_size': 20, 'b_legend_title_size': 20,
 
         # These parameters pertain to the AFSCs that will ultimately show up in the visualizations
         'afscs_solved_for': 'All', 'afscs_to_show': 'All',
@@ -265,9 +266,9 @@ def initialize_instance_functional_parameters(N):
     mdl_p['all_other_choice_colors'] = '#ff000a'
     mdl_p['choice_colors'] = choice_colors
     mdl_p['interest_colors'] = {'High': '#3700ff', 'Med': '#dad725', 'Low': '#ff9100', 'None': '#ff000a'}
-    mdl_p['reserved_slot_color'] = "#5070af"
-    mdl_p['matched_slot_color'] = "#dccc23"
-    mdl_p['unmatched_color'] = "#85847a"
+    mdl_p['reserved_slot_color'] = "#ac9853"
+    mdl_p['matched_slot_color'] = "#3700ff"
+    mdl_p['unmatched_color'] = "#D3D3D3"
 
     # Add these elements to the main dictionary
     mdl_p["afsc_chart_versions"] = afsc_chart_versions

@@ -2,6 +2,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.lines as mlines
+from matplotlib.lines import Line2D
 from matplotlib.text import Annotation
 from matplotlib.transforms import Transform, Bbox
 import numpy as np
@@ -76,15 +77,18 @@ class CadetBoardFigure:
             self.b['max_afsc'] = self.p['rotc_quota']
             self.b['min_afsc'] = self.p['rotc_quota']
             self.b['afscs'] = np.array([afsc for afsc in self.b['afscs'] if "_U" not in afsc])
+            self.soc = "rotc"
         elif self.b['cadets_solved_for'] == 'USAFA Rated':
             self.b['cadets'] = self.p['Rated Cadets']['usafa']
             self.b['max_afsc'] = self.p['usafa_quota']
             self.b['min_afsc'] = self.p['usafa_quota']
             self.b['afscs'] = np.array([afsc for afsc in self.b['afscs'] if "_R" not in afsc])
+            self.soc = 'usafa'
         else:
             self.b['cadets'] = self.p['I']
             self.b['max_afsc'] = self.p['quota_max']
             self.b['min_afsc'] = self.p['pgl']
+            self.soc = 'both'
 
         # Correct cadet parameters
         self.b['N'] = len(self.b['cadets'])
@@ -437,6 +441,58 @@ class CadetBoardFigure:
             title = "Round 0 (Orientation)"
         self.fig.suptitle(title, fontsize=self.b['b_title_size'], color=self.b['text_color'])
 
+        # Add the legend if necessary
+        if self.b['b_legend']:
+            legend_elements = []
+            if self.b['focus'] == 'Cadet Choice':
+
+                # Add legend elements
+                for c in np.arange(1, 11):
+                    legend_elements.append(
+                        Line2D([0], [0], marker='o', label=str(c), markerfacecolor=self.mdl_p['choice_colors'][c],
+                               markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+                legend_elements.append(
+                    Line2D([0], [0], marker='o', label='11+', markerfacecolor=self.mdl_p['all_other_choice_colors'],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+
+            if self.b['focus'] == 'ROTC Rated Interest':
+
+                # Add legend elements
+                for level in self.mdl_p['interest_colors']:
+                    legend_elements.append(
+                        Line2D([0], [0], marker='o', label=level, markerfacecolor=self.mdl_p['interest_colors'][level],
+                               markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+
+            if self.b['focus'] == 'Rated Choice':
+
+                # Add legend elements
+                for c in np.arange(1, len(self.b['J']) + 1):
+                    legend_elements.append(
+                        Line2D([0], [0], marker='o', label=str(c), markerfacecolor=self.mdl_p['choice_colors'][c],
+                               markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+
+            elif self.b['focus'] == 'Reserves':
+
+                # Add legend elements
+                legend_elements = [
+                    Line2D([0], [0], marker='o', label="Matched", markerfacecolor=self.mdl_p['matched_slot_color'],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
+                    Line2D([0], [0], marker='o', label="Reserved", markerfacecolor=self.mdl_p['reserved_slot_color'],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
+            # Create legend
+            leg = self.ax.legend(handles=legend_elements, edgecolor='white', loc='upper right', facecolor='black',
+                                 fontsize=self.mdl_p['b_legend_size'], ncol=len(legend_elements), labelspacing=1,
+                                 handlelength=0.8, handletextpad=0.2, borderpad=0.2, handleheight=2,
+                                 title=self.b['focus'])
+
+            # Change title color in legend
+            title = leg.get_title()
+            title.set_color('white'), title.set_fontsize(self.mdl_p['b_legend_title_size'])
+
+            # Change label colors in legend
+            for text in leg.get_texts():
+                text.set_color("white")
+
         # Save the figure
         if self.b['save_board_default']:
             folder_path = self.paths['Analysis & Results'] + 'Cadet Board/'
@@ -629,6 +685,28 @@ class CadetBoardFigure:
                     color = self.b['unmatched_color']
 
                 # Change circle color
+                self.b['c_circles'][j][i].set_facecolor(color)
+
+                # Show the circle
+                self.b['c_circles'][j][i].set_visible(True)
+
+        elif self.b['focus'] == 'Rated Choice':
+
+            # Change the cadet circles to reflect the appropriate colors
+            for i, cadet in enumerate(cadets):
+                rated_choices = self.p['Rated Choices'][self.soc][cadet]
+
+                # Get color of this choice
+                if j in rated_choices:
+                    choice = np.where(rated_choices == j)[0][0] + 1
+                else:
+                    choice = 100  # Arbitrary big number
+
+                # Change circle color
+                if choice in self.mdl_p['choice_colors']:
+                    color = self.mdl_p['choice_colors'][choice]
+                else:
+                    color = self.mdl_p['all_other_choice_colors']
                 self.b['c_circles'][j][i].set_facecolor(color)
 
                 # Show the circle

@@ -8,7 +8,6 @@ import pandas as pd
 
 import afccp.core.globals
 import afccp.core.solutions.handling
-import afccp.core.data.values
 from pyomo.environ import *
 
 # Ignore warnings

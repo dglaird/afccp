@@ -1077,7 +1077,7 @@ class CadetCareerProblem:
                 now = datetime.datetime.now()
                 print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
                       now.strftime('%H:%M:%S') + '...')
-            self.genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
+            self.vft_genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
             if printing:
                 print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
 
@@ -1094,7 +1094,7 @@ class CadetCareerProblem:
                 print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
                 print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
                       now.strftime('%H:%M:%S') + '...')
-            self.genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
+            self.vft_genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
             if printing:
                 print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
 
@@ -1105,7 +1105,7 @@ class CadetCareerProblem:
         return self.solution
 
     # Meta-heuristics
-    def genetic_algorithm(self, p_dict={}, printing=None):
+    def vft_genetic_algorithm(self, p_dict={}, printing=None):
         """
         This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
         solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve
@@ -1169,7 +1169,7 @@ class CadetCareerProblem:
             initial_solutions = None
 
         # Generate the solution
-        solution, time_eval_df = afccp.core.solutions.algorithms.genetic_algorithm(
+        solution, time_eval_df = afccp.core.solutions.algorithms.vft_genetic_algorithm(
             self, initial_solutions, con_fail_dict, printing=printing)
 
         # Determine what to do with the solution
@@ -1651,6 +1651,14 @@ class CadetCareerProblem:
             # Last solution iteration
             self.solution_iterations['last_s'] = s
 
+        # Adjust certain elements for Rated stuff
+        if 'Rated' in self.solution_iterations['type']:
+            self.solution_iterations['afscs_solved_for'] = 'Rated'
+            if "USAFA" in self.solution_name:
+                self.solution_iterations['cadets_solved_for'] = 'USAFA Rated'
+            elif "ROTC" in self.solution_name:
+                self.solution_iterations['cadets_solved_for'] = 'ROTC Rated'
+
         # Cadets/AFSCs solved for is by default "All"
         if "cadets_solved_for" not in self.solution_iterations:
             self.solution_iterations['cadets_solved_for'] = "All"
@@ -2123,7 +2131,7 @@ class CadetCareerProblem:
             if printing:
                 print("Calculating point " + str(point + 1) + " out of " + str(num_points) + "...")
 
-            solution = self.genetic_algorithm(self.mdl_p)
+            solution = self.vft_genetic_algorithm(self.mdl_p)
             solution_name = str(round(cadet_overall_weights[point], 4))
             afsc_solution = np.array([self.parameters["afscs"][int(j)] for j in solution])
             solutions[solution_name] = afsc_solution

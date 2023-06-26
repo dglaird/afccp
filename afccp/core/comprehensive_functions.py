@@ -522,13 +522,21 @@ def convert_instance_to_from_scrubbed(instance, new_letter=None, translation_dic
         if np.shape(p[key]) == (p["M"], ) and "^" not in key:  # Sets/Subsets will be adjusted later
             new_p[key] = p[key][t_indices]
 
-        # If it's a one dimensional array of length M, we translate it accordingly
+        # If it's a two-dimensional array of shape Mx4, we translate it accordingly
         elif np.shape(p[key]) == (p["M"], 4):
             new_p[key] = p[key][t_indices, :]
 
         # If it's a two-dimensional array of shape (NxM), we translate it accordingly
         elif np.shape(p[key]) == (p["N"], p["M"]) and key not in ['c_preferences', 'c_utilities']:
             new_p[key] = p[key][:, t_indices]
+
+        # If it's a two-dimensional array of shape (NxM+1), we translate it accordingly (leave unmatched AFSC alone)
+        elif np.shape(p[key]) == (p["N"], p["M"] + 1):
+            new_p[key] = copy.deepcopy(p[key])
+            new_p[key][:, :p['M']] = p[key][:, t_indices]
+
+        # else:
+        #     print("Parameter key '" + key + "' of shape", np.shape(new_p[key]), "not translated.")
 
     # Get assigned AFSC vector
     for i, real_afsc in enumerate(p["assigned"]):
@@ -559,6 +567,9 @@ def convert_instance_to_from_scrubbed(instance, new_letter=None, translation_dic
                 # If it's a two-dimensional array of shape (MxO), we translate it accordingly
                 elif np.shape(vp[key]) == (vp["M"], vp["O"]) and key not in ["a", "f^hat"]:
                     new_vp[key] = vp[key][t_indices, :]
+
+                # else:
+                #     print("Parameter key '" + key + "' of shape", np.shape(vp[key]), "not translated.")
 
             # USAFA-constrained AFSCs
             if vp["J^USAFA"] is not None:

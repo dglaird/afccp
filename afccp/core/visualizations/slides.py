@@ -86,24 +86,35 @@ def create_animation_slides(instance):
     focus_folder_path = sequence_folder_path + mdl_p['focus'] + '/'
     folder = np.array(os.listdir(focus_folder_path))
 
-    # The integer values at the beginning of each file
-    int_vals = np.array([int(file[:2]) for file in folder])
-    min, max = np.min(int_vals), np.max(int_vals)
+    # Regular solution iterations frames: 1.png for example
+    if "1.png" in folder:
 
-    # Loop through the files to get the ordered list of frames
-    img_paths = {}
-    for val in np.arange(min, max + 1):
-        indices = np.where(int_vals == val)[0]
-        files = folder[indices]
-        if len(files) > 1:
-            if 'Proposals' in files[0]:
-                img_paths[files[0]] = focus_folder_path + files[0]
-                img_paths[files[1]] = focus_folder_path + files[1]
+        # Sort the folder in order by the frames
+        int_vals = np.array([int(file[0]) for file in folder])
+        indices = np.argsort(int_vals)
+        img_paths = {file: focus_folder_path + file for file in folder[indices]}
+
+    # Matching Algorithm proposals/rejections frames: 1 (Proposals).png & 1 (Rejections).png for example
+    else:
+
+        # The integer values at the beginning of each file
+        int_vals = np.array([int(file[:2]) for file in folder])
+        min, max = np.min(int_vals), np.max(int_vals)
+
+        # Loop through the files to get the ordered list of frames
+        img_paths = {}
+        for val in np.arange(min, max + 1):
+            indices = np.where(int_vals == val)[0]
+            files = folder[indices]
+            if len(files) > 1:
+                if 'Proposals' in files[0]:
+                    img_paths[files[0]] = focus_folder_path + files[0]
+                    img_paths[files[1]] = focus_folder_path + files[1]
+                else:
+                    img_paths[files[1]] = focus_folder_path + files[1]
+                    img_paths[files[0]] = focus_folder_path + files[0]
             else:
-                img_paths[files[1]] = focus_folder_path + files[1]
                 img_paths[files[0]] = focus_folder_path + files[0]
-        else:
-            img_paths[files[0]] = focus_folder_path + files[0]
 
     # Loop through each image file path to add the image to the presentation
     for file in img_paths:
