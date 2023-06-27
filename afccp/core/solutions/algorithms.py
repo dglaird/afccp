@@ -154,7 +154,8 @@ def rotc_rated_board_original(instance, printing=False):
     # Cadets/AFSCs and their preferences
     cadet_indices = p['Rated Cadets']['rotc']  # indices of the cadets in the full set of cadets
     cadets, N = np.arange(len(cadet_indices)), len(cadet_indices)
-    afscs, M = p['afscs_acc_grp']['Rated'], len(p['afscs_acc_grp']['Rated'])
+    rated_J = np.array([j for j in p['J^Rated'] if '_U' not in p['afscs'][j]])
+    afscs, M = p['afscs'][rated_J], len(rated_J)
     afsc_indices = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afscs])
     afsc_om = {afscs[j]: p['rr_om_matrix'][:, j] for j in range(M)}  # list of OM percentiles for each AFSC
     afsc_interest = {afscs[j]: p['rr_interest_matrix'][:, j] for j in range(M)}  # list of Rated interest from cadets
@@ -178,6 +179,10 @@ def rotc_rated_board_original(instance, printing=False):
     # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
     solution_iterations = {'solutions': {}, 'iteration_names': {}, 'type': 'ROTC Rated Board',
                            'cadets_solved_for': 'ROTC Rated', 'afscs_solved_for': 'Rated'}
+
+    # Re-order AFSCs if necessary
+    if instance.mdl_p['rotc_rated_board_afsc_order'] is not None:
+        afscs = instance.mdl_p['rotc_rated_board_afsc_order']  # Need to be ordered list of ROTC Rated AFSCs
 
     # Phases of the Rated board where each tuple represents the level for (OM, Interest)
     phases = [("High", "High"), ("High", "Med"), ("Med", "High"), ("Med", "Med"), ("Low", "High"), ("High", "Low"),

@@ -364,7 +364,7 @@ class CadetCareerProblem:
 
                     # Update qual matrix if needed
                     if len(preference_ineligible_cadets) > 0:
-                        print(j, "Making", len(preference_ineligible_cadets), "more cadets ineligible for '" + afsc +
+                        print(j, "Making", len(preference_ineligible_cadets), "cadets ineligible for '" + afsc +
                               "' by altering their qualification to '" + val + "'. ")
                         self.parameters['qual'][preference_ineligible_cadets, j] = val
 
