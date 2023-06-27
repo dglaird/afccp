@@ -103,12 +103,12 @@ class CadetBoardFigure:
         self.average_cadet_choice = None
 
         # Initialize Figure
-        self.fig, self.ax = plt.subplots(figsize=self.b['b_figsize'], tight_layout=True, dpi=self.b['dpi'],
-                                         facecolor=self.b['figure_color'])
+        self.fig, self.ax = plt.subplots(figsize=self.b['b_figsize'], dpi=self.b['dpi'],
+                                         facecolor=self.b['figure_color'], tight_layout=True)
         self.ax.set_facecolor(self.b['figure_color'])
         self.ax.set_aspect('equal', adjustable='box')
-        self.ax.set(xlim=(0, self.b['fw']))
-        self.ax.set(ylim=(0, self.b['fh']))
+        self.ax.set(xlim=(-self.b['x_ext_left'], self.b['fw'] + self.b['x_ext_right']))
+        self.ax.set(ylim=(-self.b['y_ext_left'], self.b['fh'] + self.b['y_ext_right']))
 
     # Main functions
     def main(self):
@@ -269,12 +269,12 @@ class CadetBoardFigure:
         self.fig.savefig(filepath)
 
         # Reset Figure
-        self.fig, self.ax = plt.subplots(figsize=self.b['b_figsize'], tight_layout=True, dpi=self.b['dpi'],
-                                         facecolor=self.b['figure_color'])
+        self.fig, self.ax = plt.subplots(figsize=self.b['b_figsize'], dpi=self.b['dpi'],
+                                         facecolor=self.b['figure_color'], tight_layout=True)
         self.ax.set_facecolor(self.b['figure_color'])
         self.ax.set_aspect('equal', adjustable='box')
-        self.ax.set(xlim=(0, self.b['fw']))
-        self.ax.set(ylim=(0, self.b['fh']))
+        self.ax.set(xlim=(-self.b['x_ext_left'], self.b['fw'] + self.b['x_ext_right']))
+        self.ax.set(ylim=(-self.b['y_ext_left'], self.b['fh'] + self.b['y_ext_right']))
 
         # Create second frame
         self.initialize_board(include_surplus=True)

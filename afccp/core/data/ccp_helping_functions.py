@@ -145,7 +145,8 @@ def initialize_instance_functional_parameters(N):
         'simplified_model': True, 'use_pyomo_model': True, 'sort_cadets_by': 'AFSC Preferences', 'add_legend': False,
         'draw_containers': False, 'figure_color': 'black', 'text_color': 'white', 'afsc_text_to_show': 'Norm Score',
         'use_rainbow_hex': True, 'build_orientation_slides': True, 'b_legend': True, 'b_legend_size': 20,
-        'b_legend_marker_size': 20, 'b_legend_title_size': 20,
+        'b_legend_marker_size': 20, 'b_legend_title_size': 20, 'x_ext_left': 0, 'x_ext_right': 0, 'y_ext_left': 0,
+        'y_ext_right': 0,
 
         # These parameters pertain to the AFSCs that will ultimately show up in the visualizations
         'afscs_solved_for': 'All', 'afscs_to_show': 'All',
