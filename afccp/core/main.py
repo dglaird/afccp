@@ -8,24 +8,25 @@ import datetime
 import glob
 import copy
 import time
+
+# afccp modules
 import afccp.core.globals
-import afccp.core.data.simulation_functions
-import afccp.core.data.values
-import afccp.core.data.ccp_helping_functions
-import afccp.core.data.processing
-import afccp.core.data.preferences
+import afccp.core.data.adjustments
 import afccp.core.data.generation
-import afccp.core.solutions.handling
+import afccp.core.data.preferences
+import afccp.core.data.processing
+import afccp.core.data.support
+import afccp.core.data.values
 import afccp.core.solutions.algorithms
+import afccp.core.solutions.handling
 import afccp.core.visualizations.animation
 import afccp.core.visualizations.charts
-import afccp.core.comprehensive_functions
 
-# Import pyomo models if library is installed
+# Import optimization models if pyomo is installed
 if afccp.core.globals.use_pyomo:
     import afccp.core.solutions.optimization
 
-# Import pptx script if we have the library installed
+# Import slides script if python-pptx installed
 if afccp.core.globals.use_pptx:
     import afccp.core.visualizations.slides
 
@@ -112,7 +113,7 @@ class CadetCareerProblem:
                 self.parameters = import_function(self.import_paths, self.parameters)
 
             # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
-            self.parameters = afccp_dp.parameter_sets_additions(self.parameters)
+            self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
             # Import the "Goal Programming" dataframe (from Lt Rebecca Reynold's thesis)
             if "Goal Programming" in self.import_paths:
@@ -159,10 +160,10 @@ class CadetCareerProblem:
                     N, P, M, generate_only_nrl=generate_only_nrl)
 
             # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
-            self.parameters = afccp_dp.parameter_sets_additions(self.parameters)
+            self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
         # Initialize more "functional" parameters
-        self.mdl_p = afccp.core.data.ccp_helping_functions.initialize_instance_functional_parameters(
+        self.mdl_p = afccp.core.data.support.initialize_instance_functional_parameters(
             self.parameters["N"])
 
         if self.printing:
@@ -175,7 +176,7 @@ class CadetCareerProblem:
         the "p_dict". This all happens in-place.
         """
         # Shorthand
-        ccp_fns = afccp.core.data.ccp_helping_functions
+        ccp_fns = afccp.core.data.support
 
         # Reset plot parameters and model parameters
         self.mdl_p = ccp_fns.initialize_instance_functional_parameters(self.parameters["N"])
@@ -269,10 +270,10 @@ class CadetCareerProblem:
         # Generate new matrix
         if "cip1" in parameters:
             if "cip2" in parameters:
-                qual_matrix = afccp.core.data.preprocessing.cip_to_qual_tiers(
+                qual_matrix = afccp.core.data.support.cip_to_qual_tiers(
                     parameters["afscs"][:parameters["M"]], parameters['cip1'], cip2=parameters['cip2'])
             else:
-                qual_matrix = afccp.core.data.preprocessing.cip_to_qual_tiers(
+                qual_matrix = afccp.core.data.support.cip_to_qual_tiers(
                     parameters["afscs"][:parameters["M"]], parameters['cip1'])
         else:
             raise ValueError("Error. Need to update the degree tier qualification matrix to include tiers "
@@ -286,7 +287,7 @@ class CadetCareerProblem:
         parameters["exception"] = (np.core.defchararray.find(qual_matrix, "E") != -1) * 1
         for t in [1, 2, 3, 4]:
             parameters["tier " + str(t)] = (np.core.defchararray.find(qual_matrix, str(t)) != -1) * 1
-        parameters = afccp.core.data.processing.parameter_sets_additions(parameters)
+        parameters = afccp.core.data.adjustments.parameter_sets_additions(parameters)
         self.parameters = copy.deepcopy(parameters)
 
     def convert_to_scrubbed_instance(self, new_letter, printing=None):
@@ -301,7 +302,7 @@ class CadetCareerProblem:
         if printing:
             print("Converting problem instance '" + self.data_name + "' to new instance '" + new_letter + "'...")
 
-        return afccp.core.comprehensive_functions.convert_instance_to_from_scrubbed(self, new_letter, translation_dict=None)
+        return afccp.core.data.adjustments.convert_instance_to_from_scrubbed(self, new_letter, translation_dict=None)
 
     def convert_back_to_real_instance(self, translation_dict, data_name, printing=None):
         """
@@ -316,7 +317,7 @@ class CadetCareerProblem:
         if printing:
             print("Converting problem instance '" + self.data_name + "' back to instance '" + data_name + "'...")
 
-        return afccp.core.comprehensive_functions.convert_instance_to_from_scrubbed(
+        return afccp.core.data.adjustments.convert_instance_to_from_scrubbed(
             self, translation_dict=translation_dict, data_name=data_name)
 
     # Adjust Preferences
@@ -402,7 +403,7 @@ class CadetCareerProblem:
         self.parameters["exception"] = (np.core.defchararray.find(self.parameters['qual'], "E") != -1) * 1
 
         # Update the additional sets and subsets for the parameters
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def convert_utilities_to_preferences(self, cadets_as_well=False):
         """
@@ -410,7 +411,7 @@ class CadetCareerProblem:
         """
         self.parameters = afccp.core.data.preferences.convert_utility_matrices_preferences(self.parameters,
                                                                                                  cadets_as_well)
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def generate_fake_afsc_preferences(self, fix_cadet_eligibility=False):
         """
@@ -418,7 +419,7 @@ class CadetCareerProblem:
         """
         self.parameters = afccp.core.data.preferences.generate_fake_afsc_preferences(
             self.parameters, self.value_parameters, fix_cadet_eligibility=fix_cadet_eligibility)
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def convert_afsc_preferences_to_percentiles(self):
         """
@@ -426,14 +427,14 @@ class CadetCareerProblem:
         AFSC.
         """
         self.parameters = afccp.core.data.preferences.convert_afsc_preferences_to_percentiles(self.parameters)
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def remove_ineligible_choices(self):
         """
         Uses the qual matrix to remove ineligible pairs from both AFSC and cadet preferences
         """
         self.parameters = afccp.core.data.preferences.remove_ineligible_cadet_choices(self.parameters)
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def update_cadet_columns_from_matrices(self):
         """
@@ -462,7 +463,7 @@ class CadetCareerProblem:
 
         # Generate Rated Data
         self.parameters = afccp.core.data.preferences.generate_rated_data(self.parameters)
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def construct_rated_preferences_from_om_by_soc(self):
         """
@@ -473,7 +474,7 @@ class CadetCareerProblem:
 
         # Generate Rated Preferences
         self.parameters = afccp.core.data.preferences.construct_rated_preferences_from_om_by_soc(self.parameters)
-        self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     # Specify Value Parameters
     def set_instance_value_parameters(self, vp_name=None):
@@ -763,7 +764,7 @@ class CadetCareerProblem:
         This method runs through all of the parameters and value parameters to sanity check them to make sure
         everything is correct and there are no issues with the data before we run the model.
         """
-        afccp.core.data.processing.parameter_sanity_check(self)
+        afccp.core.data.adjustments.parameter_sanity_check(self)
 
     # noinspection PyDictCreation  # Rebecca's model stuff!
     def vft_to_gp_parameters(self, p_dict={}, printing=None):
@@ -1056,8 +1057,7 @@ class CadetCareerProblem:
 
         # Determine population for the genetic algorithm if necessary
         if self.mdl_p["populate"]:
-            self.mdl_p["initial_solutions"] = afccp.core.comprehensive_functions.populate_initial_ga_solutions(
-                self, printing)
+            self.mdl_p["initial_solutions"] = afccp.core.optimization.populate_initial_ga_solutions(self, printing)
 
             # Add additional solutions if necessary
             if self.mdl_p["solution_names"] is not None:
@@ -1238,7 +1238,7 @@ class CadetCareerProblem:
 
         # Adjust sets and subsets of cadets to reflect change
         if fix_it and total_ineligible > 0:
-            self.parameters = afccp.core.data.processing.parameter_sets_additions(self.parameters)
+            self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def set_instance_solution(self, solution_name=None, printing=None):
         """
@@ -1667,7 +1667,7 @@ class CadetCareerProblem:
         self.mdl_p['afscs_solved_for'] = self.solution_iterations['afscs_solved_for']  # Update AFSCs solved for in mdl_p
 
         # Determine which AFSCs to show in this visualization
-        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afscs_in_image(self.parameters, self.mdl_p)
+        self.mdl_p = afccp.core.data.support.determine_afscs_in_image(self.parameters, self.mdl_p)
 
         # Determine name of this CadetBoardFigure sequence
         self.solution_iterations['sequence'] = \
@@ -1693,7 +1693,7 @@ class CadetCareerProblem:
 
         # Adjust instance plot parameters
         self.reset_functional_parameters(p_dict)
-        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
+        self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self)
 
         # Initialize the AFSC Chart object
         afsc_chart = afccp.core.visualizations.charts.AFSCsChart(self)
@@ -1735,17 +1735,44 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
+        # Shorthand
+        p, vp = self.parameters, self.value_parameters
+
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
-        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
-
-        # Build the chart
-        value_function_chart = afccp.core.comprehensive_functions.plot_value_function(self, printing)
+        self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self)
+        ip = self.mdl_p  # More shorthand
 
         if printing:
-            value_function_chart.show()
+            print('Creating value function chart for objective ' + ip['objective'] + ' for AFSC ' + ip['afsc'])
 
-        return value_function_chart
+        # Determine AFSC and objective shown in this chart
+        j, k = np.where(p["afscs"] == ip["afsc"])[0][0], np.where(vp["objectives"] == ip["objective"])[0][0]
+
+        # ValueFunctionChart specific parameters
+        vfc = ip['ValueFunctionChart']
+        vfc['x_label'] = afccp.core.globals.obj_label_dict[ip['objective']]  # Get x label for this objective
+
+        # Value Function specific coordinates to plot
+        if vfc['x_pt'] is not None:
+            vfc['y_pt'] = afccp.core.solutions.handling.value_function(vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k],
+                                                                       vfc["x_pt"])
+
+        # Determine x and y arrays
+        if ip['smooth_value_function']:
+            x_arr = (np.arange(1001) / 1000) * vp['a'][j][k][vp['r'][j][k] - 1]
+            y_arr = np.array([afccp.core.solutions.handling.value_function(
+                vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k], x) for x in x_arr])
+        else:
+            x_arr, y_arr = vp['a'][j][k], vp['f^hat'][j][k]
+
+        # Title and filepath for this value function!
+        vfc['title'] = ip['afsc'] + ' ' + ip['objective'] + ' Value Function'
+        vfc['filepath'] = self.export_paths['Analysis & Results'] + \
+                          'Value Functions/' + self.data_name + ' ' + vfc['title'] + ' (' + self.vp_name + ').png'
+
+        # Create and return the chart
+        return afccp.core.visualizations.charts.ValueFunctionChart(x_arr, y_arr, vfc)
 
     def display_weight_function(self, p_dict={}, printing=None):
         """
@@ -1757,7 +1784,7 @@ class CadetCareerProblem:
 
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
-        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self)
+        self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self)
 
         if printing:
             if self.mdl_p["cadets_graph"]:
@@ -1838,7 +1865,7 @@ class CadetCareerProblem:
 
         # Adjust instance plot parameters
         self.reset_functional_parameters(p_dict)
-        self.mdl_p = afccp.core.data.ccp_helping_functions.determine_afsc_plot_details(self, results_chart=True)
+        self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Error handling
         if self.mdl_p['results_graph'] == 'Solution Comparison':
@@ -2182,47 +2209,6 @@ class CadetCareerProblem:
                 raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
 
         return afccp.core.visualizations.charts.pareto_graph(pareto_df)
-
-    def display_afsc_objective_weights_chart(self, current_set=True, afsc=None, printing=None, colors=None,
-                                             save=False, figsize=(14, 6), facecolor="white", title=None,
-                                             display_title=True, thesis_chart=False, title_size=None, bar_color=None,
-                                             legend_size=None, label_size=20, xaxis_tick_size=15, yaxis_tick_size=15):
-        """
-        Displays a chart comparing the objective weights for a particular afsc across multiple sets of value parameters
-        in the vp_dict
-        """
-        if printing is None:
-            printing = self.printing
-
-        if current_set:
-            vp_dict = {self.vp_name: self.value_parameters}
-        else:
-            vp_dict = self.vp_dict
-
-        if title_size is None:
-            title_size = label_size
-            legend_size = label_size
-
-        if afsc is None:
-            afsc = self.parameters['afscs'][0]
-
-        if thesis_chart:
-            figsize = (16, 10)
-            display_title = False
-            save = True
-            title = 'Objective_Weights_Chart'
-            label_size = 35
-            yaxis_tick_size = 30
-            xaxis_tick_size = 30
-
-        chart = afccp.core.visualizations.charts.afsc_objective_weights_graph(
-            self.parameters, vp_dict, afsc, colors=colors, save=save, figsize=figsize, facecolor=facecolor, title=title,
-            legend_size=legend_size, display_title=display_title, label_size=label_size, title_size=title_size,
-            xaxis_tick_size=xaxis_tick_size, yaxis_tick_size=yaxis_tick_size, bar_color=bar_color)
-        if printing:
-            chart.show()
-
-        return chart
 
     # Export
     def export_data(self, datasets=None, printing=None):

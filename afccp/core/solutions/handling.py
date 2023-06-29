@@ -1,11 +1,16 @@
-# Import Libraries
 import numpy as np
 import pandas as pd
 import copy
 import time
+
+# afccp modules
 import afccp.core.globals
 
-# Solution Evaluation Functions
+# Import sklearn.manifold if it is installed
+if afccp.core.globals.use_manifold:
+    from sklearn import manifold
+
+# Primary Solution Evaluation Functions
 def evaluate_solution(solution, parameters, value_parameters, approximate=False, printing=False):
     """
     Evaluate a solution (either a vector or a matrix) by calculating various metrics.
@@ -113,10 +118,14 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             model_type = 'approximate'
         else:
             model_type = 'exact'
-        print("Measured " + model_type + " solution objective value: " + str(round(metrics['z'], 4)) +
-              ". Unmatched cadets: " + str(metrics["num_unmatched"]) +
-              ". Blocking pairs: " + str(metrics['num_blocking_pairs']) +
-              ". Ineligible cadets: " + str(metrics['num_ineligible']) + ".")
+        print_str = "Measured " + model_type + " VFT objective value: " + str(round(metrics['z'], 4))
+        if 'z^gu' in metrics:
+            print_str += ". Global Utility Score: " + str(round(metrics['z^gu'], 4))
+        print_str += ". Unmatched cadets: " + str(metrics["num_unmatched"])
+        if 'num_blocking_pairs' in metrics:
+            print_str += ". Blocking pairs: " + str(metrics['num_blocking_pairs'])
+        print_str += ". Ineligible cadets: " + str(metrics['num_ineligible']) + "."
+        print(print_str)
 
     # Return the metrics
     return metrics
@@ -274,6 +283,223 @@ def calculate_blocking_pairs(parameters, solution, only_return_count=False):
         return blocking_pair_count
     else:
         return blocking_pairs
+
+# Secondary Solution Evaluation Functions
+def value_function(a, f_a, r, x):
+    """
+    Calculates the AFSC objective value based on the provided parameters.
+
+    Parameters:
+        a (array-like): Measure at each breakpoint.
+        f_a (array-like): Value at each breakpoint.
+        r (int): Number of breakpoints.
+        x (float): Actual AFSC objective measure.
+
+    Returns:
+        value (float): AFSC objective value.
+
+    Note:
+        This function finds the appropriate breakpoint based on the measure and calculates the objective value
+        using linear interpolation.
+    """
+    # Find which breakpoint is immediately before this measure
+    indices = np.array([a[l] <= x <= a[l + 1] for l in range(r - 1)]) * 1
+    l = np.where(indices)[0]
+
+    # Obtain value
+    if len(l) == 0:
+        l = r - 1
+        val = f_a[l]
+    else:
+        l = l[0]
+        val = f_a[l + 1] - ((f_a[l + 1] - f_a[l]) / (a[l + 1] - a[l])) * (a[l + 1] - x)
+
+    # Return value
+    return val
+
+def value_function_points(a, fhat):
+    """
+    Takes the linear function parameters and returns the approximately non-linear coordinates
+    :param a: function breakpoints
+    :param fhat: function breakpoint values
+    :return: x, y
+    """
+    x = (np.arange(1001) / 1000) * a[len(a) - 1]
+    y = np.array([value_function(a, fhat, len(a), i) for i in x])
+    return x, y
+
+def calculate_afsc_norm_score(cadets, j, p, count=None):
+    """
+    This function simply calculates the AFSC "Norm Score" value and returns it
+    """
+
+    # Re-calculate count if necessary
+    if count is None:
+        count = len(cadets)
+
+    # Best score sum we could achieve
+    best_sum = np.sum(c for c in range(count))
+
+    # Worst score sum we could receive
+    worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
+    worst_sum = np.sum(c for c in worst_range)
+
+    # Score sum we did receive
+    achieved_sum = np.sum(p["a_pref_matrix"][cadets, j])
+
+    # Normalize this score and return it
+    return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
+
+def calculate_afsc_norm_score_general(ranks, achieved_ranks):
+    """
+    This function simply calculates the AFSC "Norm Score" value and returns it for
+    any given inputs of ranks
+    """
+    # Number of cadets assigned here
+    count = len(achieved_ranks)
+
+    # Only consider eligible cadets
+    eligible_indices = np.where(ranks != 0)[0]
+    eligible_ranks = ranks[eligible_indices]
+
+    # Determine the best and worst set of rankings in this list
+    worst_indices = np.argsort(eligible_ranks)[-count:][::-1]
+    worst_ranks = eligible_ranks[worst_indices]
+    best_indices = np.argsort(eligible_ranks)[:count]
+    best_ranks = eligible_ranks[best_indices]
+
+    # Calculate the sums
+    best_sum, achieved_sum, worst_sum = np.sum(best_ranks), np.sum(achieved_ranks), np.sum(worst_ranks)
+
+    # Normalize this score and return it
+    return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
+
+def calculate_additional_useful_metrics(metrics, p, vp):
+    """
+    Add additional components to the "metrics" dictionary based on the parameters and value parameters.
+
+    Parameters:
+        metrics (dict): The dictionary containing the existing metrics.
+        p (dict): The parameters dictionary.
+        vp (dict): The value parameters dictionary.
+
+    Returns:
+        metrics (dict): The updated metrics dictionary.
+
+    Note:
+        This function adds additional components to the "metrics" dictionary based on the provided parameters
+        and value parameters. The purpose is to enhance the information and analysis of the metrics.
+    """
+
+    # Convert back to solution array
+    solution = np.array([np.where(p['afscs'] == metrics['afsc_solution'][i])[0][0] for i in p["I"]])
+
+    # Only calculate these metrics if we have the right parameters
+    if 'c_pref_matrix' in p and 'a_pref_matrix' in p:
+
+        # Calculate various metrics achieved
+        metrics['cadet_choice'] = np.zeros(p["N"]).astype(int)
+        metrics['afsc_choice'] = np.zeros(p['N']).astype(int)
+        metrics['cadet_utility_achieved'] = np.zeros(p['N'])
+        metrics['afsc_utility_achieved'] = np.zeros(p['N'])
+        metrics['global_utility_achieved'] = np.zeros(p['N'])
+        for i, j in enumerate(solution):
+            if j in p['J']:
+                metrics['cadet_choice'][i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
+                metrics['afsc_choice'][i] = np.where(p['afsc_preferences'][j] == i)[0][0] + 1  # Where is the cadet ranked
+                metrics['cadet_utility_achieved'][i] = p['cadet_utility'][i, j]
+                metrics['afsc_utility_achieved'][i] = p['afsc_utility'][i, j]
+                metrics['global_utility_achieved'][i] = vp['global_utility'][i, j]
+            else:
+                metrics['cadet_choice'][i] = np.max(p['c_pref_matrix'][i, :]) + 1  # Unassigned cadet choice
+        metrics['average_cadet_choice'] = round(np.mean(metrics['cadet_choice']), 2)
+
+        # Calculate average cadet choice for each AFSC individually
+        metrics['afsc_average_cadet_choice'] = np.zeros(p['M'])
+        for j in p['J']:
+            cadets = np.where(solution == j)[0]
+            metrics['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
+
+        # Calculate global utility score
+        metrics['z^gu'] = np.sum(metrics['global_utility_achieved']) / p['N']
+
+    # Cadet Choice Counts
+    metrics['cadet_choice_counts'] = {}
+    for choice in np.arange(1, 11):  # Just looking at top 10
+        metrics['cadet_choice_counts'][choice] = len(np.where(metrics['cadet_choice'] == choice)[0])
+    metrics['cadet_choice_counts']['All Others'] = int(p['N'] - sum(
+        [metrics['cadet_choice_counts'][choice] for choice in np.arange(1, 11)]))
+
+    # Save the counts for each AFSC separately from the objective_measure matrix
+    quota_k = np.where(vp['objectives'] == 'Combined Quota')[0][0]
+    metrics['count'] = metrics['objective_measure'][:, quota_k]
+
+    # Calculate weighted average AFSC choice (based on Norm Score)
+    if 'Norm Score' in vp['objectives']:
+        k = np.where(vp['objectives'] == 'Norm Score')[0][0]
+
+        # Individual norm scores for each AFSC
+        metrics['afsc_norm_score'] = metrics['objective_measure'][:, k]
+
+        # Weighted average AFSC choice
+        weights = metrics['count'] / np.sum(metrics['count'])
+        metrics['weighted_average_afsc_score'] = np.dot(weights, metrics['afsc_norm_score'])
+
+    # Generate objective scores for each objective
+    for k in vp['K']:
+        new_weights = vp['afsc_weight'] * vp['objective_weight'][:, k]
+        new_weights = new_weights / sum(new_weights)
+        metrics['objective_score'][k] = np.dot(new_weights, metrics['objective_value'][:, k])
+
+    # Initialize dictionaries for cadet choice based on demographics
+    dd = {"usafa": ["USAFA", "ROTC"], "male": ["Male", "Female"]}
+    demographic_dict = {cat: [dd[cat][0], dd[cat][1]] for cat in dd if cat in p}
+    metrics["choice_counts"] = {"TOTAL": {}}
+    for cat in demographic_dict:
+        for dem in demographic_dict[cat]:
+            metrics["choice_counts"][dem] = {}
+
+    # Initialize arrays within the choice dictionaries for the AFSCs
+    choice_categories = ["Top 3", "Next 3", "Non-Volunteers", "Total"]
+    for dem in metrics["choice_counts"]:
+        for c_cat in choice_categories:
+            metrics["choice_counts"][dem][c_cat] = np.zeros(p["M"]).astype(int)
+        for afsc in p["afscs"]:
+            metrics["choice_counts"][dem][afsc] = np.zeros(p["P"]).astype(int)
+
+    # Loop through each AFSC
+    for j, afsc in enumerate(p["afscs"][:p['M']]):  # Skip unmatched AFSC
+
+        # The cadets that were assigned to this AFSC
+        dem_cadets = {"TOTAL": np.where(metrics["afsc_solution"] == afsc)[0]}
+
+        # The cadets with the demographic that were assigned to this AFSC
+        for cat in demographic_dict:
+            dem_1, dem_2 = demographic_dict[cat][0], demographic_dict[cat][1]
+            dem_cadets[dem_1] = np.intersect1d(np.where(p[cat] == 1)[0], dem_cadets["TOTAL"])
+            dem_cadets[dem_2] = np.intersect1d(np.where(p[cat] == 0)[0], dem_cadets["TOTAL"])
+
+        # Loop through each choice and calculate the metric
+        for choice in range(p["P"]):
+
+            # The cadets that were assigned to this AFSC that placed it in their Pth choice
+            choice_cadets = np.where(p["c_preferences"][:, choice] == afsc)[0]
+            assigned_choice_cadets = np.intersect1d(choice_cadets, dem_cadets["TOTAL"])
+
+            # The cadets that were assigned to this AFSC, placed it in their Pth choice, and had the specific demographic
+            for dem in metrics["choice_counts"]:
+                metrics["choice_counts"][dem][afsc][choice] = len(
+                    np.intersect1d(assigned_choice_cadets, dem_cadets[dem]))
+
+        # Loop through each demographic
+        for dem in metrics["choice_counts"]:
+            metrics["choice_counts"][dem]["Total"][j] = int(len(dem_cadets[dem]))
+            metrics["choice_counts"][dem]["Top 3"][j] = int(np.sum(metrics["choice_counts"][dem][afsc][:3]))
+            metrics["choice_counts"][dem]["Next 3"][j] = int(np.sum(metrics["choice_counts"][dem][afsc][3:6]))
+            metrics["choice_counts"][dem]["Non-Volunteers"][j] = int(
+                len(dem_cadets[dem]) - np.sum(metrics["choice_counts"][dem][afsc]))
+
+    return metrics
 
 # AFSC Objective Measure Calculation Functions
 def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
@@ -513,7 +739,7 @@ def check_failed_constraint_chromosome(j, k, measure, count, p, vp, con_fail_dic
     else:
         return True  # Measure is outside the range, we DID fail the constraint (failed = True)
 
-# Additional Solution Helper Functions
+# Solution Comparison Functions
 def swap_solution_shape(solution, M, to_matrix=False):
     """
     Changes the solution from a vector of length N containing AFSC indices to an NxM binary matrix, or vice versa
@@ -555,218 +781,13 @@ def compare_solutions(baseline, compared, printing=False):
         baseline = np.array([0, 1, 2, 1, 0])
         compared = np.array([1, 0, 2, 1, 0])
         similarity = compare_solutions(baseline, compared, printing=True)
-        # Output: The two solutions are 60.0% the same.
+        # Output: The two solutions are 60.0% the same (3/5).
     """
 
     percent_similar = (sum(baseline == compared * 1) / len(baseline))
     if printing:
         print("The two solutions are " + str(percent_similar) + "% the same.")
     return percent_similar
-
-def value_function(a, f_a, r, x):
-    """
-    Calculates the AFSC objective value based on the provided parameters.
-
-    Parameters:
-        a (array-like): Measure at each breakpoint.
-        f_a (array-like): Value at each breakpoint.
-        r (int): Number of breakpoints.
-        x (float): Actual AFSC objective measure.
-
-    Returns:
-        value (float): AFSC objective value.
-
-    Note:
-        This function finds the appropriate breakpoint based on the measure and calculates the objective value
-        using linear interpolation.
-    """
-    # Find which breakpoint is immediately before this measure
-    indices = np.array([a[l] <= x <= a[l + 1] for l in range(r - 1)]) * 1
-    l = np.where(indices)[0]
-
-    # Obtain value
-    if len(l) == 0:
-        l = r - 1
-        val = f_a[l]
-    else:
-        l = l[0]
-        val = f_a[l + 1] - ((f_a[l + 1] - f_a[l]) / (a[l + 1] - a[l])) * (a[l + 1] - x)
-
-    # Return value
-    return val
-
-def calculate_afsc_norm_score(cadets, j, p, count=None):
-    """
-    This function simply calculates the AFSC "Norm Score" value and returns it
-    """
-
-    # Re-calculate count if necessary
-    if count is None:
-        count = len(cadets)
-
-    # Best score sum we could achieve
-    best_sum = np.sum(c for c in range(count))
-
-    # Worst score sum we could receive
-    worst_range = range(p["num_eligible"][j] - count, p["num_eligible"][j])
-    worst_sum = np.sum(c for c in worst_range)
-
-    # Score sum we did receive
-    achieved_sum = np.sum(p["a_pref_matrix"][cadets, j])
-
-    # Normalize this score and return it
-    return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
-
-def calculate_afsc_norm_score_general(ranks, achieved_ranks):
-    """
-    This function simply calculates the AFSC "Norm Score" value and returns it for
-    any given inputs of ranks
-    """
-    # Number of cadets assigned here
-    count = len(achieved_ranks)
-
-    # Only consider eligible cadets
-    eligible_indices = np.where(ranks != 0)[0]
-    eligible_ranks = ranks[eligible_indices]
-
-    # Determine the best and worst set of rankings in this list
-    worst_indices = np.argsort(eligible_ranks)[-count:][::-1]
-    worst_ranks = eligible_ranks[worst_indices]
-    best_indices = np.argsort(eligible_ranks)[:count]
-    best_ranks = eligible_ranks[best_indices]
-
-    # Calculate the sums
-    best_sum, achieved_sum, worst_sum = np.sum(best_ranks), np.sum(achieved_ranks), np.sum(worst_ranks)
-
-    # Normalize this score and return it
-    return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
-
-def calculate_additional_useful_metrics(metrics, p, vp):
-    """
-    Add additional components to the "metrics" dictionary based on the parameters and value parameters.
-
-    Parameters:
-        metrics (dict): The dictionary containing the existing metrics.
-        p (dict): The parameters dictionary.
-        vp (dict): The value parameters dictionary.
-
-    Returns:
-        metrics (dict): The updated metrics dictionary.
-
-    Note:
-        This function adds additional components to the "metrics" dictionary based on the provided parameters
-        and value parameters. The purpose is to enhance the information and analysis of the metrics.
-    """
-
-    # Convert back to solution array
-    solution = np.array([np.where(p['afscs'] == metrics['afsc_solution'][i])[0][0] for i in p["I"]])
-
-    # Only calculate these metrics if we have the right parameters
-    if 'c_pref_matrix' in p and 'a_pref_matrix' in p:
-
-        # Calculate various metrics achieved
-        metrics['cadet_choice'] = np.zeros(p["N"]).astype(int)
-        metrics['afsc_choice'] = np.zeros(p['N']).astype(int)
-        metrics['cadet_utility_achieved'] = np.zeros(p['N'])
-        metrics['afsc_utility_achieved'] = np.zeros(p['N'])
-        metrics['global_utility_achieved'] = np.zeros(p['N'])
-        for i, j in enumerate(solution):
-            if j in p['J']:
-                metrics['cadet_choice'][i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
-                metrics['afsc_choice'][i] = np.where(p['afsc_preferences'][j] == i)[0][0] + 1  # Where is the cadet ranked
-                metrics['cadet_utility_achieved'][i] = p['cadet_utility'][i, j]
-                metrics['afsc_utility_achieved'][i] = p['afsc_utility'][i, j]
-                metrics['global_utility_achieved'][i] = vp['global_utility'][i, j]
-            else:
-                metrics['cadet_choice'][i] = np.max(p['c_pref_matrix'][i, :]) + 1  # Unassigned cadet choice
-        metrics['average_cadet_choice'] = round(np.mean(metrics['cadet_choice']), 2)
-
-        # Calculate average cadet choice for each AFSC individually
-        metrics['afsc_average_cadet_choice'] = np.zeros(p['M'])
-        for j in p['J']:
-            cadets = np.where(solution == j)[0]
-            metrics['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
-
-    # Cadet Choice Counts
-    metrics['cadet_choice_counts'] = {}
-    for choice in np.arange(1, 11):  # Just looking at top 10
-        metrics['cadet_choice_counts'][choice] = len(np.where(metrics['cadet_choice'] == choice)[0])
-    metrics['cadet_choice_counts']['All Others'] = int(p['N'] - sum(
-        [metrics['cadet_choice_counts'][choice] for choice in np.arange(1, 11)]))
-
-    # Save the counts for each AFSC separately from the objective_measure matrix
-    quota_k = np.where(vp['objectives'] == 'Combined Quota')[0][0]
-    metrics['count'] = metrics['objective_measure'][:, quota_k]
-
-    # Calculate weighted average AFSC choice (based on Norm Score)
-    if 'Norm Score' in vp['objectives']:
-        k = np.where(vp['objectives'] == 'Norm Score')[0][0]
-
-        # Individual norm scores for each AFSC
-        metrics['afsc_norm_score'] = metrics['objective_measure'][:, k]
-
-        # Weighted average AFSC choice
-        weights = metrics['count'] / np.sum(metrics['count'])
-        metrics['weighted_average_afsc_score'] = np.dot(weights, metrics['afsc_norm_score'])
-
-    # Generate objective scores for each objective
-    for k in vp['K']:
-        new_weights = vp['afsc_weight'] * vp['objective_weight'][:, k]
-        new_weights = new_weights / sum(new_weights)
-        metrics['objective_score'][k] = np.dot(new_weights, metrics['objective_value'][:, k])
-
-    # Initialize dictionaries for cadet choice based on demographics
-    dd = {"usafa": ["USAFA", "ROTC"], "male": ["Male", "Female"]}
-    demographic_dict = {cat: [dd[cat][0], dd[cat][1]] for cat in dd if cat in p}
-    metrics["choice_counts"] = {"TOTAL": {}}
-    for cat in demographic_dict:
-        for dem in demographic_dict[cat]:
-            metrics["choice_counts"][dem] = {}
-
-    # Initialize arrays within the choice dictionaries for the AFSCs
-    choice_categories = ["Top 3", "Next 3", "Non-Volunteers", "Total"]
-    for dem in metrics["choice_counts"]:
-        for c_cat in choice_categories:
-            metrics["choice_counts"][dem][c_cat] = np.zeros(p["M"]).astype(int)
-        for afsc in p["afscs"]:
-            metrics["choice_counts"][dem][afsc] = np.zeros(p["P"]).astype(int)
-
-    # Loop through each AFSC
-    for j, afsc in enumerate(p["afscs"]):
-
-        # Skip unmatched AFSC
-        if afsc != "*":
-
-            # The cadets that were assigned to this AFSC
-            dem_cadets = {"TOTAL": np.where(metrics["afsc_solution"] == afsc)[0]}
-
-            # The cadets with the demographic that were assigned to this AFSC
-            for cat in demographic_dict:
-                dem_1, dem_2 = demographic_dict[cat][0], demographic_dict[cat][1]
-                dem_cadets[dem_1] = np.intersect1d(np.where(p[cat] == 1)[0], dem_cadets["TOTAL"])
-                dem_cadets[dem_2] = np.intersect1d(np.where(p[cat] == 0)[0], dem_cadets["TOTAL"])
-
-            # Loop through each choice and calculate the metric
-            for choice in range(p["P"]):
-
-                # The cadets that were assigned to this AFSC that placed it in their Pth choice
-                choice_cadets = np.where(p["c_preferences"][:, choice] == afsc)[0]
-                assigned_choice_cadets = np.intersect1d(choice_cadets, dem_cadets["TOTAL"])
-
-                # The cadets that were assigned to this AFSC, placed it in their Pth choice, and had the specific demographic
-                for dem in metrics["choice_counts"]:
-                    metrics["choice_counts"][dem][afsc][choice] = len(
-                        np.intersect1d(assigned_choice_cadets, dem_cadets[dem]))
-
-            # Loop through each demographic
-            for dem in metrics["choice_counts"]:
-                metrics["choice_counts"][dem]["Total"][j] = int(len(dem_cadets[dem]))
-                metrics["choice_counts"][dem]["Top 3"][j] = int(np.sum(metrics["choice_counts"][dem][afsc][:3]))
-                metrics["choice_counts"][dem]["Next 3"][j] = int(np.sum(metrics["choice_counts"][dem][afsc][3:6]))
-                metrics["choice_counts"][dem]["Non-Volunteers"][j] = int(
-                    len(dem_cadets[dem]) - np.sum(metrics["choice_counts"][dem][afsc]))
-
-    return metrics
 
 def similarity_coordinates(similarity_matrix):
     """
@@ -789,6 +810,7 @@ def similarity_coordinates(similarity_matrix):
 
     return coordinates
 
+# Solution Preparation Functions
 def incorporate_rated_results_in_parameters(instance, printing=True):
     """
     This function extracts the results from the two Rated solutions (for both USAFA & ROTC)

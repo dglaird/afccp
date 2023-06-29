@@ -1,14 +1,14 @@
-# Import libraries
 import time
 import copy
 import numpy as np
 import logging
 import warnings
 import pandas as pd
+from pyomo.environ import *
 
+# afccp modules
 import afccp.core.globals
 import afccp.core.solutions.handling
-from pyomo.environ import *
 
 # Ignore warnings
 logging.getLogger('pyomo.core').setLevel(logging.ERROR)
@@ -1015,8 +1015,6 @@ def determine_model_constraints(instance):
                                      failed or not.
     """
 
-    print("Initializing Model Constraint Algorithm...")
-
     # Shorthand
     p, vp, ip = instance.parameters, copy.deepcopy(instance.value_parameters), instance.mdl_p
 
@@ -1029,23 +1027,36 @@ def determine_model_constraints(instance):
     vp['K^C'] = {j: np.array([]) for j in p['J']}
     adj_instance.value_parameters = vp  # Set to instance
 
-    # Build the model
-    model, q = afccp.core.solutions.optimization.vft_model_build(adj_instance)
-    print("Done. Solving model with no constraints active...")
-
     # Initialize Report
     report_columns = ["Solution", "New Constraint", "Objective Value", "Failed"]
     report = {col: [] for col in report_columns}
 
+    # Determine which model we're going to solve (either VFT or Assignment model)
+    if ip['constraint_model_to_use'] == 'VFT':
+        print("Initializing VFT Model Constraint Algorithm...")
+
+        # Build the model
+        model, q = vft_model_build(adj_instance)
+        model_name, obj_metric = 'VFT', 'z'
+
+    else:  # Assignment model
+        print("Initializing Assignment Model Constraint Algorithm...")
+
+        # Build the model
+        adj_instance.mdl_p['assignment_model_obj'] = 'Global Utility'  # Force the correct objective function
+        model, q = assignment_model_build(adj_instance), None
+        model_name, obj_metric = 'Assignment', 'z^gu'
+    print("Done. Solving model with no constraints active...")
+
     # Dictionary of solutions with different constraints!
-    current_solution, _, _ = solve_pyomo_model(adj_instance, model, "VFT", q=q, printing=False)
+    current_solution, _, _ = solve_pyomo_model(adj_instance, model, model_name, q=q, printing=False)
     solutions = {0: current_solution}
     afsc_solutions = {0: np.array([p["afscs"][int(j)] for j in solutions[0]])}
     metrics = afccp.core.solutions.handling.evaluate_solution(solutions[0], p, vp)
 
     # Add first solution to the report
     report["Solution"].append(0)
-    report["Objective Value"].append(round(metrics["z"], 4))
+    report["Objective Value"].append(round(metrics[obj_metric], 4))
     report["New Constraint"].append("None")
     report["Failed"].append(0)
     print("Done. New solution objective value:", str(report["Objective Value"][0]))
@@ -1067,7 +1078,7 @@ def determine_model_constraints(instance):
         afsc = p["afscs"][j]
         objective = vp["objectives"][k]
 
-        # Make a copy of the VFT model (In case we have to remove a constraint)
+        # Make a copy of the model (In case we have to remove a constraint)
         new_model = copy.deepcopy(model)
 
         # Calculate AFSC objective measure components
@@ -1075,12 +1086,12 @@ def determine_model_constraints(instance):
             new_model.x, j, objective, p, vp, approximate=True)
 
         # Add AFSC objective measure constraint
-        vp['constraint_type'][j, k] = real_constraint_type[j, k]
+        vp['constraint_type'][j, k] = copy.deepcopy(real_constraint_type[j, k])
         new_model = add_objective_measure_constraint(new_model, j, k, measure, numerator, p, vp)
         num_measure_constraints = len(new_model.measure_constraints)
 
         # Update constraint type within the problem instance
-        adj_instance.value_parameters['constraint_type'][j, k] = real_constraint_type[j, k]
+        adj_instance.value_parameters['constraint_type'][j, k] = copy.deepcopy(real_constraint_type[j, k])
 
         # Print message
         cons += 1
@@ -1118,7 +1129,7 @@ def determine_model_constraints(instance):
 
             # Solution Solved!
             try:
-                solutions[cons], _, _ = solve_pyomo_model(adj_instance, new_model, "VFT", q=q, printing=False)
+                solutions[cons], _, _ = solve_pyomo_model(adj_instance, new_model, model_name, q=q, printing=False)
 
             # Solution Failed :(
             except:
@@ -1135,7 +1146,7 @@ def determine_model_constraints(instance):
         report["New Constraint"].append(afsc + " " + objective)
 
         if feasible:
-            report["Objective Value"].append(round(metrics["z"], 4))
+            report["Objective Value"].append(round(metrics[obj_metric], 4))
             if not skipped_obj:
                 print("Result: SOLVED [Z = " + str(report["Objective Value"][cons]) + "]")
             report["Failed"].append(0)
@@ -1182,6 +1193,115 @@ def determine_model_constraints(instance):
     solutions_df = pd.DataFrame(afsc_solutions)
     report_df = pd.DataFrame(report)
     return vp["constraint_type"], solutions_df, report_df
+
+
+# VFT GA Population Initialization
+def populate_initial_ga_solutions(instance, printing=True):
+    """
+    This function takes a problem instance and creates several initial solutions for the genetic algorithm to evolve
+    from
+    :param instance: problem instance
+    :param printing: whether to print something or not
+    :return: initial population
+    """
+
+    if printing:
+        print("Generating initial population of solutions for Genetic Algorithm...")
+
+    # Load parameters/variables
+    p, vp = instance.parameters, copy.deepcopy(instance.value_parameters)
+    previous_estimate = p["quota_e"]
+    initial_solutions = []
+
+    if instance.mdl_p["iterate_from_quota"]:
+
+        # Initialize variables
+        deviations = np.ones(p["M"])
+        quota_k = np.where(vp["objectives"] == 'Combined Quota')[0][0]
+        i = 1
+        while sum(deviations) > 0:
+
+            if printing:
+                print("\nSolving VFT model... (" + str(i) + ")")
+
+            # Set the current estimate
+            current_estimate = p["quota_e"]
+
+            try:
+
+                # Build & solve the model
+                model, q = vft_model_build(instance)
+                solution, _, _ = solve_pyomo_model(instance, model, "VFT", q=q, printing=False)
+                metrics = afccp.core.solutions.handling.evaluate_solution(solution, p, vp)
+                initial_solutions.append(solution)
+
+                # Save this estimate for quota
+                previous_estimate = current_estimate
+
+                # Update new quota information
+                instance.parameters["quota_e"] = metrics["objective_measure"][:, quota_k].astype(int)
+
+                # Validate the estimated number is within the appropriate range
+                for j in p["J"]:
+
+                    # Reset the parameter if necessary
+                    if instance.parameters["quota_e"][j] < p["quota_min"][j]:
+                        instance.parameters["quota_e"][j] = p["quota_min"][j]
+                    elif instance.parameters["quota_e"][j] > p["quota_max"][j]:
+                        instance.parameters["quota_e"][j] = p["quota_max"][j]
+
+                # Calculate deviations and proceed with next iteration
+                p = instance.parameters
+                deviations = [abs(p["quota_e"][j] - current_estimate[j]) for j in p["J"]]
+                i += 1
+
+                if printing:
+                    print("Current Number of Quota Differences:", sum(deviations), "with objective value of",
+                          round(metrics["z"], 4))
+
+                # Don't solve this thing too many times
+                if i > instance.mdl_p["max_quota_iterations"]:
+                    break
+
+            except:
+
+                if printing:
+                    print("Something went wrong with this iteration, proceeding with overall weight technique...")
+
+                # Revert to the previous quota estimate
+                instance.parameters["quota_e"] = previous_estimate
+                break
+
+    # Solve for different overall weights on cadets/AFSCs
+    weights = np.arange(instance.mdl_p["population_additions"])
+    weights = weights / np.max(weights)
+    for w in weights:
+
+        if printing:
+            print("\nSolving VFT model with 'w' of ", str(round(w, 2)) + "...")
+
+        # Update overall weights
+        instance.value_parameters["cadets_overall_weight"] = w
+        instance.value_parameters["afscs_overall_weight"] = 1 - w
+
+        # Solve model
+        try:
+
+            # Build & solve the model
+            model, q = vft_model_build(instance)
+            solution, _, _ = solve_pyomo_model(instance, model, "VFT", q=q, printing=False)
+            metrics = afccp.core.solutions.handling.evaluate_solution(solution, p, vp)
+            initial_solutions.append(solution)
+
+            if printing:
+                print("Objective value of", round(metrics["z"], 4), "obtained")
+        except:
+
+            if printing:
+                print("Failed to solve. Going to next iteration...")
+
+    instance.value_parameters = vp
+    return np.array(initial_solutions)
 
 
 # Cadet Board Animation

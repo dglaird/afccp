@@ -78,6 +78,19 @@ else:
     use_pptx = False
     print("Python PPTX module unavailable.")
 
+# AFSC Objective Label Dictionary
+global obj_label_dict
+obj_label_dict = {"Merit": "Average Merit", "USAFA Proportion": "USAFA Proportion",
+                  "Combined Quota": "Percent of PGL Target Met", "USAFA Quota": "Number of USAFA Cadets",
+                   "ROTC Quota": "Number of ROTC Cadets", "Mandatory": "Mandatory Degree Tier Proportion",
+                   "Desired": "Desired Degree Tier Proportion", "Permitted":
+                   "Permitted Degree Tier Proportion", "Male": "Proportion of Male Cadets",
+                   "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility",
+                   "Norm Score": "Normalized Preference Score", "Tier 1": "Degree Tier 1 Proportion",
+                   "Tier 2": "Degree Tier 2 Proportion", "Tier 3": "Degree Tier 3 Proportion",
+                   "Tier 4": "Degree Tier 4 Proportion"}
+
+
 # Importing pandas dataframe function
 def import_data(filepath, sheet_name=None, specify_engine=True):
     """

@@ -1,4 +1,3 @@
-# Import libraries
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.lines as mlines
@@ -9,16 +8,18 @@ import numpy as np
 import os
 import copy
 import pandas as pd
+
+# Set matplotlib default font to Times New Roman
+import matplotlib as mpl
+mpl.rc('font', family='Times New Roman')
+
+# afccp modules
 import afccp.core.globals
 import afccp.core.solutions.handling
 
 # Import pyomo models if library is installed
 if afccp.core.globals.use_pyomo:
     import afccp.core.solutions.optimization
-
-# Set matplotlib default font to Times New Roman
-import matplotlib as mpl
-mpl.rc('font', family='Times New Roman')
 
 class CadetBoardFigure:
     def __init__(self, instance, printing=None):
@@ -109,6 +110,9 @@ class CadetBoardFigure:
         self.ax.set_aspect('equal', adjustable='box')
         self.ax.set(xlim=(-self.b['x_ext_left'], self.b['fw'] + self.b['x_ext_right']))
         self.ax.set(ylim=(-self.b['y_ext_left'], self.b['fh'] + self.b['y_ext_right']))
+
+        # Remove tick marks
+        self.ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
     # Main functions
     def main(self):
@@ -363,6 +367,7 @@ class CadetBoardFigure:
         self.b['afsc_fontsize'] = {}
         self.b['c_boxes'] = {}
         self.b['c_circles'] = {}
+        self.b['c_rank_text'] = {}
         for j in self.b['J']:
 
             # AFSC names
@@ -388,9 +393,13 @@ class CadetBoardFigure:
                                                        horizontalalignment='center', verticalalignment=va,
                                                        color=self.b['text_color'])
 
+            # Cadet box text size
+            cb_s = get_fontsize_for_text_in_box(self.ax, "0", (0, 0), self.b['s'], self.b['s'], va='center')
+
             # Loop through each cadet to add the cadet boxes and circles
             self.b['c_boxes'][j] = {}
             self.b['c_circles'][j] = {}
+            self.b['c_rank_text'][j] = {}
             for i in range(self.b['n^2'][j]):  # All cadet boxes
 
                 # If we are under the maximum number of cadets allowed
@@ -423,15 +432,23 @@ class CadetBoardFigure:
                     # Make the circle patch (cadet)
                     x, y = self.b['cb_coords'][j][i][0] + (self.b['s'] / 2), \
                            self.b['cb_coords'][j][i][1] + (self.b['s'] / 2)
-                    self.b['c_circles'][j][i] = patches.Circle((x, y), radius = (self.b['s'] / 2) * 0.8,
-                                                                linestyle='-', linewidth=1, facecolor='black',
-                                                                alpha=1, edgecolor='black')
+                    self.b['c_circles'][j][i] = patches.Circle(
+                        (x, y), radius = (self.b['s'] / 2) * self.b['circle_radius_percent'], linestyle='-', linewidth=1,
+                        facecolor='black', alpha=1, edgecolor='black')
 
                     # Add the patch to the figure
                     self.ax.add_patch(self.b['c_circles'][j][i])
 
                     # Hide the circle
                     self.b['c_circles'][j][i].set_visible(False)
+
+                    # We may want to include rank text on the cadets
+                    if self.b['show_rank_text']:
+                        self.b['c_rank_text'][j][i] = self.ax.text(x, y, '0', fontsize=cb_s, horizontalalignment='center',
+                                                                   verticalalignment='center',
+                                                                   color=self.b['rank_text_color'])
+                        self.b['c_rank_text'][j][i].set_visible(False)
+
 
         # Remove tick marks
         self.ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
@@ -480,7 +497,7 @@ class CadetBoardFigure:
                     Line2D([0], [0], marker='o', label="Reserved", markerfacecolor=self.mdl_p['reserved_slot_color'],
                            markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
             # Create legend
-            leg = self.ax.legend(handles=legend_elements, edgecolor='white', loc='upper right', facecolor='black',
+            leg = self.ax.legend(handles=legend_elements, edgecolor='white', loc=self.b['b_legend_loc'], facecolor='black',
                                  fontsize=self.mdl_p['b_legend_size'], ncol=len(legend_elements), labelspacing=1,
                                  handlelength=0.8, handletextpad=0.2, borderpad=0.2, handleheight=2,
                                  title=self.b['focus'])
@@ -529,11 +546,15 @@ class CadetBoardFigure:
                 # Change the colors of the circles based on the desired method
                 self.change_circle_features(s, j, cadets)
 
-                # Hide the circles that aren't in the solution
+                # Hide the circles/text that aren't in the solution
                 for i in range(len(cadets), self.b['max_assigned'][j]):
 
                     # Hide the circle
                     self.b['c_circles'][j][i].set_visible(False)
+
+                    # If rank text is included
+                    if self.b['show_rank_text']:
+                        self.b['c_rank_text'][j][i].set_visible(False)
 
                 # Update the text above the AFSC square
                 self.update_afsc_text(s, j)
@@ -712,6 +733,23 @@ class CadetBoardFigure:
                 # Show the circle
                 self.b['c_circles'][j][i].set_visible(True)
 
+        # Cadet rank text
+        if self.b['show_rank_text']:
+            choice = self.p['a_pref_matrix'][cadets, j]
+            for i, cadet in enumerate(cadets):
+                txt = str(choice[i])
+                x, y = self.b['cb_coords'][j][i][0] + (self.b['s'] / 2), \
+                       self.b['cb_coords'][j][i][1] + (self.b['s'] / 2)
+                w, h = self.b['s'] * self.b['circle_radius_percent'], self.b['s'] * self.b['circle_radius_percent']
+                fontsize = get_fontsize_for_text_in_box(self.ax, txt, (x, y), w, h, va='center')
+
+                # Adjust fontsize for single digit ranks
+                if int(txt) < 10:
+                    fontsize = int(fontsize * self.b['fontsize_single_digit_adj'])
+                self.b['c_rank_text'][j][i].set_text(txt)
+                self.b['c_rank_text'][j][i].set_fontsize(fontsize)
+                self.b['c_rank_text'][j][i].set_visible(True)
+
     def update_afsc_text(self, s, j):
         """
         This method updates the text above the AFSC squares
@@ -741,7 +779,7 @@ class CadetBoardFigure:
 
         # Text shows number of cadets matched/proposing
         else:
-            afsc_text = self.p['afscs'][j] + ": " + str(len(cadets))
+            afsc_text = self.p['afscs'][j] + ": " + str(len(self.b['cadets_matched'][s][j]))
 
         # Update the text
         self.b['afsc_name_text'][j].set_text(afsc_text)

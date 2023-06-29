@@ -1,15 +1,16 @@
-# Import libraries
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.patches import Rectangle
 import matplotlib.lines as mlines
 import numpy as np
-import afccp.core.globals
-from afccp.core.data.preferences import get_utility_preferences
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl
 mpl.rc('font', family='Times New Roman')
+
+# afccp modules
+import afccp.core.globals
+import afccp.core.data.preferences
 
 
 class AFSCsChart:
@@ -36,15 +37,7 @@ class AFSCsChart:
                                          dpi=self.ip['dpi'])
 
         # Label dictionary for AFSC objectives
-        self.label_dict = {"Merit": "Average Merit", "USAFA Proportion": "USAFA Proportion",
-                           "Combined Quota": "Percent of PGL Target Met", "USAFA Quota": "Number of USAFA Cadets",
-                           "ROTC Quota": "Number of ROTC Cadets", "Mandatory": "Mandatory Degree Tier Proportion",
-                           "Desired": "Desired Degree Tier Proportion", "Permitted":
-                           "Permitted Degree Tier Proportion", "Male": "Proportion of Male Cadets",
-                           "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Utility",
-                           "Norm Score": "Normalized Preference Score", "Tier 1": "Degree Tier 1 Proportion",
-                           "Tier 2": "Degree Tier 2 Proportion", "Tier 3": "Degree Tier 3 Proportion",
-                           "Tier 4": "Degree Tier 4 Proportion"}
+        self.label_dict = afccp.core.globals.obj_label_dict
 
         # This is going to be a dictionary of all the various chart-specific components we need
         self.c = {"J": self.ip['J'], 'afscs': self.ip['afscs'], 'M': self.ip['M'],
@@ -1496,106 +1489,86 @@ class AFSCsChart:
             self.construct_gradient_chart(parameter_to_use='utility')
 
 
-# Value Parameters
-def value_function_graph(x, y, x_point=None, f_x_point=None, title=None, display_title=True, figsize=(10, 10),
-                         facecolor='white', save=False, breakpoints=None, x_ticks=None, crit_point=None,
-                         label_size=25, yaxis_tick_size=25, xaxis_tick_size=25, x_label=None, data_name="None"):
-    """
-    Displays the value function for the chosen function parameters
-    :param data_name: name of problem instance
-    :param x_label: label of the x variable (objective measure)
-    :param xaxis_tick_size: font size of the x axis tick marks
-    :param yaxis_tick_size: font size of the y axis tick marks
-    :param label_size: font size of the labels
-    :param crit_point: critical measure point to show
-    :param x_ticks: x tick markers
-    :param breakpoints: optional breakpoints to plot
-    :param f_x_point: the value of that single x point
-    :param x_point: a single x point that we can plot
-    :param x: x coordinates for graph
-    :param y: y coordinates for graph
-    :param display_title: If we should display a title or not
-    :param title: title
-    :param figsize: size of figure
-    :param facecolor: color of figure
-    :param save: if we should save the figure
-    :return: fig
-    """
-    fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, tight_layout=True)
+class ValueFunctionChart:
+    def __init__(self, x=[0, 0.5, 1], y=[0, 1, 0], mdl_p={'x_pt': None, 'y_pt': None, 'title': None,
+                                                          'display_title': True, 'figsize': (10, 10),
+                                                          'facecolor': 'white', 'save': True, 'breakpoints': None,
+                                                          'x_ticks': None, 'crit_points': None, 'label_size': 25,
+                                                          'yaxis_tick_size': 25, 'xaxis_tick_size': 25, 'x_label': None,
+                                                          'filepath': None}):
 
-    if title is None:
-        title = "Example Value Function Graph"
+        # Initialize chart
+        self.mdl_p = mdl_p
+        self.fig, self.ax = plt.subplots(figsize=self.mdl_p['figsize'], facecolor=self.mdl_p['facecolor'],
+                                         tight_layout=True)
 
-    if display_title:
-        fig.suptitle(title, fontsize=label_size)
+        # Title
+        if self.mdl_p['title'] is None:
+            self.mdl_p['title'] = "Example Value Function Graph"
+        if self.mdl_p['display_title']:
+            self.fig.suptitle(self.mdl_p['title'], fontsize=self.mdl_p['label_size'])
 
-    # Plot function
-    ax.plot(x, y, color="black", linewidth=3)
+        # Plot function
+        self.ax.plot(x, y, color="black", linewidth=3)
 
-    # Additional function elements
-    if breakpoints is not None:
-        if breakpoints is True:
-            ax.scatter(x, y, color='black', s=100)
-        elif breakpoints is not False:
-            ax.scatter(breakpoints[0], breakpoints[1], color='black', s=100)
-    if crit_point is not None:
-        if type(crit_point) == list:
-            for point in crit_point:
-                ax.plot((point, point), (0, 1), c="black", linestyle="--", linewidth=3)
-        else:
-            ax.plot((crit_point, crit_point), (0, 1), c="black", linestyle="--", linewidth=3)
-    if x_point is not None:
-        ax.scatter(x_point, f_x_point, color="blue", s=50)
-        ax.plot((x_point, x_point), (0, f_x_point), c="blue", linestyle="--", linewidth=3)
-        ax.plot((0, x_point), (f_x_point, f_x_point), c="blue", linestyle="--", linewidth=3)
-        ax.text(x=x_point, y=f_x_point, s=str(round(x_point, 2)) + ", " + str(round(f_x_point, 2)))
+        # Breakpoints
+        if self.mdl_p['breakpoints'] is not None:
+            if self.mdl_p['breakpoints'] is True:  # Assign breakpoints to the x and y coordinates
+                self.ax.scatter(x, y, color='black', s=100)
+            elif self.mdl_p['breakpoints'] is not False:  # Additional breakpoints provided
+                self.ax.scatter(self.mdl_p['breakpoints'][0], self.mdl_p['breakpoints'][1], color='black', s=100)
 
-    # Set ticks and labels
-    ax.set_yticks([1])
+        # Critical Point
+        if self.mdl_p['crit_point'] is not None:
+            if type(self.mdl_p['crit_point']) == list:
+                for point in self.mdl_p['crit_point']:
+                    self.ax.plot((point, point), (0, 1), c="black", linestyle="--", linewidth=3)
+            else:
+                self.ax.plot((self.mdl_p['crit_point'], self.mdl_p['crit_point']), (0, 1), c="black",
+                             linestyle="--", linewidth=3)
 
-    if x_ticks is not None:
-        ax.set_xticks(x_ticks)
+        # Specified points to highlight
+        if self.mdl_p['x_pt'] is not None:
+            self.ax.scatter(self.mdl_p['x_pt'], self.mdl_p['y_pt'], color="blue", s=50)
+            self.ax.plot((self.mdl_p['x_pt'],
+                          self.mdl_p['x_pt']), (0, self.mdl_p['y_pt']), c="blue", linestyle="--", linewidth=3)
+            self.ax.plot((0, self.mdl_p['x_pt']),
+                         (self.mdl_p['y_pt'], self.mdl_p['y_pt']), c="blue", linestyle="--", linewidth=3)
+            self.ax.text(x=self.mdl_p['x_pt'], y=self.mdl_p['y_pt'],
+                         s=str(round(self.mdl_p['x_pt'], 2)) + ", " + str(round(self.mdl_p['y_pt'], 2)))
 
-    # Adjust axes and ticks
-    ax.tick_params(axis='x', labelsize=xaxis_tick_size)
-    ax.tick_params(axis='y', labelsize=yaxis_tick_size)
-    ax.set_facecolor(facecolor)
-    ax.yaxis.label.set_size(label_size)
-    ax.set_ylabel('Value')
-    ax.xaxis.label.set_size(label_size)
-    if x_label is None:
-        x_label = 'Measure'
-    ax.set_xlabel(x_label)
-    ax.margins(x=0)
-    ax.margins(y=0)
-    plt.ylim(0, 1.05)
+        # Set ticks and labels
+        self.ax.set_yticks([1])  # 0 ... 1 (just want the "1" on the y axis!)
+        if self.mdl_p['x_ticks'] is not None:
+            ax.set_xticks(self.mdl_p['x_ticks'])
 
-    if save:
-        fig.savefig(afccp.core.globals.paths['figures'] + data_name + "/value parameters/" + title + '.png',
-                    bbox_inches='tight')
-    return fig
+        # Adjust axes and ticks
+        self.ax.tick_params(axis='x', labelsize=self.mdl_p['xaxis_tick_size'])
+        self.ax.tick_params(axis='y', labelsize=self.mdl_p['yaxis_tick_size'])
+        self.ax.set_facecolor(self.mdl_p['facecolor'])
+        self.ax.yaxis.label.set_size(self.mdl_p['label_size'])
+        self.ax.set_ylabel('Value')
+        self.ax.xaxis.label.set_size(self.mdl_p['label_size'])
+
+        # Label and window margins
+        if self.mdl_p['x_label'] is None:
+            self.mdl_p['x_label'] = 'Measure'
+        self.ax.set_xlabel(self.mdl_p['x_label'])
+        self.ax.margins(x=0)
+        self.ax.margins(y=0)
+        plt.ylim(0, 1.05)
+
+        # Save the chart if necessary
+        if self.mdl_p['filepath'] is None:
+            self.mdl_p['filepath'] = 'Example_Value_Function.png'  # Just put the example in the working directory
+        if self.mdl_p['save']:
+            self.fig.savefig(self.mdl_p['filepath'], bbox_inches='tight')
 
 
 def individual_weight_graph(instance):
     """
     This function creates the chart for either the individual weight function for cadets or the actual
     individual weights on the AFSCs
-    :param dpi: dot per inch parameter for figure
-    :param gui_graph: if this is the weight chart used in the GUI
-    :param title: title of chart
-    :param cadets: if the weight chart is for cadets or AFSCs
-    :param xaxis_tick_size: x axis tick size
-    :param value_parameters: value parameters
-    :param skip_afscs: if we want to skip AFSCs
-    :param afsc_rotation: rotation of the AFSCs
-    :param yaxis_tick_size: y axis tick sizes
-    :param afsc_tick_size: x axis tick sizes for AFSCs
-    :param label_size: size of labels
-    :param display_title: if we want to show a title
-    :param facecolor: color of the background of the graph
-    :param figsize: size of the figure
-    :param save: Whether we should save the graph
-    :param parameters: fixed cadet/AFSC data
     :return: chart
     """
 
@@ -1746,7 +1719,7 @@ def afsc_multi_criteria_graph(instance, max_num=None):
         y_ticks = [50]
 
     # Convert utility matrix to utility columns
-    preferences, utilities_array = get_utility_preferences(p)
+    preferences, utilities_array = afccp.core.data.preferences.get_utility_preferences(p)
 
     # AFOCD
     afocd_objectives = ["Mandatory", "Desired", "Permitted"]
@@ -1921,143 +1894,6 @@ def afsc_multi_criteria_graph(instance, max_num=None):
     # Save
     if ip['save']:
         fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip['filename'] + '.png',
-                    bbox_inches='tight')
-
-    return fig
-
-
-def afsc_objective_values_graph(parameters, value_parameters, metrics, afsc, save=False, dpi=100, gui_chart=False,
-                                figsize=(19, 7), facecolor="white", title=None, display_title=True,
-                                label_size=25, xaxis_tick_size=15, yaxis_tick_size=25, legend_size=None, y_max=1.1,
-                                title_size=None, metrics_dict=None, alpha=0.5, bar_color='black', dot_size=100):
-    """
-    This chart presents the values for the AFSC objectives for the given afsc
-    :param value_parameters: value parameters
-    :param metrics: solution metrics
-    :param dpi: dots per inch for figure
-    :param gui_chart: if this graph is used in the GUI
-    :param legend_size: font size of the legend
-    :param y_max: multiplier of the maximum y value for the graph to extend the window above
-    :param title_size: font size of the title
-    :param metrics_dict: dictionary of solution metrics
-    :param alpha: alpha parameter for the bars of the figure
-    :param bar_color: color of bars for figure (for certain kinds of graphs)
-    :param dot_size: size of the scatter points
-    :param yaxis_tick_size: y axis tick sizes
-    :param xaxis_tick_size: x axis tick sizes
-    :param label_size: size of labels
-    :param display_title: if we should show the title
-    :param title: title of chart
-    :param parameters: fixed cadet/AFSC parameters
-    :param afsc: which AFSC we should plot
-    :param save: Whether we should save the graph
-    :param facecolor: color of the background of the graph
-    :param figsize: size of the figure
-    :return: figure
-    """
-    if legend_size is None:
-        legend_size = label_size
-    if title_size is None:
-        title_size = label_size
-
-    if title is None:
-        title = afsc + ' Objective Values'
-
-    fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, dpi=dpi, tight_layout=True)
-
-    # Get chart specs
-    j = np.where(parameters['afscs'] == afsc)[0][0]
-    objectives = value_parameters['objectives'][value_parameters['K^A']]
-    for k, objective in enumerate(objectives):
-        if objective == 'USAFA Proportion':
-            objectives[k] = 'USAFA\nProportion'
-        elif objective == 'Combined Quota':
-            objectives[k] = 'Combined\nQuota'
-
-    if metrics_dict is None:
-
-        # Plot values
-        values = metrics['objective_value'][j, value_parameters['K^A']]
-        ax.bar(objectives, values, edgecolor='black', color=bar_color, alpha=alpha)
-
-    else:
-
-        num_solutions = len(list(metrics_dict.keys()))
-
-        color_choices = ['red', 'blue', 'green', 'orange']
-        marker_choices = ['o', 'D', '^', 'P']
-        colors = {}
-        markers = {}
-        for s, solution in enumerate(list(metrics_dict.keys())):
-
-            if s < len(color_choices):
-                colors[solution] = color_choices[s]
-                markers[solution] = marker_choices[s]
-            else:
-                colors[solution] = color_choices[0]
-                markers[solution] = marker_choices[0]
-        O = len(objectives)
-        max_value = np.zeros(O)
-        min_value = np.repeat(10000, O)
-        max_solution = np.zeros(O).astype(int)
-        legend_elements = []
-
-        for s, solution in enumerate(list(metrics_dict.keys())):
-
-            # Plot points
-            value = metrics_dict[solution]['objective_value'][j, value_parameters['K^A']]
-            ax.scatter(objectives, value, color=colors[s], marker=markers[s], edgecolor='black', s=dot_size, zorder=2)
-
-            max_value = np.array([max(max_value[k], value[k]) for k in range(O)])
-            min_value = np.array([min(min_value[k], value[k]) for k in range(O)])
-            for k in range(O):
-                if max_value[k] == value[k]:
-                    max_solution[k] = s
-            element = mlines.Line2D([], [], color=colors[solution], marker=markers[solution], linestyle='None',
-                                    markeredgecolor='black', markersize=20, label=solution)
-            legend_elements.append(element)
-
-        for k in range(O):
-            ax.plot((k, k), (0, max_value[k]), color='black', linestyle='--', zorder=1, alpha=0.4, linewidth=2)
-            # ax.plot((j, j), (min_value[j], max_value[j]), color=colors[max_solution[j]], linestyle='-', zorder=1,
-            #         alpha=1, linewidth=2)
-
-        ax.legend(handles=legend_elements, edgecolor='black', fontsize=legend_size, loc='upper left',
-                  ncol=num_solutions, columnspacing=0.5, handletextpad=0.05, borderaxespad=0.5, borderpad=0.2)
-    # Labels
-    ax.set_ylabel('Objective Value')
-    ax.yaxis.label.set_size(label_size)
-    ax.set_xlabel(afsc + ' Objectives')
-    ax.xaxis.label.set_size(label_size)
-
-    # X ticks
-    ax.tick_params(axis='x', labelsize=xaxis_tick_size)
-    ax.set_xticklabels(objectives)
-    ax.set_xticks(np.arange(len(objectives)))
-    ax.set(xlim=(-1, len(objectives)))
-
-    # Y ticks
-    ax.tick_params(axis='y', labelsize=yaxis_tick_size)
-    ax.margins(y=0)
-    ax.set(ylim=(0, ip["y_max"]))
-
-    # GUI Chart
-    if gui_chart:
-        ax.yaxis.label.set_color('white')
-        # ax.xaxis.label.set_color('white')
-        ax.tick_params(axis='x', labelsize=xaxis_tick_size, colors='white')
-        ax.tick_params(axis='y', labelsize=yaxis_tick_size, colors='white')
-        ax.spines['right'].set_color('white')
-        ax.spines['top'].set_color('white')
-        ax.spines['left'].set_color('white')
-        ax.spines['bottom'].set_color('white')
-        ax.set_title(title, fontsize=label_size, color='white')
-    else:
-        if display_title:
-            ax.set_title(title, fontsize=title_size)
-
-    if save:
-        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2581,7 +2417,7 @@ def solution_similarity_graph(instance, coords):
     """
 
     # Load in plot parameters
-    ip = instance.plt_p
+    ip = instance.mdl_p
     ip["figsize"] = (10, 10)
 
     if ip["title"] is None:

@@ -2,9 +2,16 @@ import random
 import numpy as np
 import pandas as pd
 import string
-from afccp.core.data.preferences import get_utility_preferences, generate_rated_data
-from afccp.core.data.processing import parameter_sets_additions
-import afccp.core.data.values as afccp_dv
+
+# afccp modules
+import afccp.core.globals
+import afccp.core.data.preferences
+import afccp.core.data.adjustments
+import afccp.core.data.values
+
+# Import sdv if it is installed
+if afccp.core.globals.use_sdv:
+    import sdv
 
 def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
     """
@@ -201,12 +208,12 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
     utility = np.random.rand(N, M)  # random utility matrix
     max_util = np.max(utility, axis=1)
     p['utility'] = np.around(utility / np.array([[max_util[i]] for i in range(N)]), 2)
-    p['c_preferences'], p['c_utilities'] = get_utility_preferences(p)
+    p['c_preferences'], p['c_utilities'] = afccp.core.data.preferences.get_utility_preferences(p)
     p['c_preferences'] = p['c_preferences'][:, :P]
     p['c_utilities'] = p['c_utilities'][:, :P]
 
     # Update set of parameters
-    p = parameter_sets_additions(p)
+    p = afccp.core.data.adjustments.parameter_sets_additions(p)
 
     return p  # Return updated parameters
 
@@ -238,8 +245,8 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
     weight_functions = ['Linear', 'Direct', 'Curve_1', 'Curve_2', 'Equal']
     vp['cadet_weight_function'] = np.random.choice(weight_functions)
     vp['afsc_weight_function'] = np.random.choice(weight_functions)
-    vp['cadet_weight'] = afccp_dv.cadet_weight_function(p['merit_all'], func= vp['cadet_weight_function'])
-    vp['afsc_weight'] = afccp_dv.afsc_weight_function(p['pgl'], func = vp['afsc_weight_function'])
+    vp['cadet_weight'] = afccp.core.data.values.cadet_weight_function(p['merit_all'], func= vp['cadet_weight_function'])
+    vp['afsc_weight'] = afccp.core.data.values.afsc_weight_function(p['pgl'], func = vp['afsc_weight_function'])
 
     # Stuff that doesn't matter here
     vp['cadet_value_min'], vp['afsc_value_min'] = np.zeros(p['N']), np.zeros(p['N'])
@@ -259,7 +266,7 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
     vp['K^A'] = {}
 
     # Get AFOCD Tier objectives
-    vp = afccp_dv.generate_afocd_value_parameters(p, vp)
+    vp = afccp.core.data.values.generate_afocd_value_parameters(p, vp)
     vp['constraint_type'] = np.zeros([p['M'], vp['O']])  # Turn off all the constraints again
 
     # Loop through all AFSCs
@@ -322,12 +329,12 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
             if vp['objective_weight'][j, k] != 0:
 
                 # Create the non-linear piecewise exponential segment dictionary
-                segment_dict = afccp_dv.create_segment_dict_from_string(vp['value_functions'][j, k],
-                                                                        vp['objective_target'][j, k],
-                                                                        minimum=minimum, maximum=maximum, actual=actual)
+                segment_dict = afccp.core.data.values.create_segment_dict_from_string(
+                    vp['value_functions'][j, k], vp['objective_target'][j, k],
+                    minimum=minimum, maximum=maximum, actual=actual)
 
                 # Linearize the non-linear function using the specified number of breakpoints
-                vp['a'][j][k], vp['f^hat'][j][k] = afccp_dv.value_function_builder(
+                vp['a'][j][k], vp['f^hat'][j][k] = afccp.core.data.values.value_function_builder(
                     segment_dict, num_breakpoints=num_breakpoints)
 
         # Scale the objective weights for this AFSC, so they sum to 1

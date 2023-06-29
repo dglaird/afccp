@@ -1,8 +1,6 @@
-# Import libraries
 import numpy as np
 import pandas as pd
 import copy
-import afccp.core.globals
 
 
 # Preference functions
