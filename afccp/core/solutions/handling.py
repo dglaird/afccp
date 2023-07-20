@@ -11,7 +11,7 @@ if afccp.core.globals.use_manifold:
     from sklearn import manifold
 
 # Primary Solution Evaluation Functions
-def evaluate_solution(solution, parameters, value_parameters, approximate=False, printing=False):
+def evaluate_solution(solution, parameters, value_parameters, approximate=False, re_calculate_x=True, printing=False):
     """
     Evaluate a solution (either a vector or a matrix) by calculating various metrics.
 
@@ -20,10 +20,11 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         parameters (dict): The fixed cadet/AFSC model parameters.
         value_parameters (dict): The weight/value parameters.
         approximate (bool, optional): Whether the solution is approximate or exact. Defaults to False.
+        re_calculate_x (bool, optional): If we want to force re-calculation of x as integer matrix. Defaults to True.
         printing (bool, optional): Whether to print the evaluated metrics. Defaults to False.
 
     Returns:
-        metrics (dict): A dictionary containing the evaluated metrics of the solution.
+        solution (dict): A dictionary containing the solution core elements and evaluated metrics.
 
     Note:
         This function evaluates a solution by calculating various metrics, including objective measures, objective values,
@@ -33,22 +34,26 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
     # Shorthand
     p, vp = parameters, value_parameters
 
-    # Convert to X matrix
-    x = swap_solution_shape(solution, p['M'], to_matrix=True)
+    # Get X matrix
+    if 'x' not in solution or re_calculate_x:
+        solution['x'] = np.array([[1 if solution['j_array'][i] == j else 0 for j in p['J']] for i in p['I']])
+    x = solution['x']
 
-    # Initialize metrics dictionary
+    # Initialize solution metrics to be added to solution dictionary
     metrics = {'objective_measure': np.zeros([p['M'], vp['O']]),  # AFSC objective "raw" measure
                'objective_value': np.ones([p['M'], vp['O']]),  # AFSC objective value determined through value function
-               'afsc_value': np.zeros(p['M']), 'cadet_value': np.zeros(p['N']),
+               'afsc_value': np.zeros(p['M']), 'cadet_value': np.zeros(p['N']),  # AFSC/Cadet Individual values
                'cadet_constraint_fail': np.zeros(p['N']),  # 1-N binary array indicating cadet constraint failures
                'afsc_constraint_fail': np.zeros(p['M']),  # 1-M binary array indicating AFSC constraint failures
                'objective_score': np.zeros(vp['O']),  # "Flipped" score for the AFSC objective
 
                # Constraint data metrics
-               'total_failed_constraints': 0, 'x': x, "failed_constraints": [],
+               'total_failed_constraints': 0, "failed_constraints": [],
                'objective_constraint_fail': np.array([[" " * 30 for _ in range(vp['O'])] for _ in range(p['M'])]),
                'con_fail_dict': {}  # Dictionary containing the new minimum/maximum value we need to adhere to
                }
+    for key in metrics:
+        solution[key] = metrics[key]
 
     # Loop through all AFSCs to assign their "individual" values
     for j in p['J']:
@@ -58,59 +63,79 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         for k, objective in enumerate(vp["objectives"]):
 
             # Calculate AFSC objective measure
-            metrics['objective_measure'][j, k], _ = calculate_objective_measure_matrix(
-                x, j, objective, p, vp, approximate=approximate)
+            solution['objective_measure'][j, k], _ = calculate_objective_measure_matrix(
+                solution['x'], j, objective, p, vp, approximate=approximate)
 
             # Calculate AFSC objective value
             if k in vp["K^A"][j]:
-                metrics['objective_value'][j, k] = value_function(
-                    vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k], metrics['objective_measure'][j, k])
+                solution['objective_value'][j, k] = value_function(
+                    vp['a'][j][k], vp['f^hat'][j][k], vp['r'][j][k], solution['objective_measure'][j, k])
 
             # Update metrics dictionary with failed AFSC objective constraint information
             if k in vp['K^C'][j]:
-                metrics = calculate_failed_constraint_metrics(j, k, x, metrics, p, vp)
+                solution = calculate_failed_constraint_metrics(j, k, solution, p, vp)
 
         # AFSC individual value
-        metrics['afsc_value'][j] = np.dot(vp['objective_weight'][j, :], metrics['objective_value'][j, :])
-        if metrics['afsc_value'][j] < vp['afsc_value_min'][j]:
-            metrics['afsc_constraint_fail'][j] = 1
-            metrics['total_failed_constraints'] += 1
-            metrics["failed_constraints"].append(afsc + " Value")
+        solution['afsc_value'][j] = np.dot(vp['objective_weight'][j, :], solution['objective_value'][j, :])
+        if solution['afsc_value'][j] < vp['afsc_value_min'][j]:
+            solution['afsc_constraint_fail'][j] = 1
+            solution['total_failed_constraints'] += 1
+            solution["failed_constraints"].append(afsc + " Value")
 
     # Loop through all cadets to assign their values
     for i in p['I']:
-        metrics['cadet_value'][i] = np.sum(x[i, j] * p['cadet_utility'][i, j] for j in p['J^E'][i])
-        if metrics['cadet_value'][i] < vp['cadet_value_min'][i]:
-            metrics['cadet_constraint_fail'][i] = 1
-            metrics['total_failed_constraints'] += 1
-            metrics["failed_constraints"].append("Cadet " + str(p['cadets'][i]) + " Value")
+        solution['cadet_value'][i] = np.sum(x[i, j] * p['cadet_utility'][i, j] for j in p['J^E'][i])
+        if solution['cadet_value'][i] < vp['cadet_value_min'][i]:
+            solution['cadet_constraint_fail'][i] = 1
+            solution['total_failed_constraints'] += 1
+            solution["failed_constraints"].append("Cadet " + str(p['cadets'][i]) + " Value")
+
+    # Variables used to help verify that cadets are receiving the AFSCs they need to if specified
+    num_fixed_correctly = 0
+    num_reserved_correctly = 0
 
     # Get the AFSC solution (Modified to support "unmatched" cadets)
-    metrics["num_unmatched"] = 0
-    metrics['afsc_solution'] = np.array([" " * 10 for _ in p['I']])
+    solution["num_unmatched"] = 0
+    solution['afsc_array'] = np.array([" " * 10 for _ in p['I']])
     for i in p['I']:
         j = np.where(x[i, :])[0]
         if len(j) != 0:
             j = int(j[0])
         else:
-            metrics["num_unmatched"] += 1
+            solution["num_unmatched"] += 1
             j = p['M']  # Last index (*)
-        metrics['afsc_solution'][i] = p['afscs'][j]
+        solution['afsc_array'][i] = p['afscs'][j]
+
+        # Check if this AFSC was "fixed" for this cadet
+        if i in p['J^Fixed']:
+            if j == p['J^Fixed'][i]:
+                num_fixed_correctly += 1
+
+        # Check if this AFSC was reserved for this cadet
+        if i in p['J^Reserved']:
+            if j in p['J^Reserved'][i]:
+                num_reserved_correctly += 1
+
+    # Verification that AFSCs are being assigned properly to work with J^Fixed and J^Reserved
+    num_fixed_needed = len(p['J^Fixed'].keys())
+    num_reserved_needed = len(p['J^Reserved'].keys())
+    solution['cadets_fixed_correctly'] = str(num_fixed_needed) + ' / ' + str(num_fixed_needed)
+    solution['cadets_reserved_correctly'] = str(num_reserved_correctly) + ' / ' + str(num_reserved_needed)
 
     # Define overall metrics
-    metrics['cadets_overall_value'] = np.dot(vp['cadet_weight'], metrics['cadet_value'])
-    metrics['afscs_overall_value'] = np.dot(vp['afsc_weight'], metrics['afsc_value'])
-    metrics['z'] = vp['cadets_overall_weight'] * metrics['cadets_overall_value'] + \
-                   vp['afscs_overall_weight'] * metrics['afscs_overall_value']
-    metrics['num_ineligible'] = np.sum(x[i, j] * p['ineligible'][i, j] for j in p['J'] for i in p['I'])
+    solution['cadets_overall_value'] = np.dot(vp['cadet_weight'], solution['cadet_value'])
+    solution['afscs_overall_value'] = np.dot(vp['afsc_weight'], solution['afsc_value'])
+    solution['z'] = vp['cadets_overall_weight'] * solution['cadets_overall_value'] + \
+                   vp['afscs_overall_weight'] * solution['afscs_overall_value']
+    solution['num_ineligible'] = np.sum(x[i, j] * p['ineligible'][i, j] for j in p['J'] for i in p['I'])
 
     # Add additional metrics components (Non-VFT stuff)
-    metrics = calculate_additional_useful_metrics(metrics, p, vp)
+    solution = calculate_additional_useful_metrics(solution, p, vp)
 
     # Calculate blocking pairs
     if 'a_pref_matrix' in p:
-        metrics['blocking_pairs'] = calculate_blocking_pairs(p, solution)
-        metrics['num_blocking_pairs'] = len(metrics['blocking_pairs'])
+        solution['blocking_pairs'] = calculate_blocking_pairs(p, solution)
+        solution['num_blocking_pairs'] = len(solution['blocking_pairs'])
 
     # Print statement
     if printing:
@@ -118,17 +143,19 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             model_type = 'approximate'
         else:
             model_type = 'exact'
-        print_str = "Measured " + model_type + " VFT objective value: " + str(round(metrics['z'], 4))
-        if 'z^gu' in metrics:
-            print_str += ". Global Utility Score: " + str(round(metrics['z^gu'], 4))
-        print_str += ". Unmatched cadets: " + str(metrics["num_unmatched"])
-        if 'num_blocking_pairs' in metrics:
-            print_str += ". Blocking pairs: " + str(metrics['num_blocking_pairs'])
-        print_str += ". Ineligible cadets: " + str(metrics['num_ineligible']) + "."
+        print_str = "Measured " + model_type + " VFT objective value: " + str(round(solution['z'], 4))
+        if 'z^gu' in solution:
+            print_str += ". Global Utility Score: " + str(round(solution['z^gu'], 4))
+        print_str += ". " + solution['cadets_fixed_correctly'] + ' AFSCs fixed. ' + \
+                     solution['cadets_reserved_correctly'] + ' AFSCs reserved'
+        if 'num_blocking_pairs' in solution:
+            print_str += ". Blocking pairs: " + str(solution['num_blocking_pairs'])
+        print_str += ". Unmatched cadets: " + str(solution["num_unmatched"])
+        print_str += ". Ineligible cadets: " + str(solution['num_ineligible']) + "."
         print(print_str)
 
-    # Return the metrics
-    return metrics
+    # Return the solution/metrics
+    return solution
 
 def fitness_function(chromosome, p, vp, mp, con_fail_dict=None):
     """
@@ -230,14 +257,14 @@ def calculate_blocking_pairs(parameters, solution, only_return_count=False):
     p = parameters
 
     # Dictionary of cadets matched to each AFSC in this solution
-    cadets_matched = {j: np.where(solution == j)[0] for j in p['J']}
+    cadets_matched = {j: np.where(solution['j_array'] == j)[0] for j in p['J']}
 
     # Loop through all cadets and their assigned AFSCs
     blocking_pairs = []
     blocking_pair_count = 0
 
     # Loop through each cadet, AFSC pair
-    for i, j in enumerate(solution):
+    for i, j in enumerate(solution['j_array']):
 
         # Unmatched cadets are blocking pairs by definition
         if j == p['M']:
@@ -374,104 +401,112 @@ def calculate_afsc_norm_score_general(ranks, achieved_ranks):
     # Normalize this score and return it
     return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
 
-def calculate_additional_useful_metrics(metrics, p, vp):
+def calculate_additional_useful_metrics(solution, p, vp):
     """
     Add additional components to the "metrics" dictionary based on the parameters and value parameters.
 
     Parameters:
-        metrics (dict): The dictionary containing the existing metrics.
+        solution (dict): The dictionary containing the existing metrics.
         p (dict): The parameters dictionary.
         vp (dict): The value parameters dictionary.
 
     Returns:
-        metrics (dict): The updated metrics dictionary.
+        solution (dict): The updated metrics dictionary.
 
     Note:
-        This function adds additional components to the "metrics" dictionary based on the provided parameters
-        and value parameters. The purpose is to enhance the information and analysis of the metrics.
+        This function adds additional components to the "solution" dictionary based on the provided parameters
+        and value parameters. The purpose is to enhance the information and analysis of the solution/metrics.
     """
-
-    # Convert back to solution array
-    solution = np.array([np.where(p['afscs'] == metrics['afsc_solution'][i])[0][0] for i in p["I"]])
 
     # Only calculate these metrics if we have the right parameters
     if 'c_pref_matrix' in p and 'a_pref_matrix' in p:
 
         # Calculate various metrics achieved
-        metrics['cadet_choice'] = np.zeros(p["N"]).astype(int)
-        metrics['afsc_choice'] = np.zeros(p['N']).astype(int)
-        metrics['cadet_utility_achieved'] = np.zeros(p['N'])
-        metrics['afsc_utility_achieved'] = np.zeros(p['N'])
-        metrics['global_utility_achieved'] = np.zeros(p['N'])
-        for i, j in enumerate(solution):
+        solution['cadet_choice'] = np.zeros(p["N"]).astype(int)
+        solution['afsc_choice'] = np.zeros(p['N']).astype(int)
+        solution['cadet_utility_achieved'] = np.zeros(p['N'])
+        solution['afsc_utility_achieved'] = np.zeros(p['N'])
+        solution['global_utility_achieved'] = np.zeros(p['N'])
+        for i, j in enumerate(solution['j_array']):
             if j in p['J']:
-                metrics['cadet_choice'][i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
-                metrics['afsc_choice'][i] = np.where(p['afsc_preferences'][j] == i)[0][0] + 1  # Where is the cadet ranked
-                metrics['cadet_utility_achieved'][i] = p['cadet_utility'][i, j]
-                metrics['afsc_utility_achieved'][i] = p['afsc_utility'][i, j]
-                metrics['global_utility_achieved'][i] = vp['global_utility'][i, j]
+                solution['cadet_choice'][i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
+                solution['afsc_choice'][i] = np.where(p['afsc_preferences'][j] == i)[0][0] + 1  # Where is the cadet ranked
+                solution['cadet_utility_achieved'][i] = p['cadet_utility'][i, j]
+                solution['afsc_utility_achieved'][i] = p['afsc_utility'][i, j]
+                solution['global_utility_achieved'][i] = vp['global_utility'][i, j]
             else:
-                metrics['cadet_choice'][i] = np.max(p['c_pref_matrix'][i, :]) + 1  # Unassigned cadet choice
-        metrics['average_cadet_choice'] = round(np.mean(metrics['cadet_choice']), 2)
+                solution['cadet_choice'][i] = np.max(p['c_pref_matrix'][i, :]) + 1  # Unassigned cadet choice
+        solution['average_cadet_choice'] = round(np.mean(solution['cadet_choice']), 2)
 
         # Calculate average cadet choice for each AFSC individually
-        metrics['afsc_average_cadet_choice'] = np.zeros(p['M'])
+        solution['afsc_average_cadet_choice'] = np.zeros(p['M'])
         for j in p['J']:
-            cadets = np.where(solution == j)[0]
-            metrics['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
+            cadets = np.where(solution['j_array'] == j)[0]
+            solution['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
 
         # Calculate global utility score
-        metrics['z^gu'] = np.sum(metrics['global_utility_achieved']) / p['N']
+        solution['z^gu'] = np.sum(solution['global_utility_achieved']) / p['N']
 
-    # Cadet Choice Counts
-    metrics['cadet_choice_counts'] = {}
+    # Cadet Choice Counts (For exporting solution file to excel)
+    solution['cadet_choice_counts'] = {}
     for choice in np.arange(1, 11):  # Just looking at top 10
-        metrics['cadet_choice_counts'][choice] = len(np.where(metrics['cadet_choice'] == choice)[0])
-    metrics['cadet_choice_counts']['All Others'] = int(p['N'] - sum(
-        [metrics['cadet_choice_counts'][choice] for choice in np.arange(1, 11)]))
+        solution['cadet_choice_counts'][choice] = len(np.where(solution['cadet_choice'] == choice)[0])
+    solution['cadet_choice_counts']['All Others'] = int(p['N'] - sum(
+        [solution['cadet_choice_counts'][choice] for choice in np.arange(1, 11)]))
 
     # Save the counts for each AFSC separately from the objective_measure matrix
     quota_k = np.where(vp['objectives'] == 'Combined Quota')[0][0]
-    metrics['count'] = metrics['objective_measure'][:, quota_k]
+    solution['count'] = solution['objective_measure'][:, quota_k]
+
+    # Calculate USSF Merit Distribution
+    solution['ussf_om'] = 0  # Just to have something to show
+    if 'USSF' in p['afscs_acc_grp']:
+
+        # Necessary variables to calculate
+        ussf_merit_sum = np.sum(np.sum(p['merit'][i] * solution['x'][i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
+        ussf_sum = np.sum(np.sum(solution['x'][i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
+
+        # Calculate metric
+        solution['ussf_om'] = round(ussf_merit_sum / ussf_sum, 3)
 
     # Calculate weighted average AFSC choice (based on Norm Score)
     if 'Norm Score' in vp['objectives']:
         k = np.where(vp['objectives'] == 'Norm Score')[0][0]
 
         # Individual norm scores for each AFSC
-        metrics['afsc_norm_score'] = metrics['objective_measure'][:, k]
+        solution['afsc_norm_score'] = solution['objective_measure'][:, k]
 
         # Weighted average AFSC choice
-        weights = metrics['count'] / np.sum(metrics['count'])
-        metrics['weighted_average_afsc_score'] = np.dot(weights, metrics['afsc_norm_score'])
+        weights = solution['count'] / np.sum(solution['count'])
+        solution['weighted_average_afsc_score'] = np.dot(weights, solution['afsc_norm_score'])
 
     # Generate objective scores for each objective
     for k in vp['K']:
         new_weights = vp['afsc_weight'] * vp['objective_weight'][:, k]
         new_weights = new_weights / sum(new_weights)
-        metrics['objective_score'][k] = np.dot(new_weights, metrics['objective_value'][:, k])
+        solution['objective_score'][k] = np.dot(new_weights, solution['objective_value'][:, k])
 
     # Initialize dictionaries for cadet choice based on demographics
-    dd = {"usafa": ["USAFA", "ROTC"], "male": ["Male", "Female"]}
-    demographic_dict = {cat: [dd[cat][0], dd[cat][1]] for cat in dd if cat in p}
-    metrics["choice_counts"] = {"TOTAL": {}}
+    dd = {"usafa": ["USAFA", "ROTC"], "male": ["Male", "Female"]}  # Demographic Dictionary
+    demographic_dict = {cat: [dd[cat][0], dd[cat][1]] for cat in dd if cat in p}  # Demographic Dictionary (For this instance)
+    solution["choice_counts"] = {"TOTAL": {}}  # Everyone
     for cat in demographic_dict:
         for dem in demographic_dict[cat]:
-            metrics["choice_counts"][dem] = {}
+            solution["choice_counts"][dem] = {}
 
     # Initialize arrays within the choice dictionaries for the AFSCs
-    choice_categories = ["Top 3", "Next 3", "Non-Volunteers", "Total"]
-    for dem in metrics["choice_counts"]:
+    choice_categories = ["Top 3", "Next 3", "All Others", "Total"]
+    for dem in solution["choice_counts"]:
         for c_cat in choice_categories:
-            metrics["choice_counts"][dem][c_cat] = np.zeros(p["M"]).astype(int)
+            solution["choice_counts"][dem][c_cat] = np.zeros(p["M"]).astype(int)
         for afsc in p["afscs"]:
-            metrics["choice_counts"][dem][afsc] = np.zeros(p["P"]).astype(int)
+            solution["choice_counts"][dem][afsc] = np.zeros(p["P"]).astype(int)
 
     # Loop through each AFSC
     for j, afsc in enumerate(p["afscs"][:p['M']]):  # Skip unmatched AFSC
 
         # The cadets that were assigned to this AFSC
-        dem_cadets = {"TOTAL": np.where(metrics["afsc_solution"] == afsc)[0]}
+        dem_cadets = {"TOTAL": np.where(solution["afsc_array"] == afsc)[0]}
 
         # The cadets with the demographic that were assigned to this AFSC
         for cat in demographic_dict:
@@ -482,24 +517,23 @@ def calculate_additional_useful_metrics(metrics, p, vp):
         # Loop through each choice and calculate the metric
         for choice in range(p["P"]):
 
-            # The cadets that were assigned to this AFSC that placed it in their Pth choice
-            choice_cadets = np.where(p["c_preferences"][:, choice] == afsc)[0]
-            assigned_choice_cadets = np.intersect1d(choice_cadets, dem_cadets["TOTAL"])
+            # The cadets that were assigned to this AFSC and placed it in their Pth choice
+            assigned_choice_cadets = np.intersect1d(p["I^Choice"][choice][j], dem_cadets["TOTAL"])
 
             # The cadets that were assigned to this AFSC, placed it in their Pth choice, and had the specific demographic
-            for dem in metrics["choice_counts"]:
-                metrics["choice_counts"][dem][afsc][choice] = len(
+            for dem in solution["choice_counts"]:
+                solution["choice_counts"][dem][afsc][choice] = len(
                     np.intersect1d(assigned_choice_cadets, dem_cadets[dem]))
 
         # Loop through each demographic
-        for dem in metrics["choice_counts"]:
-            metrics["choice_counts"][dem]["Total"][j] = int(len(dem_cadets[dem]))
-            metrics["choice_counts"][dem]["Top 3"][j] = int(np.sum(metrics["choice_counts"][dem][afsc][:3]))
-            metrics["choice_counts"][dem]["Next 3"][j] = int(np.sum(metrics["choice_counts"][dem][afsc][3:6]))
-            metrics["choice_counts"][dem]["Non-Volunteers"][j] = int(
-                len(dem_cadets[dem]) - np.sum(metrics["choice_counts"][dem][afsc]))
+        for dem in solution["choice_counts"]:
+            solution["choice_counts"][dem]["Total"][j] = int(len(dem_cadets[dem]))
+            solution["choice_counts"][dem]["Top 3"][j] = int(np.sum(solution["choice_counts"][dem][afsc][:3]))
+            solution["choice_counts"][dem]["Next 3"][j] = int(np.sum(solution["choice_counts"][dem][afsc][3:6]))
+            solution["choice_counts"][dem]["All Others"][j] = int(len(
+                dem_cadets[dem]) - solution["choice_counts"][dem]["Top 3"][j] - solution["choice_counts"][dem]["Next 3"][j])
 
-    return metrics
+    return solution
 
 # AFSC Objective Measure Calculation Functions
 def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
@@ -607,12 +641,17 @@ def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True)
 
     # New objective to evaluate CFM preference lists
     elif objective == "Norm Score":
+
+        # Proxy for constraint purposes
+        numerator = np.sum(p['afsc_utility'][i, j] * x[i, j] for i in p['I^E'][j])
+
+        # Actual objective measure
         best_range = range(num_cadets)
         best_sum = np.sum(c for c in best_range)
         worst_range = range(p["num_eligible"][j] - num_cadets, p["num_eligible"][j])
         worst_sum = np.sum(c for c in worst_range)
         achieved_sum = np.sum(p["a_pref_matrix"][i, j] * x[i, j] for i in p["I^E"][j])
-        return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum), None  # Measure, Numerator
+        return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum), numerator  # Measure, Numerator
 
     # Unrecognized objective
     else:
@@ -620,63 +659,58 @@ def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True)
                                                             " VFT model. Please adjust.")
 
 # AFSC Objective Measure Constraint Functions
-def calculate_failed_constraint_metrics(j, k, x, metrics, p, vp):
+def calculate_failed_constraint_metrics(j, k, solution, p, vp):
     """
     Calculate failed constraint metrics for an AFSC objective and return the updated metrics dictionary.
 
     Parameters:
         j (int): Index of the AFSC objective.
         k (int): Index of the objective measure.
-        x (numpy.ndarray): The solution matrix.
-        metrics (dict): The metrics dictionary.
+        solution (dict): The solution/metrics dictionary.
         p (dict): The fixed cadet/AFSC model parameters.
         vp (dict): The weight/value parameters.
 
     Returns:
-        metrics (dict): The updated metrics dictionary.
+        solution (dict): The updated solution/metrics dictionary.
 
     Note:
         This function calculates the failed constraint metrics for an AFSC objective and updates the metrics dictionary
         with the newly calculated values.
     """
 
-
-    # Shorthand
-    m = metrics
-
     # Constrained Approximate Measure (Only meant for degree tier constraints)
     if vp["constraint_type"][j, k] == 1:  # Should be an "at least constraint"
 
         # Get count variable
-        count = np.sum(x[i, j] for i in p['I^E'][j])
-        constrained_measure = (m['objective_measure'][j, k] * count) / min(p['quota_min'][j], p['pgl'][j])
+        count = np.sum(solution['x'][i, j] for i in p['I^E'][j])
+        constrained_measure = (solution['objective_measure'][j, k] * count) / min(p['quota_min'][j], p['pgl'][j])
 
     # Constrained Exact Measure
     elif vp["constraint_type"][j, k] == 2:  # Should be either an "at most constraint" or simple valid range (0.2, 0.4)
-        constrained_measure = m['objective_measure'][j, k]
+        constrained_measure = solution['objective_measure'][j, k]
 
     else:
         pass
 
     # Measure is below the range
     if constrained_measure < vp['objective_min'][j, k]:
-        m['objective_constraint_fail'][j, k] = \
+        solution['objective_constraint_fail'][j, k] = \
             str(round(constrained_measure, 2)) + ' < ' + str(vp['objective_min'][j, k]) + '. ' + \
             str(round(100 * constrained_measure / vp['objective_min'][j, k], 2)) + '% Met.'
-        m['total_failed_constraints'] += 1
-        m["failed_constraints"].append(p['afscs'][j] + " " + vp['objectives'][k])
-        m["con_fail_dict"][(j, k)] = '> ' + str(round(constrained_measure, 4))
+        solution['total_failed_constraints'] += 1
+        solution["failed_constraints"].append(p['afscs'][j] + " " + vp['objectives'][k])
+        solution["con_fail_dict"][(j, k)] = '> ' + str(round(constrained_measure, 4))
 
     # Measure is above the range
     elif constrained_measure > vp['objective_max'][j, k]:
-        m['objective_constraint_fail'][j, k] = \
+        solution['objective_constraint_fail'][j, k] = \
             str(round(constrained_measure, 2)) + ' > ' + str(vp['objective_max'][j, k]) + '. ' + \
             str(round(100 * vp['objective_max'][j, k] / constrained_measure, 2)) + '% Met.'
-        m['total_failed_constraints'] += 1
-        m["failed_constraints"].append(p['afscs'][j] + " " + vp['objectives'][k])
-        m["con_fail_dict"][(j, k)] = '< ' + str(round(constrained_measure, 4))
+        solution['total_failed_constraints'] += 1
+        solution["failed_constraints"].append(p['afscs'][j] + " " + vp['objectives'][k])
+        solution["con_fail_dict"][(j, k)] = '< ' + str(round(constrained_measure, 4))
 
-    return m  # Return *updated* metrics
+    return solution  # Return *updated* solution/metrics
 
 def check_failed_constraint_chromosome(j, k, measure, count, p, vp, con_fail_dict):
     """
@@ -740,25 +774,6 @@ def check_failed_constraint_chromosome(j, k, measure, count, p, vp, con_fail_dic
         return True  # Measure is outside the range, we DID fail the constraint (failed = True)
 
 # Solution Comparison Functions
-def swap_solution_shape(solution, M, to_matrix=False):
-    """
-    Changes the solution from a vector of length N containing AFSC indices to an NxM binary matrix, or vice versa
-    depending on the input. If "to_matrix" is specified, then we ONLY swap if it's to change a vector into a matrix.
-    Otherwise, we return the matrix
-    """
-    N = len(solution)
-
-    # If we have a vector of length N, turn it into a binary x matrix of shape (N, M)
-    if np.shape(solution) == (N, ):
-        return np.array([[1 if solution[i] == j else 0 for j in range(M)] for i in range(N)])
-
-    # If we have a matrix of shape (N, M), turn it into a vector of length N (IF we don't "force" a returned matrix)
-    elif np.shape(solution) == (N, M):
-        if to_matrix:
-            return solution  # Binary matrix of shape (N, M)
-        else:
-            return np.where(solution == 1)[1]  # Vector of length N
-
 def compare_solutions(baseline, compared, printing=False):
     """
     Compare two solutions (in vector form) to the same problem and determine the similarity between them based on the
@@ -819,7 +834,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
     """
 
     # Shorthand
-    p, vp, solutions = instance.parameters, instance.value_parameters, instance.solution_dict
+    p, vp, solutions = instance.parameters, instance.value_parameters, instance.solutions
 
     # Make sure we have the solutions from both SOCs with matches and reserves
     for soc in ['USAFA', 'ROTC']:
@@ -832,19 +847,18 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
     counts = {'Reserved': {"USAFA": 0, "ROTC": 0}, 'Matched': {"USAFA": 0, "ROTC": 0}}
     for soc in ['USAFA', 'ROTC']:
         solution = solutions["Rated " + soc.upper() + " HR (Matches)"]
-        matched_cadets = np.where(solution != p['M'])[0]
+        matched_cadets = np.where(solution['j_array'] != p['M'])[0]
         for i in matched_cadets:
-            p['J^Fixed'][i] = solution[i]
+            p['J^Fixed'][i] = solution['j_array'][i]
             counts["Matched"][soc] += 1
-
 
     # Reserved cadets AFSC selection is constrained to be AT LEAST their reserved Rated slot
     p['J^Reserved'] = {}
     for soc in ['USAFA', 'ROTC']:
         solution = solutions["Rated " + soc.upper() + " HR (Reserves)"]
-        reserved_cadets = np.where(solution != p['M'])[0]
+        reserved_cadets = np.where(solution['j_array'] != p['M'])[0]
         for i in reserved_cadets:
-            j = solution[i]
+            j = solution['j_array'][i]
             choice = np.where(p['cadet_preferences'][i] == j)[0][0]
             p['J^Reserved'][i] = p['cadet_preferences'][i][:choice + 1]
             counts["Reserved"][soc] += 1

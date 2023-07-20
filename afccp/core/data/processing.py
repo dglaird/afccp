@@ -407,7 +407,7 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=2
         if ".csv" not in file:
             continue
         check_vp = file.split(" ")[1].replace(".csv", "")
-        if check_vp in vp_names:
+        if check_vp in vp_names and "Utility" not in file:  # Don't want VP Global Utility included here
             vp_files[check_vp] = file
 
     # Loop through each set of value parameters and load it into the dictionary
@@ -447,7 +447,7 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=2
             value_parameters["cadet_value_min"] = np.array(vp_cadet_df[vp_name]).astype(float)
 
         # Check if other columns are present (phasing these in)
-        more_vp_columns = ["USAFA-Constrained AFSCs", "Cadets Top 3 Constraint"]
+        more_vp_columns = ["USAFA-Constrained AFSCs", "Cadets Top 3 Constraint", "USSF OM"]
         for col in more_vp_columns:
             if col in overall_vp_df:
                 element = str(np.array(overall_vp_df[col])[v])
@@ -570,15 +570,17 @@ def import_solutions_data(import_filepaths, parameters):
     solution_names = list(solutions_df.keys())[1:]
 
     # Loop through each solution, convert to a numpy array of AFSC indices, and then add it to the dictionary
-    solution_dict = {}
+    solutions = {}
     for solution_name in solution_names:
+
         # Convert solution of AFSC names to indices and then save it to the dictionary
         afsc_solution = np.array(solutions_df[solution_name])  # ["15A", "14N", "17X", ...]
-        solution = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])  # [3, 2, 5, ...]
-        solution_dict[solution_name] = solution
+        solution = {'j_array': np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution]), # [3, 2, 5, ...]
+                    'name': solution_name, 'afsc_array': afsc_solution}
+        solutions[solution_name] = copy.deepcopy(solution)
 
     # Return the dictionary of solutions
-    return solution_dict
+    return solutions
 
 
 # Data Exports
@@ -828,7 +830,8 @@ def export_value_parameters_data(instance):
                               'Cadet Weight Function': vp['cadet_weight_function'],
                               'AFSC Weight Function': vp['afsc_weight_function'],
                               "USAFA-Constrained AFSCs": vp["USAFA-Constrained AFSCs"],
-                              "Cadets Top 3 Constraint": vp["Cadets Top 3 Constraint"]}
+                              "Cadets Top 3 Constraint": vp["Cadets Top 3 Constraint"],
+                              "USSF OM": vp['USSF OM']}
 
         # Add the row for this set of value parameters to the overall df
         for col in overall_vp_columns:
@@ -869,18 +872,15 @@ def export_solutions_data(instance):
     p = instance.parameters
 
     # Error data
-    if instance.solution_dict is None:
+    if instance.solutions is None:
         return None  # No solutions to export!
 
     # Initialize solutions dataframe
     solutions_df = pd.DataFrame({"Cadet": p["cadets"]})
 
     # Loop through each solution and add it to the dataframe
-    for solution_name in instance.solution_dict:
-        # Convert solution of indices to AFSC names and then save it to the dictionary
-        solution = instance.solution_dict[solution_name]
-        afsc_solution = [p["afscs"][j] for j in solution]
-        solutions_df[solution_name] = afsc_solution
+    for solution_name in instance.solutions:
+        solutions_df[solution_name] = instance.solutions[solution_name]['afsc_array']
 
     # Export 'Solutions' dataframe
     solutions_df.to_csv(instance.export_paths["Solutions"], index=False)
@@ -889,11 +889,12 @@ def export_solutions_data(instance):
 # Solution Results excel file
 def export_solution_results_excel(instance, filepath):
     """
-    This function exports the metrics for one solution back to excel for review
+    This function exports one solution and associated metrics back to excel for review
     """
 
     # Shorthand
-    p, vp, metrics = instance.parameters, instance.value_parameters, instance.metrics
+    p, vp, solution = instance.parameters, instance.value_parameters, instance.solution
+    mdl_p = instance.mdl_p
 
     # Create a Pandas Excel writer using XlsxWriter as the engine.
     writer = pd.ExcelWriter(filepath, engine='xlsxwriter')
@@ -923,7 +924,7 @@ def export_solution_results_excel(instance, filepath):
     obj_format = workbook.add_format({'bold': True, 'font_color': 'black', 'bg_color': 'yellow',
                                       'font_size': 14, 'font_name': 'Calibri', 'align': 'center',
                                       'valign': 'vcenter', 'border_color': 'black', 'border': 1})
-    worksheet.merge_range("C6:D6", round(metrics['z'], 4), obj_format)
+    worksheet.merge_range("C6:D6", round(solution['z'], 4), obj_format)
 
     # Other cells
     cell_format = workbook.add_format({'bold': False, 'font_color': 'black', 'bg_color': 'white',
@@ -944,36 +945,38 @@ def export_solution_results_excel(instance, filepath):
     choice_dict = {1: "First", 2: "Second", 3: "Third", 4: "Fourth", 5: "Fifth", 6: "Sixth", 7: "Seventh",
                    8: "Eighth", 9: "Ninth", 10: "Tenth"}
     for choice in choice_dict:
-        worksheet.write("J" + str(2 + choice), int(metrics['cadet_choice_counts'][choice]), cell_format)
+        worksheet.write("J" + str(2 + choice), int(solution['cadet_choice_counts'][choice]), cell_format)
         worksheet.write("I" + str(2 + choice), choice_dict[choice], cell_format)
-        worksheet.write("K" + str(2 + choice), round(metrics['cadet_choice_counts'][choice] / p['N'], 3), cell_format)
+        worksheet.write("K" + str(2 + choice), round(solution['cadet_choice_counts'][choice] / p['N'], 3), cell_format)
     worksheet.write("I" + str(3 + choice), "All Others", cell_format)
-    worksheet.write("J" + str(3 + choice), int(metrics['cadet_choice_counts']['All Others']), cell_format)
-    worksheet.write("K" + str(3 + choice), round(metrics['cadet_choice_counts']["All Others"] / p['N'], 3), cell_format)
+    worksheet.write("J" + str(3 + choice), int(solution['cadet_choice_counts']['All Others']), cell_format)
+    worksheet.write("K" + str(3 + choice), round(solution['cadet_choice_counts']["All Others"] / p['N'], 3), cell_format)
 
-    # Additional metrics
+    # Additional solution metrics
     worksheet.write('F3', 'Blocking Pairs', cell_format)
-    worksheet.write('G3', metrics['num_blocking_pairs'], cell_format)
+    worksheet.write('G3', solution['num_blocking_pairs'], cell_format)
     worksheet.write('F4', 'Ineligible Cadets', cell_format)
-    worksheet.write('G4', metrics['num_ineligible'], cell_format)
+    worksheet.write('G4', solution['num_ineligible'], cell_format)
     worksheet.write('F5', 'Unmatched Cadets', cell_format)
-    worksheet.write('G5', metrics['num_unmatched'], cell_format)
+    worksheet.write('G5', solution['num_unmatched'], cell_format)
     worksheet.write('F6', 'Average Cadet Choice', cell_format)
-    worksheet.write('G6', metrics['average_cadet_choice'], cell_format)
+    worksheet.write('G6', solution['average_cadet_choice'], cell_format)
     worksheet.write('F7', 'Average Normalized AFSC Score', cell_format)
-    worksheet.write('G7', metrics['weighted_average_afsc_score'], cell_format)
+    worksheet.write('G7', solution['weighted_average_afsc_score'], cell_format)
     worksheet.write('F8', 'Failed Constraints', cell_format)
-    worksheet.write('G8', metrics['total_failed_constraints'], cell_format)
+    worksheet.write('G8', solution['total_failed_constraints'], cell_format)
+    worksheet.write('F9', 'USSF OM', cell_format)
+    worksheet.write('G9', solution['ussf_om'], cell_format)
 
     # VFT Metrics
-    worksheet.write('C4', round(metrics['cadets_overall_value'], 4), cell_format)
-    worksheet.write('C5', round(metrics['afscs_overall_value'], 4), cell_format)
+    worksheet.write('C4', round(solution['cadets_overall_value'], 4), cell_format)
+    worksheet.write('C5', round(solution['afscs_overall_value'], 4), cell_format)
     worksheet.write('D4', round(vp['cadets_overall_weight'], 4), cell_format)
     worksheet.write('D5', round(vp['afscs_overall_weight'], 4), cell_format)
 
     # Draw bigger borders
     draw_frame_border_outside(workbook, worksheet, 1, 1, 5, 3, color='black', width=2)
-    draw_frame_border_outside(workbook, worksheet, 1, 5, 7, 2, color='black', width=2)
+    draw_frame_border_outside(workbook, worksheet, 1, 5, 8, 2, color='black', width=2)
     draw_frame_border_outside(workbook, worksheet, 1, 8, 12, 3, color='black', width=2)
 
     # Adjust Column Widths
@@ -989,7 +992,7 @@ def export_solution_results_excel(instance, filepath):
         # AFSC Objective measures dataframe
         df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
         for k, objective in enumerate(vp['objectives']):
-            df[objective] = np.around(metrics['objective_measure'][:, k], 2)
+            df[objective] = np.around(solution['objective_measure'][:, k], 2)
 
         # Convert the dataframe to an XlsxWriter Excel object.
         df.to_excel(writer, sheet_name='Objective Measures', index=False)
@@ -997,7 +1000,7 @@ def export_solution_results_excel(instance, filepath):
         # AFSC Constraint Fail dataframe
         df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
         for k, objective in enumerate(vp['objectives']):
-            df[objective] = metrics['objective_constraint_fail'][:, k]
+            df[objective] = solution['objective_constraint_fail'][:, k]
 
         # Convert the dataframe to an XlsxWriter Excel object.
         df.to_excel(writer, sheet_name='Constraint Fails', index=False)
@@ -1007,7 +1010,7 @@ def export_solution_results_excel(instance, filepath):
         for k, objective in enumerate(vp['objectives']):
             values = np.empty((p['M']))
             values[:] = np.nan
-            np.put(values, vp['J^A'][k], np.around(metrics['objective_value'][vp['J^A'][k], k], 2))
+            np.put(values, vp['J^A'][k], np.around(solution['objective_value'][vp['J^A'][k], k], 2))
 
             df[objective] = values
 
@@ -1018,28 +1021,96 @@ def export_solution_results_excel(instance, filepath):
         df = pd.DataFrame({'Cadet': p['cadets']})
         df['USAFA'] = p['usafa']
         df['Merit'] = p['merit']
-        df["Matched"] = metrics['afsc_solution']
-        df['Cadet Choice'] = metrics['cadet_choice']
-        df['AFSC Choice'] = metrics['afsc_choice']
-        df['Cadet Utility'] = metrics['cadet_utility_achieved']
-        df['AFSC Utility'] = metrics['afsc_utility_achieved']
-        df['Global Utility'] = metrics['global_utility_achieved']
+        df["Matched"] = solution['afsc_array']
+        df['Cadet Choice'] = solution['cadet_choice']
+        df['AFSC Choice'] = solution['afsc_choice']
+        df['Cadet Utility'] = solution['cadet_utility_achieved']
+        df['AFSC Utility'] = solution['afsc_utility_achieved']
+        df['Global Utility'] = solution['global_utility_achieved']
+
+        # Get Fixed/Reserved AFSC Information
+        fixed = np.array([p['J^Fixed'][i] if i in p['J^Fixed'] else p['M'] for i in p['I']])
+        reserved = np.array([p['M'] for i in p['I']])
+        for i in p['I']:
+            if i in p['J^Reserved']:
+                num_reserved = len(p['J^Reserved'][i])
+                reserved[i] = p['J^Reserved'][i][num_reserved - 1]
+        choices = np.zeros(p['N'])
+        indices = np.where(reserved != p['M'])[0]
+        for i in indices:
+            choices[i] = np.where(p['cadet_preferences'][i] == reserved[i])[0][0] + 1
+
+        # Add this information back into the dataframe
+        df['Fixed'] = [p['afscs'][j] for j in fixed]
+        df['Fixed'].replace('*', np.nan, inplace=True)
+        df['Reserved'] = [p['afscs'][j] for j in reserved]
+        df['Reserved'].replace('*', np.nan, inplace=True)
+        df['Reserved Choice'] = choices
+        df['Reserved Choice'].replace(0, np.nan, inplace=True)
+        df['Matched Deg Tier'] = [  # "U" for unmatched cadets
+            p['qual'][i, solution['j_array'][i]] if solution['j_array'][i] in p['J'] else 'U' for i in p['I']]
+
+        # Add the cadet's top 10 choices for more information!
+        for choice in range(min(p['P'], 10)):
+            df['Choice ' + str(choice + 1)] = p['c_preferences'][:, choice]
+
+        # Add the cadet's top 10 utilities for more information!
+        for choice in range(min(p['P'], 10)):
+            df['Utility ' + str(choice + 1)] = np.zeros(p['N'])
+            for i in p['I']:
+                j = p['cadet_preferences'][i][choice]
+                df['Utility ' + str(choice + 1)][i] = p['cadet_utility'][i, j]
 
         # Convert the dataframe to an XlsxWriter Excel object.
         df.to_excel(writer, sheet_name='Solution', index=False)
 
+        # Get the xlsxwriter worksheet object.
+        workbook = writer.book
+        worksheet = writer.sheets["Solution"]
+
+        # Small values good (1, 2, 3, 4, ...) Conditional Formatting
+        for c in ['F']:  # AFSC Choice
+            worksheet.conditional_format(
+                c + "2:" + c + str(p['N'] + 1), {'type': '3_color_scale', 'min_color': '#63be7b',
+                                                 'mid_color': '#ffeb84', 'max_color': '#f8696b'})
+
+        # Large values good (1, ...,  0) Conditional Formatting
+        for c in ['C', 'G', 'H', 'I']:
+            worksheet.conditional_format(c + "2:" + c + str(p['N'] + 1), {"type": "3_color_scale"})
+
+        # Conditional Formatting on preferences
+        for col, c in enumerate(['N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W']):
+            format1 = workbook.add_format({'bg_color': mdl_p['choice_colors'][col + 1]})
+            worksheet.conditional_format(c + "2:" + c + str(p['N'] + 1),
+                                         {'type': 'cell', 'value': 'D2',
+                                          'criteria': '=',
+                                          'format': format1
+                                          })
+            # Cadet Choice Column
+            worksheet.conditional_format("E2:E" + str(p['N'] + 1),
+                                         {'type': 'cell', 'value': col + 1,
+                                          'criteria': '=',
+                                          'format': format1
+                                          })
+
+        # "All Others" for the choice column
+        format1 = workbook.add_format({'bg_color': mdl_p['all_other_choice_colors']})
+        worksheet.conditional_format("E2:E" + str(p['N'] + 1),
+                                     {'type': 'cell', 'value': 10, 'criteria': '>', 'format': format1})
+
         # Solution/X Matrix
-        if instance.x is not None:
+        if 'x' in solution:
             df = pd.DataFrame({'Cadet': p['cadets']})
-            df[instance.solution_name] = instance.metrics['afsc_solution']
+            df[instance.solution_name] = instance.solution['afsc_array']
             for j, afsc in enumerate(p['afscs'][:p['M']]):
-                df[afsc] = instance.x[:, j]
+                df[afsc] = instance.solution['x'][:, j]
 
             # Convert the dataframe to an XlsxWriter Excel object.
             df.to_excel(writer, sheet_name='X', index=False)
 
         # Save the workbook (writer object)
-        writer.save()
+        # writer.save()
+        writer.close()
     export_results_dfs()
 
 

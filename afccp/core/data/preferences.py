@@ -64,14 +64,15 @@ def convert_utility_matrices_preferences(parameters, cadets_as_well=False):
     p = parameters
 
     # Loop through each AFSC to get their preferences
-    p["a_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
-    for j in p["J"]:
+    if 'afsc_utility' in p:
+        p["a_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
+        for j in p["J"]:
 
-        # Sort the utilities to get the preference list
-        utilities = p["afsc_utility"][:, j]
-        sorted_indices = np.argsort(utilities)[::-1]
-        preferences = np.argsort(sorted_indices)
-        p["a_pref_matrix"][:, j] = preferences
+            # Sort the utilities to get the preference list
+            utilities = p["afsc_utility"][:, j]
+            sorted_indices = np.argsort(utilities)[::-1]
+            preferences = np.argsort(sorted_indices)
+            p["a_pref_matrix"][:, j] = preferences
 
     # Loop through each cadet to get their preferences
     if cadets_as_well:
@@ -251,32 +252,42 @@ def construct_rated_preferences_from_om_by_soc(parameters):
                                                           "of commissioning.")
 
     # Need to construct a "combined Rated OM" matrix with ALL cadets which also contains 0 if the cadet is ineligible
-    rated_afscs = p['afscs_acc_grp']["Rated"]
+    all_rated_afscs = p['afscs_acc_grp']["Rated"]
     dataset_dict = {'rotc': 'rr_om_matrix', 'usafa': 'ur_om_matrix'}
     cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
-    combined_rated_om = np.zeros([p['N'], len(rated_afscs)])  # Combined Rated OM from both SOCs
+    combined_rated_om = {afsc: np.zeros(p['N']) for afsc in all_rated_afscs}
 
     # Loop through both sources of commissioning
     rated_cadets, rated_cadet_index_dict = {}, {}
     for soc in ['rotc', 'usafa']:
 
-        # Rated cadets determined from OM dataset
-        rated_cadets[soc] = p[cadets_dict[soc]]
-        rated_cadet_index_dict[soc] = {i: cadet_index for cadet_index, i in enumerate(rated_cadets[soc])}
-        for cadet_index, i in enumerate(rated_cadets[soc]):  # Index of cadet in OM dataset, "real" index of cadet
+        # Rated AFSCs for this SOC
+        if soc == 'rotc':
+            rated_afscs = [afsc for afsc in all_rated_afscs if '_U' not in afsc]
+        else:
+            rated_afscs = [afsc for afsc in all_rated_afscs if '_R' not in afsc]
 
-            # Loop through all rated AFSCs
-            for afsc_index in range(len(rated_afscs)):
-                combined_rated_om[i, afsc_index] = p[dataset_dict[soc]][cadet_index, afsc_index]
+        # Rated cadets for this SOC
+        rated_cadets[soc] = p[cadets_dict[soc]]
+
+        # Loop through SOC-specific rated AFSCs
+        for afsc_index, afsc in enumerate(rated_afscs):
+
+            # Need to re-normalize OM to make it fair across SOCs
+            nonzero_indices_in_soc_dataset = np.where(p[dataset_dict[soc]][:, afsc_index] != 0)[0]
+            num_eligible = len(nonzero_indices_in_soc_dataset)
+            sorted_eligible_indices = np.argsort(p[dataset_dict[soc]][:, afsc_index])[::-1][:num_eligible]
+            ordered_cadets = rated_cadets[soc][sorted_eligible_indices]
+            combined_rated_om[afsc][ordered_cadets] = np.arange(1, num_eligible + 1)[::-1] / (num_eligible + 1)
 
     # Sort the OM to convert it into a 1-N
-    for afsc_index, afsc in enumerate(rated_afscs):
+    for afsc in all_rated_afscs:
         j = np.where(p['afscs'] == afsc)[0][0]
 
         # Get AFSC preferences (list of cadet indices in order)
-        ineligibles = np.where(combined_rated_om[:, afsc_index] == 0)[0]
+        ineligibles = np.where(combined_rated_om[afsc] == 0)[0]
         num_ineligible = len(ineligibles)  # Ineligibles are going to be at the bottom of the list (and we remove them)
-        p['afsc_preferences'][j] = np.argsort(combined_rated_om[:, afsc_index])[::-1][:p['N'] - num_ineligible]
+        p['afsc_preferences'][j] = np.argsort(combined_rated_om[afsc])[::-1][:p['N'] - num_ineligible]
 
         # Reset this AFSC's "preference matrix" column
         p['a_pref_matrix'][:, j] = np.zeros(p['N'])
@@ -287,7 +298,7 @@ def construct_rated_preferences_from_om_by_soc(parameters):
     return p  # Return updated parameters
 
 
-def remove_ineligible_cadet_choices(parameters):
+def remove_ineligible_cadet_choices(parameters, printing=False):
     """
     This function removes ineligible choices from the cadets and from the AFSCs based on the qualification matrix
     """
@@ -296,28 +307,98 @@ def remove_ineligible_cadet_choices(parameters):
     p = parameters
 
     # This is my final correction for preferences to make it all match up
+    num_removals = 0
+    lines = []
     for i in p['I']:
         for j in p['J']:
+            afsc = p['afscs'][j]  # AFSC name
+
+            # Cadet not eligible based on degree qualification matrix
             if i not in p['I^E'][j]:
-                p['c_pref_matrix'][i, j] = 0
-                p['a_pref_matrix'][i, j] = 0
+
+                # AFSC is currently in the cadet's preference list
+                if p['c_pref_matrix'][i, j] != 0:
+                    p['c_pref_matrix'][i, j] = 0
+                    num_removals += 1
+                    lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' not eligible for ' + afsc +
+                                 ' based on degree qualification matrix but the AFSC was in the cadet preference list. '
+                                 'c_pref_matrix position (' + str(i) + ", " + str(j) + ') set to 0.')
+
+                # Cadet is currently in the AFSC's preference list
+                if p['a_pref_matrix'][i, j] != 0:
+                    p['a_pref_matrix'][i, j] = 0
+                    num_removals += 1
+                    lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' not eligible for ' + afsc +
+                                 ' based on degree qualification matrix but the cadet was in the AFSC preference list. '
+                                 'a_pref_matrix position (' + str(i) + ", " + str(j) + ') set to 0.')
+
+            # Cadet is currently eligible based on degree qualification matrix
             else:
-                # If there's already an ineligible tier in this AFSC, we use it
+
+                # If there's already an ineligible tier in this AFSC, we use it in case we need to adjust qual matrix
                 if "I = 0" in p['Deg Tiers'][j]:
                     val = "I" + str(p['t_count'][j])
                 else:
                     val = "I" + str(p['t_count'][j] + 1)
+
+                # The cadet is not in the AFSC's preference list
                 if p['a_pref_matrix'][i, j] == 0:
-                    p['c_pref_matrix'][i, j] = 0
-                    p['qual'][i, j] = val
-                    p['eligible'][i, j] = 0
-                    p['ineligible'][i, j] = 0
-                if p['c_pref_matrix'][i, j] == 0:
-                    p['a_pref_matrix'][i, j] = 0
+
+                    # The AFSC is in the cadet's preference list
+                    if p['c_pref_matrix'][i, j] != 0:
+                        p['c_pref_matrix'][i, j] = 0
+                        num_removals += 1
+                        lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' eligible for ' + afsc +
+                                     ' based on degree qualification matrix but the cadet was not in the AFSC preference list. '
+                                     'c_pref_matrix position (' + str(i) + ", " + str(j) +
+                                     ') set to 0 and qual position adjusted to ' + val + ".")
+
+                    # The AFSC is not in the cadet's preference list
+                    else:
+                        num_removals += 1
+                        lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' eligible for ' + afsc +
+                                     ' based on degree qualification matrix but the cadet/afsc pairing was in neither '
+                                     'matrix (a_pref_matrix or c_pref_matrix). Both a_pref_matrix and c_pref_matrix '
+                                     'position (' + str(i) + ", " + str(j) + ') were already 0 so only qual position was '
+                                                                             'adjusted to ' + val + ".")
+
+                    # Force ineligibility in the qual matrix as well
                     p['qual'][i, j] = val
                     p['eligible'][i, j] = 0
                     p['ineligible'][i, j] = 0
 
+                # The AFSC is not in the cadet's preference list
+                if p['c_pref_matrix'][i, j] == 0:
+
+                    # The cadet is in the AFSC's preference list
+                    if p['a_pref_matrix'][i, j] != 0:
+                        p['a_pref_matrix'][i, j] = 0
+                        num_removals += 1
+                        lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' eligible for ' + afsc +
+                                     ' based on degree qualification matrix but the AFSC was not in the cadet preference list. '
+                                     'a_pref_matrix position (' + str(i) + ", " + str(j) +
+                                     ') set to 0 and qual position adjusted to ' + val + ".")
+
+                    # The cadet is not in the AFSC's preference list
+                    else:
+                        num_removals += 1
+                        lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' eligible for ' + afsc +
+                                     ' based on degree qualification matrix but the cadet/afsc pairing was in neither '
+                                     'matrix (a_pref_matrix or c_pref_matrix). Both a_pref_matrix and c_pref_matrix '
+                                     'position (' + str(i) + ", " + str(
+                                         j) + ') were already 0 so only qual position was '
+                                              'adjusted to ' + val + ".")
+
+                    # Force ineligibility in the qual matrix as well
+                    p['qual'][i, j] = val
+                    p['eligible'][i, j] = 0
+                    p['ineligible'][i, j] = 0
+
+    # Print statement
+    if printing:
+        for line in lines:
+            print(line)
+        print(num_removals, "total adjustments.")
     return p  # Return parameters
 
 

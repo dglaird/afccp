@@ -57,7 +57,7 @@ def create_animation_slides(instance):
     """
 
     # Shorthand
-    mdl_p, sequence = instance.mdl_p, instance.solution_iterations['sequence']
+    mdl_p, sequence = instance.mdl_p, instance.solution['iterations']['sequence']
 
     # Build the presentation object
     prs = Presentation()

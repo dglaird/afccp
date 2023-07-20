@@ -25,12 +25,11 @@ class AFSCsChart:
         self.parameters = instance.parameters
         self.value_parameters, self.vp_name = instance.value_parameters, instance.vp_name
         self.ip = instance.mdl_p  # "instance plot parameters"
-        self.metrics, self.solution, self.solution_name = instance.metrics, instance.solution, instance.solution_name
+        self.solution, self.solution_name = instance.solution, instance.solution_name
         self.data_name, self.data_version = instance.data_name, instance.data_version
 
-        # Dictionaries of instance components (sets of value parameters, solution, solution metrics)
-        self.vp_dict, self.solution_dict, self.metrics_dict = \
-            instance.vp_dict, instance.solution_dict, instance.metrics_dict
+        # Dictionaries of instance components (sets of value parameters, solutions)
+        self.vp_dict, self.solutions = instance.vp_dict, instance.solutions
 
         # Initialize the matplotlib figure/axes
         self.fig, self.ax = plt.subplots(figsize=self.ip['figsize'], facecolor=self.ip['facecolor'], tight_layout=True,
@@ -51,7 +50,8 @@ class AFSCsChart:
 
         # Where to save the chart
         self.paths = {"Data": instance.export_paths["Analysis & Results"] + "Data Charts/",
-                      "Results": instance.export_paths["Analysis & Results"] + "Results Charts/"}
+                      "Solution": instance.export_paths["Analysis & Results"] + self.solution_name + "/",
+                      "Comparison": instance.export_paths["Analysis & Results"] + "Results Charts/"}
 
     # Main build method
     def build(self, chart_type="Data", printing=True):
@@ -74,14 +74,14 @@ class AFSCsChart:
                 self.ip["filename"] = \
                     self.data_name + " (" + self.data_version + ") " + self.ip["data_graph"] + " (Data).png"
 
-        elif chart_type == "Results":
+        elif chart_type in ["Solution", "Comparison"]:
 
             # AFSC objective index and condense the AFSCs if this is an AFOCD objective
             self.c['k'] = np.where(self.value_parameters['objectives'] == self.ip['objective'])[0][0]
             self.condense_afscs_based_on_objective()
 
             # Need to know number of cadets assigned
-            self.c['total_count'] = self.metrics["count"][self.c['J']]
+            self.c['total_count'] = self.solution["count"][self.c['J']]
 
             # Determine if we sort the AFSCs by PGL or not
             if self.ip['sort_by_pgl'] and 'quantity' in self.ip['version'] or self.ip['version'] == 'preference_chart':
@@ -103,7 +103,7 @@ class AFSCsChart:
                     self.c['y_label'] = self.label_dict[self.ip['objective']]
 
                     # Shared elements
-                    self.c['measure'] = self.metrics['objective_measure'][self.c['J'], self.c['k']]
+                    self.c['measure'] = self.solution['objective_measure'][self.c['J'], self.c['k']]
 
                     # Build the Merit Chart
                     if self.ip['objective'] == 'Merit':
@@ -214,7 +214,7 @@ class AFSCsChart:
         else:
             self.c['y_ticks'] = [50]
 
-    def construct_gradient_chart(self, parameter_to_use='utility'):
+    def construct_gradient_chart(self, parameter_to_use='cadet_utility'):
         """
         Constructs the gradient chart with "DIY color bar"
         """
@@ -223,10 +223,10 @@ class AFSCsChart:
         p = self.parameters
 
         for index, j in enumerate(self.c['J']):
-            cadets = np.where(self.solution == j)[0]
+            cadets = np.where(self.solution['j_array'] == j)[0]
 
             # What are we plotting
-            if 'parameter_to_use' == 'utility':
+            if 'parameter_to_use' == 'cadet_utility':
                 measure = p["utility"][cadets, j]
             else:
                 measure = p["merit"][cadets]
@@ -237,7 +237,7 @@ class AFSCsChart:
             for val in uq:
                 count = len(np.where(measure == val)[0])
 
-                if parameter_to_use == 'utility':
+                if parameter_to_use == 'cadet_utility':
                     c = (1 - val, 0, val)  # Blue to Red
                 else:
                     c = str(val)  # Grayscale
@@ -261,7 +261,7 @@ class AFSCsChart:
         self.ax.text((self.c['M'] - 0.95), (166 / 245) * self.c['y_max'], 'Cadet Satisfaction',
                     fontsize=self.ip["xaxis_tick_size"], rotation=270)
         for val in vals:
-            if parameter_to_use == 'utility':
+            if parameter_to_use == 'cadet_utility':
                 c = (1 - val, 0, val)  # Blue to Red
             else:
                 c = str(val)  # Grayscale
@@ -278,7 +278,7 @@ class AFSCsChart:
         # Shorthand
         p = self.parameters
 
-        # Get correct metrics and targets
+        # Get correct solution and targets
         if self.ip['data_graph'] == "Average Merit":
             metric = np.array([np.mean(p['merit'][p['I^E'][j]]) for j in self.c["J"]])
             target = 0.5
@@ -328,7 +328,7 @@ class AFSCsChart:
             Patch(facecolor=self.ip["bar_colors"]["Desired"], label='Desired', edgecolor='black'),
             Patch(facecolor=self.ip["bar_colors"]["Mandatory"], label='Mandatory', edgecolor='black')]
 
-        # Get metrics
+        # Get solution
         mandatory_count = np.array([np.sum(p['mandatory'][:, j]) for j in self.c["J"]])
         desired_count = np.array([np.sum(p['desired'][:, j]) for j in self.c["J"]])
         permitted_count = np.array([np.sum(p['permitted'][:, j]) for j in self.c["J"]])
@@ -379,7 +379,7 @@ class AFSCsChart:
             top_3_cadets[j] = np.array(top_3_cadets[j])
             top_3_eligible_cadets[j] = np.array(top_3_eligible_cadets[j])
 
-        # AFOCD metrics
+        # AFOCD solution
         mandatory_count = np.array([np.sum(p['mandatory'][top_3_cadets[j], j]) for j in p["J"]])
         desired_count = np.array([np.sum(p['desired'][top_3_cadets[j], j]) for j in p["J"]])
         permitted_count = np.array([np.sum(p['permitted'][top_3_cadets[j], j]) for j in p["J"]])
@@ -586,7 +586,7 @@ class AFSCsChart:
         self.c["legend_elements"] = [Patch(facecolor='blue', label='Eligible Cadets', edgecolor='black'),
                                      Patch(facecolor='black', alpha=0.5, label='AFSC Quota', edgecolor='black')]
 
-        # Get metrics
+        # Get solution
         eligible_count = p["num_eligible"][self.c["J"]]
         quota = p['pgl'][self.c["J"]]
 
@@ -612,7 +612,7 @@ class AFSCsChart:
         """
 
         # Shorthand
-        p, vp, m_dict = self.parameters, self.value_parameters, self.metrics_dict[self.vp_name]
+        p, vp = self.parameters, self.value_parameters
         k = self.c['k']
 
         # Make sure at least one AFSC has this objective selected
@@ -630,7 +630,7 @@ class AFSCsChart:
         for s, solution in enumerate(self.ip["solution_names"]):
 
             # Calculate objective measure
-            measure = m_dict[solution]["objective_measure"][self.c['J'], k]
+            measure = self.solutions[solution]["objective_measure"][self.c['J'], k]
             if self.ip["objective"] == "Combined Quota":
 
                 # Assign the right color to the AFSCs
@@ -794,7 +794,7 @@ class AFSCsChart:
         """
 
         # Shorthand
-        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        p, vp, solution = self.parameters, self.value_parameters, self.solution
         k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
         colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
 
@@ -896,7 +896,7 @@ class AFSCsChart:
 
             percentile_dict = {1: (0.75, 1), 2: (0.5, 0.75), 3: (0.25, 0.5), 4: (0, 0.25)}
             for index, j in enumerate(self.c['J']):
-                cadets = np.where(self.solution == j)[0]
+                cadets = np.where(self.solution['j_array'] == j)[0]
                 merit = p["merit"][cadets]
 
                 # Loop through each quartile
@@ -928,7 +928,7 @@ class AFSCsChart:
         """
 
         # Shorthand
-        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        p, vp, solution = self.parameters, self.value_parameters, self.solution
         k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
         colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
 
@@ -1049,7 +1049,7 @@ class AFSCsChart:
             dem = classes[0].lower()  # reference demographic (male, usafa, minority, etc.)
             for index, afsc in enumerate(afscs):
                 j = np.where(p["afscs"] == afsc)[0][0]
-                cadets_assigned = np.where(self.solution == j)[0]
+                cadets_assigned = np.where(self.solution['j_array'] == j)[0]
                 cadets_with_demographic = np.where(p[dem] == 1)[0]
                 cadets_class = {classes[0]: np.intersect1d(cadets_assigned, cadets_with_demographic),
                                 classes[1]: np.array([cadet for cadet in cadets_assigned if
@@ -1165,7 +1165,7 @@ class AFSCsChart:
         """
 
         # Shorthand
-        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        p, vp, solution = self.parameters, self.value_parameters, self.solution
         k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
         colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
 
@@ -1234,7 +1234,7 @@ class AFSCsChart:
         """
 
         # Shorthand
-        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        p, vp, solution = self.parameters, self.value_parameters, self.solution
         k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
         colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
 
@@ -1244,6 +1244,7 @@ class AFSCsChart:
             self.ip["title"] = "Percent of PGL Target Met Across Each AFSC"
             if self.ip["solution_in_title"]:
                 self.ip['title'] = self.solution_name + ": " + self.ip['title']
+            self.c['y_label'] = "Percent of PGL Target Met"  # Manual change from objective label dictionary
 
             # Set the max for the y-axis
             self.c['use_calculated_y_max'] = True
@@ -1373,34 +1374,65 @@ class AFSCsChart:
         """
 
         # Shorthand
-        p, vp, metrics = self.parameters, self.value_parameters, self.metrics
+        p, vp, solution = self.parameters, self.value_parameters, self.solution
         k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
         colors, afscs = np.array([self.ip['bar_colors']["small_afscs"] for _ in self.c['J']]), self.c['afscs']
 
-        if self.ip["version"] == "quantity_bar_proportion":
+        if self.ip["version"] in ["quantity_bar_proportion", "quantity_bar_choice"]:
 
             # Counts
             counts = {"bottom_choices": np.zeros(self.c['M']), "mid_choices": np.zeros(self.c['M']),
                       "top_choices": np.zeros(self.c['M'])}
+
+            # Colors
+            colors = self.ip['bar_colors']
 
             if self.ip["objective"] == "Utility":
 
                 # Get the title
                 self.ip["title"] = "Cadet Preference Breakdown Across Each AFSC"
 
-                # Legend
-                self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["top_choices"],
-                                                   label='Top 3 Choices', edgecolor='black'),
-                                             Patch(facecolor=self.ip['bar_colors']["mid_choices"],
-                                                   label='Next 3 Choices', edgecolor='black'),
-                                             Patch(facecolor=self.ip['bar_colors']["bottom_choices"],
-                                                   label='Non-Volunteer', edgecolor='black')]
+                if self.ip["version"] == 'quantity_bar_choice':
 
-                # Cadet Choice Counts
-                for index, j in enumerate(self.c['J']):
-                    counts['top_choices'][index] = metrics['choice_counts']['TOTAL']['Top 3'][j]
-                    counts['mid_choices'][index] = metrics['choice_counts']['TOTAL']['Next 3'][j]
-                    counts['bottom_choices'][index] = metrics['choice_counts']['TOTAL']['Non-Volunteers'][j]
+                    # Legend (and colors)
+                    self.c['legend_elements'] = []
+                    colors = {}
+                    for choice in range(p['P'])[:10]:
+                        colors[str(choice + 1)] = self.ip['choice_colors'][choice + 1]
+                        self.c['legend_elements'].append(Patch(facecolor=colors[str(choice + 1)],
+                                                               label=str(choice + 1), edgecolor='black'))
+                    colors['All Others'] = self.ip['all_other_choice_colors']
+                    self.c['legend_elements'].append(Patch(facecolor=colors['All Others'],
+                                                           label='All Others', edgecolor='black'))
+
+                    # Counts
+                    counts = {"All Others": np.zeros(self.c['M'])}
+                    for choice in range(p['P'])[:10][::-1]:
+                        counts[str(choice + 1)] = np.zeros(self.c['M'])
+                    for index, j in enumerate(self.c['J']):
+                        afsc = p['afscs'][j]
+                        total = 0
+                        for choice in range(p['P'])[:10]:
+                            counts[str(choice + 1)][index] = solution["choice_counts"]["TOTAL"][afsc][choice]
+                            total += counts[str(choice + 1)][index]
+                        counts['All Others'][index] = self.c['total_count'][index] - total
+
+                else:
+
+                    # Legend
+                    self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["top_choices"],
+                                                       label='Top 3 Choices', edgecolor='black'),
+                                                 Patch(facecolor=self.ip['bar_colors']["mid_choices"],
+                                                       label='Next 3 Choices', edgecolor='black'),
+                                                 Patch(facecolor=self.ip['bar_colors']["bottom_choices"],
+                                                       label='All Others', edgecolor='black')]
+
+                    # Cadet Choice Counts
+                    for index, j in enumerate(self.c['J']):
+                        counts['top_choices'][index] = solution['choice_counts']['TOTAL']['Top 3'][j]
+                        counts['mid_choices'][index] = solution['choice_counts']['TOTAL']['Next 3'][j]
+                        counts['bottom_choices'][index] = solution['choice_counts']['TOTAL']['All Others'][j]
+
 
 
             else:
@@ -1417,7 +1449,7 @@ class AFSCsChart:
                                                    label='Bottom Third', edgecolor='black')]
 
                 # AFSC Choice Counts
-                for i, j in enumerate(self.solution):
+                for i, j in enumerate(self.solution['j_array']):
                     if j in self.c['J']:
                         index = np.where(self.c['J'] == j)[0][0]
                         if p["afsc_utility"][i, j] < 1 / 3:
@@ -1444,11 +1476,11 @@ class AFSCsChart:
 
                     # Plot the bars
                     count = counts[cat][index]
-                    self.ax.bar([index], count, bottom=count_sum, edgecolor="black", color=self.ip['bar_colors'][cat])
+                    self.ax.bar([index], count, bottom=count_sum, edgecolor="black", color=colors[cat])
                     count_sum += count
 
                     # Put a number on the bar
-                    if count >= 10:
+                    if count >= self.ip['text_bar_threshold']:
                         self.ax.text(index, (count_sum - count / 2 - 2), int(count), color=text_color, zorder=2,
                                      fontsize=self.ip["bar_text_size"], horizontalalignment='center')
 
@@ -1486,46 +1518,53 @@ class AFSCsChart:
             self.determine_y_max_and_y_ticks()
 
             # Build the gradient chart
-            self.construct_gradient_chart(parameter_to_use='utility')
+            self.construct_gradient_chart(parameter_to_use='cadet_utility')
 
 
 class ValueFunctionChart:
     def __init__(self, x=[0, 0.5, 1], y=[0, 1, 0], mdl_p={'x_pt': None, 'y_pt': None, 'title': None,
                                                           'display_title': True, 'figsize': (10, 10),
                                                           'facecolor': 'white', 'save': True, 'breakpoints': None,
-                                                          'x_ticks': None, 'crit_points': None, 'label_size': 25,
+                                                          'x_ticks': None, 'crit_point': None, 'label_size': 25,
                                                           'yaxis_tick_size': 25, 'xaxis_tick_size': 25, 'x_label': None,
-                                                          'filepath': None}):
+                                                          'filepath': None, 'graph_color': 'black',
+                                                          'breakpoint_color': 'black'}):
 
         # Initialize chart
         self.mdl_p = mdl_p
         self.fig, self.ax = plt.subplots(figsize=self.mdl_p['figsize'], facecolor=self.mdl_p['facecolor'],
                                          tight_layout=True)
+        self.ax.set_facecolor(self.mdl_p['facecolor'])
+
+        # Axes
+        for spine in ['bottom', 'top', 'left', 'right']:
+            self.ax.spines[spine].set_color(self.mdl_p['graph_color'])
 
         # Title
         if self.mdl_p['title'] is None:
             self.mdl_p['title'] = "Example Value Function Graph"
         if self.mdl_p['display_title']:
-            self.fig.suptitle(self.mdl_p['title'], fontsize=self.mdl_p['label_size'])
+            self.fig.suptitle(self.mdl_p['title'], fontsize=self.mdl_p['label_size'], color=self.mdl_p['graph_color'])
 
         # Plot function
-        self.ax.plot(x, y, color="black", linewidth=3)
+        self.ax.plot(x, y, color=self.mdl_p['graph_color'], linewidth=3)
 
         # Breakpoints
         if self.mdl_p['breakpoints'] is not None:
             if self.mdl_p['breakpoints'] is True:  # Assign breakpoints to the x and y coordinates
-                self.ax.scatter(x, y, color='black', s=100)
+                self.ax.scatter(x, y, color=self.mdl_p['breakpoint_color'], s=100)
             elif self.mdl_p['breakpoints'] is not False:  # Additional breakpoints provided
-                self.ax.scatter(self.mdl_p['breakpoints'][0], self.mdl_p['breakpoints'][1], color='black', s=100)
+                self.ax.scatter(self.mdl_p['breakpoints'][0], self.mdl_p['breakpoints'][1],
+                                color=self.mdl_p['breakpoint_color'], s=100)
 
         # Critical Point
         if self.mdl_p['crit_point'] is not None:
             if type(self.mdl_p['crit_point']) == list:
                 for point in self.mdl_p['crit_point']:
-                    self.ax.plot((point, point), (0, 1), c="black", linestyle="--", linewidth=3)
+                    self.ax.plot((point, point), (0, 1), c=self.mdl_p['breakpoint_color'], linestyle="--", linewidth=3)
             else:
-                self.ax.plot((self.mdl_p['crit_point'], self.mdl_p['crit_point']), (0, 1), c="black",
-                             linestyle="--", linewidth=3)
+                self.ax.plot((self.mdl_p['crit_point'], self.mdl_p['crit_point']), (0, 1),
+                             c=self.mdl_p['breakpoint_color'], linestyle="--", linewidth=3)
 
         # Specified points to highlight
         if self.mdl_p['x_pt'] is not None:
@@ -1543,12 +1582,14 @@ class ValueFunctionChart:
             ax.set_xticks(self.mdl_p['x_ticks'])
 
         # Adjust axes and ticks
-        self.ax.tick_params(axis='x', labelsize=self.mdl_p['xaxis_tick_size'])
-        self.ax.tick_params(axis='y', labelsize=self.mdl_p['yaxis_tick_size'])
+        self.ax.tick_params(axis='x', labelsize=self.mdl_p['xaxis_tick_size'], colors=self.mdl_p['graph_color'])
+        self.ax.tick_params(axis='y', labelsize=self.mdl_p['yaxis_tick_size'], colors=self.mdl_p['graph_color'])
         self.ax.set_facecolor(self.mdl_p['facecolor'])
         self.ax.yaxis.label.set_size(self.mdl_p['label_size'])
+        self.ax.yaxis.label.set_color(self.mdl_p['graph_color'])
         self.ax.set_ylabel('Value')
         self.ax.xaxis.label.set_size(self.mdl_p['label_size'])
+        self.ax.xaxis.label.set_color(self.mdl_p['graph_color'])
 
         # Label and window margins
         if self.mdl_p['x_label'] is None:
@@ -1929,7 +1970,7 @@ def cadet_utility_histogram(instance):
                               " Cadet Utility Results Histogram"
 
         # Plot the results
-        m_dict = instance.metrics_dict[ip["vp_name"]]
+        m_dict = instance.solutions[ip["vp_name"]]
         legend_elements = []
         for s, solution in enumerate(ip["solution_names"]):
             value = m_dict[solution]['cadet_value']
@@ -2305,19 +2346,19 @@ def solution_parameter_comparison_graph(z_dict, colors=None, save=False, figsize
     return fig
 
 
-def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, k, save=False, colors=None,
+def solution_results_graph(parameters, value_parameters, solutions, vp_name, k, save=False, colors=None,
                            figsize=(19, 7), facecolor='white'):
     """
     Builds the Graph to show how well we meet each of the objectives
     :param colors: colors of the solutions
-    :param vp_name: value parameter name (to access from metrics_dict)
+    :param vp_name: value parameter name (to access from solutions)
     :param k: objective index
     :param facecolor: color of the background of the graph
     :param figsize: size of the figure
     :param save: Whether we should save the graph
     :param parameters: fixed cadet/AFSC data
     :param value_parameters: value parameters
-    :param metrics_dict: solution metrics dictionary
+    :param solutions: solution metrics dictionary
     :return: figure
     """
 
@@ -2326,7 +2367,7 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
     afscs = parameters['afscs'][indices]
     minimums = np.zeros(len(indices))
     maximums = np.zeros(len(indices))
-    num_solutions = len(metrics_dict.keys())
+    num_solutions = len(solutions.keys())
     if colors is None:
         colors = ['blue', 'lime', 'orange', 'magenta', 'yellow', 'cyan', 'green', 'deeppink', 'red']
         colors = colors[:num_solutions]
@@ -2374,18 +2415,18 @@ def solution_results_graph(parameters, value_parameters, metrics_dict, vp_name, 
 
     # ticks = list(np.arange(0, 1.1, 0.1))
     # ax.set_yticks(ticks)
-    for s_num, solution_name in enumerate(metrics_dict.keys()):
+    for s_num, solution_name in enumerate(solutions.keys()):
         if k == 2:
-            measures = metrics_dict[solution_name][vp_name]['objective_measure'][indices, k] / \
+            measures = solutions[solution_name][vp_name]['objective_measure'][indices, k] / \
                        parameters['quota'][indices]
         elif k == 3:
-            measures = metrics_dict[solution_name][vp_name]['objective_measure'][indices, k] / \
+            measures = solutions[solution_name][vp_name]['objective_measure'][indices, k] / \
                        parameters['usafa_quota'][indices]
         elif k == 4:
-            measures = metrics_dict[solution_name][vp_name]['objective_measure'][indices, k] / \
+            measures = solutions[solution_name][vp_name]['objective_measure'][indices, k] / \
                        (parameters['quota'][indices] - parameters['usafa_quota'][indices])
         else:
-            measures = metrics_dict[solution_name][vp_name]['objective_measure'][indices, k]
+            measures = solutions[solution_name][vp_name]['objective_measure'][indices, k]
 
         ax.scatter(afscs, measures, c=colors[s_num], linewidths=4)
 

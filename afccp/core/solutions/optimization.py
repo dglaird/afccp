@@ -100,7 +100,7 @@ def assignment_model_build(instance, printing=False):
     m = ConcreteModel()
 
     # ___________________________________VARIABLE DEFINITION_________________________________
-    m = common_optimization_model_x_handling(m, p, vp)  # Define x along with additional functional constraints
+    m = common_optimization_handling(m, p, vp, mdl_p)  # Define x along with additional functional constraints
 
     # ___________________________________OBJECTIVE FUNCTION__________________________________
     def objective_function(m):
@@ -206,8 +206,7 @@ def vft_model_build(instance, printing=False):
     m = ConcreteModel()
 
     # Shorthand
-    p = instance.parameters
-    vp = instance.value_parameters
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
 
     # _________________________________PARAMETER ADJUSTMENTS_________________________________
     def adjust_parameters():
@@ -253,7 +252,7 @@ def vft_model_build(instance, printing=False):
     q = adjust_parameters()  # Call the function
 
     # _________________________________VARIABLE DEFINITIONS_________________________________
-    m = common_optimization_model_x_handling(m, p, vp)  # Define x along with additional functional constraints
+    m = common_optimization_handling(m, p, vp, mdl_p)  # Define x along with additional functional constraints
     m.f_value = Var(((j, k) for j in p['J'] for k in vp['K^A'][j]), within=NonNegativeReals)  # AFSC objective value
     m.lam = Var(((j, k, l) for j in p['J'] for k in vp['K^A'][j] for l in q['L'][j, k]),
                 within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
@@ -538,6 +537,7 @@ def gp_model_build(instance, printing=False):
 
     # If we have AFSCs that have specified a limit on the number of USAFA cadets
     if len(gp['A^']['U_lim']) > 0:
+
         # Number of USAFA cadets assigned to AFSCs that have an upper limit on USAFA cadets
         usafa_cadet_lim_afsc_count = np.sum(np.sum(m.x[c, a] for c in gp['C^']['U'][a]) for a in gp['A^']['U_lim'])
 
@@ -665,18 +665,17 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
         else:
 
             # Get solution
-            solution = np.zeros(gp['N'])
-            x = np.zeros((gp['N'], gp['M']))
+            solution = {"method": "GP", "j_array": np.zeros(gp['N']).astype(int), "x": np.zeros((gp['N'], gp['M']))}
             for c in gp['C']:
                 for a in gp['A^']['E'][c]:
-                    x[c, a] = model.x[c, a].value
-                    if round(x[c, a]):
-                        solution[c] = int(a)
+                    solution['x'][c, a] = model.x[c, a].value
+                    if round(solution['x'][c, a]):
+                        solution['j_array'][c] = int(a)
 
             if printing:
                 print('Model solved.')
 
-            return solution.astype(int), x
+            return solution
 
     # "Cadet Board Figure" optimization model
     elif model_name == 'CadetBoard':
@@ -698,18 +697,17 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             This nested function obtains the X matrix and the solution vector from the pyomo model
             """
 
-            # Initialize solution and X matrix
-            solution = np.zeros(p['N']).astype(int)
-            x = np.zeros([p['N'], p['M']])
+            # Get solution
+            solution = {"method": model_name, "j_array": np.zeros(p['N']).astype(int), "x": np.zeros((p['N'], p['M']))}
 
             # Loop through each cadet to determine what AFSC they're assigned
             for i in p['I']:
                 found = False
                 for j in p['J^E'][i]:
-                    x[i, j] = model.x[i, j].value
+                    solution['x'][i, j] = model.x[i, j].value
                     try:
-                        if round(x[i, j]):
-                            solution[i] = int(j)
+                        if round(solution['x'][i, j]):
+                            solution['j_array'][i] = int(j)
                             found = True
                     except:
                         raise ValueError("Solution didn't come out right, likely model is infeasible.")
@@ -726,25 +724,25 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                             if p['cadet_utility'][i, j] >= max_util:
                                 max_j = j
                                 max_util = max_util
-                        solution[i] = int(max_j)
+                        solution['j_array'][i] = int(max_j)
 
                     # If we don't have any eligible preferences from the cadet, they get Needs of the Air Force
                     else:
 
                         if len(p["J^E"][i]) >= 2:
-                            solution[i] = int(p["J^E"][i][1])
+                            solution['j_array'][i] = int(p["J^E"][i][1])
                         else:
-                            solution[i] = int(p["J^E"][i][0])
+                            solution['j_array'][i] = int(p["J^E"][i][0])
 
-                    afsc = p["afscs"][int(solution[i])]
+                    afsc = p["afscs"][int(solution['j_array'][i])]
 
                     if printing:
                         print("Cadet " + str(i) + " was not assigned by the model for some reason. "
                                                   "We assigned them to", afsc)
 
-            return solution, x
+            return solution
 
-        solution, x = obtain_solution()
+        solution = obtain_solution()
 
         # Obtain "warm start" variables used to initialize the VFT pyomo model
         def obtain_warm_start_variables():
@@ -760,7 +758,7 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                         max_r = q["r"][j][k]
 
             # Initialize dictionary
-            warm_start = {'f(measure)': np.zeros([p['M'], vp['O']]), 'x': x,
+            warm_start = {'f(measure)': np.zeros([p['M'], vp['O']]),
                           'lambda': np.zeros([p['M'], p['O'], max_r + 1]),
                           'y': np.zeros([p['M'], p['O'], max_r + 1]).astype(int), 'obj': model.objective()}
 
@@ -776,12 +774,14 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             # Return the "warm start" dictionary
             return warm_start
 
-        warm_start = None  # Empty dictionary
-        if mdl_p["obtain_warm_start_variables"]:
+        # Add additional components to solution dictionary
+        if mdl_p["obtain_warm_start_variables"] and 'VFT' in model_name:
             warm_start = obtain_warm_start_variables()
+            for key in warm_start:
+                solution[key] = warm_start[key]
 
-        # Return solution, X matrix, and "warm start" dictionary
-        return solution.astype(int), x, warm_start
+        # Return solution dictionary
+        return solution
 
 
 # Goal Programming Model Pre-Processing
@@ -940,7 +940,7 @@ def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
     return m
 
 
-def common_optimization_model_x_handling(m, p, vp):
+def common_optimization_handling(m, p, vp, mdl_p):
     """
     This function takes in the optimization model, parameters, and value parameters
     and then adds components that are common to all of my *main* optimization models
@@ -954,7 +954,7 @@ def common_optimization_model_x_handling(m, p, vp):
     for i in p['J^Fixed']:
 
         # Fix the variable
-        m.x[i, j].fix(p['J^Fixed'][i])
+        m.x[i, p['J^Fixed'][i]].fix(1)
 
     # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
     m.one_afsc_constraints = ConstraintList()
@@ -962,10 +962,9 @@ def common_optimization_model_x_handling(m, p, vp):
         m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
 
     # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
-    if 'J^Reserved' in p:
-        m.reserved_afsc_constraints = ConstraintList()
-        for i in p['J^Reserved']:
-            m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
+    m.reserved_afsc_constraints = ConstraintList()
+    for i in p['J^Reserved']:
+        m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if vp["J^USAFA"] is not None:
@@ -981,6 +980,31 @@ def common_optimization_model_x_handling(m, p, vp):
             return np.sum(np.sum(m.x[i, j] for i in p['usafa_cadets']) for j in vp["J^USAFA"]) <= cap
 
         m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
+
+    # Space Force OM Constraint
+    if vp['USSF OM']:
+
+        # Necessary variables to calculate
+        ussf_merit_sum = np.sum(np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
+        ussf_sum = np.sum(np.sum(m.x[i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
+
+        # Define constraint functions
+        def ussf_om_upper_rule(m):
+            """
+            This is the 50% OM split constraint between the USAF and USSF (upper bound)
+            """
+
+            return ussf_merit_sum <= ussf_sum * (0.5 + mdl_p['ussf_merit_bound'])
+        def ussf_om_lower_rule(m):
+            """
+            This is the 50% OM split constraint between the USAF and USSF (lower bound)
+            """
+
+            return ussf_merit_sum >= ussf_sum * (0.5 - mdl_p['ussf_merit_bound'])
+
+        # Apply constraints
+        m.ussf_om_constraint_upper = Constraint(rule=ussf_om_upper_rule)
+        m.ussf_om_constraint_lower = Constraint(rule=ussf_om_lower_rule)
 
     # Cadet value constraint (Could work on any optimization model)
     m.min_cadet_value_constraints = ConstraintList()
@@ -1049,14 +1073,14 @@ def determine_model_constraints(instance):
     print("Done. Solving model with no constraints active...")
 
     # Dictionary of solutions with different constraints!
-    current_solution, _, _ = solve_pyomo_model(adj_instance, model, model_name, q=q, printing=False)
+    current_solution = solve_pyomo_model(adj_instance, model, model_name, q=q, printing=False)
     solutions = {0: current_solution}
-    afsc_solutions = {0: np.array([p["afscs"][int(j)] for j in solutions[0]])}
-    metrics = afccp.core.solutions.handling.evaluate_solution(solutions[0], p, vp)
+    current_solution = afccp.core.solutions.handling.evaluate_solution(current_solution, p, vp)
+    afsc_solutions = {0: current_solution['afsc_array']}
 
     # Add first solution to the report
     report["Solution"].append(0)
-    report["Objective Value"].append(round(metrics[obj_metric], 4))
+    report["Objective Value"].append(round(current_solution[obj_metric], 4))
     report["New Constraint"].append("None")
     report["Failed"].append(0)
     print("Done. New solution objective value:", str(report["Objective Value"][0]))
@@ -1117,8 +1141,8 @@ def determine_model_constraints(instance):
             skipped_obj = True
 
         # If our most current solution is already meeting this constraint, then we can skip this constraint
-        elif vp['objective_min'][j, k] <= metrics["objective_measure"][j, k] <= vp['objective_max'][j, k]:
-            print("Result: SKIPPED [Measure:", str(round(metrics["objective_measure"][j, k], 2)) + "], ",
+        elif vp['objective_min'][j, k] <= current_solution["objective_measure"][j, k] <= vp['objective_max'][j, k]:
+            print("Result: SKIPPED [Measure:", str(round(current_solution["objective_measure"][j, k], 2)) + "], ",
                   "Range: (" + str(vp['objective_min'][j, k]) +",", str(vp['objective_max'][j, k]) + ")")
             solutions[cons] = current_solution
             skipped_obj = True
@@ -1138,15 +1162,15 @@ def determine_model_constraints(instance):
 
         # Get solution information
         current_solution = solutions[cons]
-        metrics = afccp.core.solutions.handling.evaluate_solution(current_solution, p, vp)
-        afsc_solutions[cons] = metrics['afsc_solution']
+        current_solution = afccp.core.solutions.handling.evaluate_solution(current_solution, p, vp)
+        afsc_solutions[cons] = current_solution['afsc_array']
 
         # Add this solution to report
         report["Solution"].append(cons)
         report["New Constraint"].append(afsc + " " + objective)
 
         if feasible:
-            report["Objective Value"].append(round(metrics[obj_metric], 4))
+            report["Objective Value"].append(round(current_solution[obj_metric], 4))
             if not skipped_obj:
                 print("Result: SOLVED [Z = " + str(report["Objective Value"][cons]) + "]")
             report["Failed"].append(0)
@@ -1161,16 +1185,16 @@ def determine_model_constraints(instance):
             vp["constraint_type"][j, k] = 0
 
         # Measure it again
-        metrics = afccp.core.solutions.handling.evaluate_solution(current_solution, p, vp)
+        current_solution = afccp.core.solutions.handling.evaluate_solution(current_solution, p, vp)
 
         # Validate solution meets the constraints:
         num_constraint_check = np.sum(vp["constraint_type"] != 0)
         print("Active Objective Measure Constraints:", num_constraint_check)
-        print("Total Failed Constraints:", int(metrics["total_failed_constraints"]))
-        print("Current Objective Measure:", round(metrics["objective_measure"][j, k], 2), "Range:",
+        print("Total Failed Constraints:", int(current_solution["total_failed_constraints"]))
+        print("Current Objective Measure:", round(current_solution["objective_measure"][j, k], 2), "Range:",
               vp["objective_value_min"][j, k])
 
-        for con_fail_str in metrics["failed_constraints"]:
+        for con_fail_str in current_solution["failed_constraints"]:
             print("Failed:", con_fail_str)
 
         # Check all other AFSC objectives to see if we're suddenly failing them now for some reason
@@ -1179,10 +1203,10 @@ def determine_model_constraints(instance):
         while c < cons:
             j_1, k_1 = importance_list[c]
             afsc_1, objective_1 = p["afscs"][j_1], vp["objectives"][k_1]
-            if metrics["objective_measure"][j_1, k_1] > (vp['objective_max'][j_1, k_1] * 1.05) or \
-                    metrics["objective_measure"][j_1, k_1] < (vp['objective_min'][j_1, k_1] * 0.95):
+            if current_solution["objective_measure"][j_1, k_1] > (vp['objective_max'][j_1, k_1] * 1.05) or \
+                    current_solution["objective_measure"][j_1, k_1] < (vp['objective_min'][j_1, k_1] * 0.95):
                 print("Measure Fail:", afsc_1, objective_1, "Measure:",
-                      round(metrics["objective_measure"][j_1, k_1], 2), "Range:",
+                      round(current_solution["objective_measure"][j_1, k_1], 2), "Range:",
                       vp["objective_value_min"][j_1, k_1])
                 measure_fails += 1
             c += 1
@@ -1195,8 +1219,8 @@ def determine_model_constraints(instance):
     return vp["constraint_type"], solutions_df, report_df
 
 
-# VFT GA Population Initialization
-def populate_initial_ga_solutions(instance, printing=True):
+# GA Population Initialization
+def populate_initial_ga_solutions_from_vft_model(instance, printing=True):
     """
     This function takes a problem instance and creates several initial solutions for the genetic algorithm to evolve
     from
@@ -1206,13 +1230,14 @@ def populate_initial_ga_solutions(instance, printing=True):
     """
 
     if printing:
-        print("Generating initial population of solutions for Genetic Algorithm...")
+        print("Generating initial population of solutions for the genetic algorithm from the approximate VFT model...")
 
     # Load parameters/variables
     p, vp = instance.parameters, copy.deepcopy(instance.value_parameters)
     previous_estimate = p["quota_e"]
     initial_solutions = []
 
+    # We get our first round of solutions by iterating on the estimated number of cadets
     if instance.mdl_p["iterate_from_quota"]:
 
         # Initialize variables
@@ -1224,22 +1249,22 @@ def populate_initial_ga_solutions(instance, printing=True):
             if printing:
                 print("\nSolving VFT model... (" + str(i) + ")")
 
-            # Set the current estimate
+            # Set the current estimated number of cadets
             current_estimate = p["quota_e"]
 
             try:
 
-                # Build & solve the model
+                # Build & solve the VFT model
                 model, q = vft_model_build(instance)
-                solution, _, _ = solve_pyomo_model(instance, model, "VFT", q=q, printing=False)
-                metrics = afccp.core.solutions.handling.evaluate_solution(solution, p, vp)
-                initial_solutions.append(solution)
+                solution = solve_pyomo_model(instance, model, "VFT", q=q, printing=False)
+                solution = afccp.core.solutions.handling.evaluate_solution(solution, p, vp)
+                initial_solutions.append(solution['j_array'])
 
                 # Save this estimate for quota
                 previous_estimate = current_estimate
 
-                # Update new quota information
-                instance.parameters["quota_e"] = metrics["objective_measure"][:, quota_k].astype(int)
+                # Update new quota information (based on the number of cadets assigned from this solution)
+                instance.parameters["quota_e"] = solution["objective_measure"][:, quota_k].astype(int)
 
                 # Validate the estimated number is within the appropriate range
                 for j in p["J"]:
@@ -1257,9 +1282,9 @@ def populate_initial_ga_solutions(instance, printing=True):
 
                 if printing:
                     print("Current Number of Quota Differences:", sum(deviations), "with objective value of",
-                          round(metrics["z"], 4))
+                          round(solution["z"], 4))
 
-                # Don't solve this thing too many times
+                # Don't solve this thing too many times (other stopping conditions)
                 if i > instance.mdl_p["max_quota_iterations"]:
                     break
 
@@ -1289,12 +1314,62 @@ def populate_initial_ga_solutions(instance, printing=True):
 
             # Build & solve the model
             model, q = vft_model_build(instance)
-            solution, _, _ = solve_pyomo_model(instance, model, "VFT", q=q, printing=False)
-            metrics = afccp.core.solutions.handling.evaluate_solution(solution, p, vp)
-            initial_solutions.append(solution)
+            solution = solve_pyomo_model(instance, model, "VFT", q=q, printing=False)
+            solution = afccp.core.solutions.handling.evaluate_solution(solution, p, vp)
+            initial_solutions.append(solution['j_array'])
 
             if printing:
-                print("Objective value of", round(metrics["z"], 4), "obtained")
+                print("Objective value of", round(solution["z"], 4), "obtained")
+        except:
+
+            if printing:
+                print("Failed to solve. Going to next iteration...")
+
+    instance.value_parameters = vp
+    return np.array(initial_solutions)
+
+
+def populate_initial_ga_solutions_from_assignment_model(instance, printing=True):
+    """
+    This function generates several initial solutions for the genetic algorithm to evolve from using the
+    *new and improved* Assignment Problem Model as a heuristic
+    """
+
+    if printing:
+        print("Generating initial population of solutions for the genetic algorithm from the approximate VFT model...")
+
+    # Force the correct objective function
+    instance.mdl_p['assignment_model_obj'] = 'Global Utility'
+
+    # Load parameters/variables
+    p, vp = instance.parameters, copy.deepcopy(instance.value_parameters)
+    initial_solutions = []
+
+    # Solve using different "global utility" matrices calculated from different overall weights on cadets/AFSCs
+    weights = np.arange(instance.mdl_p["population_additions"])
+    weights = weights / np.max(weights)
+    for w in weights:
+
+        if printing:
+            print("\nSolving assignment model with 'w' of ", str(round(w, 2)) + "...")
+
+        # Update global utility matrix
+        instance.value_parameters['global_utility'] = np.zeros([p['N'], p['M'] + 1])
+        for j in p['J']:
+            instance.value_parameters['global_utility'][:, j] = w * p['cadet_utility'][:, j] + \
+                                                                (1 - w) * p['afsc_utility'][:, j]
+
+        # Solve model
+        try:
+
+            # Build & solve the model
+            model = assignment_model_build(instance)
+            solution = solve_pyomo_model(instance, model, "Assignment", printing=False)
+            solution = afccp.core.solutions.handling.evaluate_solution(solution, p, vp)
+            initial_solutions.append(solution['j_array'])
+
+            if printing:
+                print("Objective value of", round(solution["z"], 4), "obtained")
         except:
 
             if printing:
@@ -1307,7 +1382,46 @@ def populate_initial_ga_solutions(instance, printing=True):
 # Cadet Board Animation
 def cadet_board_preprocess_model(b):
     """
-    Doc string here
+    Builds a Pyomo optimization model to determine the x and y coordinates of AFSC squares on a chart.
+
+    Parameters:
+    -----------
+    b : dict
+        A dictionary containing configuration parameters for the model.
+        The dictionary should include the following key-value pairs:
+        - 'n^sorted' : numpy array
+            Sorted values of the AFSC sizes (cadet box sizes).
+        - 'M' : int
+            The number of AFSCs (cadet boxes).
+        - 'add_legend' : bool
+            Whether to include a legend box in the chart.
+        - 'simplified_model' : bool
+            Whether to use a simplified model without positional constraints.
+        - 'row_constraint' : bool
+            Whether to incorporate a row constraint for AFSCs.
+        - Additional bounds and constants used in the model.
+
+    Returns:
+    --------
+    m : ConcreteModel
+        The constructed Pyomo ConcreteModel instance representing the optimization model.
+
+    Notes:
+    ------
+    This function creates an optimization model to determine the x and y coordinates of AFSC squares (cadet boxes)
+    on a chart. The objective is to maximize the size of the cadet boxes, which are represented by the variable 'm.s'.
+    The model seeks to find an optimal placement of the AFSC squares while satisfying various constraints.
+    The specific constraints and objective function formulation depend on the configuration parameters provided in the 'b' dictionary.
+
+    The function defines decision variables for the AFSC sizes ('m.s') and the x and y coordinates of each AFSC square ('m.x' and 'm.y').
+    Depending on the configuration parameters, additional variables for the legend box and positional relationships between AFSCs may be included.
+
+    Constraints are added to ensure that the AFSC squares stay within the chart borders, avoid overlapping with the legend box (if present),
+    and meet any specified row constraints. The constraints vary based on whether the simplified model or the full model with positional
+    relationships between AFSCs is used.
+
+    The objective function aims to maximize the size of the cadet boxes ('m.s'), representing the objective of maximizing the visual prominence
+    of each AFSC on the chart.
     """
 
     # Build Model
@@ -1469,7 +1583,43 @@ def cadet_board_preprocess_model(b):
 
 def solve_cadet_board_model_direct_from_board_parameters(instance, filepath):
     """
-    Solve the cadet board animation model (only meant to run on Griffen's mac)
+    Solve the cadet board animation model using the provided instance parameters and save the results to a CSV file.
+
+    Parameters:
+    -----------
+    instance : object
+        An instance of the cadet board animation model.
+        The instance should contain the necessary model parameters in the 'mdl_p' attribute.
+        These parameters include board configuration details, such as size ratios, border widths, legend dimensions, etc.
+
+    filepath : str
+        The file path where the results will be saved as a CSV file.
+        The file should have write permissions.
+
+    Returns:
+    --------
+    None
+
+    Notes:
+    ------
+    This function solves the cadet board animation model using the provided instance parameters.
+    The instance parameters should include the necessary configuration details for the model, such as board dimensions, size ratios, solver information, etc.
+
+    The function first initializes the board parameters ('b') by extracting them from the instance object.
+    It calculates additional parameters, such as the figure height, border widths, AFSC border/buffer widths, and legend dimensions.
+
+    The function then loads the AFSC data from a CSV file specified by the 'filepath' parameter.
+    It assumes that the data is already sorted by the 'n' column.
+
+    Next, the function creates the Pyomo optimization model using the 'cadet_board_preprocess_model' function,
+    passing the board parameters ('b') as arguments.
+
+    The solver executable path is set based on the 'b_solver_name' parameter from the board parameters ('b').
+
+    The model is solved using the specified solver, and the solution time is printed.
+
+    Finally, the x, y, and s (size) values from the solved model are extracted and stored in the AFSC dataframe.
+    The updated dataframe is then saved to the specified CSV file.
     """
 
     # Initialize b

@@ -7,55 +7,38 @@ import copy
 import afccp.core.globals
 import afccp.core.solutions.handling
 
-# Old useless algorithms
-def greedy_model_solve(instance, printing=False):
-    """
-    This is a simple greedy algorithm that matches each cadet according to the highest valued AFSC determined by the
-    initial overall utility matrix.
-    """
-    if printing:
-        print('Solving Greedy Model...')
-
-    # Shorthand
-    p, vp = instance.parameters, instance.value_parameters
-
-    # Create AFSC Utility Matrix
-    if "afsc_utility" in p:
-        afsc_utility = p["afsc_utility"]
-    else:
-        afsc_utility = np.zeros([p["N"], p["M"]])
-        for objective in ['Merit', 'Mandatory', 'Desired', 'Permitted', 'Utility']:
-            if objective in vp["objectives"]:
-                k = np.where(vp["objectives"] == objective)[0][0]
-                if objective == 'Merit':
-                    merit = np.tile(np.where(p['merit'] > p['sum_merit'], 1,
-                                             p['merit'] / p['sum_merit']), [p["M"], 1]).T
-                    afsc_utility += merit * vp["objective_weight"][:, k].T
-                else:
-                    afsc_utility += p[objective.lower()][:, :p["M"]] * vp["objective_weight"][:, k].T
-
-    # Overall Utility Matrix
-    overall_utility = vp['afscs_overall_weight'] * (afsc_utility.T * vp['afsc_weight'][:, np.newaxis]).T + \
-                      vp['cadets_overall_weight'] * p['cadet_utility'][:, :p["M"]] * vp['cadet_weight'][:, np.newaxis] + \
-                      p['ineligible'] * -100
-
-    # Begin Greedy Algorithm to match the cadets using overall utility matrix
-    solution = np.zeros(p["N"])
-    for i in p["I"]:
-
-        # Match cadet to AFSC which adds the highest overall value
-        solution[i] = np.argmax(overall_utility[i, :])
-
-    return solution
-
-
 # Matching algorithms
-def matching_algorithm_1(instance, capacities=None, printing=True):
+def classic_hr(instance, capacities=None, printing=True):
     """
-    This is the Hospitals/Residents algorithm that matches cadets and AFSCs across all rated, space, and NRL positions.
+    Matches cadets and AFSCs across all rated, space, and NRL positions using the Hospitals/Residents algorithm.
+
+    Parameters:
+        instance (CadetCareerProblem): The instance of the CadetCareerProblem class.
+        capacities (numpy.ndarray or None): The capacities of AFSCs. If None, the capacities are taken from the
+            instance parameters. Default is None.
+        printing (bool): Whether to print status updates or not. Default is True.
+
+    Returns:
+        dict: The solution dictionary containing the assigned AFSCs for each cadet.
+
+    This function implements the Hospitals/Residents algorithm to match cadets and AFSCs across all rated, space,
+    and NRL positions. It takes an instance of the CadetCareerProblem class as input and an optional parameter
+    `capacities` to specify the capacities of AFSCs. If `capacities` is None, the capacities are taken from the
+    instance parameters. By default, the function prints status updates during the matching process.
+
+    The algorithm initializes the necessary variables and dictionaries. It then proceeds with the Hospitals/Residents
+    algorithm by having cadets propose to their top choices and AFSCs accept or reject cadets based on their preferences
+    and capacities. The matching process continues until all cadets are matched or have exhausted their preferences.
+    The function updates the matches and rejections for each AFSC and tracks the progress through iterations.
+
+    The function returns a solution dictionary containing the assigned AFSCs for each cadet.
+
+    Example usage:
+        solution = classic_hr(instance, capacities=capacities, printing=True)
     """
+
     if printing:
-        print("Solving the deferred acceptance algorithm (1)...")
+        print("Modeling this as an H/R problem and solving with DAA...")
 
     # Shorthand
     p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
@@ -69,9 +52,14 @@ def matching_algorithm_1(instance, capacities=None, printing=True):
     # Array to keep track of what AFSC choice in their list the cadets are proposing to (python index at 0)
     cadet_proposal_choice = np.zeros(p['N']).astype(int)  # Everyone proposes to their first choice initially
 
+    # Initialize solution dictionary
+    solution = {'method': 'HR'}
+
     # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
     if mdl_p['collect_solution_iterations']:
-        solution_iterations = {'proposals': {}, 'solutions': {}, 'iteration_names': {}, 'type': 'MA1'}
+        solution['iterations'] = {'type': 'HR'}
+        for key in ['proposals', 'matches', 'names']:
+            solution['iterations'][key] = {}
 
     # Begin the simple Hospital/Residents Algorithm
     total_rejections = np.zeros(p['M'])  # Number of rejections for each AFSC
@@ -87,7 +75,7 @@ def matching_algorithm_1(instance, capacities=None, printing=True):
 
         # Solution Iteration components (Proposals) and print statement
         if mdl_p['collect_solution_iterations']:
-            solution_iterations['proposals'][iteration] = copy.deepcopy(proposals)
+            solution['iterations']['proposals'][iteration] = copy.deepcopy(proposals)
         if mdl_p['ma_printing']:
             print("\nIteration", iteration + 1)
             counts = {p['afscs'][j]: len(np.where(proposals == j)[0]) for j in p['J']}
@@ -123,8 +111,8 @@ def matching_algorithm_1(instance, capacities=None, printing=True):
 
         # Solution Iteration components
         if mdl_p['collect_solution_iterations']:
-            solution_iterations['solutions'][iteration] = copy.deepcopy(proposals)
-            solution_iterations['iteration_names'][iteration] = 'Iteration ' + str(iteration + 1)
+            solution['iterations']['matches'][iteration] = copy.deepcopy(proposals)
+            solution['iterations']['names'][iteration] = 'Round ' + str(iteration + 1)
 
         # Specific matching algorithm print statement
         if mdl_p['ma_printing']:
@@ -135,16 +123,156 @@ def matching_algorithm_1(instance, capacities=None, printing=True):
         iteration += 1 # Next iteration!
 
     # Last solution iteration
-    solution_iterations['last_s'] = iteration - 1
-    return proposals, solution_iterations
+    solution['iterations']['last_s'] = iteration - 1
+
+    # Return solution
+    solution['j_array'] = proposals
+    return solution
+
+
+def hr_lower_quota_fix(instance, solution, capacities=None, printing=True):
+    """
+    Insert Chatgpt here
+    """
+
+    if printing:
+        print("Fixing the H/R algorithm lower quota issue...")
+
+    # Shorthand
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
+
+    # Algorithm initialization
+    if capacities is None:
+        total_slots = p[mdl_p['capacity_parameter']]
+    else:  # In case this is used in a genetic algorithm
+        total_slots = capacities
+
+    # Adjust solution method
+    solution['method'] = 'HR w/Fix'
+
+    # Need to keep track of unfilled AFSCs (from the start)
+    counts = {j: len(np.where(solution['j_array'] == j)[0]) for j in p['J']}
+    percent_of_lower_quota = np.array([counts[j] / total_slots[j] * 100 for j in p['J']])
+    unfilled_j = np.where(percent_of_lower_quota < 100)[0]
+    print(p['afscs'][unfilled_j])
+
+    # Determine which AFSCs we can pull from
+    j_sorted = np.argsort(p['pgl'])[::-1]
+    j_selects = np.array([j for j in j_sorted if p['afscs'][j] not in p['afscs_acc_grp']['Rated']])[:8]
+
+    # Iterate until all AFSCs are at or over quota
+    adjusting = True
+    iteration = 0
+    cadets_moved = []
+    while adjusting:
+        counts = {j: len(np.where(solution['j_array'] == j)[0]) for j in p['J']}
+        percent_of_lower_quota = np.array([counts[j] / total_slots[j] * 100 for j in p['J']])
+
+        # Check our unfilled AFSCs from the beginning
+        unfilled_afscs = False
+        for j in unfilled_j:
+            if percent_of_lower_quota[j] != 100:
+                unfilled_afscs = True
+
+        # Determine which cadets to pull from and which AFSCs to put them
+        if unfilled_afscs:  # We haven't finished filling the "unfilled AFSCs"
+
+            unfilled_percent_of_lower_quota = {j: percent_of_lower_quota[j] for j in unfilled_j}
+            j_u = min(unfilled_percent_of_lower_quota, key=unfilled_percent_of_lower_quota.get)
+
+            # Lists of cadets that were assigned to "j_u"
+            assigned_cadets = np.where(solution['j_array'] == j_u)[0]
+
+            # List of cadets that we can pick from to fill this AFSC
+            potential_cadets = []
+            for i in p['I^E'][j_u]:
+                if i not in assigned_cadets and i not in cadets_moved:
+                    j = solution['j_array'][i]
+                    if j in j_selects:
+                        potential_cadets.append(i)
+
+            # Get dictionary of cadet preferences for the AFSC that cadet is matched to (for all unassigned eligible cadets)
+            a = {i: p['c_pref_matrix'][i, solution['j_array'][i]] for i in potential_cadets}
+
+        else:  # We're done filling the "unfilled AFSCs", we now put unmatched cadets back in
+
+            unfilled_percent_of_lower_quota = {j: percent_of_lower_quota[j] for j in j_selects}
+            j_u = min(unfilled_percent_of_lower_quota, key=unfilled_percent_of_lower_quota.get)
+
+            # List of unmatched cadets
+            unmatched_cadets = np.where(solution['j_array'] == p['M'])[0]
+            if len(unmatched_cadets) == 0:
+                break
+            else:
+                potential_cadets = unmatched_cadets
+
+            # Get dictionary of cadet preferences for the AFSC that cadet is matched to (for all unassigned eligible cadets)
+            a = {i: 100 for i in potential_cadets}
+
+        # Get dictionary of cadet preferences for this AFSC of the cadets that were unassigned to this AFSC (but eligible)
+        b = {i: p['c_pref_matrix'][i, j_u] for i in potential_cadets}
+
+        # Get dictionary of AFSC preferences on the cadets that were unassigned to this AFSC (but were eligible)
+        c = {i: p['a_pref_matrix'][i, j_u] for i in potential_cadets}
+
+        # Get cadet(s) that minimize drop in preference between matched and j_u
+        d = {i: b[i] - a[i] for i in potential_cadets}
+        vals = [d[i] for i in potential_cadets]
+        min_val = min(vals)
+        minimum_cadets = [i for i in d if d[i] == min_val]
+
+        # Get dictionary of this AFSC's preference on the "minimum cadets"
+        minimum_cadets_j_u_choice = {i: c[i] for i in minimum_cadets}
+        cadet = min(minimum_cadets_j_u_choice, key=minimum_cadets_j_u_choice.get)
+
+        # Adjust solution and keep track of cadet
+        cadets_moved.append(cadet)
+        current_afsc = p['afscs'][solution['j_array'][cadet]]
+        solution['j_array'][cadet] = j_u
+
+        iteration += 1
+        if iteration > 50:
+            adjusting = False
+
+        # Iteration print statement
+        if printing:
+            print('Cadet chosen:', cadet, 'AFSC moved to:', p['afscs'][j_u], 'AFSC moved from:', current_afsc)
+
+    # Final print statement
+    if printing:
+        counts = {j: len(np.where(solution['j_array'] == j)[0]) for j in p['J']}
+        percent_of_lower_quota = np.array([counts[j] / total_slots[j] * 100 for j in p['J']])
+        print('Finished.', iteration, 'iterations processed. Final percent filled:', percent_of_lower_quota)
+
+    return solution
 
 
 # SOC specific algorithms
 def rotc_rated_board_original(instance, printing=False):
     """
-    The function assigns Rated AFSCs to ROTC cadets based on their preferences and the existing quotas for each
-    AFSC using the current rated board algorithm.
+    Assigns Rated AFSCs to ROTC cadets based on their preferences and the existing quotas for each AFSC using the
+    current rated board algorithm.
+
+    Parameters:
+        instance (CadetCareerProblem): The instance of the CadetCareerProblem class.
+        printing (bool): Whether to print status updates or not. Default is False.
+
+    Returns:
+        dict: The solution dictionary containing the assigned AFSCs for each cadet.
+
+    This function assigns Rated AFSCs to ROTC cadets based on their preferences and the existing quotas for each AFSC.
+    It follows the current rated board algorithm. The function takes an instance of the CadetCareerProblem class as
+    input and an optional parameter `printing` to specify whether to print status updates. By default, `printing` is
+    set to False. The function initializes the necessary variables and dictionaries for the algorithm. It then goes
+    through each phase of the rated board algorithm, considering cadets' order of merit and interest levels for each
+    AFSC. Cadets are assigned AFSCs based on availability and eligibility. The function updates the assigned AFSCs
+    for each cadet and tracks the number of matched cadets for each AFSC. Finally, it converts the assigned AFSCs into
+    a solution dictionary and returns it.
+
+    Example usage:
+        solution = rotc_rated_board_original(instance, printing=True)
     """
+
 
     if printing:
         print("Running status quo ROTC rated algorithm...")
@@ -177,9 +305,14 @@ def rotc_rated_board_original(instance, printing=False):
     matching = {afsc: True for afsc in afscs}  # Used in stopping conditions
     assigned_afscs = {cadet: "" for cadet in cadets}
 
+    # Initialize solution dictionary
+    solution = {'cadets_solved_for': 'ROTC Rated', 'afscs_solved_for': 'Rated', 'method': 'ROTCRatedBoard'}
+
     # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
-    solution_iterations = {'solutions': {}, 'iteration_names': {}, 'type': 'ROTC Rated Board',
-                           'cadets_solved_for': 'ROTC Rated', 'afscs_solved_for': 'Rated'}
+    if mdl_p['collect_solution_iterations']:
+        solution['iterations'] = {'type': 'ROTC Rated Board'}
+        for key in ['matches', 'names']:
+            solution['iterations'][key] = {}
 
     # Re-order AFSCs if necessary
     if instance.mdl_p['rotc_rated_board_afsc_order'] is not None:
@@ -230,19 +363,23 @@ def rotc_rated_board_original(instance, printing=False):
                 print(afsc, "Phase Matched:", counter, "  --->   Total Matched:", total_matched[afsc], "/",
                       total_slots[afsc])
 
-            # Solution iteration components (convert to full solution)
-            afsc_solution = np.array([" " * 10 for _ in p['I']])
-            for cadet, i in enumerate(cadet_indices):
-                if assigned_afscs[cadet] in afscs:
-                    afsc_solution[i] = assigned_afscs[cadet]
-            indices = np.where(afsc_solution == " " * 10)[0]
-            afsc_solution[indices] = "*"
-            solution_iterations['solutions'][s] = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
-            solution_iterations['iteration_names'][s] = \
-                "Phase " + str(phase_num) + " (" + om_level + ", " + interest_level + ") [" + afsc + "]"
+            # Solution Iteration components
             s += 1
+            if mdl_p['collect_solution_iterations']:
+                afsc_solution = np.array([" " * 10 for _ in p['I']])
+                for cadet, i in enumerate(cadet_indices):
+                    if assigned_afscs[cadet] in afscs:
+                        afsc_solution[i] = assigned_afscs[cadet]
+                indices = np.where(afsc_solution == " " * 10)[0]
+                afsc_solution[indices] = "*"
+                solution['iterations']['matches'][s] = \
+                    np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+                solution['iterations']['names'][s] = \
+                    "Phase " + str(phase_num) + " (" + om_level + ", " + interest_level + ") [" + afsc + "]"
 
-    solution_iterations['last_s'] = s - 1
+    # Solution Iteration components
+    if mdl_p['collect_solution_iterations']:
+        solution['iterations']['last_s'] = s - 1
 
     # Convert it back to a full solution with all cadets (anyone not matched to a Rated AFSC is unmatched)
     afsc_solution = np.array([" " * 10 for _ in p['I']])
@@ -251,14 +388,45 @@ def rotc_rated_board_original(instance, printing=False):
             afsc_solution[i] = assigned_afscs[cadet]
     indices = np.where(afsc_solution == " " * 10)[0]
     afsc_solution[indices] = "*"
-    solution = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
-    return solution, solution_iterations
+    solution['j_array'] = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+    return solution
 
 
 def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     """
-    This is the Hospitals/Residents algorithm that matches or reserves cadets to their Rated AFSCs based on the SOC.
+    Matches or reserves cadets to their Rated AFSCs based on the Source of Commissioning (SOC) using the Hospitals/Residents algorithm.
+
+    Parameters:
+        instance (CadetCareerProblem): The instance of the CadetCareerProblem class.
+        soc (str): The SOC for which to perform the matching algorithm. Options are 'usafa' (United States Air Force Academy)
+                   or 'rotc' (Reserve Officer Training Corps). Default is 'usafa'.
+        printing (bool): Whether to print status updates or not. Default is True.
+
+    Returns:
+        tuple: A tuple containing three solution dictionaries: the overall solution, the reserves solution,
+            and the matches solution.
+
+    This function implements the Hospitals/Residents algorithm to match or reserve cadets to their Rated AFSCs
+    based on the Source of Commissioning (SOC). It takes an instance of the CadetCareerProblem class as input and
+    an optional parameter `soc` to specify the SOC for which the matching algorithm should be performed. The available
+    options for `soc` are 'usafa' (United States Air Force Academy) and 'rotc' (Reserve Officer Training Corps). By
+    default, the SOC is set to 'usafa'. The function also takes an optional parameter `printing` to control whether
+    status updates are printed during the matching process.
+
+    The algorithm initializes the necessary variables and dictionaries. It then proceeds with the Hospitals/Residents
+    algorithm by having cadets propose to their top choices and AFSCs accept or reject cadets based on their preferences
+    and capacities. The matching process continues until all cadets are matched or have exhausted their preferences.
+    The function tracks the progress through iterations and collects information on both reserved and matched AFSCs.
+
+    The function returns a tuple containing three solution dictionaries: the overall solution, the reserves solution,
+    and the matches solution. Each solution dictionary contains the assigned AFSCs for each cadet. The reserves
+    solution only includes cadets with reserved slots, the matches solution only includes cadets with matched slots,
+    and the overall solution includes both cadets with reserved and matched slots.
+
+    Example usage:
+        solution, reserves, matches = soc_rated_matching_algorithm(instance, soc='usafa', printing=True)
     """
+
     if printing:
         print("Solving the rated matching algorithm for " + soc.upper() + " cadets...")
 
@@ -282,11 +450,19 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     # Dictionary to keep track of what AFSC choice in their list the cadets are proposing to
     cadet_proposal_choice = {i: 0 for i in cadets}  # Initially all propose to their top Rated preference!
 
+    # Initialize solution dictionary for all 3 solutions (reserves, matches, combined)
+    solution_reserves = {'cadets_solved_for': soc.upper() + ' Rated', 'afscs_solved_for': 'Rated',
+                         'method': 'Rated ' + soc.upper() + ' HR (Reserves)'}
+    solution_matches = {'cadets_solved_for': soc.upper() + ' Rated', 'afscs_solved_for': 'Rated',
+                        'method': 'Rated ' + soc.upper() + ' HR (Matches)'}
+    solution = {'cadets_solved_for': soc.upper() + ' Rated', 'afscs_solved_for': 'Rated',  # Combined Solution
+                'method': 'Rated ' + soc.upper() + ' HR'}
+
     # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
     if mdl_p['collect_solution_iterations']:
-        solution_iterations = {'proposals': {}, 'solutions': {}, 'matches': {}, 'reserves': {}, 'iteration_names': {},
-                               'type': 'Rated SOC HR', 'cadets_solved_for': soc.upper() + ' Rated',
-                               'afscs_solved_for': 'Rated'}
+        solution['iterations'] = {'type': 'Rated SOC HR'}
+        for key in ['proposals', 'matches', 'reserves', 'matched', 'names']:
+            solution['iterations'][key] = {}
 
     # Begin the simple Hospital/Residents Algorithm
     total_rejections = {j: 0 for j in rated_J}  # Number of rejections for each AFSC
@@ -303,7 +479,7 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
 
         # Solution Iteration components (Proposals) and print statement
         if mdl_p['collect_solution_iterations']:
-            solution_iterations['proposals'][iteration] = proposal_array
+            solution['iterations']['proposals'][iteration] = proposal_array
         if mdl_p['ma_printing']:
             print("\nIteration", iteration + 1)
 
@@ -341,19 +517,28 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
         # Solution Iteration components
         if mdl_p['collect_solution_iterations']:
 
-            # Rated "solution" (containing matched and reserved cadets)
-            solution_array = np.array([proposals[i] if i in cadets else p['M'] for i in p['I']])
-            matches, reserves = [], []
-            for i in cadets:
-                if proposals[i] in rated_J:
-                    if first_choice[i] == proposals[i]:
-                        matches.append(i)
-                    else:
-                        reserves.append(i)
-            solution_iterations['matches'][iteration] = np.array(matches)  # List of cadets that are matched
-            solution_iterations['reserves'][iteration] = np.array(reserves)  # List of cadets that have reserved slots
-            solution_iterations['solutions'][iteration] = copy.deepcopy(solution_array)
-            solution_iterations['iteration_names'][iteration] = 'Iteration ' + str(iteration + 1)
+            # Rated matches from this iteration
+            solution['iterations']['matches'][iteration] = \
+                np.array([proposals[i] if i in cadets else p['M'] for i in p['I']])
+            solution['iterations']['names'][iteration] = 'Iteration ' + str(iteration + 1)
+
+            # Collect information on this iteration's reserved slots and actual matched slots
+            reserves = np.zeros(p['N']).astype(int)
+            matches = np.zeros(p['N']).astype(int)
+            for i in p['I']:
+
+                # Default to unmatched
+                reserves[i], matches[i] = p['M'], p['M']
+                if i in cadets:
+                    if proposals[i] in rated_J:
+                        if first_choice[i] == proposals[i]:
+                            matches[i] = proposals[i]
+                        else:
+                            reserves[i] = proposals[i]
+
+            # Set of cadets with reserved or matched slots
+            solution['iterations']['matched'][iteration] = np.where(matches != p['M'])[0]
+            solution['iterations']['reserves'][iteration] = np.where(reserves != p['M'])[0]
 
         # Specific matching algorithm print statement
         if mdl_p['ma_printing']:
@@ -370,31 +555,78 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
         iteration += 1 # Next iteration!
 
     # Last solution iteration
-    solution_iterations['last_s'] = iteration - 1
+    solution['iterations']['last_s'] = iteration - 1
 
-    # Final solution (matched cadets) with also another "solution" with reserved cadets
-    solution = np.zeros(p['N']).astype(int)
-    reserves = np.zeros(p['N']).astype(int)
+    # Collect information on all 3 solutions: reserves, matches, and combined
+    solution_reserves['j_array'] = np.zeros(p['N']).astype(int)
+    solution_matches['j_array'] = np.zeros(p['N']).astype(int)
+    solution['j_array'] = np.zeros(p['N']).astype(int)
     for i in p['I']:
-        solution[i], reserves[i] = p['M'], p['M']  # Default to unmatched
+
+        # Default to unmatched
+        solution_matches['j_array'][i], solution_reserves['j_array'][i] = p['M'], p['M']
+        solution['j_array'][i] = p['M']
         if i in cadets:
             if proposals[i] in rated_J:
+                solution['j_array'][i] = proposals[i]
                 if first_choice[i] == proposals[i]:
-                    solution[i] = proposals[i]
+                    solution_matches['j_array'][i] = proposals[i]
                 else:
-                    reserves[i] = proposals[i]
+                    solution_reserves['j_array'][i] = proposals[i]
+
+    # Add information to the solution matches and reserves components
+    solution['matches'] = np.where(solution_matches['j_array'] != p['M'])[0]
+    solution['reserves'] = np.where(solution_reserves['j_array'] != p['M'])[0]
 
     # Return solution, reserved array, and solution iterations
-    return solution, reserves, solution_iterations
+    return solution, solution_reserves, solution_matches
 
 
 # Meta-heuristics
-def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, printing=False):
+def vft_genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, printing=False):
     """
-    This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
-    solved in conjunction with the pyomo model solutions. Use several VFT pyomo solutions in the initial population to
-    this genetic algorithm
+    Solves the optimization problem using a genetic algorithm.
+
+    Parameters:
+        instance (CadetCareerProblem): An instance of the CadetCareerProblem class representing the optimization problem.
+        initial_solutions (ndarray or None): An optional array of initial solutions in the population. If provided, it
+            should be a numpy ndarray of shape (pop_size, N) where pop_size is the size of the population and N is the
+            number of cadets. Default is None.
+        con_fail_dict (dict or None): An optional dictionary containing information about constraints that failed for
+            the initial solutions. It should be a dictionary where the keys are the indices of the initial solutions
+            (0-based) and the values are lists of constraint indices that failed for that solution. Default is None.
+        printing (bool): A flag indicating whether to print status updates during the genetic algorithm execution.
+            Default is False.
+
+    Returns:
+        tuple: A tuple containing the best solution and the time evaluation dataframe (if time evaluation is enabled).
+
+    This function implements a genetic algorithm to solve the optimization problem defined by the CadetCareerProblem
+    instance. The genetic algorithm works by iteratively evolving a population of candidate solutions through selection,
+    crossover, and mutation operations. The fitness of each solution is evaluated using the Value-Focused Thinking (VFT)
+    objective function.
+
+    The genetic algorithm operates as follows:
+    1. Initialize the population: If initial_solutions are provided, they are used as the initial population. Otherwise,
+       a random population is generated.
+    2. Evaluate the fitness of each solution in the population using the VFT objective function.
+    3. Sort the population based on the fitness scores in descending order.
+    4. Create the next generation of solutions:
+       - The top two solutions (best fitness) from the current population are automatically included in the next generation.
+       - For the remaining solutions, select two parents based on their fitness scores using rank selection.
+       - Apply multi-point crossover to generate two offspring solutions from the selected parents.
+       - Perform mutation on the offspring solutions to introduce small random changes.
+       - Add the offspring solutions to the next generation.
+    5. Repeat steps 2-4 until the termination condition is met (e.g., maximum time limit).
+
+    The best solution found during the genetic algorithm execution is returned as the output. If time evaluation is
+    enabled, a time evaluation dataframe is also returned, containing the objective values at different time points
+    during the algorithm execution.
+
+    Example usage:
+        solution, time_eval_df = vft_genetic_algorithm(instance, initial_solutions, con_fail_dict, printing=True)
     """
+
 
     def multi_point_crossover(genome1, genome2):
         """
@@ -429,8 +661,36 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
         :return: mutated genome
         """
         for _ in range(mp["num_mutations"]):
-            i = np.random.randint(low=0, high=p['N'])  # Random cadet
-            j = np.random.choice(p['J^E'][i])  # Random AFSC
+            i = np.random.choice(p['I^Variable'])  # Pick a random cadet that doesn't have a "fixed" AFSC
+
+            if mp['mutation_function'] == 'cadet_choice':
+
+                # Determine what set of AFSCs we can choose from (Coin flip on if we're going to select more preferred ones)
+                if np.random.uniform() > mp['preference_mutation_rate']:
+
+                    # Current preference that the cadet received
+                    current_choice = p['c_pref_matrix'][i, genome[i]]
+
+                    # All AFSCs that are at least as preferred as current assigned
+                    possible_afscs = p['cadet_preferences'][i][:current_choice]
+
+                else:
+
+                    # All AFSCs that the cadet is eligible for
+                    possible_afscs = p['J^E'][i]
+            else:
+
+                # All AFSCs that the cadet is eligible for
+                possible_afscs = p['J^E'][i]
+
+            # Fix the possible AFSCs to select from if this cadet has a reserved Rated slot
+            if i in p['J^Reserved']:
+                possible_afscs = p['J^Reserved'][i]
+
+            # Pick a random AFSC
+            j = np.random.choice(possible_afscs)
+
+            # Mutate if applicable
             genome[i] = j if (np.random.uniform() < mp["mutation_rate"]) else genome[i]
 
         return genome
@@ -439,6 +699,9 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
     p = instance.parameters
     vp = instance.value_parameters
     mp = instance.mdl_p
+
+    # Cadets that aren't "fixed" in the solution
+    p['I^Variable'] = np.array([i for i in p['I'] if i not in p['J^Fixed']])
 
     # Rank Selection Parameters
     rank_weights = (np.arange(1, mp["pop_size"] + 1)[::-1]) ** 1.2
@@ -565,6 +828,9 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
         gen_times.append(time.perf_counter() - gen_start_time)
         generation += 1
 
+    # Acquire solution dictionary for the top chromosome in the population
+    solution = {'method': 'VFT_Genetic', 'j_array': population[0]}
+
     # Time Eval
     if mp["time_eval"]:
 
@@ -573,18 +839,51 @@ def genetic_algorithm(instance, initial_solutions=None, con_fail_dict=None, prin
 
         if printing:
             print(time_eval_df)
-        return population[0], time_eval_df
+        return solution, time_eval_df
 
     else:
 
         # Return best solution
-        return population[0], None
+        return solution, None
 
 
 def genetic_matching_algorithm(instance, printing=False):
     """
-    CHatGPT GMA docstring
+    Genetic algorithm that determines optimal capacities to the classic deferred acceptance algorithm to minimize
+    blocking pairs
+
+    Parameters:
+        instance (CadetCareerProblem): An instance of the CadetCareerProblem class representing the optimization problem.
+        printing (bool): A flag indicating whether to print additional information during the algorithm execution.
+            Default is False.
+
+    Returns:
+        ndarray: An array representing the optimal capacities determined by the genetic algorithm.
+
+    This function implements a genetic algorithm to determine the optimal capacities for the classic deferred acceptance
+    algorithm. The goal is to minimize the number of blocking pairs in the matching process.
+
+    The genetic algorithm works as follows:
+    1. Initialize the population of capacities randomly. Each capacity is selected within the valid range for the
+       corresponding AFSC.
+    2. Evaluate the fitness of each capacity configuration using the classic deferred acceptance algorithm with the
+       given capacities. The fitness is determined by the number of blocking pairs in the resulting matching.
+    3. Sort the population based on fitness scores in descending order.
+    4. Create the next generation of capacities:
+       - The two best capacities (lowest fitness) from the current population are automatically included in the next
+         generation.
+       - For the remaining capacities, select two parents based on their fitness scores using rank selection.
+       - Apply multi-point crossover to generate two offspring capacities from the selected parents.
+       - Perform mutation on the offspring capacities to introduce small random changes.
+       - Add the offspring capacities to the next generation.
+    5. Repeat steps 2-4 until a termination condition is met (e.g., maximum time or number of generations).
+
+    The best capacity configuration found during the genetic algorithm execution is returned as the output.
+
+    Example usage:
+        optimal_capacities = genetic_matching_algorithm(instance, printing=True)
     """
+
 
     # Shorthand
     p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
@@ -604,11 +903,11 @@ def genetic_matching_algorithm(instance, printing=False):
 
     def fitness_function(chromosome):
         """
-        Evaluates the chromosome (capacities for MA1)
+        Evaluates the chromosome (capacities for HR)
         """
 
         # Run the algorithm using these capacities
-        solution, _ = matching_algorithm_1(instance, capacities=chromosome, printing=False)
+        solution = classic_hr(instance, capacities=chromosome, printing=False)
 
         # Evaluate blocking pairs
         return afccp.core.solutions.handling.calculate_blocking_pairs(p, solution, only_return_count=True)
@@ -733,8 +1032,10 @@ def genetic_matching_algorithm(instance, printing=False):
             if generation >= mdl_p['gma_num_generations']:
                 generating = False
 
-    # Return solution (running algorithm using the best capacities)
-    solution, _ = matching_algorithm_1(instance, capacities=population[0], printing=False)
-    return solution
+    if printing:
+        print("Final capacities:", population[0])
+
+    # Return the capacities
+    return population[0]
 
 

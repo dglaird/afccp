@@ -57,7 +57,7 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
     p['rotc_quota'] = p['pgl'] - p['usafa_quota']
 
     # Min/Max
-    p['quota_min'], p['quota_max'] = p['pgl'], np.around(p['pgl'] * (1 + np.random.rand(M) * 0.3))
+    p['quota_min'], p['quota_max'] = p['pgl'], np.around(p['pgl'] * (1 + np.random.rand(M) * 0.9))
 
     # Target is a random integer between the minimum and maximum targets
     target = np.around(p['quota_min'] + np.random.rand(M) * (p['quota_max'] - p['quota_min']))
@@ -66,10 +66,27 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
     # Generate AFSCs
     p['afscs'] = np.array(['R' + str(j + 1) for j in range(M)])
 
+    # Determine what "accessions group" each AFSC is in
     if generate_only_nrl:
         p['acc_grp'] = np.array(["NRL" for _ in range(M)])
     else:
-        p['acc_grp'] = np.array([np.random.choice(['NRL', 'Rated', 'USSF']) for _ in range(M)])
+
+        # If there are 3 or more AFSCs, we want all three accessions groups represented
+        if M >= 3:
+            invalid = True
+            while invalid:
+                p['acc_grp'] = np.array([np.random.choice(['NRL', 'Rated', 'USSF']) for _ in range(M)])
+
+                # Make sure we have at least one AFSC from each accession's group
+                invalid = False  # "Innocent until proven guilty"
+                for grp in ['NRL', 'Rated', 'USSF']:
+                    if grp not in p['acc_grp']:
+                        invalid = True
+                        break
+
+        # If we only have one or two AFSCs, they'll all be NRL
+        else:
+            p['acc_grp'] = np.array(["NRL" for _ in range(M)])
 
     # Add an "*" to the list of AFSCs to be considered the "Unmatched AFSC"
     p["afscs"] = np.hstack((p["afscs"], "*"))
@@ -211,6 +228,17 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
     p['c_preferences'], p['c_utilities'] = afccp.core.data.preferences.get_utility_preferences(p)
     p['c_preferences'] = p['c_preferences'][:, :P]
     p['c_utilities'] = p['c_utilities'][:, :P]
+
+    # Get cadet preferences
+    p["c_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
+    for i in range(p['N']):
+
+        # Sort the utilities to get the preference list
+        utilities = p["utility"][i, :p["M"]]
+        sorted_indices = np.argsort(utilities)[::-1]
+        preferences = np.argsort(
+            sorted_indices) + 1  # Add 1 to change from python index (at 0) to rank (start at 1)
+        p["c_pref_matrix"][i, :] = preferences
 
     # Update set of parameters
     p = afccp.core.data.adjustments.parameter_sets_additions(p)

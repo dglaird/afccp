@@ -9,16 +9,31 @@ import copy
 # Data/Instance supporting functions
 def initialize_instance_functional_parameters(N):
     """
-    This function initializes all the various instance parameters including graphs,
-    solving the different models, and much more. If the analyst wants to change the defaults, they just need
-    to specify the new parameter in this initialization function or when passed in the method it is need
+    Initializes the various instance parameters for the CadetCareerProblem object.
+
+    Parameters:
+        N (int): The number of cadets in the problem instance.
+
+    Returns:
+        dict: A dictionary containing the initialized instance parameters.
+
+    This function initializes the hyperparameters and toggles for the CadetCareerProblem object.
+    It sets default values for various parameters that control the behavior and visualization of the problem instance.
+
+    The parameters are organized into different sections, including graph parameters, AFSC chart versions,
+    colors for different bar types, animation colors, value function chart parameters, and more.
+
+    The function returns a dictionary containing all the initialized instance parameters.
+
+    Note: The analyst can modify the default parameter values by specifying new values in this initialization
+    function or by passing them as arguments when calling the CadetCareerProblem object methods.
     """
 
     # Parameters for the graphs
     mdl_p = {
 
         # Parameters for the animation (CadetBoardFigure)
-        'board_kind': 'Solution', 'b_figsize': (19, 10), 's': 1, 'fw': 100, 'circle_radius_percent': 0.8,
+        'b_figsize': (19, 10), 's': 1, 'fw': 100, 'circle_radius_percent': 0.8,
         'fh_ratio': 0.5, 'bw^t_ratio': 0.05, 'bw^l_ratio': 0, 'bw^r_ratio': 0, 'b_title': None,
         'bw^b_ratio': 0, 'bw^u_ratio': 0.02, 'abw^lr_ratio': 0.01, 'abw^ud_ratio': 0.02, 'b_title_size': 30,
         'lh_ratio': 0.1, 'lw_ratio': 0.1, 'dpi': 200, 'pgl_linestyle': '-', 'pgl_color': 'gray',
@@ -31,7 +46,7 @@ def initialize_instance_functional_parameters(N):
         'use_rainbow_hex': True, 'build_orientation_slides': True, 'b_legend': True, 'b_legend_size': 20,
         'b_legend_marker_size': 20, 'b_legend_title_size': 20, 'x_ext_left': 0, 'x_ext_right': 0, 'y_ext_left': 0,
         'y_ext_right': 0, 'show_rank_text': False, 'rank_text_color': 'white', 'fontsize_single_digit_adj': 0.6,
-        'b_legend_loc': 'upper right',
+        'b_legend_loc': 'upper right', 'redistribute_x': True,
 
         # These parameters pertain to the AFSCs that will ultimately show up in the visualizations
         'afscs_solved_for': 'All', 'afscs_to_show': 'All',
@@ -40,17 +55,13 @@ def initialize_instance_functional_parameters(N):
         "save": True, "figsize": (19, 10), "facecolor": "white", "title": None, "filename": None, "display_title": True,
         "label_size": 25, "afsc_tick_size": 20, "yaxis_tick_size": 25, "bar_text_size": 15, "xaxis_tick_size": 20,
         "afsc_rotation": None, "bar_color": "black", "alpha": 1, "legend_size": 25,  "title_size": 25,
-        "text_size": 20,
+        "text_size": 20, 'text_bar_threshold': 15, 'dot_size': 15,
 
         # AFSC Chart Elements
         "eligibility": True, "eligibility_limit": None, "skip_afscs": None, "all_afscs": True, "y_max": 1.1,
         "y_exact_max": None, "preference_chart": False, "preference_proportion": False, "dot_chart": False,
         "sort_by_pgl": True, "solution_in_title": True, "afsc": None, "only_desired_graphs": True,
         'add_legend_afsc_chart': True, 'legend_loc': 'upper right',
-
-        # Subset of charts I actually really care about
-        "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
-                           ("Utility", "quantity_bar_proportion"), ("USAFA Proportion", "bar"), ("Merit", "bar")],
 
         # Macro Chart Controls
         "cadets_graph": True, "data_graph": "AFOCD Data", "results_graph": "Measure", "objective": "Merit",
@@ -86,22 +97,27 @@ def initialize_instance_functional_parameters(N):
         # Genetic Algorithm Parameters
         "pop_size": 12, "ga_max_time": 60, "num_crossover_points": 3, "initialize": True, "ga_printing": True,
         "mutation_rate": 0.05, "num_time_points": 100, "num_mutations": int(np.ceil(N / 75)), "time_eval": False,
-        "percent_step": 10, "ga_constrain_first_only": False,
+        "percent_step": 10, "ga_constrain_first_only": False, 'mutation_function': 'cadet_choice',
+        'preference_mutation_rate': 0.5,
 
         # Pyomo General Parameters
         "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
         "executable": None, "exe_extension": False, "assignment_model_obj": "Global Utility",
+        're_calculate_x': True, 'ussf_merit_bound': 0.03,
 
         # VFT Model Parameters
         "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,
         "obtain_warm_start_variables": False, "add_breakpoints": True, "approximate": True,
 
-        # VFT Population Generation Parameters (Including Pareto)
-        "populate": False, "iterate_from_quota": True, "max_quota_iterations": 5, "population_additions": 5,
-        "skip_quota_constraint": False, "pareto_step": 10,
+        # VFT Population Generation Parameters
+        "populate": True, "iterate_from_quota": True, "max_quota_iterations": 5, "population_additions": 10,
+        "population_generation_model": "Assignment",
 
         # Model Constraint Placement Algorithm parameters
-        'constraint_model_to_use': 'VFT',
+        'constraint_model_to_use': 'VFT', "skip_quota_constraint": False,
+
+        # Sensitivity Analysis
+        "pareto_step": 10,
 
         # Goal Programming Parameters
         "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
@@ -111,6 +127,13 @@ def initialize_instance_functional_parameters(N):
 
         # Slide Parameters
         "ch_top": 2.35, "ch_left": 0.59, "ch_height": 4.64, "ch_width": 8.82,
+
+        # Subset of charts I actually really care about
+        "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
+                           ("Utility", "quantity_bar_proportion"), ("Utility", "quantity_bar_choice"),
+                           ("USAFA Proportion", "bar"), ("Merit", "bar")],
+
+        "desired_comparison_charts": [('Combined Quota', 'dot')]
     }
 
     # AFSC Measure Chart Versions
@@ -119,7 +142,7 @@ def initialize_instance_functional_parameters(N):
                            "Male": ["bar", "preference_chart", "quantity_bar_proportion"],
                            "Combined Quota": ["dot", "quantity_bar"],
                            "Minority": ["bar", "preference_chart", "quantity_bar_proportion"],
-                           "Utility": ["bar", "quantity_bar_gradient", "quantity_bar_proportion"],
+                           "Utility": ["bar", "quantity_bar_gradient", "quantity_bar_proportion", "quantity_bar_choice"],
                            "Mandatory": ["dot"], "Desired": ["dot"], "Permitted": ["dot"],
                            "Tier 1": ["dot"], "Tier 2": ["dot"], "Tier 3": ["dot"], "Tier 4": ["dot"],
                            "Norm Score": ["dot", "quantity_bar_proportion"]}
@@ -157,17 +180,19 @@ def initialize_instance_functional_parameters(N):
     mdl_p['interest_colors'] = {'High': '#3700ff', 'Med': '#dad725', 'Low': '#ff9100', 'None': '#ff000a'}
     mdl_p['reserved_slot_color'] = "#ac9853"
     mdl_p['matched_slot_color'] = "#3700ff"
-    mdl_p['unmatched_color'] = "#D3D3D3"
+    mdl_p['unfocused_color'] = "#aaaaaa"
+    mdl_p['exception_edge'] = "#FFD700"
+    mdl_p['base_edge'] = 'black'
 
     # Add these elements to the main dictionary
     mdl_p["afsc_chart_versions"] = afsc_chart_versions
     mdl_p["bar_colors"] = colors
 
     # Value Function Chart parameters
-    mdl_p['ValueFunctionChart'] = {'x_pt': None, 'y_pt': None, 'title': None, 'display_title': True,
-                                   'figsize': (10, 10), 'facecolor': 'white', 'save': True, 'breakpoints': None,
-                                   'x_ticks': None, 'crit_point': None, 'label_size': 25, 'yaxis_tick_size': 25,
-                                   'xaxis_tick_size': 25, 'x_label': None}
+    mdl_p['ValueFunctionChart'] = {'x_pt': None, 'y_pt': None, 'title': None, 'display_title': True, 'figsize': (10, 10),
+                                   'facecolor': 'white', 'save': True, 'breakpoints': None, 'x_ticks': None,
+                                   'crit_point': None, 'label_size': 25, 'yaxis_tick_size': 25, 'xaxis_tick_size': 25,
+                                   'x_label': None, 'filepath': None, 'graph_color': 'black', 'breakpoint_color': 'black'}
 
     return mdl_p
 
@@ -202,7 +227,9 @@ def determine_afsc_plot_details(instance, results_chart=False):
 
             # We're not skipping the AFSCs, but we could rotate them
             if instance.data_variant == "Year":
-                if mdl_p["M"] > 18:
+                if mdl_p['M'] > 32:
+                    mdl_p["afsc_rotation"] = 80
+                elif mdl_p["M"] > 18:
                     mdl_p["afsc_rotation"] = 45
                 else:
                     mdl_p["afsc_rotation"] = 0
@@ -247,7 +274,7 @@ def determine_afsc_plot_details(instance, results_chart=False):
         if mdl_p["solution_names"] is None:
 
             # Default to the current active solutions
-            mdl_p["solution_names"] = list(instance.solution_dict.keys())
+            mdl_p["solution_names"] = list(instance.solutions.keys())
             num_solutions = len(mdl_p["solution_names"])  # Number of solutions in dictionary
 
             # Get number of solutions
@@ -257,7 +284,7 @@ def determine_afsc_plot_details(instance, results_chart=False):
             # Can't have more than 4 solutions
             if num_solutions > 4:
                 mdl_p["num_solutions"] = 4
-                mdl_p["solution_names"] = list(instance.solution_dict.keys())[:4]
+                mdl_p["solution_names"] = list(instance.solutions.keys())[:4]
 
         else:
             mdl_p["num_solutions"] = len(mdl_p["solution_names"])
@@ -386,8 +413,8 @@ def pick_most_changed_afscs(instance):
 
     # Loop through each solution to get the max number of cadets assigned to each AFSC across each solution
     for solution_name in solution_names:
-        solution = instance.solution_dict[solution_name]
-        assigned_cadets[solution_name] = {j: np.where(solution == j)[0] for j in p["J"]}
+        solution = instance.solutions[solution_name]
+        assigned_cadets[solution_name] = {j: np.where(solution['j_array'] == j)[0] for j in p["J"]}
         num_assigned = np.array([len(assigned_cadets[solution_name][j]) for j in p["J"]])
         max_assigned = np.array([max(max_assigned[j], num_assigned[j]) for j in p["J"]])
 
@@ -732,7 +759,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
 
                 # Developmental Engineering: Aeronautical Engineer
                 elif afsc in ['62EXA', '62E1A1S']:
-                    if cip[:4] == '1402':  # or (cip == '142701' and year == 2016):
+                    if cip[:4] == '1402':
                         qual[d][i, j] = 'M1'
                     else:
                         qual[d][i, j] = 'I2'
@@ -767,8 +794,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
 
                 # Developmental Engineering: Project/General Engineer
                 elif afsc in ['62EXG', '62E1G1S']:
-                    if cip[:2] == '14' and cip != '140102' and cip[
-                                                               :4] != "1437":  # (cip == '401002' and year in [2016]):
+                    if cip[:2] == '14' and cip != '140102' and cip[:4] != "1437":
                         qual[d][i, j] = 'M1'
                     else:
                         qual[d][i, j] = 'I2'

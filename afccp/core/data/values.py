@@ -56,6 +56,12 @@ def value_parameters_sets_additions(parameters, value_parameters, printing=False
                     vp["J^USAFA"] = np.hstack((vp["J^USAFA"], j))
             vp["J^USAFA"] = vp["J^USAFA"].astype(int)
 
+    # USSF OM Constraint
+    if vp['USSF OM'] == 'True':
+        vp['USSF OM'] = True
+    else:
+        vp['USSF OM'] = False
+
     # Set of objectives that seek to balance some cadet demographic
     vp['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority',
                  'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4']
@@ -118,7 +124,8 @@ def model_value_parameters_to_defaults(instance, filepath, printing=False):
                                        'Cadet Weight Function': [vp['cadet_weight_function']],
                                        'AFSC Weight Function': [vp['afsc_weight_function']],
                                        "USAFA-Constrained AFSCs": vp["USAFA-Constrained AFSCs"],
-                                       "Cadets Top 3 Constraint": vp["Cadets Top 3 Constraint"]})
+                                       "Cadets Top 3 Constraint": vp["Cadets Top 3 Constraint"],
+                                       "USSF OM": vp["USSF OM"]})
 
     # Construct other dataframes
     afsc_weights_df = pd.DataFrame({'AFSC': p['afscs'][:p["M"]],
@@ -194,7 +201,7 @@ def default_value_parameters_from_excel(filepath, num_breakpoints=24, printing=F
                                 'num_breakpoints': num_breakpoints, "M": len(afsc_weights_df)}
 
     # Check if other columns are present (phasing these in)
-    more_vp_columns = ["USAFA-Constrained AFSCs", "Cadets Top 3 Constraint"]
+    more_vp_columns = ["USAFA-Constrained AFSCs", "Cadets Top 3 Constraint", "USSF OM"]
     for col in more_vp_columns:
         if col in overall_weights_df:
             default_value_parameters[col] = str(overall_weights_df.loc[0, col]).replace("nan", "")
@@ -356,6 +363,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
           'constraint_type': np.zeros([p["M"], O]).astype(int),
           "USAFA-Constrained AFSCs": dvp["USAFA-Constrained AFSCs"],
           "Cadets Top 3 Constraint": dvp["Cadets Top 3 Constraint"],
+          "USSF OM": dvp["USSF OM"],
           'num_breakpoints': num_breakpoints}
 
     # Determine weights on cadets
@@ -836,7 +844,7 @@ def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual
         # Receive values from string
         f_param_list = split_list[1]
         split_list = f_param_list.split(',')
-        rho = float(split_list[0].strip())
+        rho = float(split_list[0].strip()) * target  # Multiplying by the target normalizes the domain space
 
         # Build segments
         if f_type == 'Min Increasing':
@@ -968,7 +976,6 @@ def value_function_builder(segment_dict=None, num_breakpoints=None, derivative_l
         else:  # We place them at fixed intervals based on x
             x_arr = (np.arange(1, r + 1) / r) * x_over_y
 
-        # Get the y-values of the corresponding x-values
         vals = np.array([exponential_function(x, 0, x_over_y, rho, positive) for x in x_arr])
 
         # If we need to add extra breakpoints

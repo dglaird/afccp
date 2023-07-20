@@ -35,7 +35,7 @@ class CadetBoardFigure:
         # Initialize attributes that we take directly from the CadetCareerProblem instance
         self.p, self.vp = instance.parameters, instance.value_parameters
         self.b, self.data_name, self.data_version = instance.mdl_p, instance.data_name, instance.data_version
-        self.solution_iterations, self.mdl_p = instance.solution_iterations, instance.mdl_p
+        self.solution, self.mdl_p = instance.solution, instance.mdl_p
         self.paths = instance.export_paths
         self.printing = printing
 
@@ -65,12 +65,22 @@ class CadetBoardFigure:
         else:
             self.b['lw'], self.b['lh'] = 0, 0
 
-        # Loop through all the key value pairs of solution iterations and add them to "b"
-        for key in self.solution_iterations:
-            self.b[key] = self.solution_iterations[key]
+        # # Loop through all the key value pairs of solution iterations and add them to "b"
+        # if 'iterations' in self.solution:
+        #     for key in self.solution['iterations']:
+        #         self.b[key] = self.solution['iterations'][key]
+
+        # Set up "solutions" properly
+        if 'iterations' in self.solution:
+            self.b['solutions'] = copy.deepcopy(self.solution['iterations']['matches'])
+            self.b['last_s'] = self.solution['iterations']['last_s']
+        else:
+            self.b['solutions'] = {0: self.solution['j_array']}
+            self.b['last_s'] = 0
 
         # Basic information about this sequence for the animation
         self.b['afscs'] = self.mdl_p['afscs']
+        self.b['cadets_solved_for'] = self.solution['cadets_solved_for']
 
         # Cadets in the "denominator" basically
         if self.b['cadets_solved_for'] == 'ROTC Rated':
@@ -133,6 +143,16 @@ class CadetBoardFigure:
             else:
                 self.calculate_afsc_x_y_through_algorithm()
 
+        # Redistribute the AFSCs along each row by spacing out the x coordinates
+        if self.b['redistribute_x']:
+            self.redistribute_x_along_row()
+
+        # Only saving one image for a single solution
+        if 'iterations' not in self.solution:
+            self.b['save_iteration_frames'] = False
+            self.b['build_orientation_slides'] = False
+            self.b['save_board_default'] = False
+
         # Create the rest of the main figure
         self.calculate_cadet_box_x_y()
 
@@ -149,26 +169,37 @@ class CadetBoardFigure:
             # Initialize the board!
             self.initialize_board()
 
+        # Just making one picture
+        if 'iterations' not in self.solution:
+            self.solution_iteration_frame(0, cadets_to_show='cadets_matched', kind='Final Solution')
+
+            # Save frame
+            filepath = self.paths['Analysis & Results'] + self.solution['name'] + '/' + self.b['focus'] + '.png'
+            self.fig.savefig(filepath)
+
+            if self.printing:
+                print('Done.')
+
         # Create all the iteration frames
         if self.b['save_iteration_frames']:
 
             # Make the "focus" directory if needed
-            folder_path = self.paths['Analysis & Results'] + 'Cadet Board/' + self.b['sequence']
+            folder_path = self.paths['Analysis & Results'] + 'Cadet Board/' + self.solution['iterations']['sequence']
             if self.b['focus'] not in os.listdir(folder_path):
                 os.mkdir(folder_path + '/' + self.b['focus'])
 
-            # Simple solution kinds of graphs
-            if self.b['type'] in ['Solutions', 'ROTC Rated Board']:
+            # ROTC Rated Board
+            if self.solution['iterations']['type'] in ['ROTC Rated Board']:
 
                 if self.printing:
-                    print("Creating " + str(len(self.b['solutions'])) + " animation images...")
+                    print("Creating " + str(len(self.solution['iterations']['matches'])) + " animation images...")
 
                 # Loop through each solution
                 for s in self.b['solutions']:
                     self.solution_iteration_frame(s, cadets_to_show='cadets_matched')
 
             # Matching Algorithm Proposals & Rejections
-            elif self.b['type'] in ['MA1', 'Rated SOC HR']:
+            elif self.solution['iterations']['type'] in ['HR', 'Rated SOC HR']:
 
                 if self.printing:  # "Plus 2" to account for orientation and final solution frames
                     print("Creating " + str(len(self.b['solutions']) + 2) + " animation images...")
@@ -192,33 +223,42 @@ class CadetBoardFigure:
         This method preprocesses the different specs for this particular figure instance
         """
 
+        # Default AFSC fontsize and whether they're on two lines or not (likely overwritten later)
+        self.b['afsc_fontsize'] = {j: self.b['afsc_title_size'] for j in self.b['J']}
+        self.b['afsc_title_two_lines'] = {j: False for j in self.b['J']}
+
         # Maximum number of cadets assigned to each AFSC across solutions
         self.b['max_assigned'] = {j: 0 for j in self.b["J"]}
 
         # Subset of cadets assigned to the AFSC in each solution
         self.b['cadets_matched'], self.b['counts'] = {}, {}
 
-        if 'proposals' in self.b:
-            self.b['cadets_proposing'] = {}
+        # Proposal iterations
+        if 'iterations' in self.solution:
+            if 'proposals' in self.solution['iterations']:
+                self.b['cadets_proposing'] = {}
 
         # Loop through each solution (iteration)
         for s in self.b['solutions']:
             self.b['cadets_matched'][s], self.b['counts'][s] = {}, {}
 
-            if 'proposals' in self.b:
-                self.b['cadets_proposing'][s] = {}
+            # Proposal iterations
+            if 'iterations' in self.solution:
+                if 'proposals' in self.solution['iterations']:
+                    self.b['cadets_proposing'][s] = {}
 
             # Loop through each AFSC
             for j in self.b['J']:
                 self.b['cadets_matched'][s][j] = np.where(self.b['solutions'][s] == j)[0]  # cadets assigned to this AFSC
                 self.b['counts'][s][j] = len(self.b['cadets_matched'][s][j])  # number of cadets assigned to this AFSC
-
-                # cadets proposing to this AFSC
                 max_count = self.b['counts'][s][j]
-                if 'proposals' in self.b:
-                    self.b['cadets_proposing'][s][j] = np.where(self.b['proposals'][s] == j)[0]
-                    proposal_counts = len(self.b['cadets_proposing'][s][j])  # number of cadets assigned to this AFSC
-                    max_count = max(self.b['counts'][s][j], proposal_counts)
+
+                # Proposal iterations
+                if 'iterations' in self.solution:
+                    if 'proposals' in self.solution['iterations']:
+                        self.b['cadets_proposing'][s][j] = np.where(self.solution['iterations']['proposals'][s] == j)[0]
+                        proposal_counts = len(self.b['cadets_proposing'][s][j])  # number of proposing cadets
+                        max_count = max(self.b['counts'][s][j], proposal_counts)
 
                 # Update maximum number of cadets assigned if necessary
                 if max_count > self.b['max_assigned'][j]:
@@ -257,7 +297,7 @@ class CadetBoardFigure:
         """
 
         # Make the "orientation" directory if needed
-        folder_path = self.paths['Analysis & Results'] + 'Cadet Board/' + self.b['sequence']
+        folder_path = self.paths['Analysis & Results'] + 'Cadet Board/' + self.solution['iterations']['sequence']
         if 'Orientation' not in os.listdir(folder_path):
             os.mkdir(folder_path + '/Orientation')
 
@@ -333,6 +373,46 @@ class CadetBoardFigure:
         if self.printing:
             print("Board parameters 'x' and 'y' determined through pyomo model.")
 
+    def redistribute_x_along_row(self):
+        """
+        This method re-calculates the x coordinates by spacing out the AFSCs along each row
+        """
+
+        # Unique y coordinates
+        y_unique = np.unique(np.array([round(self.b['y'][j], 4) for j in self.b['J']]))[::-1]
+
+        # Need to get ordered list of AFSCs in each row
+        sorted_J = np.array([j for j in self.b['J^translated']])
+        rows = {row: [] for row in range(len(y_unique))}
+        for j in sorted_J:
+            y = round(self.b['y'][j], 4)
+            row = np.where(y_unique == y)[0][0]
+            rows[row].append(j)
+
+        # Loop through each row to determine optimal spacing
+        for row in rows:
+
+            # Only adjust spacing for rows with more than one AFSC
+            if len(rows[row]) > 1:
+
+                # Calculate total spacing to play around with
+                total_spacing = self.b['fw'] - self.b['bw^l'] - self.b['bw^r']
+                for j in rows[row]:
+                    total_spacing -= (self.b['s'] * self.b['n'][j])
+
+                # Spacing used to fill in the gaps
+                new_spacing = total_spacing / (len(rows[row]) - 1)
+
+                # Loop through each AFSC in this row to calculate the new x position
+                for num, j in enumerate(rows[row]):
+
+                    # Calculate the appropriate x coordinate
+                    if num == 0:
+                        x = self.b['x'][j] + (self.b['n'][j] * self.b['s']) + new_spacing
+                    else:
+                        self.b['x'][j] = x
+                        x += (self.b['n'][j] * self.b['s']) + new_spacing
+
     def calculate_cadet_box_x_y(self):
         """
         This method uses the x and y coordinates of the AFSC boxes, along with the size of the cadet boxes, to calculate
@@ -364,7 +444,6 @@ class CadetBoardFigure:
 
         # Loop through each AFSC to add certain elements
         self.b['afsc_name_text'] = {}
-        self.b['afsc_fontsize'] = {}
         self.b['c_boxes'] = {}
         self.b['c_circles'] = {}
         self.b['c_rank_text'] = {}
@@ -385,7 +464,6 @@ class CadetBoardFigure:
                 # AFSC fontsize is given and put AFSC name above box
                 x = self.b['x'][j] + (self.b['n'][j] / 2) * self.b['s']
                 y = self.b['y'][j] + self.b['n'][j] * self.b['s'] + 0.02
-                self.b['afsc_fontsize'][j] = self.b['afsc_title_size']
                 va = 'bottom'
 
             # AFSC text
@@ -461,7 +539,7 @@ class CadetBoardFigure:
         # Add the legend if necessary
         if self.b['b_legend']:
             legend_elements = []
-            if self.b['focus'] == 'Cadet Choice':
+            if self.b['focus'] == 'Cadet Choice' or 'Specific Choice' in self.b['focus']:
 
                 # Add legend elements
                 for c in np.arange(1, 11):
@@ -496,6 +574,19 @@ class CadetBoardFigure:
                            markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
                     Line2D([0], [0], marker='o', label="Reserved", markerfacecolor=self.mdl_p['reserved_slot_color'],
                            markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
+
+            elif 'Tier 1' in self.b['focus']:
+
+                # Add legend elements
+                legend_elements = [
+                    Line2D([0], [0], marker='o', label=self.mdl_p['afsc'] + " Unqualified",
+                           markerfacecolor=self.mdl_p['unfocused_color'],
+                           markersize=self.mdl_p['b_legend_marker_size'], color=self.mdl_p['unfocused_color'],
+                           markeredgecolor=self.mdl_p['base_edge']),
+                    Line2D([0], [0], marker='o', label=self.mdl_p['afsc'] + " Exception",
+                           markerfacecolor=self.mdl_p['unfocused_color'],
+                           markersize=self.mdl_p['b_legend_marker_size'], color=self.mdl_p['unfocused_color'],
+                           markeredgecolor=self.mdl_p['exception_edge'])]
             # Create legend
             leg = self.ax.legend(handles=legend_elements, edgecolor='white', loc=self.b['b_legend_loc'], facecolor='black',
                                  fontsize=self.mdl_p['b_legend_size'], ncol=len(legend_elements), labelspacing=1,
@@ -513,11 +604,11 @@ class CadetBoardFigure:
         # Save the figure
         if self.b['save_board_default']:
             folder_path = self.paths['Analysis & Results'] + 'Cadet Board/'
-            if self.b['sequence'] not in os.listdir(folder_path):
+            if self.solution['iterations']['sequence'] not in os.listdir(folder_path):
                 os.mkdir(folder_path + self.b['sequence'])
 
             # Get the filepath and save the "default" graph
-            filepath = folder_path + self.b['sequence'] + '/Default Board'
+            filepath = folder_path + self.solution['iterations']['sequence'] + '/Default Board'
             if type(self.mdl_p['afscs_to_show']) == str:
                 filepath += ' (' + self.mdl_p['afscs_to_show'] + ' Cadets).png'
             else:
@@ -698,9 +789,9 @@ class CadetBoardFigure:
 
             # Change the cadet circles to reflect the appropriate colors
             for i, cadet in enumerate(cadets):
-                if cadet in self.b['matches'][s]:
+                if cadet in self.solution['iterations']['matched'][s]:
                     color = self.b['matched_slot_color']
-                elif cadet in self.b['reserves'][s]:
+                elif cadet in self.solution['iterations']['reserves'][s]:
                     color = self.b['reserved_slot_color']
                 else:
                     color = self.b['unmatched_color']
@@ -729,6 +820,53 @@ class CadetBoardFigure:
                 else:
                     color = self.mdl_p['all_other_choice_colors']
                 self.b['c_circles'][j][i].set_facecolor(color)
+
+                # Show the circle
+                self.b['c_circles'][j][i].set_visible(True)
+
+        elif 'Specific Choice' in self.b['focus']:
+
+            # Get the AFSC we're highlighting
+            j_focus = np.where(self.p['afscs'] == self.mdl_p['afsc'])[0][0]
+            choice = self.p['c_pref_matrix'][cadets, j_focus]
+
+            # Change the cadet circles to reflect the appropriate colors
+            for i, cadet in enumerate(cadets):
+
+                # Change circle color
+                if choice[i] in self.mdl_p['choice_colors']:
+                    color = self.mdl_p['choice_colors'][choice[i]]
+                else:
+                    color = self.mdl_p['all_other_choice_colors']
+                self.b['c_circles'][j][i].set_facecolor(color)
+
+                # Show the circle
+                self.b['c_circles'][j][i].set_visible(True)
+
+        elif 'Tier 1' in self.b['focus']:
+            choice = self.p['c_pref_matrix'][cadets, j]
+
+            # Get the AFSC we're highlighting
+            j_focus = np.where(self.p['afscs'] == self.mdl_p['afsc'])[0][0]
+
+            # Change the cadet circles to reflect the appropriate colors
+            for i, cadet in enumerate(cadets):
+
+                # Change circle color
+                if '1' in self.p['qual'][cadet, j_focus]:
+                    if choice[i] in self.mdl_p['choice_colors']:
+                        color = self.mdl_p['choice_colors'][choice[i]]
+                    else:
+                        color = self.mdl_p['all_other_choice_colors']
+                else:
+                    color = self.mdl_p['unfocused_color']
+                self.b['c_circles'][j][i].set_facecolor(color)
+
+                # Edgecolor
+                if 'E' in self.p['qual'][cadet, j_focus]:# and j == j_focus:
+                    self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['exception_edge'])
+                else:
+                    self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['base_edge'])
 
                 # Show the circle
                 self.b['c_circles'][j][i].set_visible(True)
@@ -764,22 +902,28 @@ class CadetBoardFigure:
         self.b['scores'][j] = round(afccp.core.solutions.handling.calculate_afsc_norm_score_general(
             ranks, achieved_ranks), 2)
 
+        # If we want to put this AFSC title on two lines or not
+        if self.b['afsc_title_two_lines'][j]:
+            afsc_text = self.p['afscs'][j] + ":\n"
+        else:
+            afsc_text = self.p['afscs'][j] + ": "
+
         # Change the text for the AFSCs
         if self.b['afsc_text_to_show'] == 'Norm Score':
             color = self.v_hex_dict[self.b['scores'][j]]  # New AFSC color
-            afsc_text = self.p['afscs'][j] + ": " + str(self.b['scores'][j])
+            afsc_text += str(self.b['scores'][j])
             self.b['afsc_name_text'][j].set_color(color)
 
         # Determine average cadet choice and use it in the new text
         elif self.b['afsc_text_to_show'] == 'Cadet Choice':
             average_choice = round(np.mean(self.p['c_pref_matrix'][self.b['cadets_matched'][s][j], j]), 2)
             color = 'white'
-            afsc_text = self.p['afscs'][j] + ": " + str(average_choice)
+            afsc_text += str(average_choice)
             self.b['afsc_name_text'][j].set_color(color)
 
         # Text shows number of cadets matched/proposing
         else:
-            afsc_text = self.p['afscs'][j] + ": " + str(len(self.b['cadets_matched'][s][j]))
+            afsc_text += str(len(self.b['cadets_matched'][s][j]))
 
         # Update the text
         self.b['afsc_name_text'][j].set_text(afsc_text)
@@ -852,14 +996,14 @@ class CadetBoardFigure:
 
             # 'Sequence' Folder
             folder_path = self.paths['Analysis & Results'] + 'Cadet Board/'
-            if self.b['sequence'] not in os.listdir(folder_path):
-                os.mkdir(folder_path + self.b['sequence'])
+            if self.solution['iterations']['sequence'] not in os.listdir(folder_path):
+                os.mkdir(folder_path + self.solution['iterations']['sequence'])
 
             # 'Sequence Focus' Sub-folder
             sub_folder_name = self.b['focus']
-            if sub_folder_name not in os.listdir(folder_path + self.b['sequence'] + '/'):
-                os.mkdir(folder_path + self.b['sequence'] + '/' + sub_folder_name)
-            sub_folder_path = folder_path + self.b['sequence']  + '/' + sub_folder_name + '/'
+            if sub_folder_name not in os.listdir(folder_path + self.solution['iterations']['sequence'] + '/'):
+                os.mkdir(folder_path + self.solution['iterations']['sequence'] + '/' + sub_folder_name)
+            sub_folder_path = folder_path + self.solution['iterations']['sequence']  + '/' + sub_folder_name + '/'
             if kind is None:
                 filepath = sub_folder_path + str(s + 1) + '.png'
             elif kind == "Final Solution":
@@ -874,10 +1018,20 @@ class CadetBoardFigure:
         """
         This function exports the board parameters back to excel
         """
-        # 'Sequence' Folder
-        folder_path = self.paths['Analysis & Results'] + 'Cadet Board/'
-        if self.b['sequence'] not in os.listdir(folder_path):
-            os.mkdir(folder_path + self.b['sequence'])
+
+        if 'iterations' not in self.solution:
+
+            # Solutions Folder
+            filepath = self.paths['Analysis & Results'] + self.solution['name'] + '/Board Parameters.csv'
+            if self.solution['name'] not in os.listdir(self.paths['Analysis & Results']):
+                os.mkdir(self.paths['Analysis & Results'] + self.solution['name'] + '/')
+        else:
+
+            # 'Sequence' Folder
+            folder_path = self.paths['Analysis & Results'] + 'Cadet Board/'
+            filepath = folder_path + self.solution['iterations']['sequence'] + '/Board Parameters.csv'
+            if self.solution['iterations']['sequence'] not in os.listdir(folder_path):
+                os.mkdir(folder_path + self.solution['iterations']['sequence'])
 
         # Create dataframe
         df = pd.DataFrame({'J': [j for j in self.b['J']],
@@ -885,10 +1039,11 @@ class CadetBoardFigure:
                            'x': [self.b['x'][j] for j in self.b['J']],
                            'y': [self.b['y'][j] for j in self.b['J']],
                            'n': [self.b['n'][j] for j in self.b['J']],
-                           's': [self.b['s'] for _ in self.b['J']]})
+                           's': [self.b['s'] for _ in self.b['J']],
+                           'afsc_fontsize': [self.b['afsc_fontsize'][j] for j in self.b['J']],
+                           'afsc_title_two_lines': [self.b['afsc_title_two_lines'][j] for j in self.b['J']]})
 
         # Export file
-        filepath = folder_path + self.b['sequence'] + '/Board Parameters.csv'
         df.to_csv(filepath, index=False)
 
         if self.printing:
@@ -899,20 +1054,20 @@ class CadetBoardFigure:
         This method imports the board parameters from excel if applicable
         """
 
-        # 'Sequence' Folder
-        folder_path = self.paths['Analysis & Results'] + 'Cadet Board/'
-        if self.b['sequence'] in os.listdir(folder_path):
+        # 'Solutions' Folder
+        if 'iterations' not in self.solution:
+            folder_path = self.paths['Analysis & Results'] + self.solution['name']
 
             # Import the file if we have it
-            if 'Board Parameters.csv' in os.listdir(folder_path + self.b['sequence']):
-                filepath = folder_path + self.b['sequence'] + '/Board Parameters.csv'
+            if 'Board Parameters.csv' in os.listdir(folder_path):
+                filepath = folder_path + '/Board Parameters.csv'
                 df = afccp.core.globals.import_csv_data(filepath)
 
                 # Load parameters
                 self.b['J'] = np.array(df['J'])
                 self.b['afscs'] = np.array(df['AFSC'])
                 self.b['s'] = float(df.loc[0, 's'])
-                for key in ['x', 'y', 'n']:
+                for key in ['x', 'y', 'n', 'afsc_fontsize', 'afsc_title_two_lines']:
                     self.b[key] = {j: df.loc[idx, key] for idx, j in enumerate(self.b['J'])}
 
                 if self.printing:
@@ -922,13 +1077,41 @@ class CadetBoardFigure:
             else:
 
                 if self.printing:
-                    print("Sequence folder '" + self.b['sequence'] + "' in 'Cadet Board' analysis sub-folder, but no "
+                    print("No Sequence parameters found in solution analysis sub-folder '" +
+                          self.solution['name'] + "'.")
+                return False
+
+
+        # 'Sequence' Folder
+        folder_path = self.paths['Analysis & Results'] + 'Cadet Board/'
+        if self.solution['iterations']['sequence'] in os.listdir(folder_path):
+
+            # Import the file if we have it
+            if 'Board Parameters.csv' in os.listdir(folder_path + self.solution['iterations']['sequence']):
+                filepath = folder_path + self.solution['iterations']['sequence'] + '/Board Parameters.csv'
+                df = afccp.core.globals.import_csv_data(filepath)
+
+                # Load parameters
+                self.b['J'] = np.array(df['J'])
+                self.b['afscs'] = np.array(df['AFSC'])
+                self.b['s'] = float(df.loc[0, 's'])
+                for key in ['x', 'y', 'n', 'afsc_fontsize', 'afsc_title_two_lines']:
+                    self.b[key] = {j: df.loc[idx, key] for idx, j in enumerate(self.b['J'])}
+
+                if self.printing:
+                    print("Sequence parameters (J, x, y, n, s) imported from", filepath)
+                return True
+
+            else:
+
+                if self.printing:
+                    print("Sequence folder '" + self.solution['iterations']['sequence'] + "' in 'Cadet Board' analysis sub-folder, but no "
                                                                      "board parameter file found within sequence folder.")
                 return False
 
         else:
             if self.printing:
-                print("No sequence folder '" + self.b['sequence'] + "' in 'Cadet Board' analysis sub-folder.")
+                print("No sequence folder '" + self.solution['iterations']['sequence'] + "' in 'Cadet Board' analysis sub-folder.")
             return False
 
 

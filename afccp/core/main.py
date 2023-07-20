@@ -36,29 +36,32 @@ class CadetCareerProblem:
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
                  num_value_function_breakpoints=None, N=1600, M=32, P=6, generate_only_nrl=False, printing=True):
         """
-        This is the AFSC/Cadet problem object. We can import data by providing a "data_name". This is the name of the
-        instance of the problem that we are solving. Usually a class year, though you can also generate data to solve by
-        specifying "Random", "Realistic", or "Perfect".
-        :param data_name: The name of the data set. If we want to import data using the data_name, this needs to be
-        the name of the main instance sub-folder
-        :param data_version: A string of some sort that indicates the version of the data we're dealing with. All the
-        folders we import/export to will have this designation in parentheses and this is to manage the different
-        versions of cadets/AFSCs to mitigate the headache of adjudication and also handle NRL vs All cadet scenarios
-        :param degree_qual_type: A string variable indicating how we should handle degree tier qualifications. There
-        are 3 kinds: "Binary"- prior to 2015, you either qualified (1) for an AFSC or didn't (0), "Relaxed"- since the
-        AFOCD started, AFPC/DSY has been combining "Mandatory", "Desired", and "Permitted" tiers by those labels to
-        make the model less restrictive, and lastly "Tiers"- which is something we (AFPC/DSY) are now adhering to which
-        factors in both requirement level ("Mandatory", "Desired", and "Permitted") and the tier itself (1, 2, 3, 4).
-        The default parameter here is "Consistent" which will just keep the method of solving the model and representing
-        the data the same for whatever instance is being loaded in.
-        :param num_value_function_breakpoints: Number of breakpoints to use in the value functions. If None, then we
-        will load in the value functions using the breakpoints listed. If provided an integer, we will recreate the
-        value functions using the "vf_strings"
-        :param N: Number of cadets to generate
-        :param M: Number of AFSCs to generate
-        :param P: Number of AFSC preferences to generate for each cadet
-        :param generate_only_nrl: Only generate NRL AFSCs (default to False)
-        :param printing: Whether we should print status updates or not
+        Represents the AFSC/Cadet matching problem object.
+
+        Parameters:
+            data_name (str): The name of the data set. It can be an existing instance folder name or one of the following:
+                             "Random", "Perfect", or "Realistic". Defaults to "Random".
+            data_version (str): The version of the data set. It is used to manage different versions of cadets/AFSCs
+                                and handle NRL vs All cadet scenarios. Defaults to "Default".
+            degree_qual_type (str): The type of degree tier qualifications. It can be "Binary", "Relaxed", or "Tiers".
+                                    Defaults to "Consistent".
+            num_value_function_breakpoints (int, optional): The number of breakpoints to use in the value functions.
+                                                           If None, the value functions will be loaded with the existing
+                                                           breakpoints. If an integer is provided, new value functions
+                                                           will be created. Defaults to None.
+            N (int): Number of cadets to generate. Defaults to 1600.
+            M (int): Number of AFSCs to generate. Defaults to 32.
+            P (int): Number of AFSC preferences to generate for each cadet. Defaults to 6.
+            generate_only_nrl (bool): Whether to generate only NRL AFSCs. Defaults to False.
+            printing (bool): Whether to print status updates or not. Defaults to True.
+
+        This class represents the AFSC/Cadet problem object. It can import existing data or generate new instances.
+        The data set can be specified by providing the name of the instance folder or using the predefined data types
+        ("Random", "Perfect", "Realistic"). The problem instance includes information about cadets, AFSCs, value parameters,
+        and solutions.
+
+        Example usage:
+            instance = CadetCareerProblem(data_name="Random", N=200, M=5, P=5)
         """
 
         # Shorten the module name so everything fits better
@@ -77,18 +80,20 @@ class CadetCareerProblem:
         else:
             self.data_variant = "Generated"
 
-        # Instance components (value parameters, solution, solution metrics)
+        # Additional instance components (value parameters and solutions)
         self.value_parameters, self.vp_name = None, None  # Set of weight and value parameters (and the name)
-        self.solution, self.solution_name = None, None  # Array of length N (cadets) of AFSC indices (and the name)
-        self.metrics = None # Dictionary of solution metrics
-        self.x = None  # Solution "X" matrix (NxM binary matrix)
-        self.solution_iterations = None  # Will be a dictionary of solution iterations and their various components
-
-        # Dictionaries of instance components (sets of value parameters, solution, solution metrics)
-        self.vp_dict, self.solution_dict, self.metrics_dict = None, None, None
+        self.vp_dict = None  # Dictionary of value_parameters (set of sets)
+        self.solution, self.solution_name = None, None  # Dictionary of solution elements (and the name)
+        self.solutions = None  # Dictionary of solutions and their main attributes (x, j_array, afsc_array, etc.)
 
         # Parameters from *former* Lt Rebecca Reynold's thesis
         self.gp_parameters, self.gp_df = None, None
+
+        # Update instances available
+        afccp.core.globals.instances_available = []
+        for other_data_name in os.listdir(afccp.core.globals.paths["instances"]):
+            if os.path.isdir(afccp.core.globals.paths["instances"] + other_data_name):
+                afccp.core.globals.instances_available.append(other_data_name)
 
         # If we have an instance folder already for the specified instance (we're importing it)
         if data_name in afccp.core.globals.instances_available:
@@ -127,12 +132,12 @@ class CadetCareerProblem:
                                                                  num_value_function_breakpoints)
 
             # Import the "Solutions" data dictionary
-            self.solution_dict = afccp_dp.import_solutions_data(self.import_paths, self.parameters)
+            self.solutions = afccp_dp.import_solutions_data(self.import_paths, self.parameters)
 
         # This is a new problem instance that we're generating (Should be "Random", "Perfect", or "Realistic"
         else:
 
-            # Error Handling (Must be valid data generation parameter
+            # Error Handling (Must be valid data generation parameter)
             if data_name not in ["Random", "Perfect", "Realistic"]:
                 raise ValueError(
                     "Error. Instance name '" + data_name + "' is not a valid instance name. Instances must "
@@ -143,21 +148,45 @@ class CadetCareerProblem:
             for data_variant in ["Random", "Perfect", "Realistic"]:
                 if data_name == data_variant:
 
-                    # Count how many instances we already have of this type to get the name of this new instance
+                    # Determine name of data based on what instances are already in our "instances" folder
                     variant_counter = 1
-                    for instance_name in afccp.core.globals.instances_available:
-                        if data_variant in instance_name:
+                    name_determined = False
+                    while not name_determined:
+                        check_name = data_variant + "_" + str(variant_counter)
+                        if check_name not in afccp.core.globals.instances_available:
+                            self.data_name = check_name
+                            name_determined = True
+                        else:
                             variant_counter += 1
-                    self.data_name = data_variant + "_" + str(variant_counter)
 
             # Print statement
             if self.printing:
                 print("Generating '" + self.data_name + "' instance...")
 
-            # Generate data
-            if data_name == 'Random':
-                self.parameters = afccp.core.data.generation.generate_random_instance(
-                    N, P, M, generate_only_nrl=generate_only_nrl)
+            # Want to generate a "valid" problem instance that meets the conditions below
+            invalid = True
+            while invalid:
+                invalid = False  # "Innocent until proven guilty"
+
+                # Generate a "Random" problem instance
+                if data_name == 'Random':
+                    self.parameters = afccp.core.data.generation.generate_random_instance(
+                        N, P, M, generate_only_nrl=generate_only_nrl)
+                else:
+                    raise ValueError("Data type '" + data_name + "' currently not a valid method of generating"
+                                                                 " data.")
+
+                # Every cadet needs to be eligible for at least one AFSC
+                for i in range(self.parameters['N']):
+                    if np.sum(self.parameters['eligible'][i, :]) == 0:
+                        invalid = True
+                        break
+
+                # Every AFSC needs to have at least one cadet eligible for it
+                for j in range(self.parameters['M']):
+                    if np.sum(self.parameters['eligible'][:, j]) == 0:
+                        invalid = True
+                        break
 
             # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
             self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
@@ -172,14 +201,28 @@ class CadetCareerProblem:
     # Method helper functions
     def reset_functional_parameters(self, p_dict={}):
         """
-        This method simply "resets" our instance functional parameters and then inputs the "new" ones from
-        the "p_dict". This all happens in-place.
+        Resets the instance functional parameters and updates them with the new values from p_dict.
+
+        Parameters:
+            p_dict (dict, optional): A dictionary containing the new parameter values to update. Defaults to an empty dict.
+
+        This method resets the instance functional parameters of the CadetCareerProblem object to their default values.
+        It then updates the parameters with new values specified in p_dict, if provided.
+
+        The function first initializes the default functional parameters using the `initialize_instance_functional_parameters`
+        function. It then iterates over the keys in p_dict and updates the corresponding parameters in self.mdl_p.
+
+        Note that the update is performed in-place, modifying the self.mdl_p dictionary.
+
+        If a parameter specified in p_dict does not exist in self.mdl_p, a warning message is printed.
+
+        Example usage:
+            instance = CadetCareerProblem()
+            instance.reset_functional_parameters({'bar_color': 'blue', 'title_size': 18})
         """
-        # Shorthand
-        ccp_fns = afccp.core.data.support
 
         # Reset plot parameters and model parameters
-        self.mdl_p = ccp_fns.initialize_instance_functional_parameters(self.parameters["N"])
+        self.mdl_p = afccp.core.data.support.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Update plot parameters and model parameters
         for key in p_dict:
@@ -189,28 +232,67 @@ class CadetCareerProblem:
             else:
                 print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
-    def solution_handling(self, solution, solution_method, x=None):
+    def solution_handling(self, solution):
         """
-        This method simply determines what to do with the solution that we've generated. I made this method
-        since I had the same few lines of code re-used everywhere and decided to put it in a method.
+        Determines what to do with the generated solution. This is a "helper method" and not intended to be called
+        directly by the user.
+
+        Parameters:
+            solution (dict): The solution dictionary containing the solution elements.
+
+        This method takes a solution dictionary as input and performs the following tasks:
+        - Evaluates the solution by calculating additional components.
+        - Adjusts the solution method for VFT models.
+        - Initializes the solutions dictionary if necessary.
+        - Determines a unique name for the solution.
+        - Checks if the solution is already in the solutions dictionary.
+        - Adds the new solution to the solutions dictionary if it's a new solution.
+        - Updates the solution name and assigns it to the instance.
         """
 
-        # Set the solution attribute to the instance
-        if self.mdl_p["set_to_instance"]:
-            self.solution = solution
-            self.x = x
-            self.metrics = afccp.core.solutions.handling.evaluate_solution(
-                self.solution, self.parameters, self.value_parameters, printing=self.printing)
+        # Set the solution attribute to the instance (and calculate additional components)
+        self.solution = afccp.core.solutions.handling.evaluate_solution(
+            solution, self.parameters, self.value_parameters, printing=self.printing)
+        self.solution['vp_name'] = self.vp_name  # Name of the value parameters currently evaluating this solution
 
-        # Add solution to solution dictionary
-        if self.mdl_p["add_to_dict"]:
+        # Adjust solution method for VFT models
+        if self.solution['method'] == "VFT" and self.mdl_p["approximate"]:
+            self.solution['method'] = "A-VFT"
+        elif self.solution['method'] == "VFT" and not self.mdl_p["approximate"]:
+            self.solution['method'] = "E-VFT"
 
-            # Adjust solution method for VFT models
-            if solution_method == "VFT" and self.mdl_p["approximate"]:
-                solution_method = "A-VFT"
-            elif solution_method == "VFT" and not self.mdl_p["approximate"]:
-                solution_method = "E-VFT"
-            self.add_solution_to_dictionary(solution, solution_method=solution_method)
+        # Initialize solutions dictionary if necessary
+        if self.solutions is None:
+            self.solutions = {}
+
+        # Determine solution name
+        if self.solution['method'] not in self.solutions:
+            solution_name = self.solution['method']
+        else:
+            count = 2
+            solution_name = self.solution['method'] + '_' + str(count)
+            while solution_name in self.solutions:
+                count += 1
+                solution_name = self.solution['method'] + '_' + str(count)
+
+        # Check if this solution is a new solution
+        new = True
+        for s_name in self.solutions:
+            p_i = afccp.core.solutions.handling.compare_solutions(self.solutions[s_name]['j_array'],
+                                                                  self.solution['j_array'])
+
+            # Set the name of this solution to be the name of its equivalent that is already in the dictionary
+            if p_i == 1:
+                new = False
+                self.solution_name = s_name
+                self.solution['name'] = s_name
+                break
+
+        # If it is new, we add it to the dictionary and adjust the name of the activated instance solution
+        if new:
+            self.solutions[solution_name] = copy.deepcopy(self.solution)
+            self.solution_name = solution_name
+            self.solution['name'] = solution_name
 
     def error_checking(self, test="None"):
         """
@@ -239,19 +321,44 @@ class CadetCareerProblem:
                 raise ValueError("Error. Pyomo is not currently installed and is required to run pyomo models. Please"
                                  "install this library.")
         elif test == 'Solutions':
-            if self.solution_dict is None:
+            if self.solutions is None:
                 raise ValueError("Error. No solutions dictionary detected. You need to solve this problem first.")
             else:
                 check_value_parameters()
         elif test == 'Solution':
             if self.solution is None:
-                if self.solution_dict is None:
+                if self.solutions is None:
                     raise ValueError("Error. No solutions dictionary detected. You need to solve this problem first.")
                 else:
                     raise ValueError("Error. Solutions dictionary detected but you haven't actually initialized a "
                                      "solution yet. You can do so by running 'instance.set_instance_solution()'.")
             else:
                 check_value_parameters()
+
+    def manage_solution_folder(self):
+        """
+        This small method creates a solution folder in the Analysis & Results folder if it doesn't already exist and
+        returns a list of files that are located inside that solution folder
+        """
+
+        # Make solution folder if it doesn't already exist
+        folder_path = self.export_paths['Analysis & Results'] + self.solution_name
+        if self.solution_name not in os.listdir(self.export_paths['Analysis & Results']):
+            os.mkdir(folder_path)
+
+        # Return list of files in the solution folder
+        return os.listdir(folder_path)
+
+    def evaluate_all_solutions(self):
+        """
+        Evaluates all the solutions in the dictionary to acquire necessary metrics
+        """
+
+        if self.printing:
+            print('Evaluating all solutions...')
+        for solution_name in self.solutions:
+            self.solutions[solution_name] = afccp.core.solutions.handling.evaluate_solution(
+                self.solutions[solution_name], self.parameters, self.value_parameters, printing=False)
 
     # Adjust Data
     def adjust_qualification_matrix(self, printing=None):
@@ -429,11 +536,14 @@ class CadetCareerProblem:
         self.parameters = afccp.core.data.preferences.convert_afsc_preferences_to_percentiles(self.parameters)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def remove_ineligible_choices(self):
+    def remove_ineligible_choices(self, printing=None):
         """
         Uses the qual matrix to remove ineligible pairs from both AFSC and cadet preferences
         """
-        self.parameters = afccp.core.data.preferences.remove_ineligible_cadet_choices(self.parameters)
+        if printing is None:
+            printing = self.printing
+
+        self.parameters = afccp.core.data.preferences.remove_ineligible_cadet_choices(self.parameters, printing=printing)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def update_cadet_columns_from_matrices(self):
@@ -500,9 +610,6 @@ class CadetCareerProblem:
             if self.solution is not None:
                 self.measure_solution()
 
-        # Update metrics dictionary
-        self.update_metrics_dict()
-
     def update_value_parameters(self, num_breakpoints=24):
         """
         Simple method to take the current set of value parameters and update their sets and subsets and all that.
@@ -548,16 +655,13 @@ class CadetCareerProblem:
                 # Check if this new set is unique or not to get the name of the set
                 unique = self.check_unique_value_parameters()
                 if unique is True: # If it's unique, we save this new set of value parameters to the dictionary
-                    self.vp_dict[vp_name], self.vp_name = copy.deepcopy(value_parameters), self.vp_name
+                    self.vp_dict[vp_name], self.vp_name = copy.deepcopy(value_parameters), vp_name
                 else:  # If it's not unique, then "unique" is the name of the matching set of value parameters
                     self.vp_name = unique
 
         else:
             raise ValueError("Error. No value parameters set. You currently do have a 'vp_dict' and so all you "
                                      "need to do is run 'instance.set_instance_value_parameters()'. ")
-
-        # Update metrics dictionary
-        self.update_metrics_dict()
 
     def update_value_parameters_in_dict(self, vp_name=None):
         """
@@ -628,9 +732,6 @@ class CadetCareerProblem:
         # Set value parameters to instance attribute
         if self.mdl_p["set_to_instance"]:
             self.value_parameters = value_parameters
-            if self.solution is not None:
-                self.metrics = afccp.core.solutions.handling.evaluate_solution(
-                    self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Save new set of value parameters to dictionary
         if self.mdl_p["add_to_dict"]:
@@ -690,7 +791,7 @@ class CadetCareerProblem:
         if self.mdl_p["set_to_instance"]:
             self.value_parameters = value_parameters
             if self.solution is not None:
-                self.metrics = afccp.core.solutions.handling.evaluate_solution(
+                self.solution = afccp.core.solutions.handling.evaluate_solution(
                     self.solution, self.parameters, self.value_parameters, printing=printing)
 
         # Save new set of value parameters to dictionary
@@ -713,12 +814,11 @@ class CadetCareerProblem:
         if self.value_parameters is None:
             raise ValueError('No instance value parameters detected.')
 
+        # Export value parameters
         if filename is None:  # I add the "_New" just so we make sure we don't accidentally overwrite the old one
             filename = "Value_Parameters_Defaults_" + self.data_name + "_New.xlsx"
         filepath = afccp.core.globals.paths["support"] + "value parameters defaults/" + filename
-
-        afccp.core.data.values.model_value_parameters_to_defaults(
-            self.parameters, self.value_parameters, filepath=filepath, printing=printing)
+        afccp.core.data.values.model_value_parameters_to_defaults(self, filepath=filepath, printing=printing)
 
     def change_weight_function(self, cadets=True, function=None):
         """
@@ -830,48 +930,27 @@ class CadetCareerProblem:
         self.reset_functional_parameters(p_dict)
 
         # Generate solution
-        solution = np.array([np.random.choice(self.parameters['J^E'][i]) for i in self.parameters['I']])
+        solution = {'method': 'Random',
+            'j_array': np.array([np.random.choice(self.parameters['J^E'][i]) for i in self.parameters['I']])}
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="Random")
+        self.solution_handling(solution)
 
-        return solution
-
-    def greedy_method(self, p_dict={}, printing=None):
-        """
-        This method solves the greedy heuristic for an initial solution
-        """
-        self.error_checking("Value Parameters")
-        if printing is None:
-            printing = self.printing
-
-        # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
-
-        # Generate solution
-        solution = afccp.core.solutions.algorithms.greedy_model_solve(self, printing=printing)
-
-        # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="Greedy")
         return solution
 
     # Matching algorithms
     def rotc_rated_board_original(self, p_dict={}, printing=None):
-        """
-        This method solves the problem instance using "Matching Algorithm 1"
-        """
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
-        # Get the solution and solution iterations we need
-        solution, self.solution_iterations = afccp.core.solutions.algorithms.rotc_rated_board_original(
-            self, printing=printing)
+        # Get the solution we need
+        solution = afccp.core.solutions.algorithms.rotc_rated_board_original(self, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="ROTCRatedBoard")
+        self.solution_handling(solution)
 
         return solution
 
@@ -886,23 +965,18 @@ class CadetCareerProblem:
         self.reset_functional_parameters(p_dict)
 
         # Get the solution and solution iterations we need
-        solution, reserves, self.solution_iterations = afccp.core.solutions.algorithms.soc_rated_matching_algorithm(
+        combined, reserves, matches = afccp.core.solutions.algorithms.soc_rated_matching_algorithm(
             self, soc=self.mdl_p['soc'], printing=printing)
 
-        # Determine what to do with the solution
-        self.solution_handling(reserves, solution_method="Rated " + self.mdl_p['soc'].upper() + " HR (Reserves)")
-        self.solution_handling(solution, solution_method="Rated " + self.mdl_p['soc'].upper() + " HR (Matches)")
-
-        # Add these results to the parameters (J^Fixed and J^Reserved)
-        if self.mdl_p['incorporate_rated_results']:
-            self.parameters = afccp.core.solutions.handling.incorporate_rated_results_in_parameters(
-                self, printing=printing)
+        # Determine what to do with the solution(s)
+        for solution in [reserves, matches, combined]:
+            self.solution_handling(solution)
 
         return solution
 
-    def matching_algorithm_1(self, p_dict={}, printing=None):
+    def classic_hr(self, p_dict={}, printing=None):
         """
-        This method solves the problem instance using "Matching Algorithm 1"
+        This method solves the problem instance using the classical "Hospital/Residents" algorithm
         """
         if printing is None:
             printing = self.printing
@@ -910,12 +984,32 @@ class CadetCareerProblem:
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
-        # Get the solution and solution iterations we need
-        solution, self.solution_iterations = afccp.core.solutions.algorithms.matching_algorithm_1(
-            self, printing=printing)
+        # Get the solution we need
+        solution = afccp.core.solutions.algorithms.classic_hr(self, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="MA1")
+        self.solution_handling(solution)
+
+        return solution
+
+    def classic_hr_lower_quota(self, p_dict={}, printing=None):
+        """
+        Docstring here
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Get the solution we need from the classic_hr
+        solution = afccp.core.solutions.algorithms.classic_hr(self, printing=printing)
+
+        # "Complete" the solution by fixing lower_quotas
+        solution = afccp.core.solutions.algorithms.hr_lower_quota_fix(self, solution, printing=printing)
+
+        # Determine what to do with the solution
+        self.solution_handling(solution)
 
         return solution
 
@@ -938,19 +1032,13 @@ class CadetCareerProblem:
 
         # Build the model and then solve it
         model, q = afccp.core.solutions.optimization.vft_model_build(self, printing=printing)
-        start_time = time.perf_counter()  # Start the timer to solve the model
-        solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.optimization.solve_pyomo_model(
-            self, model, "VFT", q=q, printing=printing)
-        solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
+        solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "VFT", q=q, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="VFT", x=x)
+        self.solution_handling(solution)
 
-        # Return the solution and potentially the time it took to solve the model
-        if self.mdl_p["time_eval"]:
-            return solution, solve_time
-        else:
-            return solution
+        # Return the solution
+        return solution
 
     def solve_original_pyomo_model(self, p_dict={}, printing=None):
         """
@@ -968,19 +1056,13 @@ class CadetCareerProblem:
 
         # Build the model and then solve it
         model = afccp.core.solutions.optimization.assignment_model_build(self, printing=printing)
-        start_time = time.perf_counter()  # Start the timer to solve the model
-        solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.optimization.solve_pyomo_model(
-            self, model, "Original", printing=printing)
-        solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
+        solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "Original", printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="OG", x=x)
+        self.solution_handling(solution)
 
-        # Return the solution and potentially the time it took to solve the model
-        if self.mdl_p["time_eval"]:
-            return solution, solve_time
-        else:
-            return solution
+        # Return the solution
+        return solution
 
     def solve_assignment_pyomo_model(self, p_dict={}, printing=None):
         """
@@ -999,19 +1081,13 @@ class CadetCareerProblem:
 
         # Build the model and then solve it
         model = afccp.core.solutions.optimization.assignment_model_build(self, printing=printing)
-        start_time = time.perf_counter()  # Start the timer to solve the model
-        solution, x, self.mdl_p['warm_start'] = afccp.core.solutions.optimization.solve_pyomo_model(
-            self, model, "Assignment Model", printing=printing)
-        solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
+        solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "APM", printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="APM", x=x)
+        self.solution_handling(solution)
 
-        # Return the solution and potentially the time it took to solve the model
-        if self.mdl_p["time_eval"]:
-            return solution, solve_time
-        else:
-            return solution
+        # Return the solution
+        return solution
 
     def solve_gp_pyomo_model(self, p_dict={}, printing=None):
         """
@@ -1030,23 +1106,18 @@ class CadetCareerProblem:
 
         # Build the model and then solve it
         model = afccp.core.solutions.optimization.gp_model_build(self, printing=printing)
-        start_time = time.perf_counter()  # Start the timer to solve the model
-        solution, x = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "GP", printing=printing)
-        solve_time = round(time.perf_counter() - start_time, 2)  # Stop the timer after model is solved
+        solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "GP", printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="GP", x=x)
+        self.solution_handling(solution)
 
-        # Return the solution and potentially the time it took to solve the model
-        if self.mdl_p["time_eval"]:
-            return solution, solve_time
-        else:
-            return solution
+        # Return the solution
+        return solution
 
-    def full_vft_model_solve(self, p_dict={}, printing=None):
+    def solve_vft_main_methodology(self, p_dict={}, printing=None):
         """
-        This is the main method to solve the problem instance. If we choose to develop an initial population
-        of solutions, we do so using the approximate VFT model. We then evolve the solutions further using the GA.
+        This is the main method to solve the problem instance. We first determine an initial population of solutions.
+        We then evolve the solutions further using the GA.
         """
         self.error_checking("Pyomo Model")
         if printing is None:
@@ -1055,51 +1126,35 @@ class CadetCareerProblem:
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
-        # Determine population for the genetic algorithm if necessary
-        if self.mdl_p["populate"]:
-            self.mdl_p["initial_solutions"] = afccp.core.optimization.populate_initial_ga_solutions(self, printing)
-
-            # Add additional solutions if necessary
-            if self.mdl_p["solution_names"] is not None:
-
-                # In case the user specifies "Solution" instead of ["Solution"]
-                if type(self.mdl_p["solution_names"]) == str:
-                    self.mdl_p["solution_names"] = [self.mdl_p["solution_names"]]
-
-                # Add additional solutions
-                for solution_name in self.mdl_p["solution_names"]:
-                    solution = self.solution_dict[solution_name]
-                    self.mdl_p["initial_solutions"] = np.vstack((self.mdl_p["initial_solutions"], solution))
-
-            self.mdl_p["initialize"] = True
-
-            if printing:
-                now = datetime.datetime.now()
-                print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
-                      now.strftime('%H:%M:%S') + '...')
-            self.vft_genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
-            if printing:
-                print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
-
+        # Determine population for the genetic algorithm
+        if self.mdl_p['population_generation_model'] == 'Assignment':
+            self.mdl_p["initial_solutions"] = \
+                afccp.core.solutions.optimization.populate_initial_ga_solutions_from_assignment_model(self, printing)
         else:
+            self.mdl_p["initial_solutions"] = \
+                afccp.core.solutions.optimization.populate_initial_ga_solutions_from_vft_model(self, printing)
 
-            if printing:
-                now = datetime.datetime.now()
-                print('Solving VFT Model for ' + str(
-                    self.mdl_p["pyomo_max_time"]) + ' seconds at ' + now.strftime('%H:%M:%S') + '...')
-            self.solve_vft_pyomo_model(p_dict, printing=False)
+        # Add additional solutions if necessary
+        if self.mdl_p["solution_names"] is not None:
 
-            if printing:
-                now = datetime.datetime.now()
-                print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
-                print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
-                      now.strftime('%H:%M:%S') + '...')
-            self.vft_genetic_algorithm(p_dict, printing=self.mdl_p["ga_printing"])
-            if printing:
-                print('Solution value of ' + str(round(self.metrics['z'], 4)) + ' obtained.')
+            # In case the user specifies "Solution" instead of ["Solution"]
+            if type(self.mdl_p["solution_names"]) == str:
+                self.mdl_p["solution_names"] = [self.mdl_p["solution_names"]]
 
-        # Add solution to solution dictionary (We just assume that we add it to the dictionary
-        self.add_solution_to_dictionary(self.solution, solution_method="AG-VFT")
+            # Add additional solutions
+            for solution_name in self.mdl_p["solution_names"]:
+                solution = self.solutions[solution_name]
+                self.mdl_p["initial_solutions"] = np.vstack((self.mdl_p["initial_solutions"], solution))
+
+        self.mdl_p["initialize"] = True  # Force the initialize parameter to be true
+
+        if printing:
+            now = datetime.datetime.now()
+            print('Solving Genetic Algorithm for ' + str(self.mdl_p["ga_max_time"]) + ' seconds at ' +
+                  now.strftime('%H:%M:%S') + '...')
+        self.vft_genetic_algorithm(self.mdl_p, printing=self.mdl_p["ga_printing"])
+        if printing:
+            print('Solution value of ' + str(round(self.solution['z'], 4)) + ' obtained.')
 
         # Return solution
         return self.solution
@@ -1118,8 +1173,7 @@ class CadetCareerProblem:
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
-        # Dictionary of failed constraints across all solutions
-        # (should be off by *no more than* one cadet due to rounding)
+        # Dictionary of failed constraints across all solutions (phased out since we're using APM as initial population)
         con_fail_dict = None
 
         # Get a starting population of solutions if applicable!
@@ -1127,7 +1181,7 @@ class CadetCareerProblem:
 
             if self.mdl_p["initial_solutions"] is None:
 
-                if self.solution_dict is None:
+                if self.solutions is None:
                     raise ValueError("Error. No solutions in dictionary.")
 
                 else:
@@ -1135,8 +1189,8 @@ class CadetCareerProblem:
 
                         # Get list of initial solutions
                         initial_solutions = np.array(
-                            [self.solution_dict[solution_name] for solution_name in self.solution_dict])
-                        solution_names = list(self.solution_dict.keys())
+                            [self.solutions[solution_name]['j_array'] for solution_name in self.solutions])
+                        solution_names = list(self.solutions.keys())
 
                     else:
 
@@ -1146,7 +1200,7 @@ class CadetCareerProblem:
 
                         # Get list of initial solutions
                         initial_solutions = np.array(
-                            [self.solution_dict[solution_name] for solution_name in self.mdl_p["solution_names"]])
+                            [self.solutions[solution_name]['j_array'] for solution_name in self.mdl_p["solution_names"]])
                         solution_names = self.mdl_p["solution_names"]
 
                     if printing:
@@ -1159,9 +1213,6 @@ class CadetCareerProblem:
                 if printing:
                     print("Running Genetic Algorithm with", len(initial_solutions), "initial solutions...")
 
-            # Get dictionary of failed constraints
-            if self.mdl_p["pyomo_constraint_based"]:
-                con_fail_dict = self.get_full_constraint_fail_dictionary(initial_solutions, printing=printing)
         else:
 
             if printing:
@@ -1173,7 +1224,7 @@ class CadetCareerProblem:
             self, initial_solutions, con_fail_dict, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="Genetic")
+        self.solution_handling(solution)
 
         # Return the final solution and maybe the time evaluation dataframe if needed
         if self.mdl_p["time_eval"]:
@@ -1191,16 +1242,34 @@ class CadetCareerProblem:
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
-        # Get the solution and solution iterations we need
-        solution = afccp.core.solutions.algorithms.genetic_matching_algorithm(
-            self, printing=printing)
+        # Force solution iteration collection to be turned off
+        self.mdl_p['collect_solution_iterations'] = False
+
+        # Get the capacities
+        capacities = afccp.core.solutions.algorithms.genetic_matching_algorithm(self, printing=printing)
+
+        # Update capacities in parameters (quota_max or quota_min)
+        p[self.mdl_p['capacity_parameter']] = capacities
+
+        # Run the matching algorithm with these capacities
+        solution = afccp.core.solutions.algorithms.classic_hr(self, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution, solution_method="GMA")
+        self.solution_handling(solution)
 
         return solution
 
     # Solution Handling
+    def incorporate_rated_algorithm_results(self, printing=None):
+        """
+        Takes the two sets of Rated Matches and Reserves and adds that into the parameters (J^Fixed and J^Reserved)
+        """
+        if printing is None:
+            printing = self.printing
+
+        self.parameters = afccp.core.solutions.handling.incorporate_rated_results_in_parameters(
+            self, printing=printing)
+
     def find_ineligible_cadets(self, fix_it=True):
         """
         Prints out the ID's of ineligible pairs of cadets/AFSCs
@@ -1247,81 +1316,19 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        if self.solution_dict is None:
+        if self.solutions is None:
             raise ValueError('No solution dictionary initialized')
         else:
             if solution_name is None:
-                solution_name = list(self.solution_dict.keys())[0]
+                solution_name = list(self.solutions.keys())[0]
             else:
-                if solution_name not in self.solution_dict:
+                if solution_name not in self.solutions:
                     raise ValueError('Solution ' + solution_name + ' not in solution dictionary')
 
-            self.solution = self.solution_dict[solution_name]
+            self.solution = self.solutions[solution_name]
             self.solution_name = solution_name
             if self.value_parameters is not None:
-                self.metrics = self.measure_solution(printing=printing, return_z=False)
-
-            # Update metrics dictionary
-            self.update_metrics_dict()
-
-            # Return solution
-            return self.solution
-
-    def add_solution_to_dictionary(self, solution=None, full_name=None, solution_name=None,
-                                   solution_method="Import"):
-
-        # If the solution is not provided, we assume it's the current solution
-        if solution is None:
-            solution = self.solution
-
-        # If we provide a full excel file name, we can get the name of the solution directly
-        if full_name is not None:
-            split_list = full_name.split(' ')
-            if len(split_list) == 4:
-                if solution_name is None:
-                    solution_name = split_list[3]
-
-        # Determine name of solution
-        if solution_name is None:
-
-            # Initially assume the name is "Method"_i unless it's the original solution
-            if solution_method == "Original":
-                solution_name = "Original"
-            else:
-                count = 1
-                if self.solution_dict is not None:
-                    for s_name in self.solution_dict:
-                        if solution_method in s_name:
-                            count += 1
-                if count == 1:
-                    solution_name = solution_method
-                else:
-                    solution_name = solution_method + '_' + str(count)
-
-        # Add solution to dictionary if it is a new solution
-        if self.solution_dict is None:
-
-            # if the solution_dict is None, we can initialize it
-            self.solution_dict = {solution_name: solution}
-            self.solution_name = solution_name
-        else:
-
-            # Check if this solution is a new solution
-            new = True
-            for s_name in self.solution_dict:
-                p_i = afccp.core.solutions.handling.compare_solutions(self.solution_dict[s_name], solution)
-                if p_i == 1:
-                    new = False
-                    self.solution_name = s_name
-                    break
-
-            # If it is new, we add it to the dictionary
-            if new:
-                self.solution_dict[solution_name] = solution
-                self.solution_name = solution_name
-
-        # Update metrics dictionary
-        self.update_metrics_dict()
+                self.measure_solution(printing=printing)
 
     def compute_similarity_matrix(self, solution_names=None, set_to_instance=True):
         """
@@ -1346,101 +1353,12 @@ class CadetCareerProblem:
 
         return similarity_matrix
 
-    def get_full_constraint_fail_dictionary(self, solutions, printing=None):
+    def measure_solution(self, approximate=False, printing=None):
         """
-        Get a dictionary of failed constraints. This is used since the Approximate model initial solution must be
-        rounded, and we may miss a few constraints by 1 cadet each. This allows the GA to not reject the solution
-        initially. This is done for all solutions and we assume that they are all "feasible" (DM feasible)
-        """
-        if printing is None:
-            printing = self.printing
-
-        # Loop through each solution to build a "constraint fail dictionary" that works on all solutions
-        con_fail_dict = {}
-        for s, solution in enumerate(solutions):
-
-            # Measure the solution and then loop through all AFSCs
-            metrics = self.measure_solution(solution=solution, return_z=False, printing=False)
-            for j in self.parameters['J']:
-                afsc = self.parameters["afscs"][j]
-
-                # Loop through all constrained AFSC objectives
-                for k in self.value_parameters["K^C"][j]:
-                    objective = self.value_parameters["objectives"][k]
-
-                    # Determine if we need to update the AFSC objective in the con_fail_dict or not
-                    if (j, k) in metrics['con_fail_dict']:  # Solution specific con_fail_dict
-                        ineq = metrics['con_fail_dict'][(j, k)].split(' ')[0]
-                        measure_new = float(metrics['con_fail_dict'][(j, k)].split(' ')[1])
-                        if (j, k) in con_fail_dict:  # "Main" con_fail_dict for all solutions
-                            measure_old = float(con_fail_dict[(j, k)].split(' ')[1])
-
-                            # Check "ineq_2" to see if somehow we failed the constraint on the other side
-                            # (need to address this later)
-                            ineq_2 = con_fail_dict[(j, k)].split(' ')[0]
-                            if ineq != ineq_2:
-                                print(
-                                    "Warning. I haven't yet adjusted the con_fail_dict to work with both sides of the "
-                                    "constraint. AFSC '" + afsc + "' objective '" + objective +
-                                    "' has a current con_fail_dict value of '" + con_fail_dict[(j, k)] +
-                                    "'. The new con_fail_dict value in solution '" + str(s) + "' is '" +
-                                    metrics['con_fail_dict'][(j, k)] + "'. We need to reconcile this, but for now we'll "
-                                                                       "take the latter version.")
-
-                                # Update the dictionary
-                                con_fail_dict[(j, k)] = copy.deepcopy(metrics['con_fail_dict'][(j, k)])
-                                continue
-
-                            # Increase the "ceiling" on this constraint for this AFSC objective
-                            if ineq == "<" and measure_new > measure_old:
-
-                                # Print statements
-                                if printing:
-                                    print("AFSC '" + afsc + "' Objective '" + objective +
-                                          "' constraint maximum increased from " + str(measure_old) + " to " +
-                                          str(measure_new) + ".")
-
-                                # Update the dictionary
-                                con_fail_dict[(j, k)] = "< " + str(round(measure_new, 2))
-
-                            # Decrease the "floor" on this constraint for this AFSC objective
-                            elif ineq == ">" and measure_new < measure_old:
-
-                                # Print statements
-                                if printing:
-                                    print("AFSC '" + afsc + "' Objective '" + objective +
-                                          "' constraint minimum decreased from " + str(measure_old) + " to " +
-                                          str(measure_new) + ".")
-
-                                # Update the dictionary
-                                con_fail_dict[(j, k)] = "> " + str(round(measure_new, 2))
-
-                        # This is a new AFSC objective to put in our con_fail_dict dictionary
-                        else:
-                            # Print statements
-                            if printing:
-                                print("AFSC '" + afsc + "' Objective '" + objective +
-                                      "' current constraint:", metrics['con_fail_dict'][(j, k)])
-
-                            # Update the dictionary
-                            con_fail_dict[(j, k)] = copy.deepcopy(metrics['con_fail_dict'][(j, k)])
-
-        return con_fail_dict
-
-    def measure_solution(self, solution=None, value_parameters=None, approximate=False, matrix=False, printing=None,
-                         return_z=True):
-        """
-        Evaluate a solution using VFT objective hierarchy
+        Evaluate a solution using the VFT objective hierarchy
         """
         # Error checking, solution setting
-        if solution is None:
-            if matrix:
-                solution = self.x
-            else:
-                solution = self.solution
-        if value_parameters is None:
-            value_parameters = self.value_parameters
-        if solution is None or value_parameters is None:
+        if self.solution is None or self.value_parameters is None:
             raise ValueError("Error. Solution and value parameters needed to evaluate solution.")
 
         # Print statement
@@ -1448,73 +1366,35 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Calculate solution metrics
-        metrics = afccp.core.solutions.handling.evaluate_solution(
-            solution, self.parameters, value_parameters, approximate=approximate, printing=printing)
+        self.solution = afccp.core.solutions.handling.evaluate_solution(
+            self.solution, self.parameters, self.value_parameters, approximate=approximate, printing=printing)
 
-        if return_z:
-            return round(metrics['z'], 4)
-        else:
-            return metrics
-
-    def measure_fitness(self, solution=None, value_parameters=None, metrics=None, printing=None):
+    def measure_fitness(self, printing=None):
         """
         This is the fitness function method (could be slightly different depending on how the constraints are handled)
         :return: fitness score
         """
         # Error checking, solution setting
-        if solution is None:
-            solution = self.solution
-        if value_parameters is None:
-            value_parameters = self.value_parameters
-        if solution is None or value_parameters is None:
+        if self.solution is None or self.value_parameters is None:
             raise ValueError("Error. Solution and value parameters needed to evaluate solution.")
 
         # Printing statement
         if printing is None:
             printing = self.printing
 
-        # Get the metrics
-        if metrics is None:
-            metrics = self.measure_solution(solution, value_parameters, return_z=False, printing=False)
+        # Get the solution metrics if necessary
+        if "z" not in self.solution:
+            self.solution = self.measure_solution(printing=False)
 
         # Calculate fitness value
-        z = afccp.core.solutions.handling.fitness_function(solution, self.parameters, value_parameters, self.mdl_p,
-                                                           con_fail_dict=metrics['con_fail_dict'])
+        z = afccp.core.solutions.handling.fitness_function(self.solution['j_array'], self.parameters,
+                                                           self.value_parameters, self.mdl_p,
+                                                           con_fail_dict=self.solution['con_fail_dict'])
 
         # Print and return fitness value
         if printing:
             print("Fitness value calculated to be", round(z, 4))
         return z
-
-    def update_metrics_dict(self):
-        """
-        Updates metrics dictionary from solutions and vp dictionaries
-        """
-
-        # We only update the dictionaries if we have at least one set of value parameters and one solution
-        if self.vp_dict is not None and self.solution_dict is not None:
-            if self.metrics_dict is None:
-                self.metrics_dict = {}
-
-            # Loop through each set of value parameters
-            for vp_name in self.vp_dict:
-                value_parameters = self.vp_dict[vp_name]
-                if vp_name not in self.metrics_dict:
-                    self.metrics_dict[vp_name] = {}
-
-                # Loop through each solution
-                for solution_name in self.solution_dict:
-                    solution = self.solution_dict[solution_name]
-                    if solution_name not in self.metrics_dict[vp_name]:
-                        metrics = self.measure_solution(solution, value_parameters, return_z=False, printing=False)
-                        self.metrics_dict[vp_name][solution_name] = copy.deepcopy(metrics)
-
-            # Update weights on the sets of value parameters relative to each other
-            sum_weights = 0
-            for vp_name in self.vp_dict:
-                sum_weights += self.vp_dict[vp_name]['vp_weight']
-            for vp_name in self.vp_dict:
-                self.vp_dict[vp_name]['vp_local_weight'] = self.vp_dict[vp_name]['vp_weight'] / sum_weights
 
     # Matching Algorithm Iterations
     def export_solution_iterations(self, printing=None):
@@ -1525,43 +1405,43 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Error handling
-        if self.solution_iterations is None:
-            raise ValueError("Error. Solution iterations is not initialized.")
+        if 'iterations' not in self.solution:
+            raise ValueError("Error. No solution iterations detected.")
 
         # Update the solution iterations dictionary
-        if 'sequence' not in self.solution_iterations:
-            self.manage_solution_iterations()
+        if 'sequence' not in self.solution['iterations']:
+            self.manage_animation_parameters()
 
         # 'Sequence' Folder
         folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
-        if self.solution_iterations['sequence'] not in os.listdir(folder_path):
-            os.mkdir(folder_path + self.solution_iterations['sequence'])
+        if self.solution['iterations']['sequence'] not in os.listdir(folder_path):
+            os.mkdir(folder_path + self.solution['iterations']['sequence'])
 
         # Create proposals dataframe
-        if 'proposals' in self.solution_iterations:
+        if 'proposals' in self.solution['iterations']:
             proposals_df = pd.DataFrame({'Cadet': self.parameters['cadets']})
-            for s in self.solution_iterations['proposals']:
-                solution = self.solution_iterations['proposals'][s]
+            for s in self.solution['iterations']['proposals']:
+                solution = self.solution['iterations']['proposals'][s]
                 afsc_solution = [self.parameters['afscs'][j] for j in solution]
                 proposals_df['Iteration ' + str(s + 1)] = afsc_solution
 
             # Export file
-            filepath = folder_path + self.solution_iterations['sequence'] + '/Solution Iterations (Proposals).csv'
+            filepath = folder_path + self.solution['iterations']['sequence'] + '/Solution Iterations (Proposals).csv'
             proposals_df.to_csv(filepath, index=False)
 
             if printing:
                 print('Proposal iterations exported to', filepath)
 
         # Create matches dataframe
-        if 'solutions' in self.solution_iterations:
+        if 'matches' in self.solution['iterations']:
             solutions_df = pd.DataFrame({'Cadet': self.parameters['cadets']})
-            for s in self.solution_iterations['solutions']:
-                solution = self.solution_iterations['solutions'][s]
+            for s in self.solution['iterations']['matches']:
+                solution = self.solution['iterations']['matches'][s]
                 afsc_solution = [self.parameters['afscs'][j] for j in solution]
                 solutions_df['Iteration ' + str(s + 1)] = afsc_solution
 
             # Export file
-            filepath = folder_path + self.solution_iterations['sequence'] + '/Solution Iterations (Matches).csv'
+            filepath = folder_path + self.solution['iterations']['sequence'] + '/Solution Iterations (Matches).csv'
             solutions_df.to_csv(filepath, index=False)
 
             if printing:
@@ -1570,7 +1450,7 @@ class CadetCareerProblem:
         if printing:
             print('Done.')
 
-    def import_solution_iterations(self, sequence_name, type="MA1", printing=None):
+    def import_solution_iterations(self, sequence_name, printing=None):
         """
         Exports iterations of a matching algorithm to excel
         """
@@ -1583,17 +1463,22 @@ class CadetCareerProblem:
             raise ValueError("Error. Sequence '" + str(sequence_name) + "' not found in 'Cadet Board' figure.")
         sequence_folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/' + sequence_name
         sequence_folder = os.listdir(sequence_folder_path)
-        self.solution_iterations = {'type': type}  # Initialize dictionary
+        self.solution['iterations'] = {'type': sequence_name.split(',')[2].strip()}
+
+        # Current solution should match the sequence name
+        if self.solution_name not in sequence_name:
+            raise ValueError("Error. Current solution is '" + self.solution_name +
+                             "' which is not found in the provided sequence name of '" + sequence_name + "'.")
 
         # Get proposals if applicable
         if 'Solution Iterations (Proposals).csv' in sequence_folder:
             filepath = sequence_folder_path + '/Solution Iterations (Proposals).csv'
             proposals_df = afccp.core.globals.import_csv_data(filepath)
-            self.solution_iterations['proposals'] = {}
+            self.solution['iterations']['proposals'] = {}
             for s, col in enumerate(proposals_df.columns[1:]):
                 afsc_solution = np.array(proposals_df[col])
                 solution = np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
-                self.solution_iterations['proposals'][s] = solution
+                self.solution['iterations']['proposals'][s] = solution
 
             if printing:
                 print('Proposal iterations imported from', filepath)
@@ -1602,22 +1487,22 @@ class CadetCareerProblem:
         if 'Solution Iterations (Matches).csv' in sequence_folder:
             filepath = sequence_folder_path + '/Solution Iterations (Matches).csv'
             matches_df = afccp.core.globals.import_csv_data(filepath)
-            self.solution_iterations['solutions'] = {}
-            self.solution_iterations['iteration_names'] = {}
+            self.solution['iterations']['matches'] = {}
+            self.solution['iterations']['names'] = {}
             for s, col in enumerate(matches_df.columns[1:]):
                 afsc_solution = np.array(matches_df[col])
                 solution = np.array(
                     [np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
-                self.solution_iterations['solutions'][s] = solution
-                self.solution_iterations['iteration_names'][s] = "Iteration " + str(s + 1)
+                self.solution['iterations']['matches'][s] = solution
+                self.solution['iterations']['names'][s] = "Iteration " + str(s + 1)
 
             # Last solution iteration
-            self.solution_iterations['last_s'] = s
+            self.solution['iterations']['last_s'] = s
 
             if printing:
                 print('Solution iterations imported from', filepath)
 
-    def manage_solution_iterations(self, p_dict={}):
+    def manage_animation_parameters(self, p_dict={}):
         """
         Handles the solution iterations that we should already have as an attribute of the problem instance
         """
@@ -1628,58 +1513,41 @@ class CadetCareerProblem:
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
-        # Determine what kind of solution iterations we're handling (if not already determined)
-        if self.solution_iterations is None:
-
-            # Animation based on the solutions in the solutions dictionary
-            if self.mdl_p['board_kind'] == 'Solution':
-                if self.solution_name is None:
-                    raise ValueError("Error. No solution initialized.")
-
-                solution_dict = {self.solution_name: self.solution}  # Just the activated solution
-            elif self.mdl_p['board_kind'] == 'Solutions':
-                if self.solution_dict is None:
-                    raise ValueError("Error. No solution dictionary initialized.")
-                solution_dict = self.solution_dict  # All the current solutions
-
-            # Grab the solutions
-            self.solution_iterations = {'solutions': {}, 'iteration_names': {}, 'type': 'Solutions'}
-            for s, solution_name in enumerate(solution_dict.keys()):
-                self.solution_iterations['solutions'][s] = self.solution_dict[solution_name]
-                self.solution_iterations['iteration_names'][s] = solution_name
-
-            # Last solution iteration
-            self.solution_iterations['last_s'] = s
-
-        # Adjust certain elements for Rated stuff
-        if 'Rated' in self.solution_iterations['type']:
-            self.solution_iterations['afscs_solved_for'] = 'Rated'
-            if "USAFA" in self.solution_name:
-                self.solution_iterations['cadets_solved_for'] = 'USAFA Rated'
-            elif "ROTC" in self.solution_name:
-                self.solution_iterations['cadets_solved_for'] = 'ROTC Rated'
-
         # Cadets/AFSCs solved for is by default "All"
-        if "cadets_solved_for" not in self.solution_iterations:
-            self.solution_iterations['cadets_solved_for'] = "All"
-        if "afscs_solved_for" not in self.solution_iterations:
-            self.solution_iterations['afscs_solved_for'] = "All"
-        self.mdl_p['afscs_solved_for'] = self.solution_iterations['afscs_solved_for']  # Update AFSCs solved for in mdl_p
+        if "cadets_solved_for" not in self.solution:
+            self.solution['cadets_solved_for'] = "All"
+        if "afscs_solved_for" not in self.solution:
+            self.solution['afscs_solved_for'] = "All"
+        self.mdl_p['afscs_solved_for'] = self.solution['afscs_solved_for']  # Update AFSCs solved for in mdl_p
 
         # Determine which AFSCs to show in this visualization
         self.mdl_p = afccp.core.data.support.determine_afscs_in_image(self.parameters, self.mdl_p)
 
-        # Determine name of this CadetBoardFigure sequence
-        self.solution_iterations['sequence'] = \
-            self.data_name + ', ' + self.solution_iterations['cadets_solved_for'] + ' Cadets, ' + \
-            self.solution_iterations['type'] + ', ' + self.solution_iterations['afscs_solved_for'] + ' AFSCs'
-        if self.mdl_p['board_kind'] != 'Solutions':
-            self.solution_iterations['sequence'] += ', ' + self.solution_name
+        # Determine what kind of cadet/AFSC board figure and/or animation we're building
+        if 'iterations' in self.solution:
+
+            # Adjust certain elements for Rated stuff
+            if 'Rated' in self.solution['iterations']['type']:
+                self.solution['afscs_solved_for'] = 'Rated'
+                if "USAFA" in self.solution_name:
+                    self.solution['cadets_solved_for'] = 'USAFA Rated'
+                elif "ROTC" in self.solution_name:
+                    self.solution['cadets_solved_for'] = 'ROTC Rated'
+
+            # Determine name of this CadetBoardFigure sequence
+            self.solution['iterations']['sequence'] = \
+                self.data_name + ', ' + self.solution['cadets_solved_for'] + ' Cadets, ' + \
+                self.solution['iterations']['type'] + ', ' + self.solution['afscs_solved_for'] + \
+                ' AFSCs' + ', ' + self.solution['name']
+            if self.data_version != 'Default':
+                self.solution['iterations']['sequence'] += ' (' + self.data_version + ')'
+            self.solution['iterations']['sequence'] += ' ' + str(self.mdl_p['M']) + " AFSCs Displayed"
+
+        # Single solution
         else:
-            self.solution_iterations['sequence'] += ', (' + ', '.join(list(self.solution_dict.keys())) + ')'
-        if self.data_version != 'Default':
-            self.solution_iterations['sequence'] += ' (' + self.data_version + ')'
-        self.solution_iterations['sequence'] += ' ' + str(self.mdl_p['M']) + " AFSCs Displayed"
+
+            # Create solution folder if necessary
+            self.manage_solution_folder()
 
     # Data Visualizations
     def display_data_graph(self, p_dict={}, printing=None):
@@ -1809,48 +1677,38 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        if printing:
-            print("Saving all results charts to the corresponding folder...")
+        # Create solution folder if necessary
+        self.manage_solution_folder()
 
-        # The only toggle we care about here
-        if 'only_desired_graphs' in p_dict:
-            only_desired_graphs = p_dict['only_desired_graphs']
-        else:
-            only_desired_graphs = self.mdl_p['only_desired_graphs']
+        # Determine what kind of results charts we're creating
+        if p_dict['solution_names'] is None:  # Regular Solution Charts
+            desired_charts = 'desired_charts'
+            if printing:
+                print("Saving all solution results charts to the corresponding folder...")
 
+        else:  # Solution Comparison Charts
+            desired_charts = 'desired_comparison_charts'
+            p_dict['results_graph'] = 'Solution Comparison'
+            if printing:
+                print("Saving all solution comparison charts to the corresponding folder...")
+
+            # Evaluate the solutions to get metrics
+            self.evaluate_all_solutions()
+
+        # Loop through the subset of charts that I actually care about
         charts = []
-        if only_desired_graphs:  # Only charts in the "desired charts" section of the parameter initialization function
+        for obj, version in self.mdl_p[desired_charts]:
+            if printing:
+                print("<Objective '" + obj + "' version '" + version + "'>")
 
-            # Loop through the subset of charts that I actually care about
-            for obj, version in self.mdl_p["desired_charts"]:
+            # Build the figure
+            if obj in self.value_parameters['objectives']:
+                p_dict["objective"] = obj
+                p_dict["version"] = version
+                charts.append(self.display_results_graph(p_dict))
+            elif obj != 'Extra':
                 if printing:
-                    print("<Objective '" + obj + "' version '" + version + "'>")
-
-                # Build the figure
-                if obj in self.value_parameters['objectives']:
-                    p_dict["objective"] = obj
-                    p_dict["version"] = version
-                    charts.append(self.display_results_graph(p_dict))
-                else:
-                    if printing:
-                        print("Objective '" + obj + "' passed since it isn't in our set of objectives.")
-
-        else:
-
-            # Loop through each objective and version
-            for obj in self.mdl_p["afsc_chart_versions"]:
-                if printing:
-                    print("<Charts for objective '" + obj + "'>")
-
-                # Build each figure version of this objective
-                if obj in self.value_parameters['objectives']:
-                    p_dict["objective"] = obj
-                    for version in self.mdl_p["afsc_chart_versions"][obj]:
-                        p_dict["version"] = version
-                        charts.append(self.display_results_graph(p_dict))
-                else:
-                    if printing:
-                        print("Objective '" + obj + "' passed since it isn't in our set of objectives.")
+                    print("Objective '" + obj + "' passed since it isn't in our set of objectives.")
 
         return charts
 
@@ -1870,14 +1728,16 @@ class CadetCareerProblem:
         # Error handling
         if self.mdl_p['results_graph'] == 'Solution Comparison':
             self.error_checking('Solutions')
+            chart_type = 'Comparison'
         else:
             self.error_checking('Solution')
+            chart_type = 'Solution'
 
         # Initialize the AFSC Chart object
         afsc_chart = afccp.core.visualizations.charts.AFSCsChart(self)
 
         # Construct the specific chart
-        return afsc_chart.build(chart_type="Results", printing=printing)
+        return afsc_chart.build(chart_type=chart_type, printing=printing)
 
     def generate_results_slides(self, p_dict={}, printing=None):
         """
@@ -1915,7 +1775,7 @@ class CadetCareerProblem:
             print("Generating animation slides...")
 
         # Manage the solution iterations
-        self.manage_solution_iterations(p_dict)
+        self.manage_animation_parameters(p_dict)
 
         # Call the function to generate the slides
         if afccp.core.globals.use_pptx:
@@ -1936,7 +1796,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Manage the solution iterations
-        self.manage_solution_iterations(p_dict)
+        self.manage_animation_parameters(p_dict)
 
         # Print updates
         if printing:
@@ -1946,8 +1806,11 @@ class CadetCareerProblem:
         cadet_board = afccp.core.visualizations.animation.CadetBoardFigure(self, printing=printing)
         cadet_board.main()
 
-        # Generate the slides to go with this
-        self.generate_animation_slides(p_dict, printing)
+        # Only build the animation slides if we're saving iteration frames
+        if self.mdl_p['save_iteration_frames']:
+
+            # Generate the slides to go with this
+            self.generate_animation_slides(p_dict, printing)
 
     def solve_cadet_board_model_direct(self, filepath):
         """
@@ -2073,19 +1936,22 @@ class CadetCareerProblem:
             if printing:
                 print("Calculating point " + str(point + 1) + " out of " + str(num_points) + "...")
 
-            solution = self.solve_vft_pyomo_model(p_dict, printing=False)
+            # Build the model and then solve it
+            model, q = afccp.core.solutions.optimization.vft_model_build(self, printing=printing)
+            solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "VFT", q=q, printing=printing)
+            solution = afccp.core.solutions.handling.evaluate_solution(solution, self.parameters, self.value_parameters)
             solution_name = str(round(cadet_overall_weights[point], 4))
-            afsc_solution = np.array([self.parameters["afscs"][int(j)] for j in solution])
-            solutions[solution_name] = afsc_solution
 
-            cadet_overall_values[point] = self.metrics['cadets_overall_value']
-            afsc_overall_values[point] = self.metrics['afscs_overall_value']
+            # Extract solution information
+            solutions[solution_name] = solution['afsc_array']
+            cadet_overall_values[point] = solution['cadets_overall_value']
+            afsc_overall_values[point] = solution['afscs_overall_value']
 
             if printing:
                 print('For an overall weight on cadets of ' + str(cadet_overall_weights[point]) +
                       ', calculated value on cadets: ' + str(round(cadet_overall_values[point], 2)) +
                       ', value on afscs: ' + str(round(afsc_overall_values[point], 2)) +
-                      ', and a Z of ' + str(round(self.metrics['z'], 2)) + '.')
+                      ', and a Z of ' + str(round(solution['z'], 2)) + '.')
 
         # Obtain Dataframes
         pareto_df = pd.DataFrame(
@@ -2148,9 +2014,6 @@ class CadetCareerProblem:
         # Iterate over the number of points needed for the Pareto Chart
         for point in range(num_points):
 
-            # Current list of initial solutions gets used by the Genetic Algorithm
-            self.mdl_p["initial_solutions"] = initial_solutions
-
             # Change Overall Weights
             self.value_parameters['cadets_overall_weight'] = cadet_overall_weights[point]
             self.value_parameters['afscs_overall_weight'] = 1 - cadet_overall_weights[point]
@@ -2158,22 +2021,25 @@ class CadetCareerProblem:
             if printing:
                 print("Calculating point " + str(point + 1) + " out of " + str(num_points) + "...")
 
-            solution = self.vft_genetic_algorithm(self.mdl_p)
+            # Solve the genetic algorithm
+            solution, time_eval_df = afccp.core.solutions.algorithms.vft_genetic_algorithm(
+                self, initial_solutions, printing=printing)
+            solution = afccp.core.solutions.handling.evaluate_solution(solution, self.parameters, self.value_parameters)
             solution_name = str(round(cadet_overall_weights[point], 4))
-            afsc_solution = np.array([self.parameters["afscs"][int(j)] for j in solution])
-            solutions[solution_name] = afsc_solution
 
-            cadet_overall_values[point] = self.metrics['cadets_overall_value']
-            afsc_overall_values[point] = self.metrics['afscs_overall_value']
+            # Extract solution information
+            solutions[solution_name] = solution['afsc_array']
+            cadet_overall_values[point] = solution['cadets_overall_value']
+            afsc_overall_values[point] = solution['afscs_overall_value']
 
             # We add this solution to our initial solutions too
-            initial_solutions = np.vstack((initial_solutions, solution))
+            initial_solutions = np.vstack((initial_solutions, solution['j_array']))
 
             if printing:
                 print('For an overall weight on cadets of ' + str(cadet_overall_weights[point]) +
                       ', calculated value on cadets: ' + str(round(cadet_overall_values[point], 2)) +
                       ', value on afscs: ' + str(round(afsc_overall_values[point], 2)) +
-                      ', and a Z of ' + str(round(self.metrics['z'], 2)) + '.')
+                      ', and a Z of ' + str(round(solution['z'], 2)) + '.')
 
         # Obtain Dataframes
         pareto_df = pd.DataFrame(
@@ -2282,9 +2148,12 @@ class CadetCareerProblem:
         # Make sure we have a solution
         self.error_checking('Solution')
 
+        # Create solution folder if necessary
+        self.manage_solution_folder()
+
         # Filepath to export to
         filename = self.data_name + " " + self.solution_name + " (" + self.vp_name + ").xlsx"
-        filepath = self.export_paths['Analysis & Results'] + filename
+        filepath = self.export_paths['Analysis & Results'] + self.solution_name + '/' + filename
 
         # Print statement
         if printing:

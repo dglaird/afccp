@@ -183,6 +183,10 @@ def parameter_sets_additions(parameters):
     if "tier 1" in p:  # Qual Type = "Tiers"
         for t in ['1', '2', '3', '4']:
             p['I^D']['Tier ' + t] = [np.where(p['tier ' + t][:, j])[0] for j in p['J']]
+
+        # Get arrays of unique degree tier values
+        p['Deg Tier Values'] = {j: np.unique(p['qual'][:, j]) for j in p['J']}
+
     if 'male' in p:
         male = np.where(p['male'] == 1)[0]  # set of male cadets
         p['male_proportion'] = np.mean(p['male'])
@@ -206,8 +210,11 @@ def parameter_sets_additions(parameters):
         p['usafa_cadets'] = np.where(p['usafa'])[0]
         p['rotc_cadets'] = np.where(p['usafa'] == 0)[0]
 
-    # Already Assigned cadets
+    # Initialize empty dictionaries of matched/reserved cadets
     p["J^Fixed"] = {}
+    p["J^Reserved"] = {}
+
+    # If we have the "Assigned" column in Cadets.csv, we can check to see if anyone is "fixed" in this solution
     if "assigned" in p:
 
         for i, afsc in enumerate(p["assigned"]):
@@ -287,6 +294,10 @@ def more_parameter_additions(parameters):
         p['acc_grp'] = np.array(['NRL' for _ in p['J']])
         p['afscs_acc_grp']['NRL'] = p['afscs']
 
+    # USSF-specific AFSC indices
+    if 'USSF' in p['afscs_acc_grp']:
+        p['J^USSF'] = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in p['afscs_acc_grp']['USSF']])
+
     # Determine eligible Rated cadets for both SOCs (cadets that are considered by the board)
     cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
     p["Rated Cadets"] = {}
@@ -365,24 +376,27 @@ def convert_instance_to_from_scrubbed(instance, new_letter=None, translation_dic
     if new_letter is not None:
         data_name = new_letter
 
-        # Sort indices
-        t_indices = np.argsort(p["pgl"])[::-1]
-
-        # Translate AFSCs (and then sort the current list of AFSCs)
-        new_p["afscs"] = np.array([new_letter + str(j + 1) for j in p["J"]])
-        new_p["afscs"] = np.hstack((new_p["afscs"], "*"))  # Add "unmatched" AFSC
+        # Sort current list of AFSCs by PGL
+        t_indices = np.argsort(p["pgl"])[::-1]  # Indices that word sort the list -> used a lot below!
         current_afscs = copy.deepcopy(current_afscs_unsorted[t_indices])
 
-        translation_dict = {}
-        for index, afsc in enumerate(current_afscs_unsorted):
-            j = np.where(current_afscs == afsc)[0][0]
+        # Construct new list of AFSCS
+        new_p['afscs'] = np.array([' ' * 10 for _ in p['J']])
+        for j, afsc in enumerate(current_afscs):
+            new_p['afscs'][j] = new_letter + str(j + 1)
 
             # Adjust new AFSC by adding "_U" or "_R" extension if necessary
             for ext in ["_R", "_U"]:
                 if ext in afsc:
                     new_p['afscs'][j] += ext
                     break
+
+        # Translate AFSCs to the new list
+        translation_dict = {}
+        for afsc in current_afscs_unsorted:
+            j = np.where(current_afscs == afsc)[0][0]
             translation_dict[afsc] = new_p['afscs'][j]  # Save this AFSC to the translation dictionary
+        new_p["afscs"] = np.hstack((new_p["afscs"], "*"))  # Add "unmatched" AFSC
 
     # We're going from scrubbed to original
     else:
@@ -487,26 +501,26 @@ def convert_instance_to_from_scrubbed(instance, new_letter=None, translation_dic
         instance.vp_dict = None
 
     # Translate solutions
-    if instance.solution_dict is not None:
+    if instance.solutions is not None:
         new_solutions_dict = {}
 
         # Loop through each solution
-        for solution_name in instance.solution_dict:
-            real_solution = copy.deepcopy(instance.solution_dict[solution_name])
+        for solution_name in instance.solutions:
+            real_solution = copy.deepcopy(instance.solutions[solution_name])
             new_solutions_dict[solution_name] = copy.deepcopy(real_solution)
 
             # Loop through each assigned AFSC for the cadets
-            for i, j in enumerate(real_solution):
+            for i, j in enumerate(real_solution['j_array']):
                 if j != p["M"]:
                     real_afsc = p["afscs"][j]
                     j = np.where(current_afscs == real_afsc)[0][0]
-                    new_solutions_dict[solution_name][i] = j
+                    new_solutions_dict[solution_name]['j_array'][i] = j
 
         # Save solutions dictionary
-        instance.solution_dict = new_solutions_dict
+        instance.solutions = new_solutions_dict
 
     else:
-        instance.solution_dict = None
+        instance.solutions = None
 
     # Convert "c_preferences" array
     if "c_preferences" in p:
@@ -793,6 +807,38 @@ def parameter_sanity_check(instance):
             print(issue, "ISSUE: Objective '" + objective + "' contains " +
                   str(num_null) + " null target values ('objective_target').")
 
+    # USSF OM Constraint rules
+    if vp['USSF OM'] is True and "USSF" not in p['afscs_acc_grp']:
+        issue += 1
+        print(issue, "ISSUE: Space Force OM constraint specified in value parameters (USSF OM = True) but no USSF"
+                     " AFSCS found in the instance.")
+
+    # At least one rated preference for rated eligible
+    for soc in ['usafa', 'rotc']:
+        if soc in p['Rated Cadets']:
+            for i in p['Rated Cadets'][soc]:
+                if len(p['Rated Choices'][soc][i]) == 0:
+                    issue += 1
+                    print(issue,
+                          "ISSUE: Cadet '" + str(p['cadets'][i]) + "' is on " + soc.upper() +
+                          "'s Rated list (" + soc.upper() + " Rated OM.csv) but is not eligible for any Rated AFSCs. I"
+                                                            " recommend you remove their row from the csv.")
+
+    # Validate that the "totals" for minimums/maximums work
+    if np.sum(p['pgl']) > p['N']:
+        issue += 1
+        print(issue, "ISSUE: Total sum of PGL targets is", int(np.sum(p['pgl'])),
+              " while 'N' is " + str(p['N']) + ". This is infeasible since we don't have enough cadets.")
+    if np.sum(p['quota_min']) > p['N']:
+        issue += 1
+        print(issue, "ISSUE: Total sum of minimum constrained capacities (quota_min) is", int(np.sum(p['quota_min'])),
+              " while 'N' is " + str(p['N']) + ". This is infeasible since we don't have enough cadets.")
+    if np.sum(p['quota_max']) < p['N']:
+        issue += 1
+        print(issue, "ISSUE: Maximum constrained capacities (quota_max) is", int(np.sum(p['quota_max'])),
+              " while 'N' is " + str(p['N']) + ". This is infeasible; we don't have enough positions for cadets to fill.")
+
+    # Print statement
     print('Done,', issue, "issues found.")
 
 
