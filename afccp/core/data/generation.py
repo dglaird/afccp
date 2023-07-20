@@ -279,6 +279,7 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
     # Stuff that doesn't matter here
     vp['cadet_value_min'], vp['afsc_value_min'] = np.zeros(p['N']), np.zeros(p['N'])
     vp['USAFA-Constrained AFSCs'], vp['Cadets Top 3 Constraint'] = '', ''
+    vp['USSF OM'] = False
 
     # Initialize arrays
     vp['objective_weight'], vp['objective_target'] = np.zeros([p['M'], vp['O']]), np.zeros([p['M'], vp['O']])
