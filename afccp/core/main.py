@@ -427,6 +427,41 @@ class CadetCareerProblem:
         return afccp.core.data.adjustments.convert_instance_to_from_scrubbed(
             self, translation_dict=translation_dict, data_name=data_name)
 
+    def fix_generated_data(self):
+        """
+        NOTE: ONLY DO THIS FOR GENERATED DATA
+        """
+
+        # Get "c_pref_matrix" from cadet preferences
+        self.convert_utilities_to_preferences(cadets_as_well=True)
+
+        # Generate AFSC preferences for this problem instance
+        self.generate_fake_afsc_preferences()
+
+        # Generate rated data (Separate datasets for each SOC)
+        self.generate_rated_data()
+
+        # Update qualification matrix from AFSC preferences (treating CFM lists as "gospel" except for Rated/USSF)
+        self.update_qualification_matrix_from_afsc_preferences()
+
+        # Removes ineligible cadets from all 3 matrices: degree qualifications, cadet preferences, AFSC preferences
+        self.remove_ineligible_choices()
+
+        # Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)
+        self.update_preference_matrices()
+
+        # Convert AFSC preferences to percentiles (0 to 1)
+        self.convert_afsc_preferences_to_percentiles()
+
+        # The "cadet columns" are located in Cadets.csv and contain the utilities/preferences in order of preference
+        self.update_cadet_columns_from_matrices()
+
+        # Generate fake (random) set of value parameters
+        self.generate_random_value_parameters()
+
+        # Sanity check the parameters to make sure it all looks good! (No issues found.)
+        self.parameter_sanity_check()
+
     # Adjust Preferences
     def update_qualification_matrix_from_afsc_preferences(self):
         """
