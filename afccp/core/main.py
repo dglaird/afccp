@@ -309,7 +309,7 @@ class CadetCareerProblem:
                         "'vp_dict' either.")
                 else:
                     raise ValueError("Error. No value parameters set. You currently do have a 'vp_dict' and so all you "
-                                     "need to do is run 'instance.set_instance_value_parameters()'. ")
+                                     "need to do is run 'instance.set_value_parameters()'. ")
 
         if test == "Value Parameters":
             check_value_parameters()
@@ -331,7 +331,7 @@ class CadetCareerProblem:
                     raise ValueError("Error. No solutions dictionary detected. You need to solve this problem first.")
                 else:
                     raise ValueError("Error. Solutions dictionary detected but you haven't actually initialized a "
-                                     "solution yet. You can do so by running 'instance.set_instance_solution()'.")
+                                     "solution yet. You can do so by running 'instance.set_solution()'.")
             else:
                 check_value_parameters()
 
@@ -349,14 +349,17 @@ class CadetCareerProblem:
         # Return list of files in the solution folder
         return os.listdir(folder_path)
 
-    def evaluate_all_solutions(self):
+    def evaluate_all_solutions(self, solution_names=None):
         """
         Evaluates all the solutions in the dictionary to acquire necessary metrics
         """
 
+        if solution_names is None:
+            solution_names = list(self.solutions.keys())
+
         if self.printing:
-            print('Evaluating all solutions...')
-        for solution_name in self.solutions:
+            print('Evaluating solutions in this list:', solution_names)
+        for solution_name in solution_names:
             self.solutions[solution_name] = afccp.core.solutions.handling.evaluate_solution(
                 self.solutions[solution_name], self.parameters, self.value_parameters, printing=False)
 
@@ -622,7 +625,7 @@ class CadetCareerProblem:
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     # Specify Value Parameters
-    def set_instance_value_parameters(self, vp_name=None):
+    def set_value_parameters(self, vp_name=None):
         """
         Sets the current instance value parameters to a specified set based on the vp_name. This vp_name must be
         in the value parameter dictionary
@@ -696,7 +699,7 @@ class CadetCareerProblem:
 
         else:
             raise ValueError("Error. No value parameters set. You currently do have a 'vp_dict' and so all you "
-                                     "need to do is run 'instance.set_instance_value_parameters()'. ")
+                                     "need to do is run 'instance.set_value_parameters()'. ")
 
     def update_value_parameters_in_dict(self, vp_name=None):
         """
@@ -717,17 +720,25 @@ class CadetCareerProblem:
         else:
             raise ValueError('No instance value parameters detected')
 
-    def check_unique_value_parameters(self, value_parameters=None, vp_name1=None, printing=False):
+    def check_unique_value_parameters(self, value_parameters=None, vp_name1=None, vp_name2=None, printing=False):
         """
         Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the
         the set of parameters is unique, or return the name of the matching set otherwise
         """
-        if value_parameters is None:
-            value_parameters = self.value_parameters
-            vp_name1 = self.vp_name
 
-        if vp_name1 is None:
-            vp_name1 = "VP (Unspecified)"
+        # If we specify this name, we want to compare the value parameters against this one
+        if vp_name2 is not None:
+            value_parameters = self.vp_dict[vp_name2]
+            vp_name1 = vp_name2
+
+        # If we don't specify "vp_name2", we check the other conditions
+        else:
+            if value_parameters is None:
+                value_parameters = self.value_parameters
+                vp_name1 = self.vp_name
+
+            if vp_name1 is None:
+                vp_name1 = "VP (Unspecified)"
 
         # Assume the new set is unique until proven otherwise
         unique = True
@@ -1048,6 +1059,27 @@ class CadetCareerProblem:
 
         return solution
 
+    def hand_jam_missiles_fix(self, p_dict={}, printing=None):
+        """
+        Docstring here
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Get the solution we need from the classic_hr
+        solution = afccp.core.solutions.algorithms.hand_jam_missiles_fix(self)
+
+        # "Complete" the solution by fixing lower_quotas
+        solution = afccp.core.solutions.algorithms.hr_lower_quota_fix(self, solution, printing=printing)
+
+        # Determine what to do with the solution
+        self.solution_handling(solution)
+
+        return solution
+
     # Optimization models
     def solve_vft_pyomo_model(self, p_dict={}, printing=None):
         """
@@ -1344,7 +1376,7 @@ class CadetCareerProblem:
         if fix_it and total_ineligible > 0:
             self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def set_instance_solution(self, solution_name=None, printing=None):
+    def set_solution(self, solution_name=None, printing=None):
         """
         Set the current instance object's solution to a solution from the dictionary
         """
@@ -1365,28 +1397,42 @@ class CadetCareerProblem:
             if self.value_parameters is not None:
                 self.measure_solution(printing=printing)
 
-    def compute_similarity_matrix(self, solution_names=None, set_to_instance=True):
+    def compute_similarity_matrix(self, solution_names=None):
         """
         Generates the similarity matrix for a given set of solutions
         """
 
-        if solution_names is None:
-            solution_names = list(self.solution_dict.keys())
+        if 'Similarity Solutions.csv' in os.listdir(self.export_paths['Analysis & Results']):
+            solution_df = afccp.core.globals.import_csv_data(
+                self.export_paths['Analysis & Results'] + 'Similarity Solutions.csv')
+        else:
+            raise ValueError("Error. No 'Similarity Solutions.csv' dataframe found in the 'Analysis & Results' folder. "
+                             "Please create it.")
+
+        # "Starting" Solutions: Extract solutions from dataframe and then convert to "j_array"
+        solutions = {solution_name: np.array(solution_df[solution_name]) for solution_name in solution_df}
+        solutions = {solution_name: np.array([np.where(
+            self.parameters['afscs'] == afsc)[0][0] for afsc in solutions[solution_name]]) for solution_name in solutions}
+
+        # If we want to add solutions to highlight in the chart
+        if solution_names is not None:
+            extra_solutions = {
+                solution_name: self.solutions[solution_name]['j_array'] for solution_name in solution_names}
+            for solution_name in extra_solutions:
+                solutions[solution_name] = extra_solutions[solution_name]
 
         # Create the matrix
-        num_solutions = len(solution_names)
+        num_solutions = len(solutions.keys())
         similarity_matrix = np.zeros((num_solutions, num_solutions))
-        for row, sol_1_name in enumerate(solution_names):
-            for col, sol_2_name in enumerate(solution_names):
-                sol_1 = self.solution_dict[sol_1_name]
-                sol_2 = self.solution_dict[sol_2_name]
+        for row, sol_1_name in enumerate(solutions.keys()):
+            for col, sol_2_name in enumerate(solutions.keys()):
+                sol_1 = solutions[sol_1_name]
+                sol_2 = solutions[sol_2_name]
                 similarity_matrix[row, col] = np.sum(sol_1 == sol_2) / self.parameters["N"]  # % similarity!
 
-        # Set this similarity matrix to be the instance attribute
-        if set_to_instance:
-            self.similarity_matrix = similarity_matrix
-
-        return similarity_matrix
+        # Export similarity_matrix
+        similarity_df = pd.DataFrame({solution: similarity_matrix[:, s] for s, solution in enumerate(solutions.keys())})
+        similarity_df.to_csv(self.export_paths['Analysis & Results'] + 'Similarity Matrix.csv')
 
     def measure_solution(self, approximate=False, printing=None):
         """
@@ -1716,7 +1762,7 @@ class CadetCareerProblem:
         self.manage_solution_folder()
 
         # Determine what kind of results charts we're creating
-        if p_dict['solution_names'] is None:  # Regular Solution Charts
+        if 'solution_names' not in p_dict:  # Regular Solution Charts
             desired_charts = 'desired_charts'
             if printing:
                 print("Saving all solution results charts to the corresponding folder...")
@@ -1728,7 +1774,7 @@ class CadetCareerProblem:
                 print("Saving all solution comparison charts to the corresponding folder...")
 
             # Evaluate the solutions to get metrics
-            self.evaluate_all_solutions()
+            self.evaluate_all_solutions(p_dict['solution_names'])
 
         # Loop through the subset of charts that I actually care about
         charts = []
@@ -1798,6 +1844,34 @@ class CadetCareerProblem:
         if printing:
             print('Done.')
 
+    def generate_comparison_slides(self, p_dict={}, printing=None):
+        """
+        Method to generate the results slides for a particular problem instance with solution
+        """
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Generating comparison slides...")
+
+        if 'Comparison Charts' not in os.listdir(self.export_paths['Analysis & Results']):
+            raise ValueError("Error. No 'Comparison Charts' folder found in the 'Analysis & Results' folder. You need to"
+                             " put all charts you'd like to compile into a slide-deck in this folder.")
+
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.error_checking('Solutions')
+
+        # Call the function to generate the slides
+        if afccp.core.globals.use_pptx:
+            afccp.core.visualizations.slides.generate_comparison_slides(self)
+        else:
+            print('PPTX library not installed.')
+
+        if printing:
+            print('Done.')
+
     def generate_animation_slides(self, p_dict={}, printing=None):
         """
         Method to generate the animation slides for a particular problem instance and solution iterations
@@ -1847,6 +1921,28 @@ class CadetCareerProblem:
             # Generate the slides to go with this
             self.generate_animation_slides(p_dict, printing)
 
+    def display_utility_histogram(self, p_dict={}, printing=None):
+        """
+        This method plots the cadet utility histogram
+        """
+
+        # Print statement
+        if printing is None:
+            printing = self.printing
+        if printing:
+            print("Creating cadet utility histogram...")
+
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self, results_chart=True)
+
+        # Evaluate the solutions to get metrics
+        if self.mdl_p['solution_names'] is not None:
+            self.evaluate_all_solutions(self.mdl_p['solution_names'])
+
+        # Construct the chart
+        return afccp.core.visualizations.charts.cadet_utility_histogram(self)
+
     def solve_cadet_board_model_direct(self, filepath):
         """
         This method runs the cadet board model directly from the parameters in the csv at the specified
@@ -1856,7 +1952,7 @@ class CadetCareerProblem:
         # Run function
         afccp.core.solutions.optimization.solve_cadet_board_model_direct_from_board_parameters(self, filepath)
 
-    def similarity_plot(self, p_dict={}, set_to_instance=True, printing=None):
+    def similarity_plot(self, p_dict={}, printing=None):
         """
         Creates the solution similarity plot for the solutions specified
         """
@@ -1866,43 +1962,27 @@ class CadetCareerProblem:
         if printing:
             print("Creating solution similarity plot...")
 
-        # Update plot parameters if necessary
-        for key in p_dict:
-            if key in self.mdl_p:
-                self.mdl_p[key] = p_dict[key]
-            else:
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self, results_chart=True)
 
-                # Exception
-                if key == "graph":
-                    self.mdl_p["results_graph"] = p_dict["graph"]
-
-                else:
-                    # If the parameter doesn't exist, we warn the user
-                    print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
-
-        # Get our similarity matrix from somewhere
-        if self.mdl_p["new_similarity_matrix"]:
-            similarity_matrix = self.compute_similarity_matrix(solution_names=self.mdl_p["solution_names"],
-                                                               set_to_instance=set_to_instance)
+        # Import similarity matrix
+        if 'Similarity Solutions.csv' in os.listdir(self.export_paths['Analysis & Results']):
+            similarity_df = afccp.core.globals.import_csv_data(
+                self.export_paths['Analysis & Results'] + 'Similarity Matrix.csv')
         else:
-            if self.similarity_matrix is None:
-                similarity_matrix = self.compute_similarity_matrix(solution_names=self.mdl_p["solution_names"],
-                                                                   set_to_instance=set_to_instance)
-            else:
-                similarity_matrix = self.similarity_matrix
+            raise ValueError("Error. No 'Similarity Matrix.csv' dataframe found in the 'Analysis & Results' folder. "
+                             "Please create it.")
 
-        # Get the right solution names
-        if self.mdl_p["solution_names"] is None:
-            self.mdl_p["solution_names"] = list(self.solution_dict.keys())
+        # Extract similarity matrix information
+        solution_names = np.array(similarity_df.keys())
+        similarity_matrix = np.array(similarity_df)
 
         # Get coordinates
-        coords = afccp.core.data.preferences.solution_similarity_coordinates(similarity_matrix)
+        coords = afccp.core.solutions.handling.similarity_coordinates(similarity_matrix)
 
         # Plot similarity
-        chart = afccp.core.visualizations.charts.solution_similarity_graph(self, coords)
-
-        if printing:
-            chart.show()
+        return afccp.core.visualizations.charts.solution_similarity_graph(self, coords, solution_names)
 
     # Sensitivity Analysis
     def solve_for_constraints(self, p_dict={}):
@@ -2088,12 +2168,79 @@ class CadetCareerProblem:
             pareto_df.to_excel(writer, sheet_name="GA Pareto Results", index=False)
             ga_solutions_df.to_excel(writer, sheet_name="GA Solutions", index=False)
 
-    def show_pareto_chart(self, printing=None):
+    def overall_weights_pareto_analysis_utility(self, p_dict={}, printing=None):
+        """
+        Conduct pareto analysis on the "global utility" function using the assignment problem model
+        """
+
+        self.error_checking("Pyomo Model")
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        if printing:
+            print("Conducting 'utility' pareto analysis on problem...")
+
+        # Force the correct objective function
+        self.mdl_p['assignment_model_obj'] = 'Global Utility'
+
+        # Initialize arrays
+        num_points = int(100 / self.mdl_p["pareto_step"] + 1)
+        cadet_overall_utilities = np.zeros(num_points)
+        afsc_overall_utilities = np.zeros(num_points)
+        cadet_overall_weights = np.arange(1, 0, -(self.mdl_p["pareto_step"] / 100))
+        cadet_overall_weights = np.append(cadet_overall_weights, 0)
+        solutions = {}
+
+        # Iterate over the number of points needed for the Pareto Chart
+        for point in range(num_points):
+            w = cadet_overall_weights[point]
+
+            # Update global utility matrix
+            self.value_parameters['global_utility'] = np.zeros([self.parameters['N'], self.parameters['M'] + 1])
+            for j in self.parameters['J']:
+                self.value_parameters['global_utility'][:, j] = w * self.parameters['cadet_utility'][:, j] + \
+                                                                (1 - w) * self.parameters['afsc_utility'][:, j]
+
+            if printing:
+                print("Calculating point " + str(point + 1) + " out of " + str(num_points) + "...")
+
+            # Build & solve the model
+            model = afccp.core.solutions.optimization.assignment_model_build(self)
+            solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "Assignment", printing=False)
+            solution = afccp.core.solutions.handling.evaluate_solution(solution, self.parameters, self.value_parameters)
+            solution_name = str(round(cadet_overall_weights[point], 4))
+
+            # Extract solution information
+            solutions[solution_name] = solution['afsc_array']
+            cadet_overall_utilities[point] = solution['cadet_utility_overall']
+            afsc_overall_utilities[point] = solution['afsc_utility_overall']
+
+            if printing:
+                print('For an overall weight on cadets of ' + str(cadet_overall_weights[point]) +
+                      ', calculated utility on cadets: ' + str(round(cadet_overall_utilities[point], 2)) +
+                      ', utility on afscs: ' + str(round(afsc_overall_utilities[point], 2)) +
+                      ', and a global utility (z^gu) of ' + str(round(solution['z^gu'], 2)) + '.')
+
+        # Obtain Dataframes
+        pareto_df = pd.DataFrame(
+            {'Weight on Cadets': cadet_overall_weights, 'Utility on Cadets': cadet_overall_utilities,
+             'Utility on AFSCs': afsc_overall_utilities})
+        solutions_df = pd.DataFrame(solutions)
+
+        # File we import and export to
+        filepath = self.export_paths['Analysis & Results'] + self.data_name + " " + self.vp_name + " (" + \
+                   self.data_version + ") Pareto Analysis (Utility).xlsx"
+        with pd.ExcelWriter(filepath) as writer:  # Export to excel
+            pareto_df.to_excel(writer, sheet_name="Utility Pareto Results", index=False)
+            solutions_df.to_excel(writer, sheet_name="Initial Solutions", index=False)
+
+    def show_pareto_chart(self, printing=None, utility_version=True, solution_name=None):
         """
         Saves the pareto chart to the figures folder
         """
-        # File we import and export to
-        filepath = afccp.core.globals.paths['results'] + self.data_name + '_Pareto_Analysis.xlsx'
 
         if printing is None:
             printing = self.printing
@@ -2101,15 +2248,37 @@ class CadetCareerProblem:
         if printing:
             print("Creating Pareto Chart...")
 
-        try:
-            pareto_df = afccp.core.globals.import_data(filepath, sheet_name='GA Pareto Results')
-        except:
-            try:
-                pareto_df = afccp.core.globals.import_data(filepath, sheet_name='Approximate Pareto Results')
-            except:
-                raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
+        # Figure out if we have a solution to plot on the graph
+        if solution_name is not None:
+            solution = self.solutions[solution_name]
+            solution = afccp.core.solutions.handling.evaluate_solution(solution, self.parameters, self.value_parameters)
+        else:
+            solution = None
 
-        return afccp.core.visualizations.charts.pareto_graph(pareto_df)
+        if utility_version:
+            l_word = 'Utility'
+
+            # File we import and export to
+            filepath = self.export_paths['Analysis & Results'] + self.data_name + " " + self.vp_name + " (" + \
+                       self.data_version + ") Pareto Analysis (Utility).xlsx"
+
+            pareto_df = afccp.core.globals.import_data(filepath, sheet_name='Utility Pareto Results')
+        else:
+            l_word = 'Value'
+
+            # File we import and export to
+            filepath = self.export_paths['Analysis & Results'] + self.data_name + " " + self.vp_name + " (" + \
+                       self.data_version + ") Pareto Analysis.xlsx"
+
+            try:
+                pareto_df = afccp.core.globals.import_data(filepath, sheet_name='GA Pareto Results')
+            except:
+                try:
+                    pareto_df = afccp.core.globals.import_data(filepath, sheet_name='Approximate Pareto Results')
+                except:
+                    raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
+
+        return afccp.core.visualizations.charts.pareto_graph(self, pareto_df, l_word=l_word, solution=solution)
 
     # Export
     def export_data(self, datasets=None, printing=None):

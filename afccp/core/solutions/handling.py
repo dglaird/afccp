@@ -444,8 +444,10 @@ def calculate_additional_useful_metrics(solution, p, vp):
             cadets = np.where(solution['j_array'] == j)[0]
             solution['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
 
-        # Calculate global utility score
-        solution['z^gu'] = np.sum(solution['global_utility_achieved']) / p['N']
+        # Calculate overall utility scores
+        solution['z^gu'] = round(np.mean(solution['global_utility_achieved']), 4)
+        solution['cadet_utility_overall'] = round(np.mean(solution['cadet_utility_achieved']), 4)
+        solution['afsc_utility_overall'] = round(np.mean(solution['afsc_utility_achieved']), 4)
 
     # Cadet Choice Counts (For exporting solution file to excel)
     solution['cadet_choice_counts'] = {}

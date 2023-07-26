@@ -517,6 +517,10 @@ def update_value_and_weight_functions(instance, num_breakpoints=None):
             if objective == 'Combined Quota':
                 minimum, maximum = p['quota_min'][j], p['quota_max'][j]
 
+                # Update minimum values for combined quota objective
+                vp['objective_value_min'][j, k] = str(minimum) + ', ' + str(maximum)
+                vp['objective_min'][j, k], vp['objective_max'][j, k] = minimum, maximum
+
             # If we care about this objective, we load in its value function breakpoints
             if vp['objective_weight'][j, k] != 0:
 

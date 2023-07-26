@@ -3,6 +3,7 @@ from matplotlib.patches import Patch
 from matplotlib.patches import Rectangle
 import matplotlib.lines as mlines
 import numpy as np
+import copy
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl
@@ -36,7 +37,7 @@ class AFSCsChart:
                                          dpi=self.ip['dpi'])
 
         # Label dictionary for AFSC objectives
-        self.label_dict = afccp.core.globals.obj_label_dict
+        self.label_dict = copy.deepcopy(afccp.core.globals.obj_label_dict)
 
         # This is going to be a dictionary of all the various chart-specific components we need
         self.c = {"J": self.ip['J'], 'afscs': self.ip['afscs'], 'M': self.ip['M'],
@@ -159,8 +160,8 @@ class AFSCsChart:
         # Legend
         if self.ip["add_legend_afsc_chart"] and self.c['legend_elements'] is not None:
             self.ax.legend(handles=self.c["legend_elements"], edgecolor='black', loc=self.ip['legend_loc'],
-                           fontsize=self.ip['legend_size'], ncol=1, labelspacing=1, handlelength=0.8, handletextpad=0.2,
-                           borderpad=0.2, handleheight=2)
+                           fontsize=self.ip['legend_size'], ncol=self.ip['ncol'], labelspacing=1, handlelength=0.8,
+                           handletextpad=0.2, borderpad=0.2, handleheight=2)
 
         # Save the chart
         if self.ip['save']:
@@ -626,12 +627,25 @@ class AFSCsChart:
         max_measure = np.zeros(self.c['M'])
         y_top = 0
 
+        if self.ip['ncol'] != 1:
+            self.ip['ncol'] = len(self.ip['solution_names'])
+
         # Loop through each solution
         for s, solution in enumerate(self.ip["solution_names"]):
 
             # Calculate objective measure
-            measure = self.solutions[solution]["objective_measure"][self.c['J'], k]
+            if self.ip['version'] == 'median_preference':
+                cadets = [np.where(self.solutions[solution]['j_array'] == j)[0] for j in p['J']]
+                measure = np.array([np.median(p['c_pref_matrix'][cadets[j], j]) for j in self.c['J']])
+                self.label_dict[self.ip['objective']] = 'Median Cadet Choice'
+            elif self.ip['version'] == 'mean_preference':
+                cadets = [np.where(self.solutions[solution]['j_array'] == j)[0] for j in p['J']]
+                measure = np.array([np.mean(p['c_pref_matrix'][cadets[j], j]) for j in self.c['J']])
+                self.label_dict[self.ip['objective']] = 'Average Cadet Choice'
+            else:
+                measure = self.solutions[solution]["objective_measure"][self.c['J'], k]
             if self.ip["objective"] == "Combined Quota":
+                self.label_dict[self.ip["objective"]] = 'Proportion of PGL Target Met'  # Adjust Label
 
                 # Assign the right color to the AFSCs
                 for idx, j in enumerate(self.c['J']):
@@ -667,8 +681,8 @@ class AFSCsChart:
 
             max_measure = np.array([max(max_measure[idx], measure[idx]) for idx in range(self.c['M'])])
             element = mlines.Line2D([], [], color=self.ip["colors"][solution], marker=self.ip["markers"][solution],
-                                    linestyle='None', markeredgecolor='black', markersize=15, label=solution,
-                                    alpha=self.ip["alpha"])
+                                    linestyle='None', markeredgecolor='black', markersize=self.ip['legend_dot_size'],
+                                    label=solution, alpha=self.ip["alpha"])
             self.c['legend_elements'].append(element)
 
         # Lines to the top solution's dot
@@ -770,10 +784,15 @@ class AFSCsChart:
             # Quota Line
             self.ax.axhline(y=1, color='black', linestyle='-', alpha=0.5, zorder=1)
 
-        elif self.ip["objective"] in ["Utility", "Norm Score"]:
+        elif self.ip["objective"] in ["Utility", "Norm Score"] and self.ip['version'] == 'dot':
 
-            # Tick marks and extra lines
+            # Fix some things for this chart (y_ticks and label)
             self.c['y_ticks'] = [0, 0.2, 0.4, 0.6, 0.8, 1]
+            self.label_dict[self.ip['objective']] = afccp.core.globals.obj_label_dict[self.ip['objective']]
+
+        # Set the max for the y-axis
+        if self.ip['version'] in ['median_preference', 'mean_preference']:
+            self.c['y_max'] = self.ip['y_max'] * np.max(max_measure)
 
         # Get y-label
         self.c['y_label'] = self.label_dict[self.ip['objective']]
@@ -786,7 +805,7 @@ class AFSCsChart:
             self.ip['title'] = solution_names + ' ' + self.label_dict[self.ip["objective"]] + " Across Each AFSC"
 
         # Update the version of the data using the solution names
-        self.ip['version'] = solution_names
+        self.ip['version'] = solution_names + ' ' + self.ip['version']
 
     def results_merit_chart(self):
         """
@@ -1017,7 +1036,7 @@ class AFSCsChart:
             if self.ip["objective"] == "USAFA Proportion":
 
                 # Get the title and filename
-                self.ip["title"] = "USAFA/ROTC Non-Volunteers Across Each AFSC"
+                self.ip["title"] = "USAFA/ROTC 7+ Choice Across Each AFSC"
                 if self.ip["solution_in_title"]:
                     self.ip['title'] = self.solution_name + ": " + self.ip['title']
                 classes = ["USAFA", "ROTC"]
@@ -1025,7 +1044,7 @@ class AFSCsChart:
             elif self.ip["objective"] == "Male":
 
                 # Get the title and filename
-                self.ip["title"] = "Male/Female Non-Volunteers Across Each AFSC"
+                self.ip["title"] = "Male/Female 7+ Choice Across Each AFSC"
                 if self.ip["solution_in_title"]:
                     self.ip['title'] = self.solution_name + ": " + self.ip['title']
                 classes = ["Male", "Female"]
@@ -1033,7 +1052,7 @@ class AFSCsChart:
             else:  # Minority
 
                 # Get the title and filename
-                self.ip["title"] = "Minority/Non-Minority Non-Volunteers Across Each AFSC"
+                self.ip["title"] = "Minority/Non-Minority 7+ Choice Across Each AFSC"
                 if self.ip["solution_in_title"]:
                     self.ip['title'] = self.solution_name + ": " + self.ip['title']
                 classes = ["Minority", "Non-Minority"]
@@ -1042,7 +1061,7 @@ class AFSCsChart:
             self.determine_y_max_and_y_ticks()
 
             # Categories! (Volunteers/Non-Volunteers)
-            categories = ["Volunteer", "Non-Volunteer"]
+            categories = ["Top 6 Choices", "7+ Choice"]
 
             # Get the counts for each category and class
             counts = {cls: {cat: np.zeros(self.c['M']) for cat in categories} for cls in classes}
@@ -1056,10 +1075,10 @@ class AFSCsChart:
                                                       cadet not in cadets_with_demographic])}
 
                 # Determine volunteer status
-                if categories == ["Volunteer", "Non-Volunteer"]:
-                    cadets_with_category = np.where(p["utility"][:, j] > 0)[0]
-                    cadets_cat = {"Volunteer": np.intersect1d(cadets_assigned, cadets_with_category),
-                                  "Non-Volunteer": np.array(
+                if categories == ["Top 6 Choices", "7+ Choice"]:
+                    cadets_with_category = np.where(p['c_pref_matrix'][:, j] < 7)[0]
+                    cadets_cat = {"Top 6 Choices": np.intersect1d(cadets_assigned, cadets_with_category),
+                                  "7+ Choice": np.array(
                                       [cadet for cadet in cadets_assigned if cadet not in cadets_with_category])}
 
                 # Loop through each demographic
@@ -1071,7 +1090,7 @@ class AFSCsChart:
             self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors'][cls.lower()],
                                                label=cls, edgecolor='black') for cls in classes]
             self.c['legend_elements'].append(
-                Patch(facecolor=self.ip['bar_colors']["Non-Volunteer"], label="Non-Volunteer"))
+                Patch(facecolor=self.ip['bar_colors']["7+ Choice"], label="7+ Choice"))
 
             # Loop through each AFSC to plot the bars
             for index, afsc in enumerate(afscs):
@@ -1081,7 +1100,7 @@ class AFSCsChart:
                 for cls in classes[::-1]:
                     for cat in categories[::-1]:
 
-                        if cat == "Volunteer":
+                        if cat == "Top 6 Choices":
                             color = self.ip["bar_colors"][cls.lower()]
                         else:
                             color = self.ip['bar_colors'][cat]
@@ -1946,13 +1965,13 @@ def cadet_utility_histogram(instance):
     """
 
     # Shorthand
-    ip = instance.plt_p
+    ip = instance.mdl_p
 
     # Shared elements
     fig, ax = plt.subplots(figsize=ip["figsize"], facecolor=ip["facecolor"], dpi=ip["dpi"], tight_layout=True)
     bins = np.arange(21) / 20
 
-    if ip["compare_solutions"]:  # Comparing two or more solutions (Dot charts)
+    if ip["solution_names"] is not None:  # Comparing two or more solutions
         if ip["title"] is None:
 
             # Create the title!
@@ -1970,12 +1989,11 @@ def cadet_utility_histogram(instance):
                               " Cadet Utility Results Histogram"
 
         # Plot the results
-        m_dict = instance.solutions[ip["vp_name"]]
         legend_elements = []
-        for s, solution in enumerate(ip["solution_names"]):
-            value = m_dict[solution]['cadet_value']
-            ax.hist(value, bins=bins, edgecolor='black', color=ip["colors"][solution], alpha=0.5)
-            legend_elements.append(Patch(facecolor=ip["colors"][solution], label=solution,
+        for solution_name in ip["solution_names"]:
+            value = instance.solutions[solution_name]['cadet_utility_achieved']
+            ax.hist(value, bins=bins, edgecolor='black', color=ip["colors"][solution_name], alpha=0.5)
+            legend_elements.append(Patch(facecolor=ip["colors"][solution_name], label=solution_name,
                                          alpha=0.5, edgecolor='black'))
 
         ax.legend(handles=legend_elements, edgecolor='black', fontsize=ip["legend_size"], loc='upper left',
@@ -1988,7 +2006,7 @@ def cadet_utility_histogram(instance):
         if ip["solution_in_title"]:
             ip['title'] = instance.solution_name + ": " + ip['title']
 
-        value = instance.metrics["cadet_value"]
+        value = instance.solution["cadet_utility_achieved"]
         ax.hist(value, bins=bins, edgecolor='white', color='black', alpha=1)
 
     # Labels
@@ -2012,7 +2030,7 @@ def cadet_utility_histogram(instance):
         ip["filename"] = ip["title"]
 
     if ip["save"]:
-        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip["filename"] + '.png',
+        fig.savefig(instance.export_paths["Analysis & Results"] + "Results Charts/" + ip["filename"] + '.png',
                     bbox_inches='tight')
 
     return fig
@@ -2141,10 +2159,13 @@ def holistic_color_graph(parameters, value_parameters, metrics, figsize=(11, 10)
 
 
 # Sensitivity Analysis
-def pareto_graph(pareto_df, dimensions=None, save=True, title=None, figsize=(10, 8), facecolor='white',
-                 display_title=False):
+def pareto_graph(instance, pareto_df, solution=None, dimensions=None, save=True, title=None, figsize=(10, 8),
+                 facecolor='white', display_title=False, l_word='Value'):
     """
     Builds the Pareto Frontier Chart for adjusting the overall weight on cadets
+    :param solution: other solution to plot on the chart
+    :param instance: problem instance
+    :param l_word: "Label word" for whether we're referring to these as "values" or "utilities"
     :param display_title: if we should display a title or not
     :param save: If we should save the figure
     :param title: If we should include a title or not
@@ -2154,6 +2175,7 @@ def pareto_graph(pareto_df, dimensions=None, save=True, title=None, figsize=(10,
     :param figsize: size of the figure
     :return: figure
     """
+
     # Colors and Axis
     cm = plt.cm.get_cmap('RdYlBu')
     label_size = 20
@@ -2164,12 +2186,12 @@ def pareto_graph(pareto_df, dimensions=None, save=True, title=None, figsize=(10,
     fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, tight_layout=True)
     ax.set_aspect('equal', adjustable='box')
 
-    sc = ax.scatter(pareto_df['Value on AFSCs'], pareto_df['Value on Cadets'], c=pareto_df['Weight on Cadets'],
+    sc = ax.scatter(pareto_df[l_word + ' on AFSCs'], pareto_df[l_word + ' on Cadets'], c=pareto_df['Weight on Cadets'],
                     s=100, cmap=cm, edgecolor='black', zorder=1)
-    min_value = min(min(pareto_df['Value on Cadets']), min(pareto_df['Value on AFSCs'])) - 0.005
-    max_value = max(max(pareto_df['Value on Cadets']), max(pareto_df['Value on AFSCs'])) + 0.005
-    plt.xlim(min_value, max_value)
-    plt.ylim(min_value, max_value)
+    # min_value = min(min(pareto_df[l_word + ' on Cadets']), min(pareto_df[l_word + ' on AFSCs'])) - 0.005
+    # max_value = max(max(pareto_df[l_word + ' on Cadets']), max(pareto_df[l_word + ' on AFSCs'])) + 0.005
+    # plt.xlim(min_value, max_value)
+    # plt.ylim(min_value, max_value)
     c_bar = plt.colorbar(sc)
     c_bar.set_label('Weight on Cadets', fontsize=label_size)
     c_bar.ax.tick_params(labelsize=xaxis_tick_size)
@@ -2183,10 +2205,18 @@ def pareto_graph(pareto_df, dimensions=None, save=True, title=None, figsize=(10,
     if display_title:
         ax.set_title(title)
 
+    # Plot solution point
+    if solution is not None:
+        ax.scatter(solution['afsc_utility_overall'], solution['cadet_utility_overall'], c='black',
+                   s=100, edgecolor='black', zorder=2)
+        # ax.annotate(solution['name'], (solution['afsc_utility_overall'], solution['cadet_utility_overall']))
+        plt.text(solution['afsc_utility_overall'],
+                 solution['cadet_utility_overall'] + 0.003, solution['name'], fontsize=15, horizontalalignment='center')
+
     # Labels
-    ax.set_ylabel('Value on Cadets')
+    ax.set_ylabel(l_word + ' on Cadets')
     ax.yaxis.label.set_size(label_size)
-    ax.set_xlabel('Value on AFSCs')
+    ax.set_xlabel(l_word + ' on AFSCs')
     ax.xaxis.label.set_size(label_size)
 
     # Axis
@@ -2194,8 +2224,9 @@ def pareto_graph(pareto_df, dimensions=None, save=True, title=None, figsize=(10,
     ax.tick_params(axis='x', labelsize=xaxis_tick_size)
 
     if save:
-        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + title + '.png',
-                    bbox_inches='tight')
+        filepath = instance.export_paths['Analysis & Results'] + "Results Charts/" + instance.data_name + \
+                   " " + title + '.png'
+        fig.savefig(filepath, bbox_inches='tight')
 
     return fig
 
@@ -2451,7 +2482,7 @@ def solution_results_graph(parameters, value_parameters, solutions, vp_name, k, 
     return fig
 
 
-def solution_similarity_graph(instance, coords):
+def solution_similarity_graph(instance, coords, solution_names):
     """
     This is the chart that compares the approximate and exact models (with genetic algorithm) in solve time and
     objective value
@@ -2470,25 +2501,33 @@ def solution_similarity_graph(instance, coords):
 
     # Plot the solution dot
     legend_elements = []
-    for i, solution_name in enumerate(ip["solution_names"]):
+    for i, solution_name in enumerate(solution_names):
         x, y = coords[i, 0], coords[i, 1]
-        ax.scatter(x, y, c=ip["color_choices"][i], marker=ip["marker_choices"][i], edgecolor="black",
-                   s=ip["sim_dot_size"], zorder=2)
 
-        # Add legend element
-        legend_elements.append(mlines.Line2D([], [], color=ip["color_choices"][i], marker=ip["marker_choices"][i],
-                                             linestyle='None', markeredgecolor='black', markersize=20,
-                                             label=solution_name))
+        # "Special" Solutions to show
+        if solution_name in ip['solution_names']:
+            ax.scatter(x, y, c=ip["colors"][solution_name], marker=ip["markers"][solution_name], edgecolor="black",
+                       s=ip["sim_dot_size"], zorder=2)
 
+            # Add legend element
+            legend_elements.append(mlines.Line2D([], [], color=ip["colors"][solution_name],
+                                                 marker=ip["markers"][solution_name], linestyle='None',
+                                                 markeredgecolor='black', markersize=20, label=solution_name))
 
-    ax.legend(handles=legend_elements, edgecolor='black', fontsize=ip["legend_size"], loc='upper left',
+        # "Basic" solutions
+        else:
+
+            ax.scatter(x, y, c=ip['default_sim_color'], marker=ip["default_sim_marker"], edgecolor="black",
+                       s=ip["sim_dot_size"], zorder=2)
+
+    ax.legend(handles=legend_elements, edgecolor='black', fontsize=ip["legend_size"], loc='upper right',
               ncol=len(legend_elements), columnspacing=0.4, handletextpad=0.1, borderaxespad=0.5, borderpad=0.2)
 
     # Remove tick marks
     ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
     if ip["save"]:
-        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/results/" + ip['title'] + '.png',
+        fig.savefig(instance.export_paths["Analysis & Results"] + "Results Charts/" + ip['title'] + '.png',
                     bbox_inches='tight')
 
     return fig

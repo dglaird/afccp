@@ -12,30 +12,39 @@ def generate_results_slides(instance):
     Function to generate the results slides for a particular problem instance with solution
     """
 
+    # Shorthand
+    mdl_p = instance.mdl_p
+
     # Build the presentation object
     prs = Presentation()
     title_slide_layout = prs.slide_layouts[0]
     blank_slide_layout = prs.slide_layouts[6]
 
+    # Set width and height of presentation
+    prs.slide_width = Inches(mdl_p['b_figsize'][0])
+    prs.slide_height = Inches(mdl_p['b_figsize'][1])
+
     # Add a slide
     slide = prs.slides.add_slide(title_slide_layout)
-    title = slide.shapes.title
-    subtitle = slide.placeholders[1]
 
-    # Add some text
-    title.text = "Hello, World!"
-    subtitle.text = "python-pptx was here!"
+    # # Add some text
+    # title.text = "Hello, World!"
+    # subtitle.text = "python-pptx was here!"
+
+    # # Size of the chart
+    # top, left = Inches(instance.mdl_p['ch_top']), Inches(instance.mdl_p['ch_left'])
+    # height, width = Inches(instance.mdl_p['ch_height']), Inches(instance.mdl_p['ch_width'])
 
     # Size of the chart
-    top, left = Inches(instance.mdl_p['ch_top']), Inches(instance.mdl_p['ch_left'])
-    height, width = Inches(instance.mdl_p['ch_height']), Inches(instance.mdl_p['ch_width'])
+    top, left = Inches(0), Inches(0)
+    height, width = Inches(mdl_p['figsize'][1]), Inches(mdl_p['figsize'][0])
 
     # Get the file paths to all the relevant images
-    folder_path = instance.export_paths['Analysis & Results'] + "Results Charts/"
+    folder_path = instance.export_paths['Analysis & Results'] + instance.solution_name + "/"
     folder = os.listdir(folder_path)
     chart_paths = {}
     for file in folder:
-        if instance.solution_name in file:
+        if instance.solution_name in file and '.png' in file:
             chart_paths[file] = folder_path + file
 
     # Loop through each image file path to add the image to the presentation
@@ -49,6 +58,47 @@ def generate_results_slides(instance):
 
     # Save the PowerPoint
     filepath = instance.export_paths['Analysis & Results'] + instance.data_name + ' ' + instance.solution_name + '.pptx'
+    prs.save(filepath)
+
+def generate_comparison_slides(instance):
+    """
+    Function to generate the results slides for a particular problem instance with solution
+    """
+
+    # Shorthand
+    mdl_p = instance.mdl_p
+
+    # Build the presentation object
+    prs = Presentation()
+    blank_slide_layout = prs.slide_layouts[6]
+
+    # Set width and height of presentation
+    prs.slide_width = Inches(mdl_p['b_figsize'][0])
+    prs.slide_height = Inches(mdl_p['b_figsize'][1])
+
+    # Size of the chart
+    top, left = Inches(0), Inches(0)
+    height, width = Inches(mdl_p['figsize'][1]), Inches(mdl_p['figsize'][0])
+
+    # Get the file paths to all the relevant images
+    folder_path = instance.export_paths['Analysis & Results'] + "Comparison Charts/"
+    folder = os.listdir(folder_path)
+    chart_paths = {}
+    for file in folder:
+        if '.png' in file:
+            chart_paths[file] = folder_path + file
+
+    # Loop through each image file path to add the image to the presentation
+    for file in chart_paths:
+
+        # Add an empty slide
+        slide = prs.slides.add_slide(blank_slide_layout)
+
+        # Add the picture to the slide
+        slide.shapes.add_picture(chart_paths[file], left, top)  #, height=height, width=width)
+
+    # Save the PowerPoint
+    filepath = instance.export_paths['Analysis & Results'] + instance.data_name + ' ' + 'Comparison.pptx'
     prs.save(filepath)
 
 def create_animation_slides(instance):

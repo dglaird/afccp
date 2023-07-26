@@ -55,7 +55,7 @@ def initialize_instance_functional_parameters(N):
         "save": True, "figsize": (19, 10), "facecolor": "white", "title": None, "filename": None, "display_title": True,
         "label_size": 25, "afsc_tick_size": 20, "yaxis_tick_size": 25, "bar_text_size": 15, "xaxis_tick_size": 20,
         "afsc_rotation": None, "bar_color": "black", "alpha": 1, "legend_size": 25,  "title_size": 25,
-        "text_size": 20, 'text_bar_threshold': 15, 'dot_size': 15,
+        "text_size": 20, 'text_bar_threshold': 15, 'dot_size': 35, 'legend_dot_size': 15, 'ncol': 1,
 
         # AFSC Chart Elements
         "eligibility": True, "eligibility_limit": None, "skip_afscs": None, "all_afscs": True, "y_max": 1.1,
@@ -65,10 +65,11 @@ def initialize_instance_functional_parameters(N):
 
         # Macro Chart Controls
         "cadets_graph": True, "data_graph": "AFOCD Data", "results_graph": "Measure", "objective": "Merit",
-        "version": "1",
+        "version": "bar",
 
         # Similarity Chart Elements
-        "sim_dot_size": 220, "new_similarity_matrix": True,
+        "sim_dot_size": 220, "new_similarity_matrix": True, 'default_sim_color': 'black',
+        'default_sim_marker': 'o',
 
         # Value Function Chart Elements
         "smooth_value_function": False,
@@ -131,9 +132,13 @@ def initialize_instance_functional_parameters(N):
         # Subset of charts I actually really care about
         "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
                            ("Utility", "quantity_bar_proportion"), ("Utility", "quantity_bar_choice"),
-                           ("USAFA Proportion", "bar"), ("Merit", "bar")],
+                           ("USAFA Proportion", "bar"), ("Merit", "bar"), ("USAFA Proportion", "quantity_bar_proportion"),
+                           ("Male", "quantity_bar_proportion"), ("USAFA Proportion", "preference_chart"),
+                           ("Male", "preference_chart"), ("Male", "bar")],
 
-        "desired_comparison_charts": [('Combined Quota', 'dot')]
+        "desired_comparison_charts": [('Utility', 'median_preference'), ('Combined Quota', 'dot'), ('Utility', 'dot'),
+                                      ('Norm Score', 'dot'), ('Merit', 'dot'), ('Tier 1', 'dot'),
+                                      ('USAFA Proportion', 'dot'), ('Male', 'dot'), ('Utility', 'mean_preference')]
     }
 
     # AFSC Measure Chart Versions
@@ -152,7 +157,7 @@ def initialize_instance_functional_parameters(N):
 
         # Cadet Preference Charts
         "top_choices": "#5490f0", "mid_choices": "#eef09e", "bottom_choices": "#f25d50",
-        "Volunteer": "#5490f0", "Non-Volunteer": "#f25d50",
+        "Volunteer": "#5490f0", "Non-Volunteer": "#f25d50", "Top 6 Choices": "#5490f0", "7+ Choice": "#f25d50",
 
         # Quartile Charts
         "quartile_1": "#373aed", "quartile_2": "#0b7532", "quartile_3": "#d1bd4d", "quartile_4": "#cc1414",

@@ -953,20 +953,15 @@ def export_solution_results_excel(instance, filepath):
     worksheet.write("K" + str(3 + choice), round(solution['cadet_choice_counts']["All Others"] / p['N'], 3), cell_format)
 
     # Additional solution metrics
-    worksheet.write('F3', 'Blocking Pairs', cell_format)
-    worksheet.write('G3', solution['num_blocking_pairs'], cell_format)
-    worksheet.write('F4', 'Ineligible Cadets', cell_format)
-    worksheet.write('G4', solution['num_ineligible'], cell_format)
-    worksheet.write('F5', 'Unmatched Cadets', cell_format)
-    worksheet.write('G5', solution['num_unmatched'], cell_format)
-    worksheet.write('F6', 'Average Cadet Choice', cell_format)
-    worksheet.write('G6', solution['average_cadet_choice'], cell_format)
-    worksheet.write('F7', 'Average Normalized AFSC Score', cell_format)
-    worksheet.write('G7', solution['weighted_average_afsc_score'], cell_format)
-    worksheet.write('F8', 'Failed Constraints', cell_format)
-    worksheet.write('G8', solution['total_failed_constraints'], cell_format)
-    worksheet.write('F9', 'USSF OM', cell_format)
-    worksheet.write('G9', solution['ussf_om'], cell_format)
+    name_metric_dict = {'Blocking Pairs': 'num_blocking_pairs', 'Ineligible Cadets': 'num_ineligible',
+                        'Unmatched Cadets': 'num_unmatched', 'Average Cadet Choice': 'average_cadet_choice',
+                        'Average Normalized AFSC Score': 'weighted_average_afsc_score',
+                        'Failed Constraints': 'total_failed_constraints', 'USSF OM': 'ussf_om',
+                        'Global Utility': 'z^gu', 'Cadet Utility': 'cadet_utility_overall',
+                        'AFSC Utility': 'afsc_utility_overall'}
+    for r, name in enumerate(list(name_metric_dict.keys())):
+        worksheet.write('F' + str(3 + r), name, cell_format)
+        worksheet.write('G' + str(3 + r), solution[name_metric_dict[name]], cell_format)
 
     # VFT Metrics
     worksheet.write('C4', round(solution['cadets_overall_value'], 4), cell_format)
@@ -976,7 +971,7 @@ def export_solution_results_excel(instance, filepath):
 
     # Draw bigger borders
     draw_frame_border_outside(workbook, worksheet, 1, 1, 5, 3, color='black', width=2)
-    draw_frame_border_outside(workbook, worksheet, 1, 5, 8, 2, color='black', width=2)
+    draw_frame_border_outside(workbook, worksheet, 1, 5, len(name_metric_dict.keys()) + 1, 2, color='black', width=2)
     draw_frame_border_outside(workbook, worksheet, 1, 8, 12, 3, color='black', width=2)
 
     # Adjust Column Widths
