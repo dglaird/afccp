@@ -74,11 +74,11 @@ class CadetCareerProblem:
         self.printing = printing
 
         # The data variant helps inform how the charts should be constructed
-        if len(data_name) == 1:
+        if len(data_name) == 1:  # "A", "B", "C", ...
             self.data_variant = "Scrubbed"
-        elif len(data_name) == 4:
+        elif len(data_name) == 4:  # "2016", "2017", "2018", ...
             self.data_variant = "Year"
-        else:
+        else:  # "Random_1", "Random_2", ...
             self.data_variant = "Generated"
 
         # Additional instance components (value parameters and solutions)
@@ -90,7 +90,7 @@ class CadetCareerProblem:
         # Parameters from *former* Lt Rebecca Reynold's thesis
         self.gp_parameters, self.gp_df = None, None
 
-        # Update instances available
+        # Update instances available (for importing)
         afccp.core.globals.instances_available = []
         for other_data_name in os.listdir(afccp.core.globals.paths["instances"]):
             if os.path.isdir(afccp.core.globals.paths["instances"] + other_data_name):
@@ -115,8 +115,8 @@ class CadetCareerProblem:
             # Import the "fixed" parameters (the information about cadets/AFSCs that, for the most part, doesn't change)
             import_data_functions = [afccp_dp.import_afscs_data, afccp_dp.import_cadets_data,
                                      afccp_dp.import_preferences_data]
-            for import_function in import_data_functions:
-                self.parameters = import_function(self.import_paths, self.parameters)
+            for import_function in import_data_functions:  # Here we're looping through a list of functions!
+                self.parameters = import_function(self.import_paths, self.parameters)  # Python is nice like that...
 
             # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
             self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
@@ -135,7 +135,7 @@ class CadetCareerProblem:
             # Import the "Solutions" data dictionary
             self.solutions = afccp_dp.import_solutions_data(self.import_paths, self.parameters)
 
-        # This is a new problem instance that we're generating (Should be "Random", "Perfect", or "Realistic"
+        # This is a new problem instance that we're generating (Should be "Random", "Perfect", or "Realistic")
         else:
 
             # Error Handling (Must be valid data generation parameter)
@@ -180,13 +180,13 @@ class CadetCareerProblem:
                 # Every cadet needs to be eligible for at least one AFSC
                 for i in range(self.parameters['N']):
                     if np.sum(self.parameters['eligible'][i, :]) == 0:
-                        invalid = True
+                        invalid = True  # Guilty!
                         break
 
                 # Every AFSC needs to have at least one cadet eligible for it
                 for j in range(self.parameters['M']):
                     if np.sum(self.parameters['eligible'][:, j]) == 0:
-                        invalid = True
+                        invalid = True  # Guilty!
                         break
 
             # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
