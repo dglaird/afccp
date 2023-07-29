@@ -62,7 +62,8 @@ def hand_jam_missiles_fix(instance):
 
         # 13N choices
         potential_cadets = np.array(potential_cadets)  # So we can select a subset of a numpy array using indices below
-        missiles_cadet_pref = p['c_pref_matrix'][potential_cadets, j_13N]
+        missiles_cadet_pref = 0.40 * p['cadet_utility'][potential_cadets, j_13N] + \
+                              0.60 * p['afsc_utility'][potential_cadets, j_13N]
 
         # Print statements!
         print(len(potential_cadets), 'potential 13N cadets.')
@@ -71,7 +72,7 @@ def hand_jam_missiles_fix(instance):
             print(count, 'potential cadets had 13N as choice', choice)
 
         # Sort the list of cadets in order of their preference for 13N
-        sorted_indices = np.argsort(missiles_cadet_pref)
+        sorted_indices = np.argsort(missiles_cadet_pref)[::-1]
         potential_cadets = potential_cadets[sorted_indices]  # Sorts cadets in order by their preference for 13N
 
         # Fill 13N cadets until we've met the PGL
@@ -592,7 +593,7 @@ def rotc_rated_board_original(instance, printing=False):
         print("Running status quo ROTC rated algorithm...")
 
     # Shorthand
-    p = instance.parameters
+    p, mdl_p = instance.parameters, instance.mdl_p
 
     # Cadets/AFSCs and their preferences
     cadet_indices = p['Rated Cadets']['rotc']  # indices of the cadets in the full set of cadets

@@ -25,6 +25,7 @@ import afccp.core.visualizations.charts
 # Import optimization models if pyomo is installed
 if afccp.core.globals.use_pyomo:
     import afccp.core.solutions.optimization
+    import afccp.core.solutions.sensitivity
 
 # Import slides script if python-pptx installed
 if afccp.core.globals.use_pptx:
@@ -849,6 +850,19 @@ class CadetCareerProblem:
 
         return value_parameters
 
+    def calculate_afocd_value_parameters(self):
+        """
+        This method calculates the AFOCD value parameters using my own methodology on determining the
+        weights and uses the AFSCs.csv dataset for the targets and constraints.
+        """
+
+        # Determine the AFOCD value parameters
+        self.value_parameters = afccp.core.data.values.generate_afocd_value_parameters(
+            self.parameters, self.value_parameters)
+
+        # Update the value parameters
+        self.update_value_parameters()
+
     def export_value_parameters_as_defaults(self, filename=None, printing=None):
         """
         This method exports the current set of instance value parameters to a new excel file in the "default"
@@ -1196,10 +1210,10 @@ class CadetCareerProblem:
         # Determine population for the genetic algorithm
         if self.mdl_p['population_generation_model'] == 'Assignment':
             self.mdl_p["initial_solutions"] = \
-                afccp.core.solutions.optimization.populate_initial_ga_solutions_from_assignment_model(self, printing)
+                afccp.core.solutions.sensitivity.populate_initial_ga_solutions_from_assignment_model(self, printing)
         else:
             self.mdl_p["initial_solutions"] = \
-                afccp.core.solutions.optimization.populate_initial_ga_solutions_from_vft_model(self, printing)
+                afccp.core.solutions.sensitivity.populate_initial_ga_solutions_from_vft_model(self, printing)
 
         # Add additional solutions if necessary
         if self.mdl_p["solution_names"] is not None:
@@ -1432,7 +1446,7 @@ class CadetCareerProblem:
 
         # Export similarity_matrix
         similarity_df = pd.DataFrame({solution: similarity_matrix[:, s] for s, solution in enumerate(solutions.keys())})
-        similarity_df.to_csv(self.export_paths['Analysis & Results'] + 'Similarity Matrix.csv')
+        similarity_df.to_csv(self.export_paths['Analysis & Results'] + 'Similarity Matrix.csv', index=False)
 
     def measure_solution(self, approximate=False, printing=None):
         """
@@ -2001,7 +2015,7 @@ class CadetCareerProblem:
                              "make sure the current set of value parameters has active constraints.")
 
         # Run the function!
-        constraint_type, solutions_df, report_df = afccp.core.solutions.optimization.determine_model_constraints(self)
+        constraint_type, solutions_df, report_df = afccp.core.solutions.sensitivity.determine_model_constraints(self)
 
         # Build constraint type dataframe
         constraint_type_df = pd.DataFrame({'AFSC': self.parameters['afscs'][:self.parameters["M"]]})
@@ -2279,6 +2293,22 @@ class CadetCareerProblem:
                     raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
 
         return afccp.core.visualizations.charts.pareto_graph(self, pareto_df, l_word=l_word, solution=solution)
+
+    def what_if_analysis(self, p_dict={}, printing=None):
+        """
+        This method takes in an AFSC/cadet problem instance and performs some "What If" analysis based on the items listed
+        in "What If List.csv". We manipulate the "value parameters" to meet these pre-defined conditions and then evaluate
+        the model with the new constraints. We can then create a pareto frontier by modifying the weights on cadets/AFSCs.
+        These results are all exported to a sub-folder called "What If" in the Analysis & Results folder.
+        """
+        self.error_checking("Pyomo Model")
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        if printing:
+            print("Conducting 'What If?' analysis on this problem instance using ")
+
 
     # Export
     def export_data(self, datasets=None, printing=None):

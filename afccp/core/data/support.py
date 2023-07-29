@@ -115,7 +115,7 @@ def initialize_instance_functional_parameters(N):
         "population_generation_model": "Assignment",
 
         # Model Constraint Placement Algorithm parameters
-        'constraint_model_to_use': 'VFT', "skip_quota_constraint": False,
+        'constraint_model_to_use': 'Assignment', "skip_quota_constraint": False,
 
         # Sensitivity Analysis
         "pareto_step": 10,
