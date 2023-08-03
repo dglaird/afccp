@@ -365,7 +365,7 @@ class CadetCareerProblem:
                 self.solutions[solution_name], self.parameters, self.value_parameters, printing=False)
 
     # Adjust Data
-    def adjust_qualification_matrix(self, printing=None):
+    def calculate_qualification_matrix(self, printing=None):
         """
         This procedure simply re-runs the CIP to Qual function in case I change qualifications or I
         identify errors since some cadets in the AFPC solution may receive AFSCs for which they
@@ -452,13 +452,13 @@ class CadetCareerProblem:
         self.remove_ineligible_choices()
 
         # Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)
-        self.update_preference_matrices()
+        self.update_preference_matrices()  # 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preference lists need to omit gaps)
 
         # Convert AFSC preferences to percentiles (0 to 1)
-        self.convert_afsc_preferences_to_percentiles()
+        self.convert_afsc_preferences_to_percentiles()  # 1, 2, 3, 4, 5 -> 1, 0.8, 0.6, 0.4, 0.2
 
         # The "cadet columns" are located in Cadets.csv and contain the utilities/preferences in order of preference
-        self.update_cadet_columns_from_matrices()
+        self.update_cadet_columns_from_matrices()  # We haven't touched "c_preferences" and "c_utilities" until now
 
         # Generate fake (random) set of value parameters
         self.generate_random_value_parameters()
@@ -1105,11 +1105,6 @@ class CadetCareerProblem:
 
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
-
-        # Add Rated SOC algorithm results to the parameters (J^Fixed and J^Reserved)
-        if self.mdl_p['incorporate_rated_results']:
-            self.parameters = afccp.core.solutions.handling.incorporate_rated_results_in_parameters(
-                self, printing=printing)
 
         # Build the model and then solve it
         model, q = afccp.core.solutions.optimization.vft_model_build(self, printing=printing)
@@ -1909,6 +1904,53 @@ class CadetCareerProblem:
         if printing:
             print('Done.')
 
+    def generate_comparison_slide_components(self, p_dict={}, printing=None):
+        """
+        Method to do all the steps of generating the specific solution comparison charts I want
+        """
+
+        if printing is None:
+            printing = self.printing
+
+        if "solution_names" not in p_dict:
+            raise ValueError("Error. In order to run this comparison method, the argument 'solution_names' must be "
+                             "passed within 'p_dict'. This needs to be a list of solution names.")
+
+        if printing:
+            print("Generating comparison charts for the solutions:", p_dict['solution_names'])
+
+        # Create the comparison charts folder if necessary
+        if 'Comparison Charts' not in os.listdir(self.export_paths['Analysis & Results']):
+            os.mkdir(self.export_paths['Analysis & Results'] + 'Comparison Charts')
+
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.error_checking('Solutions')
+
+        # Save all solution comparison charts to the "Comparison Charts" folder
+        self.display_all_results_graphs(p_dict, printing)
+
+        # Cadet Utility Histogram
+        self.display_utility_histogram(p_dict, folder='Comparison Charts')
+
+        # Create pareto frontier plots
+        self.show_pareto_chart(folder='Comparison Charts')  # without solutions
+        self.show_pareto_chart(p_dict, folder='Comparison Charts',
+                               solution_names=p_dict['solution_names'])  # with solutions
+
+        # Compute similarity matrix and then calculate the similarity plot between all the solutions
+        self.compute_similarity_matrix(solution_names=p_dict['solution_names'])
+        self.similarity_plot(p_dict, folder='Comparison Charts')
+
+        # # Call the function to generate the slides
+        # if afccp.core.globals.use_pptx:
+        #     afccp.core.visualizations.slides.generate_comparison_slides(self)
+        # else:
+        #     print('PPTX library not installed.')
+
+        if printing:
+            print('Done.')
+
     def generate_cadet_board_animation(self, p_dict={}, printing=None):
         """
         Method to generate the "Cadet Board" animation by calling the CadetBoardFigure class and applying the parameters
@@ -1935,7 +1977,7 @@ class CadetCareerProblem:
             # Generate the slides to go with this
             self.generate_animation_slides(p_dict, printing)
 
-    def display_utility_histogram(self, p_dict={}, printing=None):
+    def display_utility_histogram(self, p_dict={}, printing=None, folder="Results Charts"):
         """
         This method plots the cadet utility histogram
         """
@@ -1954,8 +1996,11 @@ class CadetCareerProblem:
         if self.mdl_p['solution_names'] is not None:
             self.evaluate_all_solutions(self.mdl_p['solution_names'])
 
+        # Filepath for plot
+        filepath = self.export_paths['Analysis & Results'] + folder + "/"
+
         # Construct the chart
-        return afccp.core.visualizations.charts.cadet_utility_histogram(self)
+        return afccp.core.visualizations.charts.cadet_utility_histogram(self, filepath=filepath)
 
     def solve_cadet_board_model_direct(self, filepath):
         """
@@ -1966,7 +2011,7 @@ class CadetCareerProblem:
         # Run function
         afccp.core.solutions.optimization.solve_cadet_board_model_direct_from_board_parameters(self, filepath)
 
-    def similarity_plot(self, p_dict={}, printing=None):
+    def similarity_plot(self, p_dict={}, printing=None, folder="Results Charts"):
         """
         Creates the solution similarity plot for the solutions specified
         """
@@ -1995,8 +2040,12 @@ class CadetCareerProblem:
         # Get coordinates
         coords = afccp.core.solutions.handling.similarity_coordinates(similarity_matrix)
 
+        # Filepath for plot
+        filepath = self.export_paths['Analysis & Results'] + folder + "/"
+
         # Plot similarity
-        return afccp.core.visualizations.charts.solution_similarity_graph(self, coords, solution_names)
+        return afccp.core.visualizations.charts.solution_similarity_graph(self, coords, solution_names,
+                                                                          filepath=filepath)
 
     # Sensitivity Analysis
     def solve_for_constraints(self, p_dict={}):
@@ -2251,7 +2300,7 @@ class CadetCareerProblem:
             pareto_df.to_excel(writer, sheet_name="Utility Pareto Results", index=False)
             solutions_df.to_excel(writer, sheet_name="Initial Solutions", index=False)
 
-    def show_pareto_chart(self, printing=None, utility_version=True, solution_name=None):
+    def show_pareto_chart(self, printing=None, utility_version=True, solution_names=None, folder="Results Charts"):
         """
         Saves the pareto chart to the figures folder
         """
@@ -2261,13 +2310,6 @@ class CadetCareerProblem:
 
         if printing:
             print("Creating Pareto Chart...")
-
-        # Figure out if we have a solution to plot on the graph
-        if solution_name is not None:
-            solution = self.solutions[solution_name]
-            solution = afccp.core.solutions.handling.evaluate_solution(solution, self.parameters, self.value_parameters)
-        else:
-            solution = None
 
         if utility_version:
             l_word = 'Utility'
@@ -2292,7 +2334,8 @@ class CadetCareerProblem:
                 except:
                     raise ValueError("No Pareto Data found for instance '" + self.data_name + "'")
 
-        return afccp.core.visualizations.charts.pareto_graph(self, pareto_df, l_word=l_word, solution=solution)
+        return afccp.core.visualizations.charts.pareto_graph(self, pareto_df, l_word=l_word, solution_names=solution_names,
+                                                             filepath=self.export_paths['Analysis & Results'] + folder + '/')
 
     def what_if_analysis(self, p_dict={}, printing=None):
         """
@@ -2301,14 +2344,23 @@ class CadetCareerProblem:
         the model with the new constraints. We can then create a pareto frontier by modifying the weights on cadets/AFSCs.
         These results are all exported to a sub-folder called "What If" in the Analysis & Results folder.
         """
+        if printing is None:
+            printing = self.printing
+
         self.error_checking("Pyomo Model")
 
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
 
-        if printing:
-            print("Conducting 'What If?' analysis on this problem instance using ")
+        if "What If List.csv" not in os.listdir(self.export_paths['Analysis & Results']):
+            raise ValueError("Error. File 'What If List.csv' required for this analysis. It needs to be located"
+                             " in the 'Analysis & Results' folder.")
 
+        if printing:
+            print("Conducting 'What If?' analysis on this problem instance...")
+
+        # Run the "what if" analysis function
+        afccp.core.solutions.sensitivity.optimization_what_if_analysis(self, printing)
 
     # Export
     def export_data(self, datasets=None, printing=None):

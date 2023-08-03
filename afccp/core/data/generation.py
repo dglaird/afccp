@@ -337,10 +337,18 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
                 vp['value_functions'][j, k] = 'Min Increasing|0.3'
                 vp['objective_target'][j, k] = p['usafa_quota'][j]
 
+                # Bounds on this constraint (but leave it off)
+                vp['objective_value_min'][j, k] = str(int(p['usafa_quota'][j])) + ", " + \
+                                                  str(int(p['quota_max'][j]))
+
             elif objective == 'ROTC Quota':
                 vp['objective_weight'][j, k] = 0
                 vp['value_functions'][j, k] = 'Min Increasing|0.3'
                 vp['objective_target'][j, k] = p['rotc_quota'][j]
+
+                # Bounds on this constraint (but leave it off)
+                vp['objective_value_min'][j, k] = str(int(p['rotc_quota'][j])) + ", " + \
+                                                  str(int(p['quota_max'][j]))
 
             elif objective == 'Male':
                 vp['objective_weight'][j, k] = np.random.rand() * 0.25

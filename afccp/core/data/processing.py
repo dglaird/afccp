@@ -958,10 +958,16 @@ def export_solution_results_excel(instance, filepath):
                         'Average Normalized AFSC Score': 'weighted_average_afsc_score',
                         'Failed Constraints': 'total_failed_constraints', 'USSF OM': 'ussf_om',
                         'Global Utility': 'z^gu', 'Cadet Utility': 'cadet_utility_overall',
-                        'AFSC Utility': 'afsc_utility_overall'}
+                        'AFSC Utility': 'afsc_utility_overall', 'USAFA Cadet Utility': 'usafa_cadet_utility',
+                        'ROTC Cadet Utility': 'rotc_cadet_utility', 'USSF Cadet Utility': 'ussf_cadet_utility',
+                        'USAF Cadet Utility': 'usaf_cadet_utility', 'USSF AFSC Utility': 'ussf_afsc_utility',
+                        'USAF AFSC Utility': 'usaf_afsc_utility',
+                        'Average Normalized AFSC Score (USSF)': 'weighted_average_ussf_afsc_score',
+                        'Average Normalized AFSC Score (USAF)': 'weighted_average_usaf_afsc_score'}
     for r, name in enumerate(list(name_metric_dict.keys())):
-        worksheet.write('F' + str(3 + r), name, cell_format)
-        worksheet.write('G' + str(3 + r), solution[name_metric_dict[name]], cell_format)
+        if name_metric_dict[name] in solution:
+            worksheet.write('F' + str(3 + r), name, cell_format)
+            worksheet.write('G' + str(3 + r), solution[name_metric_dict[name]], cell_format)
 
     # VFT Metrics
     worksheet.write('C4', round(solution['cadets_overall_value'], 4), cell_format)
@@ -1103,8 +1109,7 @@ def export_solution_results_excel(instance, filepath):
             # Convert the dataframe to an XlsxWriter Excel object.
             df.to_excel(writer, sheet_name='X', index=False)
 
-        # Save the workbook (writer object)
-        # writer.save()
+        # Close the workbook
         writer.close()
     export_results_dfs()
 

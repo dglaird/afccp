@@ -78,12 +78,37 @@ def generate_comparison_slides(instance):
 
     # Size of the chart
     top, left = Inches(0), Inches(0)
-    height, width = Inches(mdl_p['figsize'][1]), Inches(mdl_p['figsize'][0])
 
     # Get the file paths to all the relevant images
     folder_path = instance.export_paths['Analysis & Results'] + "Comparison Charts/"
     folder = os.listdir(folder_path)
+
+    # Sort the files in the folder according to my preferred method
     chart_paths = {}
+    keyword_order = [['Combined Quota'], ['Tier 1'], ['Male'], ['USAFA Proportion'], ['Merit'], ['Norm Score'],
+                     ['Utility', 'dot'], ['Utility', 'mean_preference'], ['Utility', 'median_preference'],
+                     ['Utility', 'Histogram'], ['Pareto', 'Cadets.png'], ['Pareto', ').png'], ['Similarity']]
+
+    # Loop through each set of "keywords"
+    for keywords in keyword_order:
+
+        # Loop through each file until we have a match
+        for file in folder:
+
+            # Loop through all keywords to see if we have a match
+            match = True
+            for keyword in keywords:
+                if keyword not in file:
+                    match = False
+                    break
+
+            # If we have a "match", add it!
+            if match:
+                chart_paths[file] = folder_path + file
+                folder.remove(file)  # Remove this file since we've accounted for it
+                break
+
+    # Add any remaining files
     for file in folder:
         if '.png' in file:
             chart_paths[file] = folder_path + file

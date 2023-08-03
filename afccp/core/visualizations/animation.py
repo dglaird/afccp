@@ -80,7 +80,10 @@ class CadetBoardFigure:
 
         # Basic information about this sequence for the animation
         self.b['afscs'] = self.mdl_p['afscs']
-        self.b['cadets_solved_for'] = self.solution['cadets_solved_for']
+
+        # Determine which cadets were solved for in this solution
+        if self.b['cadets_solved_for'] is None:
+            self.b['cadets_solved_for'] = self.solution['cadets_solved_for']
 
         # Cadets in the "denominator" basically
         if self.b['cadets_solved_for'] == 'ROTC Rated':

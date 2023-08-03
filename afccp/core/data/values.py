@@ -421,13 +421,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                     actual = np.mean(p['merit'][p['I^E'][j]])
 
                 elif objective == 'USAFA Proportion':
-                    if p['usafa_quota'][j] == 0:
-                        vp['objective_target'][j, k] = 0
-
-                    elif p['usafa_quota'][j] == p['pgl'][j]:
-                        vp['objective_target'][j, k] = 1
-                    else:
-                        vp['objective_target'][j, k] = p['usafa_proportion']
+                    vp['objective_target'][j, k] = p['usafa_proportion']
                     actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
 
                 elif objective == 'Combined Quota':

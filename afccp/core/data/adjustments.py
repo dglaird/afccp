@@ -294,9 +294,9 @@ def more_parameter_additions(parameters):
         p['acc_grp'] = np.array(['NRL' for _ in p['J']])
         p['afscs_acc_grp']['NRL'] = p['afscs']
 
-    # USSF-specific AFSC indices
+    # We already have "J^USSF" defined above; now we want one for USAF (NRL + Rated)
     if 'USSF' in p['afscs_acc_grp']:
-        p['J^USSF'] = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in p['afscs_acc_grp']['USSF']])
+        p['J^USAF'] = np.array([j for j in p['J'] if j not in p['J^USSF']])
 
     # Determine eligible Rated cadets for both SOCs (cadets that are considered by the board)
     cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}

@@ -52,7 +52,7 @@ class AFSCsChart:
         # Where to save the chart
         self.paths = {"Data": instance.export_paths["Analysis & Results"] + "Data Charts/",
                       "Solution": instance.export_paths["Analysis & Results"] + self.solution_name + "/",
-                      "Comparison": instance.export_paths["Analysis & Results"] + "Results Charts/"}
+                      "Comparison": instance.export_paths["Analysis & Results"] + "Comparison Charts/"}
 
     # Main build method
     def build(self, chart_type="Data", printing=True):
@@ -1959,7 +1959,7 @@ def afsc_multi_criteria_graph(instance, max_num=None):
     return fig
 
 
-def cadet_utility_histogram(instance):
+def cadet_utility_histogram(instance, filepath=None):
     """
     Builds the Cadet Utility histogram
     """
@@ -2027,11 +2027,13 @@ def cadet_utility_histogram(instance):
 
     # Filename
     if ip["filename"] is None:
-        ip["filename"] = ip["title"]
+        ip["filename"] = ip["title"] + '.png'
 
+    # Save the figure
     if ip["save"]:
-        fig.savefig(instance.export_paths["Analysis & Results"] + "Results Charts/" + ip["filename"] + '.png',
-                    bbox_inches='tight')
+        if filepath is None:
+            filepath = instance.export_paths['Analysis & Results'] + "Results Charts/"
+        fig.savefig(filepath + ip["filename"], bbox_inches='tight')
 
     return fig
 
@@ -2159,11 +2161,12 @@ def holistic_color_graph(parameters, value_parameters, metrics, figsize=(11, 10)
 
 
 # Sensitivity Analysis
-def pareto_graph(instance, pareto_df, solution=None, dimensions=None, save=True, title=None, figsize=(10, 8),
-                 facecolor='white', display_title=False, l_word='Value'):
+def pareto_graph(instance, pareto_df, solution_names=None, dimensions=None, save=True, title=None, figsize=(10, 8),
+                 facecolor='white', display_title=False, l_word='Value', filepath=None):
     """
     Builds the Pareto Frontier Chart for adjusting the overall weight on cadets
-    :param solution: other solution to plot on the chart
+    :param filepath: path to the folder to save this chart in
+    :param solution_names: other solutions to plot on the chart
     :param instance: problem instance
     :param l_word: "Label word" for whether we're referring to these as "values" or "utilities"
     :param display_title: if we should display a title or not
@@ -2175,6 +2178,9 @@ def pareto_graph(instance, pareto_df, solution=None, dimensions=None, save=True,
     :param figsize: size of the figure
     :return: figure
     """
+
+    # Shorthand
+    ip = instance.mdl_p
 
     # Colors and Axis
     cm = plt.cm.get_cmap('RdYlBu')
@@ -2188,10 +2194,6 @@ def pareto_graph(instance, pareto_df, solution=None, dimensions=None, save=True,
 
     sc = ax.scatter(pareto_df[l_word + ' on AFSCs'], pareto_df[l_word + ' on Cadets'], c=pareto_df['Weight on Cadets'],
                     s=100, cmap=cm, edgecolor='black', zorder=1)
-    # min_value = min(min(pareto_df[l_word + ' on Cadets']), min(pareto_df[l_word + ' on AFSCs'])) - 0.005
-    # max_value = max(max(pareto_df[l_word + ' on Cadets']), max(pareto_df[l_word + ' on AFSCs'])) + 0.005
-    # plt.xlim(min_value, max_value)
-    # plt.ylim(min_value, max_value)
     c_bar = plt.colorbar(sc)
     c_bar.set_label('Weight on Cadets', fontsize=label_size)
     c_bar.ax.tick_params(labelsize=xaxis_tick_size)
@@ -2205,13 +2207,16 @@ def pareto_graph(instance, pareto_df, solution=None, dimensions=None, save=True,
     if display_title:
         ax.set_title(title)
 
-    # Plot solution point
-    if solution is not None:
-        ax.scatter(solution['afsc_utility_overall'], solution['cadet_utility_overall'], c='black',
-                   s=100, edgecolor='black', zorder=2)
-        # ax.annotate(solution['name'], (solution['afsc_utility_overall'], solution['cadet_utility_overall']))
-        plt.text(solution['afsc_utility_overall'],
-                 solution['cadet_utility_overall'] + 0.003, solution['name'], fontsize=15, horizontalalignment='center')
+    # Plot solution point(s)
+    if solution_names is not None:
+        for solution_name in solution_names:
+            solution = instance.solutions[solution_name]
+            ax.scatter(solution['afsc_utility_overall'], solution['cadet_utility_overall'],
+                       c=ip["colors"][solution_name],
+                       s=100, edgecolor='black', zorder=2, marker=ip["markers"][solution_name])
+            plt.text(solution['afsc_utility_overall'],
+                     solution['cadet_utility_overall'] + 0.003, solution_name, fontsize=15,
+                     horizontalalignment='center')
 
     # Labels
     ax.set_ylabel(l_word + ' on Cadets')
@@ -2223,10 +2228,16 @@ def pareto_graph(instance, pareto_df, solution=None, dimensions=None, save=True,
     ax.tick_params(axis='y', labelsize=yaxis_tick_size)
     ax.tick_params(axis='x', labelsize=xaxis_tick_size)
 
+    # Save the figure
     if save:
-        filepath = instance.export_paths['Analysis & Results'] + "Results Charts/" + instance.data_name + \
-                   " " + title + '.png'
-        fig.savefig(filepath, bbox_inches='tight')
+        if filepath is None:
+            filepath = instance.export_paths['Analysis & Results'] + "Results Charts/"
+        if solution_names is None:
+            filename = instance.data_name + " " + title + '.png'
+        else:
+            string_names = ', '.join(solution_names)
+            filename = instance.data_name + " " + title + '(' + string_names + ').png'
+        fig.savefig(filepath + filename, bbox_inches='tight')
 
     return fig
 
@@ -2482,7 +2493,7 @@ def solution_results_graph(parameters, value_parameters, solutions, vp_name, k, 
     return fig
 
 
-def solution_similarity_graph(instance, coords, solution_names):
+def solution_similarity_graph(instance, coords, solution_names, filepath=None):
     """
     This is the chart that compares the approximate and exact models (with genetic algorithm) in solve time and
     objective value
@@ -2501,11 +2512,13 @@ def solution_similarity_graph(instance, coords, solution_names):
 
     # Plot the solution dot
     legend_elements = []
+    special_solutions = []
     for i, solution_name in enumerate(solution_names):
         x, y = coords[i, 0], coords[i, 1]
 
         # "Special" Solutions to show
         if solution_name in ip['solution_names']:
+            special_solutions.append(solution_name)
             ax.scatter(x, y, c=ip["colors"][solution_name], marker=ip["markers"][solution_name], edgecolor="black",
                        s=ip["sim_dot_size"], zorder=2)
 
@@ -2526,8 +2539,15 @@ def solution_similarity_graph(instance, coords, solution_names):
     # Remove tick marks
     ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
+    # Save the figure
     if ip["save"]:
-        fig.savefig(instance.export_paths["Analysis & Results"] + "Results Charts/" + ip['title'] + '.png',
-                    bbox_inches='tight')
+        if filepath is None:
+            filepath = instance.export_paths['Analysis & Results'] + "Results Charts/"
+        if len(special_solutions) > 0:
+            string_names = ', '.join(special_solutions)
+            filename = ip['title'] + '(' + string_names + ').png'
+        else:
+            filename = ip['title'] + '.png'
+        fig.savefig(filepath + filename, bbox_inches='tight')
 
     return fig

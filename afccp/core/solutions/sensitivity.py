@@ -384,4 +384,166 @@ def optimization_what_if_analysis(instance, printing=True):
     the model with the new constraints. We can then create a pareto frontier by modifying the weights on cadets/AFSCs.
     These results are all exported to a sub-folder called "What If" in the Analysis & Results folder.
     """
-    pass
+
+    # Shorthand
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
+
+    # Import dataframe
+    df = afccp.core.globals.import_csv_data(instance.export_paths['Analysis & Results'] + "What If List.csv")
+
+    # Make sure the first name is in the solutions dictionary
+    if df.loc[0, 'Name'] not in instance.solutions:
+        raise ValueError("Error. Constraint name '" + df.loc[0, 'Name'] + "' is the baseline solution and is currently"
+                                                                          " not in the solutions dictionary.")
+
+    # Get baseline solution and evaluate it
+    baseline = instance.solutions[df.loc[0, 'Name']]
+    baseline = afccp.core.solutions.handling.evaluate_solution(baseline, p, vp)
+
+    # Dictionary of metric column names and their associated variable name in the solution dictionary
+    metrics_dictionary = {'Effect on Global Utility': 'z^gu', 'Effect on Cadet Utility': 'cadet_utility_overall',
+                          'Effect on AFSC Utility': 'afsc_utility_overall',
+                          'Effect on USAFA Cadet Utility': 'usafa_cadet_utility',
+                          'Effect on ROTC Cadet Utility': 'rotc_cadet_utility',
+                          'Effect on USSF Cadet Utility': 'ussf_cadet_utility',
+                          'Effect on USAF Cadet Utility': 'usaf_cadet_utility',
+                          'Effect on USSF AFSC Utility': 'ussf_afsc_utility',
+                          'Effect on USAF AFSC Utility': 'usaf_afsc_utility',
+                          'Effect on USSF AFSC Norm Score': 'weighted_average_ussf_afsc_score',
+                          'Effect on USAF AFSC Norm Score': 'weighted_average_usaf_afsc_score'}
+
+    # Dictionary of AFSC solutions
+    afsc_solutions = {}
+
+    # Loop through each constraint type
+    names, con = np.array(df['Name']), 0
+    for name in names[1:]:  # Skip the baseline
+        con += 1  # Next constraint iteration (skips baseline too)
+        c_vp = copy.deepcopy(vp)  # set of value parameters for this constraint iteration
+
+        # Print statement
+        if printing:
+            print('Iteration', con, name)
+
+        # If we don't want to re-calculate something we can skip it
+        if not df.loc[con, 'Calculate']:
+            print("Skipped")
+            continue
+
+        # Set the appropriate value parameters for this iteration
+        if name == 'Unconstrained':  # Turn off all the AFSC objective constraints
+            c_vp['constraint_type'] = np.zeros([p['M'], vp['O']])
+
+            # Turn off cadet constraints
+            c_vp['cadet_value_min'] = np.zeros(p['N'])
+
+        elif name == 'PGL Only':  # Turn of all the AFSC objective constraints except PGL
+            c_vp['constraint_type'] = np.zeros([p['M'], vp['O']])
+
+            # Turn on PGL constraints
+            k = np.where(vp['objectives'] == 'Combined Quota')[0][0]
+            c_vp['constraint_type'][:, k] = np.ones(p['M']) * 2
+
+            # Turn off cadet constraints
+            c_vp['cadet_value_min'] = np.zeros(p['N'])
+
+        elif 'Top 10 First Choice' in name:  # Cadets from the top 10% of the class need to get first choice
+
+            if "Replace" in name:  # Do we add these constraints on top of current cadet value constraints?
+
+                # Turn off current cadet constraints
+                c_vp['cadet_value_min'] = np.zeros(p['N'])
+
+            # Constrained slots
+            constrained_slots = np.zeros(p['M'])
+
+            # Need an algorithm to see which constraints are possible based on GOM
+            sorted_cadets = np.argsort(p['merit'])[::-1]
+            for i in sorted_cadets:
+
+                # Once we're passed the top 10% we're done
+                if p['merit'][i] < 0.9:
+                    break
+
+                # Loop through choices until we find one under capacity
+                for choice in [0, 1, 2, 3]:
+                    j = p['cadet_preferences'][i][choice]
+
+                    # Only constrain this preference if we're under constrained capacity
+                    if constrained_slots[j] < p['pgl'][j]:
+
+                        # Constrain the utility of this preference
+                        utility = p['cadet_utility'][i, j]
+                        c_vp['cadet_value_min'][i] = utility
+
+                        # Increment constrained slots by one
+                        constrained_slots[j] += 1
+
+                        # Break out of this choice
+                        break
+
+        elif name == "USSF OM":  # Turn on USSF OM constraint
+            c_vp["USSF OM"] = True
+
+        elif name == "Strict AFOCD M Tier":  # Turn on mandatory AFOCD constraints
+
+            # Loop through each degree tier to find AFSCs that have mandatory degree tier requirements
+            for t in [0, 1, 2, 3]:
+                j_indices = np.where(p["t_mandatory"][:, t])[0]
+                vp['constraint_type'][j_indices] = 1  # Turn on these constraints
+
+        else:  # Skip the rest of this loop
+            print("Skipped")
+            df.loc[con, "Result"] = "Skipped"
+            continue
+
+        # Set of constrained objectives for each AFSC
+        c_vp['K^C'] = {}  # constrained objectives
+        for j in p["J"]:
+            c_vp['K^C'][j] = np.where(c_vp['constraint_type'][j, :] > 0)[0].astype(int)
+
+        # Create a duplicate instance and set its value parameters
+        c_instance = copy.deepcopy(instance)
+        c_instance.value_parameters = copy.deepcopy(c_vp)
+
+        # Solve the model
+        model = afccp.core.solutions.optimization.assignment_model_build(c_instance)
+
+        # Check for feasibility
+        try:
+
+            # Solve model and get solution
+            solution = afccp.core.solutions.optimization.solve_pyomo_model(c_instance, model, 'Assignment',
+                                                                           printing=printing)
+            solution = afccp.core.solutions.handling.evaluate_solution(solution, p, c_vp)
+            afsc_solutions[name] = copy.deepcopy(solution['afsc_array'])
+
+            # Calculate metrics
+            for key, value in metrics_dictionary.items():
+                df.loc[con, key] = solution[value] - baseline[value]
+
+            # It was feasible!
+            df.loc[con, "Result"] = "Feasible"
+
+            if printing:
+                print("Feasible :)")
+
+        except:
+
+            # Empty solution
+            afsc_solutions[name] = np.array(["*" for _ in p['I']])
+
+            # It was infeasible!
+            df.loc[con, "Result"] = "Infeasible"
+
+            if printing:
+                print("Infeasible :(")
+
+    # Export main dataframe
+    df.to_csv(instance.export_paths['Analysis & Results'] + "What If List.csv", index=False)
+
+    # Create and export solutions dataframe
+    solution_df = pd.DataFrame(afsc_solutions)
+    solution_df.to_csv(instance.export_paths['Analysis & Results'] + "What If Solutions.csv", index=False)
+
+

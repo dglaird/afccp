@@ -430,6 +430,10 @@ def calculate_additional_useful_metrics(solution, p, vp):
         for i, j in enumerate(solution['j_array']):
             if j in p['J']:
                 solution['cadet_choice'][i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
+
+                if i not in p['afsc_preferences'][j]:
+                    print(i, p['afscs'][j])
+                    continue
                 solution['afsc_choice'][i] = np.where(p['afsc_preferences'][j] == i)[0][0] + 1  # Where is the cadet ranked
                 solution['cadet_utility_achieved'][i] = p['cadet_utility'][i, j]
                 solution['afsc_utility_achieved'][i] = p['afsc_utility'][i, j]
@@ -448,6 +452,10 @@ def calculate_additional_useful_metrics(solution, p, vp):
         solution['z^gu'] = round(np.mean(solution['global_utility_achieved']), 4)
         solution['cadet_utility_overall'] = round(np.mean(solution['cadet_utility_achieved']), 4)
         solution['afsc_utility_overall'] = round(np.mean(solution['afsc_utility_achieved']), 4)
+
+        # Calculate cadet utility based on SOC
+        solution['usafa_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p['usafa_cadets']]), 4)
+        solution['rotc_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p['rotc_cadets']]), 4)
 
     # Cadet Choice Counts (For exporting solution file to excel)
     solution['cadet_choice_counts'] = {}
@@ -471,6 +479,18 @@ def calculate_additional_useful_metrics(solution, p, vp):
         # Calculate metric
         solution['ussf_om'] = round(ussf_merit_sum / ussf_sum, 3)
 
+        # USSF/USAF cadet distinctions
+        solution['ussf_cadets'] = np.array([i for i in p['I'] if solution['j_array'][i] in p['J^USSF']])
+        solution['usaf_cadets'] = np.array([i for i in p['I'] if solution['j_array'][i] not in p['J^USSF']])
+
+        # Calculate cadet utility based on service
+        solution['ussf_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][solution['ussf_cadets']]), 4)
+        solution['usaf_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][solution['usaf_cadets']]), 4)
+
+        # Calculate AFSC utility based on service
+        solution['ussf_afsc_utility'] = round(np.mean(solution['afsc_utility_achieved'][solution['ussf_cadets']]), 4)
+        solution['usaf_afsc_utility'] = round(np.mean(solution['afsc_utility_achieved'][solution['usaf_cadets']]), 4)
+
     # Calculate weighted average AFSC choice (based on Norm Score)
     if 'Norm Score' in vp['objectives']:
         k = np.where(vp['objectives'] == 'Norm Score')[0][0]
@@ -481,6 +501,17 @@ def calculate_additional_useful_metrics(solution, p, vp):
         # Weighted average AFSC choice
         weights = solution['count'] / np.sum(solution['count'])
         solution['weighted_average_afsc_score'] = np.dot(weights, solution['afsc_norm_score'])
+
+        # Space Force and Air Force differences
+        if 'USSF' in p['afscs_acc_grp']:
+
+            # Weighted average AFSC choice for USSF AFSCs (SFSCs)
+            weights = solution['count'][p['J^USSF']] / np.sum(solution['count'][p['J^USSF']])
+            solution['weighted_average_ussf_afsc_score'] = np.dot(weights, solution['afsc_norm_score'][p['J^USSF']])
+
+            # Weighted average AFSC choice for USAF AFSCs (AFSCs)
+            weights = solution['count'][p['J^USAF']] / np.sum(solution['count'][p['J^USAF']])
+            solution['weighted_average_usaf_afsc_score'] = np.dot(weights, solution['afsc_norm_score'][p['J^USAF']])
 
     # Generate objective scores for each objective
     for k in vp['K']:

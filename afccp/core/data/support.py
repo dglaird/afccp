@@ -46,7 +46,7 @@ def initialize_instance_functional_parameters(N):
         'use_rainbow_hex': True, 'build_orientation_slides': True, 'b_legend': True, 'b_legend_size': 20,
         'b_legend_marker_size': 20, 'b_legend_title_size': 20, 'x_ext_left': 0, 'x_ext_right': 0, 'y_ext_left': 0,
         'y_ext_right': 0, 'show_rank_text': False, 'rank_text_color': 'white', 'fontsize_single_digit_adj': 0.6,
-        'b_legend_loc': 'upper right', 'redistribute_x': True,
+        'b_legend_loc': 'upper right', 'redistribute_x': True, 'cadets_solved_for': None,
 
         # These parameters pertain to the AFSCs that will ultimately show up in the visualizations
         'afscs_solved_for': 'All', 'afscs_to_show': 'All',
