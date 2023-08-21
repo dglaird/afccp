@@ -232,6 +232,7 @@ def parameter_sets_additions(parameters):
                 else:
                     p["J^Fixed"][i] = j
 
+
     # Cadet preference/rated cadet set additions
     p = more_parameter_additions(p)
 
@@ -287,12 +288,26 @@ def more_parameter_additions(parameters):
     # Determine AFSCs by Accessions Group
     p['afscs_acc_grp'] = {}
     if 'acc_grp' in p:
-        for acc_grp in ['NRL', 'Rated', 'USSF']:
+        for acc_grp in ['Rated', 'USSF', 'NRL']:
             p['J^' + acc_grp] = np.where(p['acc_grp'] == acc_grp)[0]
             p['afscs_acc_grp'][acc_grp] = p['afscs'][p['J^' + acc_grp]]
     else:  # Previously, we've only assigned NRL cadets so we assume that's what we're dealing with here
         p['acc_grp'] = np.array(['NRL' for _ in p['J']])
         p['afscs_acc_grp']['NRL'] = p['afscs']
+
+    # If we have the "Accessions Group" column in Cadets.csv, we can check to see if anyone is fixed to a group here
+    if 'acc_grp_constraint' in p:
+
+        # Loop through each Accession group and get the cadets that are constrained to be in this "group"
+        for acc_grp in p['afscs_acc_grp']:  # This should really only ever apply to USSF, but we're generalizing it
+
+            # Constrained cadets for each Accession group (don't confuse with I^*acc_grp* in the "solutions" dictionary!)
+            p['I^' + acc_grp] = np.where(p['acc_grp_constraint'] == acc_grp)[0]
+
+    # PGL Totals per SOC for USSF
+    if 'USSF' in p['afscs_acc_grp']:
+        p['ussf_usafa_pgl'] = np.sum(p['usafa_quota'][j] for j in p['J^USSF'])
+        p['ussf_rotc_pgl'] = np.sum(p['rotc_quota'][j] for j in p['J^USSF'])
 
     # We already have "J^USSF" defined above; now we want one for USAF (NRL + Rated)
     if 'USSF' in p['afscs_acc_grp']:
@@ -355,6 +370,44 @@ def more_parameter_additions(parameters):
     # set of cadets that have placed a preference for AFSC j and are eligible for AFSC j
     non_zero_utils_i = [np.where(p['cadet_utility'][:, j] > 0)[0] for j in p['J']]
     p["I^P"] = [np.intersect1d(p['I^E'][j], non_zero_utils_i[j]) for j in p['J']]
+
+    # Race categories
+    if 'race' in p:
+        p['race_categories'] = np.unique(p['race'])
+        for race in p['race_categories']:
+            p['I^' + race] = np.where(p['race'] == race)[0]
+
+        # Calculate simpson index for overall class as a baseline
+        p['baseline_simpson_index'] = round(1 - np.sum([(len(
+            p['I^' + race]) * (len(p['I^' + race]) - 1)) / (p['N'] * (p['N'] - 1)) for race in p['race_categories']]), 2)
+
+    # Ethnicity categories
+    if 'ethnicity' in p:
+        p['ethnicity_categories'] = np.unique(p['ethnicity'])
+        for eth in p['ethnicity_categories']:
+            p['I^' + eth] = np.where(p['ethnicity'] == eth)[0]
+
+        # Calculate simpson index for overall class as a baseline
+        p['baseline_simpson_index_eth'] = round(1 - np.sum([(len(
+            p['I^' + eth]) * (len(p['I^' + eth]) - 1)) / (p['N'] * (p['N'] - 1)) for eth in
+                                                        p['ethnicity_categories']]), 2)
+
+    # SOC and Gender cadets standardized like above
+    if 'usafa' in p:
+        p['I^USAFA'] = np.where(p['usafa'])[0]
+        p['I^ROTC'] = np.where(p['usafa'] == 0)[0]
+    if 'male' in p:
+        p['I^Male'] = np.where(p['male'])[0]
+        p['I^Female'] = np.where(p['male'] == 0)[0]
+
+    # STEM cadets
+    if 'stem' in p:
+        p['I^STEM'] = np.where(p['stem'])[0]
+
+        if 'afscs_stem' in p:
+            p['J^STEM'] = np.where(p['afscs_stem'] == 'Yes')[0]
+            p['J^Not STEM'] = np.where(p['afscs_stem'] == 'No')[0]
+            p['J^Hybrid'] = np.where(p['afscs_stem'] == 'Hybrid')[0]
 
     return p
 
@@ -786,6 +839,8 @@ def parameter_sanity_check(instance):
                       "please update the set of value parameters using 'instance.update_value_parameters()'.")
 
     # Loop through each cadet to check preferences and utility values
+    invalid_utility, invalid_cadet_utility = 0, 0
+    invalid_utility_cadets, invalid_cadet_utility_cadets = [], []
     for i in p['I']:
         if 'c_preferences' in p and 'c_pref_matrix' in p:
             for choice in range(p['P']):
@@ -797,7 +852,33 @@ def parameter_sanity_check(instance):
                         print(issue, "ISSUE: Cadet", p['cadets'][i], "has AFSC '" + afsc + "' in position '"
                               + str(choice + 1) + "' in the Cadets.csv file, but it is ranked '" +
                               str(p['c_pref_matrix'][i, j]) + "' from the Cadets Preferences.csv file.")
-                        break  # Don't need to check the rest of this cadets' preferences
+                        break  # Don't need to check the rest of the cadet's preferences
+
+            # Make sure "utility" array is monotonically decreasing and the "cadet_utility" array is strictly decreasing
+            arr_1 = p['utility'][i, p['cadet_preferences'][i]]
+            arr_2 = p['cadet_utility'][i, p['cadet_preferences'][i]]
+            if not all(arr_1[i] >= arr_1[i + 1] for i in range(len(arr_1) - 1)):
+                invalid_utility += 1
+                invalid_utility_cadets.append(i)
+            if not all(arr_2[i] > arr_2[i + 1] for i in range(len(arr_2) - 1)):
+                invalid_cadet_utility += 1
+                invalid_cadet_utility_cadets.append(i)
+
+    # Report issues with decreasing cadet utility values
+    if invalid_utility > 0:
+        issue += 1
+        print(issue, "ISSUE: The cadet-reported utility matrix 'utility', located in 'Cadets Utility.csv'\nand in the "
+                     "'Util' columns of 'Cadets.csv', does not incorporate monotonically\ndecreasing utility values for "
+                     "" + str(invalid_utility) + " cadets. Please adjust.")
+        if invalid_utility < 40:
+            print('These are the cadets at indices', invalid_utility_cadets)
+    if invalid_cadet_utility > 0:
+        issue += 1
+        print(issue, "ISSUE: The constructed cadet utility matrix 'cadet_utility', located in 'Cadets Utility (Final)."
+                     "csv',\ndoes not incorporate strictly decreasing utility values for "
+                     "" + str(invalid_cadet_utility) + " cadets. Please adjust.")
+        if invalid_cadet_utility < 40:
+            print('These are the cadets at indices', invalid_cadet_utility_cadets)
 
     # Loop through each objective to see if there are any null values in the objective target array
     for k, objective in enumerate(vp["objectives"]):

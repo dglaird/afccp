@@ -966,6 +966,13 @@ def common_optimization_handling(m, p, vp, mdl_p):
     for i in p['J^Reserved']:
         m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
 
+    # Cadets may sometimes be constrained to be part of one "Accessions Group" (probably just USSF)
+    m.acc_grp_constraints = ConstraintList()
+    if 'acc_grp_constraint' in p:
+        for acc_grp in p['afscs_acc_grp']:
+            for i in p['I^' + acc_grp]:
+                m.acc_grp_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^' + acc_grp] if j in p['J^E'][i]) == 1)
+
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if vp["J^USAFA"] is not None:
         cap = 0.05 * instance.mdl_p["real_usafa_n"]  # Total number of graduating USAFA cadets
@@ -980,6 +987,24 @@ def common_optimization_handling(m, p, vp, mdl_p):
             return np.sum(np.sum(m.x[i, j] for i in p['usafa_cadets']) for j in vp["J^USAFA"]) <= cap
 
         m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
+
+    # Space Force PGL Constraint (Honor USSF SOC split)
+    if mdl_p['ussf_soc_pgl_constraint']:
+
+        # Necessary variables to calculate
+        ussf_usafa_sum = np.sum(np.sum(m.x[i, j] for i in p['usafa_cadets'] if i in p['I^E'][j]) for j in p['J^USSF'])
+        ussf_rotc_sum = np.sum(np.sum(m.x[i, j] for i in p['rotc_cadets'] if i in p['I^E'][j]) for j in p['J^USSF'])
+
+        # SOC/USSF PGL Constraints
+        m.soc_ussf_pgl_constraints = ConstraintList()
+        m.soc_ussf_pgl_constraints.add(expr=ussf_usafa_sum >= p['ussf_usafa_pgl'] -
+                                            mdl_p['ussf_soc_pgl_constraint_bound'] * p['ussf_usafa_pgl'])
+        m.soc_ussf_pgl_constraints.add(expr=ussf_usafa_sum <= p['ussf_usafa_pgl'] +
+                                            mdl_p['ussf_soc_pgl_constraint_bound'] * p['ussf_usafa_pgl'])
+        m.soc_ussf_pgl_constraints.add(expr=ussf_rotc_sum >= p['ussf_rotc_pgl'] -
+                                            mdl_p['ussf_soc_pgl_constraint_bound'] * p['ussf_rotc_pgl'])
+        m.soc_ussf_pgl_constraints.add(expr=ussf_rotc_sum <= p['ussf_rotc_pgl'] +
+                                            mdl_p['ussf_soc_pgl_constraint_bound'] * p['ussf_rotc_pgl'])
 
     # Space Force OM Constraint
     if vp['USSF OM']:

@@ -4,6 +4,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.lines as mlines
 import numpy as np
 import copy
+import pandas as pd
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl
@@ -40,7 +41,7 @@ class AFSCsChart:
         self.label_dict = copy.deepcopy(afccp.core.globals.obj_label_dict)
 
         # This is going to be a dictionary of all the various chart-specific components we need
-        self.c = {"J": self.ip['J'], 'afscs': self.ip['afscs'], 'M': self.ip['M'],
+        self.c = {"J": self.ip['J'], 'afscs': self.ip['afscs'], 'M': self.ip['M'], 'k': 0,  # Default k
                   'y_max': self.ip['y_max'], 'legend_elements': None, 'use_calculated_y_max': False}
 
         # If we skip AFSCs
@@ -77,19 +78,41 @@ class AFSCsChart:
 
         elif chart_type in ["Solution", "Comparison"]:
 
-            # AFSC objective index and condense the AFSCs if this is an AFOCD objective
-            self.c['k'] = np.where(self.value_parameters['objectives'] == self.ip['objective'])[0][0]
-            self.condense_afscs_based_on_objective()
+            # Only perform the following steps if it's for a "real" VP objective
+            if self.ip['objective'] != 'Extra':
+
+                # AFSC objective index and condense the AFSCs if this is an AFOCD objective
+                self.c['k'] = np.where(self.value_parameters['objectives'] == self.ip['objective'])[0][0]
+                self.condense_afscs_based_on_objective()
 
             # Need to know number of cadets assigned
             self.c['total_count'] = self.solution["count"][self.c['J']]
 
             # Determine if we sort the AFSCs by PGL or not
-            if self.ip['sort_by_pgl'] and 'quantity' in self.ip['version'] or self.ip['version'] == 'preference_chart':
+            if self.ip['sort_by_pgl'] and "STEM" not in self.ip['version']:
                 quota = np.array([self.parameters['pgl'][j] for j in self.c['J']])
 
                 # Sort the AFSCs by the PGL
                 indices = np.argsort(quota)[::-1]
+                self.c['afscs'] = self.c['afscs'][indices]
+                self.c['total_count'] = self.c['total_count'][indices]
+                self.c['J'] = self.c['J'][indices]
+
+            # Sort by STEM AFSCs
+            if "STEM" in self.ip['version']:
+
+                # Sort all the AFSCs by the PGL
+                sorted_indices = np.argsort(self.parameters['pgl'])[::-1]
+
+                # Sort the AFSCs by "Not STEM", "Hybrid", "STEM" and then by PGL
+                sorted_j = []
+                for cat in ["Not STEM", "Hybrid", "STEM"]:
+                    for j in sorted_indices:
+                        if j in p['J^' + cat] and j in self.c['J']:
+                            sorted_j.append(j)
+
+                # Sort the specific elements of this chart
+                indices = np.array(sorted_j)
                 self.c['afscs'] = self.c['afscs'][indices]
                 self.c['total_count'] = self.c['total_count'][indices]
                 self.c['J'] = self.c['J'][indices]
@@ -124,9 +147,21 @@ class AFSCsChart:
                         self.results_quota_chart()
 
                     # Cadet/AFSC Preference Chart
-                    elif self.ip['objective'] in ['Utility', 'Norm Score']:
+                    elif self.ip['objective'] == 'Utility':
                         self.results_preference_chart()
+                    elif self.ip['objective'] == 'Norm Score':
+                        if self.ip['version'] == 'bar':
+                            self.results_norm_score_chart()
+                        else:
+                            self.results_preference_chart()
 
+                else:
+
+                    # Demographic Charts
+                    if self.ip['version'] in ['Race Chart', 'Gender Chart', 'Ethnicity Chart', 'SOC Chart',
+                                              'Race Chart_proportion', 'Gender Chart_proportion',
+                                              'Ethnicity Chart_proportion', 'SOC Chart_proportion']:
+                        self.results_demographic_proportion_chart()
 
             # Get filename
             if self.ip["filename"] is None:
@@ -136,6 +171,10 @@ class AFSCsChart:
         else:
             raise ValueError("Error. Invalid AFSC 'main' chart type value of '" +
                              chart_type + "'. Valid inputs are 'Data' or 'Results'.")
+
+        # Put the solution name in the title
+        if self.ip["solution_in_title"]:
+            self.ip['title'] = self.solution_name + ": " + self.ip['title']
 
         # Display title
         if self.ip['display_title']:
@@ -147,15 +186,27 @@ class AFSCsChart:
         self.ax.set_xlabel('AFSCs')
         self.ax.xaxis.label.set_size(self.ip['label_size'])
 
+        if self.ip["color_afsc_text_by_grp"]:
+            afsc_colors = [self.ip['bar_colors'][self.parameters['acc_grp'][j]] for j in self.c['J']]
+        else:
+            afsc_colors = ["black" for _ in self.c['afscs']]
+
         # X axis
         self.ax.tick_params(axis='x', labelsize=self.ip['afsc_tick_size'])
         self.ax.set_xticklabels(self.c["afscs"][self.c["tick_indices"]], rotation=self.ip['afsc_rotation'])
         self.ax.set_xticks(self.c["tick_indices"])
         self.ax.set(xlim=(-0.8, self.c["M"]))
 
+        # Unique AFSC colors potentially based on accessions group
+        for index, xtick in enumerate(self.ax.get_xticklabels()):
+            xtick.set_color(afsc_colors[index])
+
         # Y axis
         self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
         self.ax.set(ylim=(0, self.c["y_max"]))
+        if "y_ticks" in self.c:
+            self.ax.set_yticklabels(self.c['y_ticks'])
+            self.ax.set_yticks(self.c['y_ticks'])
 
         # Legend
         if self.ip["add_legend_afsc_chart"] and self.c['legend_elements'] is not None:
@@ -642,6 +693,9 @@ class AFSCsChart:
                 cadets = [np.where(self.solutions[solution]['j_array'] == j)[0] for j in p['J']]
                 measure = np.array([np.mean(p['c_pref_matrix'][cadets[j], j]) for j in self.c['J']])
                 self.label_dict[self.ip['objective']] = 'Average Cadet Choice'
+            elif self.ip['version'] == 'Race Chart':
+                measure = np.array([self.solutions[solution]['simpson_index'][j] for j in self.c['J']])
+                self.label_dict[self.ip['objective']] = 'Simpson Diversity Index'
             else:
                 measure = self.solutions[solution]["objective_measure"][self.c['J'], k]
             if self.ip["objective"] == "Combined Quota":
@@ -697,9 +751,18 @@ class AFSCsChart:
 
             # Tick marks and extra lines
             self.c['y_ticks'] = [0, 0.35, 0.50, 0.65, 0.80, 1]
-            self.ax.plot((-1, 50), (0.65, 0.65), color='black', linestyle='-', zorder=1, alpha=1, linewidth=1.5)
-            self.ax.plot((-1, 50), (0.5, 0.5), color='black', linestyle='--', zorder=1, alpha=1, linewidth=1.5)
-            self.ax.plot((-1, 50), (0.35, 0.35), color='black', linestyle='-', zorder=1, alpha=1, linewidth=1.5)
+            self.ax.plot((-1, 50), (0.65, 0.65), color='blue', linestyle='-', zorder=1, alpha=0.5, linewidth=1.5)
+            self.ax.plot((-1, 50), (0.5, 0.5), color='black', linestyle='--', zorder=1, alpha=0.5, linewidth=1.5)
+            self.ax.plot((-1, 50), (0.35, 0.35), color='blue', linestyle='-', zorder=1, alpha=0.5, linewidth=1.5)
+
+            # Set the max for the y-axis
+            self.c['y_max'] = self.ip['y_max'] * np.max(max_measure)
+
+        elif self.ip['version'] == 'Race Chart':
+            baseline = self.parameters['baseline_simpson_index']
+            self.c['y_ticks'] = [0, baseline, 1]
+            self.ax.plot((-1, 50), (baseline, baseline), color='black', linestyle='--', zorder=1, alpha=0.5,
+                         linewidth=1.5)
 
             # Set the max for the y-axis
             self.c['y_max'] = self.ip['y_max'] * np.max(max_measure)
@@ -819,15 +882,12 @@ class AFSCsChart:
 
         if self.ip["version"] == "large_only_bar":
 
-            # Get the title and filename
+            # Get the title
             self.ip["title"] = "Average Merit Across Each Large AFSC"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
 
             # Y-axis
             self.c['use_calculated_y_max'] = True
             self.c['y_max'] = self.ip['y_max']  # * np.max(measure)
-            self.c['y_ticks'] = [0, 0.35, 0.50, 0.65, 0.80, 1]
 
             # Assign the right color to the AFSCs
             for j in range(self.c['M']):
@@ -840,35 +900,43 @@ class AFSCsChart:
 
             # Add lines for the ranges
             self.ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.5)
-            self.ax.axhline(y=0.35, color='blue', linestyle='-', alpha=0.5)
-            self.ax.axhline(y=0.65, color='blue', linestyle='-', alpha=0.5)
+
+            # Bound lines
+            if self.ip['add_bound_lines']:
+                self.c['y_ticks'] = [0, 0.35, 0.50, 0.65, 0.80, 1]
+                self.ax.axhline(y=0.35, color='blue', linestyle='-', alpha=0.5)
+                self.ax.axhline(y=0.65, color='blue', linestyle='-', alpha=0.5)
+            else:
+                self.c['y_ticks'] = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
             # Bar Chart
             self.ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=self.ip["alpha"])
 
         elif self.ip["version"] == "bar":
 
-            # Get the title and filename
+            # Get the title
             self.ip["title"] = "Average Merit Across Each AFSC"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
 
             # Set the max for the y-axis
             self.c['use_calculated_y_max'] = True
             self.c['y_max'] = self.ip['y_max']  # * np.max(measure)
 
             # Merit elements
-            self.c['y_ticks'] = [0, 0.35, 0.50, 0.65, 0.80, 1]
-            self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["small_afscs"], label='Small AFSC'),
-                                         Patch(facecolor=self.ip['bar_colors']["large_afscs"], label='Large AFSC'),
-                                         mlines.Line2D([], [], color="blue", linestyle='-', label="Bound")]
+            if self.ip['large_afsc_distinction']:
+                self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["small_afscs"], label='Small AFSC'),
+                                             Patch(facecolor=self.ip['bar_colors']["large_afscs"], label='Large AFSC')]
 
             # Assign the right color to the AFSCs
             for j in range(self.c['M']):
-                if quota[j] >= 40:
-                    colors[j] = self.ip['bar_colors']["large_afscs"]
+
+                # Colors
+                if self.ip['large_afsc_distinction']:
+                    if quota[j] >= 40:
+                        colors[j] = self.ip['bar_colors']["large_afscs"]
+                    else:
+                        colors[j] = self.ip['bar_colors']["small_afscs"]
                 else:
-                    colors[j] = self.ip['bar_colors']["small_afscs"]
+                    colors[j] = self.ip['bar_color']
 
                 # Add the text
                 self.ax.text(j, measure[j] + 0.013, round(measure[j], 2),
@@ -876,8 +944,15 @@ class AFSCsChart:
 
             # Add lines for the ranges
             self.ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.5)
-            self.ax.axhline(y=0.35, color='blue', linestyle='-', alpha=0.5)
-            self.ax.axhline(y=0.65, color='blue', linestyle='-', alpha=0.5)
+
+            # Bound lines
+            if self.ip['add_bound_lines']:
+                self.c['legend_elements'].append(mlines.Line2D([], [], color="blue", linestyle='-', label="Bound"))
+                self.c['y_ticks'] = [0, 0.35, 0.50, 0.65, 0.80, 1]
+                self.ax.axhline(y=0.35, color='blue', linestyle='-', alpha=0.5)
+                self.ax.axhline(y=0.65, color='blue', linestyle='-', alpha=0.5)
+            else:
+                self.c['y_ticks'] = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
             # Bar Chart
             self.ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=self.ip["alpha"])
@@ -886,8 +961,6 @@ class AFSCsChart:
 
             # Get the title and label
             self.ip["title"] = "Cadet Merit Breakdown Across Each AFSC"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
             self.c['y_label'] = "Number of Cadets"
 
             # Calculate y-axis attributes
@@ -900,8 +973,6 @@ class AFSCsChart:
 
             # Update the title
             self.ip["title"] = "Cadet Quartiles Across Each AFSC"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
             self.c['y_label'] = "Number of Cadets"
 
             # Legend
@@ -964,8 +1035,6 @@ class AFSCsChart:
 
             # Get the title and filename
             self.ip["title"] = legend_dict[self.ip["objective"]] + " Across Large AFSCs"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
 
             # Set the max for the y-axis
             self.c['use_calculated_y_max'] = True
@@ -997,8 +1066,6 @@ class AFSCsChart:
 
             # Get the title and filename
             self.ip["title"] = legend_dict[self.ip["objective"]] + " Across Each AFSC"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
 
             # Y-axis
             self.c['use_calculated_y_max'] = True
@@ -1035,26 +1102,20 @@ class AFSCsChart:
             # Objective specific components
             if self.ip["objective"] == "USAFA Proportion":
 
-                # Get the title and filename
+                # Get the title
                 self.ip["title"] = "USAFA/ROTC 7+ Choice Across Each AFSC"
-                if self.ip["solution_in_title"]:
-                    self.ip['title'] = self.solution_name + ": " + self.ip['title']
                 classes = ["USAFA", "ROTC"]
 
             elif self.ip["objective"] == "Male":
 
-                # Get the title and filename
+                # Get the title
                 self.ip["title"] = "Male/Female 7+ Choice Across Each AFSC"
-                if self.ip["solution_in_title"]:
-                    self.ip['title'] = self.solution_name + ": " + self.ip['title']
                 classes = ["Male", "Female"]
 
             else:  # Minority
 
-                # Get the title and filename
+                # Get the title
                 self.ip["title"] = "Minority/Non-Minority 7+ Choice Across Each AFSC"
-                if self.ip["solution_in_title"]:
-                    self.ip['title'] = self.solution_name + ": " + self.ip['title']
                 classes = ["Minority", "Non-Minority"]
 
             # Calculate y-axis attributes
@@ -1155,9 +1216,6 @@ class AFSCsChart:
                 self.c['legend_elements'] = [Patch(facecolor=class_1_color, label='Male'),
                                              Patch(facecolor=class_2_color, label='Female')]
 
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
-
             # Calculate y-axis attributes
             self.determine_y_max_and_y_ticks()
 
@@ -1178,6 +1236,139 @@ class AFSCsChart:
                 self.ax.text(j, self.c['total_count'][j] + 2, round(measure[j], 2), fontsize=self.ip["text_size"],
                              horizontalalignment='center')
 
+    def results_demographic_proportion_chart(self):
+        """
+        Chart to visualize the demographics of the solution across each AFSC
+        """
+
+        # Shorthand
+        p, vp, solution = self.parameters, self.value_parameters, self.solution
+
+        # Category Dictionary
+        category_dict = {"Race Chart": p['race_categories'], 'Ethnicity Chart': p['ethnicity_categories'],
+                         'Gender Chart': ['Male', 'Female'], 'SOC Chart': ['USAFA', 'ROTC']}
+        title_dict = {"Race Chart": 'Racial Demographics Across Each AFSC',
+                      'Ethnicity Chart': 'Ethnicity Demographics Across Each AFSC',
+                      'Gender Chart': 'Gender Breakdown Across Each AFSC',
+                      'SOC Chart': 'Source of Commissioning Breakdown Across Each AFSC'}
+        afsc_num_dict = {"Race Chart": "simpson_index", "Ethnicity Chart": "simpson_index_eth",
+                         "Gender Chart": "male_proportion_afscs", "SOC Chart": "usafa_proportion_afscs"}
+        baseline_dict = {"Gender Chart": "male_proportion", "SOC Chart": "usafa_proportion",
+                         "Race Chart": "baseline_simpson_index", "Ethnicity Chart": "baseline_simpson_index_eth"}
+
+        # Proportion Chart
+        if '_proportion' in self.ip['version']:
+            proportion_chart = True
+            version = self.ip['version'][:-11]
+        else:
+            proportion_chart = False
+            version = self.ip['version']
+
+        # Extract the specific information for this chart from the dictionaries above
+        self.ip['title'] = title_dict[version]
+        categories = category_dict[version]
+        afsc_num_dict_s = afsc_num_dict[version]
+        baseline_p = baseline_dict[version]
+
+        # Legend elements
+        self.c['legend_elements'] = []
+        for cat in categories[::-1]:  # Flip the legend
+            color = self.ip['bar_colors'][cat]
+            self.c['legend_elements'].append(Patch(facecolor=color, label=cat, edgecolor='black'))
+
+        # Calculate y-axis attributes
+        if proportion_chart:
+
+            # Get y axis characteristics
+            self.c['use_calculated_y_max'] = True
+            self.c['y_ticks'] = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+            self.c['y_label'] = "Proportion of Cadets"
+            self.c['y_max'] *= 1.03  # expand it a little
+            self.ip['legend_size'] = self.ip['proportion_legend_size']  # Change the size of the legend
+            self.ip['ncol'] = len(p['race_categories'])  # Adjust number of columns for legend
+            self.ip['text_bar_threshold'] = self.ip['proportion_text_bar_threshold']  # Adjust this threshold
+
+            # Baseline
+            if len(categories) == 2:
+                self.c['legend_elements'].append(mlines.Line2D([], [], color="black", linestyle='--', label="Baseline"))
+                self.ax.axhline(y=p[baseline_p], color='black', linestyle='--', alpha=1, zorder=4)
+                self.c['y_ticks'] = [0, round(p[baseline_p], 2), 1]
+        else:
+            self.determine_y_max_and_y_ticks()
+            self.c['y_label'] = "Number of Cadets"
+
+        # Loop through each category and AFSC pair
+        quantities, proportions = {}, {}
+        for cat in categories:
+            quantities[cat], proportions[cat] = np.zeros(self.c['M']), np.zeros(self.c['M'])
+            for idx, j in enumerate(self.c['J']):
+                cadets = np.intersect1d(p['I^' + cat], solution['cadets_assigned'][j])
+
+                # Load metrics
+                quantities[cat][idx] = int(len(cadets))
+                proportions[cat][idx] = len(cadets) / len(solution['cadets_assigned'][j])
+
+        # Loop through each AFSC to add the text above the bars
+        for idx, j in enumerate(self.c['J']):
+
+            # Get the text for the top of the bar
+            txt = str(solution[afsc_num_dict_s][j])
+            if txt[0] == '0' and txt != '0.0':
+                txt = txt[1:]
+            elif txt == 'nan':
+                txt = ''
+
+            # Add the text
+            if proportion_chart:
+                self.ax.text(idx, 1.005, txt, verticalalignment='bottom', fontsize=self.ip["text_size"],
+                             horizontalalignment='center')
+            else:
+                self.ax.text(idx, solution['count'][j] + 2, txt, verticalalignment='bottom',
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+
+        # Plot the data
+        totals = np.zeros(self.c['M'])
+        for cat in quantities:
+            color = self.ip['bar_colors'][cat]
+
+            if proportion_chart:
+                self.ax.bar(range(self.c['M']), proportions[cat], bottom=totals, color=color, zorder=2,
+                            edgecolor='black')
+                totals += proportions[cat]
+            else:
+                self.ax.bar(range(self.c['M']), quantities[cat], bottom=totals, color=color, zorder=2,
+                            edgecolor='black')
+                totals += quantities[cat]
+
+            # If it's a dark color, change text color to white
+            if 'Black' in cat or "Male" in cat:
+                text_color = 'white'
+            else:
+                text_color = 'black'
+
+            # Put a number on the bar
+            for idx, j in enumerate(self.c['J']):
+                if proportion_chart:
+                    if proportions[cat][idx] >= self.ip['text_bar_threshold'] / max(solution['count']):
+
+                        # Rotate triple digit text
+                        if quantities[cat][idx] >= 100:
+                            rotation = 90
+                        else:
+                            rotation = 0
+
+                        # Place the text
+                        self.ax.text(idx, (totals[idx] - proportions[cat][idx] / 2), int(quantities[cat][idx]),
+                                     color=text_color, zorder=2, fontsize=self.ip["text_size"],
+                                     horizontalalignment='center', verticalalignment='center', rotation=rotation)
+                else:
+                    if proportions[cat][idx] >= self.ip['text_bar_threshold'] / max(solution['count']):
+
+                        # Place the text
+                        self.ax.text(idx, (totals[idx] - quantities[cat][idx] / 2), int(quantities[cat][idx]),
+                                     color=text_color, zorder=2, fontsize=self.ip["text_size"],
+                                     horizontalalignment='center', verticalalignment='center')
+
     def results_degree_tier_chart(self):
         """
         Builds the degree tier results chart
@@ -1190,8 +1381,6 @@ class AFSCsChart:
 
         # Get the title
         self.ip["title"] = self.ip["objective"] + " Proportion Across Each AFSC"
-        if self.ip["solution_in_title"]:
-            self.ip['title'] = self.solution_name + ": " + self.ip['title']
 
         # Set the max for the y-axis
         self.c['use_calculated_y_max'] = True
@@ -1259,10 +1448,8 @@ class AFSCsChart:
 
         if self.ip["version"] == "dot":
 
-            # Get the title and filename
+            # Get the title and label
             self.ip["title"] = "Percent of PGL Target Met Across Each AFSC"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
             self.c['y_label'] = "Percent of PGL Target Met"  # Manual change from objective label dictionary
 
             # Set the max for the y-axis
@@ -1344,10 +1531,8 @@ class AFSCsChart:
 
         else:  # quantity_bar
 
-            # Get the title and filename
+            # Get the title and label
             self.ip["title"] = "Number of Cadets Assigned to Each AFSC against PGL"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
             self.c['y_label'] = self.label_dict[self.ip["objective"]]
 
             # Calculate y-axis attributes
@@ -1415,6 +1600,7 @@ class AFSCsChart:
 
                     # Legend (and colors)
                     self.c['legend_elements'] = []
+                    self.ip['legend_size'] = int(self.ip['legend_size'] * 0.7)
                     colors = {}
                     for choice in range(p['P'])[:10]:
                         colors[str(choice + 1)] = self.ip['choice_colors'][choice + 1]
@@ -1478,9 +1664,7 @@ class AFSCsChart:
                         else:
                             counts["top_choices"][index] += 1
 
-            # Set title and label
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
+            # Set label
             self.c['y_label'] = "Number of Cadets"
 
             # Calculate y-axis attributes
@@ -1509,10 +1693,8 @@ class AFSCsChart:
 
         elif self.ip["version"] in ["dot", "bar"]:
 
-            # Get the title and filename
+            # Get the title
             self.ip["title"] = self.label_dict[self.ip["objective"]] + " Across Each AFSC"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
 
             # Average Utility Chart (simple)
             self.c['y_ticks'] = [0, 0.2, 0.4, 0.6, 0.8, 1]
@@ -1527,10 +1709,8 @@ class AFSCsChart:
 
         elif self.ip["version"] == "quantity_bar_gradient":
 
-            # Get the title and filename
+            # Get the title and label
             self.ip["title"] = "Cadet Satisfaction Breakdown Across Each AFSC"
-            if self.ip["solution_in_title"]:
-                self.ip['title'] = self.solution_name + ": " + self.ip['title']
             self.c['y_label'] = 'Number of Cadets'
 
             # Calculate y-axis attributes
@@ -1538,6 +1718,235 @@ class AFSCsChart:
 
             # Build the gradient chart
             self.construct_gradient_chart(parameter_to_use='cadet_utility')
+
+    def results_norm_score_chart(self):
+        """
+        This method constructs the different charts showing the "Norm Score" objective
+        """
+
+        # Shorthand
+        p, vp, solution = self.parameters, self.value_parameters, self.solution
+        k, quota, measure = self.c['k'], p['pgl'][self.c['J']], self.c['measure']
+        colors, afscs = np.array([self.ip["bar_color"] for _ in self.c['J']]), self.c['afscs']
+
+        if self.ip["version"] == "bar":
+
+            # Get the title and label
+            self.ip["title"] = "Normalized Score Across Each AFSC"
+
+            # Y-axis
+            self.c['use_calculated_y_max'] = True
+            self.c['y_max'] = self.ip['y_max']
+            self.c['y_ticks'] = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+
+            # Add the text
+            for j in range(self.c['M']):
+
+                # Add the text
+                self.ax.text(j, measure[j] + 0.013, round(measure[j], 2),
+                             fontsize=self.ip["text_size"], horizontalalignment='center')
+
+            # Bar Chart
+            self.ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=self.ip["alpha"])
+
+
+class AccessionsGroupChart:
+    def __init__(self, instance):
+        """
+        This is a class dedicated to creating "Accessions Group Charts" which are all charts
+        that include the "accessions groups" on the x-axis alongside the basline. This is meant to condense the amount
+        of code and increase read-ability of the various kinds of charts.
+        """
+
+        # Load attributes
+        self.parameters = instance.parameters
+        self.value_parameters, self.vp_name = instance.value_parameters, instance.vp_name
+        self.ip = instance.mdl_p  # "instance plot parameters"
+        self.solution, self.solution_name = instance.solution, instance.solution_name
+        self.data_name, self.data_version = instance.data_name, instance.data_version
+
+        # Dictionaries of instance components (sets of value parameters, solutions)
+        self.vp_dict, self.solutions = instance.vp_dict, instance.solutions
+
+        # Initialize the matplotlib figure/axes
+        self.fig, self.ax = plt.subplots(figsize=self.ip['figsize'], facecolor=self.ip['facecolor'], tight_layout=True,
+                                         dpi=self.ip['dpi'])
+
+        # Label dictionary for AFSC objectives
+        self.label_dict = copy.deepcopy(afccp.core.globals.obj_label_dict)
+
+        # Where to save the chart
+        self.paths = {"Data": instance.export_paths["Analysis & Results"] + "Data Charts/",
+                      "Solution": instance.export_paths["Analysis & Results"] + self.solution_name + "/",
+                      "Comparison": instance.export_paths["Analysis & Results"] + "Comparison Charts/"}
+
+        # Initialize "c" dictionary (specific chart parameters)
+        self.c = {"x_labels": ["All Cadets"]}
+        for acc_grp in self.parameters['afscs_acc_grp']:
+            self.c['x_labels'].append(acc_grp)
+        self.c['g'] = len(self.c['x_labels'])
+
+    def build(self, chart_type="Data", printing=True):
+        """
+        Builds the specific chart based on what the user passes within the "instance plot parameters" (ip)
+        """
+
+        # Determine what kind of chart we're showing
+        if chart_type == "Data":  # "Before Solution" chart
+            pass
+
+        elif chart_type == "Solution":  # Solution chart
+            self.results_demographic_chart()
+
+        # Put the solution name in the title if specified
+        if self.ip["solution_in_title"]:
+            self.ip['title'] = self.solution['name'] + ": " + self.ip['title']
+
+        # Display title
+        if self.ip['display_title']:
+            self.fig.suptitle(self.ip['title'], fontsize=self.ip['title_size'])
+
+        # Labels
+        self.ax.set_ylabel(self.c["y_label"])
+        self.ax.yaxis.label.set_size(self.ip['label_size_acc'])
+        self.ax.set_xlabel('Accessions Group')
+        self.ax.xaxis.label.set_size(self.ip['label_size_acc'])
+
+        # Color the x-axis labels
+        if self.ip["color_afsc_text_by_grp"]:
+            label_colors = [self.ip['bar_colors'][grp] for grp in self.c['x_labels']]
+        else:
+            label_colors = ["black" for _ in self.c['x_labels']]
+
+        # X axis
+        self.ax.tick_params(axis='x', labelsize=self.ip['xaxis_tick_size'])
+        self.ax.set_xticklabels(self.c['x_labels'])
+
+        # Unique label colors potentially based on accessions group
+        for index, xtick in enumerate(self.ax.get_xticklabels()):
+            xtick.set_color(label_colors[index])
+
+        # Y axis
+        self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
+        self.ax.set(ylim=(0, self.ip["y_max"] * 1.03))
+
+        # Legend
+        if self.c['legend_elements'] is not None:
+            self.ax.legend(handles=self.c["legend_elements"], edgecolor='black', loc=self.ip['legend_loc'],
+                           fontsize=self.ip['acc_legend_size'], ncol=self.ip['ncol'], labelspacing=1, handlelength=0.8,
+                           handletextpad=0.2, borderpad=0.2, handleheight=2)
+
+        # Get the filename
+        if self.ip["filename"] is None:
+            self.ip["filename"] = self.data_name + " (" + self.data_version + ") " + self.solution['name'] + \
+                                  " Accessions Group [" + self.ip['version'] + "] (Results).png"
+
+        # Save the chart
+        if self.ip['save']:
+            self.fig.savefig(self.paths[chart_type] + self.ip["filename"])
+
+            if printing:
+                print("Saved", self.ip["filename"], "Chart to " + self.paths[chart_type] + ".")
+        else:
+            if printing:
+                print("Created", self.ip["filename"], "Chart.")
+
+        # Return the chart
+        return self.fig
+
+    def results_demographic_chart(self):
+        """
+        Displays a demographic breakdown across accessions groups
+        """
+
+        # Shorthand
+        p, vp, solution = self.parameters, self.value_parameters, self.solution
+
+        # Update certain things that apply to all versions of this kind of chart
+        self.c['y_label'] = 'Proportion of Cadets'
+
+        # Category Dictionary
+        category_dict = {"Race Chart": p['race_categories'], 'Ethnicity Chart': p['ethnicity_categories'],
+                         'Gender Chart': ['Male', 'Female'], 'SOC Chart': ['USAFA', 'ROTC']}
+        title_dict = {"Race Chart": 'Racial Demographics Across Each Accessions Group',
+                      'Ethnicity Chart': 'Ethnicity Demographics Across Each Accessions Group',
+                      'Gender Chart': 'Gender Breakdown Across Each Accessions Group',
+                      'SOC Chart': 'Source of Commissioning Breakdown Across Each Accessions Group'}
+        baseline_num_dict = {"Race Chart": "baseline_simpson_index", "Ethnicity Chart": "baseline_simpson_index_eth",
+                             "Gender Chart": "male_proportion", "SOC Chart": "usafa_proportion"}
+        acc_grp_num_dict = {"Race Chart": "simpson_index_", "Ethnicity Chart": "simpson_index_eth_",
+                            "Gender Chart": "male_proportion_", "SOC Chart": "usafa_proportion_"}
+
+        # Extract the specific information for this chart from the dictionaries above
+        self.ip['title'] = title_dict[self.ip['version']]
+        categories = category_dict[self.ip['version']]
+        baseline_p = baseline_num_dict[self.ip['version']]
+        acc_grp_num_dict_s = acc_grp_num_dict[self.ip['version']]
+
+        # Legend elements
+        self.c['legend_elements'] = []
+        for cat in categories[::-1]:  # Flip the legend
+            color = self.ip['bar_colors'][cat]
+            self.c['legend_elements'].append(Patch(facecolor=color, label=cat, edgecolor='black'))
+
+        # Baseline
+        if len(categories) == 2:
+            self.c['legend_elements'].append(mlines.Line2D([], [], color="black", linestyle='--', label="Baseline"))
+            self.ax.axhline(y=p[baseline_p], color='black', linestyle='--', zorder=4)
+            self.c['y_ticks'] = [0, round(p[baseline_p], 2), 1]
+
+        self.ip['ncol'] = len(self.c['legend_elements'])  # Adjust number of columns for legend
+
+        # Loop through each category and accessions group pair
+        quantities, proportions = {}, {}
+        for cat in categories:
+            quantities[cat], proportions[cat] = np.zeros(self.c['g']), np.zeros(self.c['g'])
+            for idx, grp in enumerate(self.c['x_labels']):
+
+                # Get metrics from this category group in this accessions group
+                if grp == "All Cadets":
+                    cadets = p['I^' + cat]
+
+                    # Load metrics
+                    quantities[cat][idx] = int(len(cadets))
+                    proportions[cat][idx] = len(cadets) / p['N']
+                else:
+                    cadets = np.intersect1d(p['I^' + cat], solution['I^' + grp])
+
+                    # Load metrics
+                    quantities[cat][idx] = int(len(cadets))
+                    proportions[cat][idx] = len(cadets) / len(solution['I^' + grp])
+
+        # Loop through each accession group to add the text above the bars
+        for idx, grp in enumerate(self.c['x_labels']):
+            if grp == "All Cadets":
+                txt = str(round(p[baseline_p], 2))
+            else:
+                txt = str(solution[acc_grp_num_dict_s + grp])
+            self.ax.text(idx, 1.005, txt, verticalalignment='bottom', fontsize=self.ip["acc_text_size"],
+                         horizontalalignment='center')
+
+        # Plot the data
+        totals = np.zeros(self.c['g'])
+        for cat in quantities:
+            color = self.ip['bar_colors'][cat]
+            self.ax.bar(self.c['x_labels'], proportions[cat], bottom=totals, color=color, zorder=2, edgecolor='black')
+            totals += proportions[cat]
+
+            # Put a number on the bar
+            for idx in range(self.c['g']):
+                if proportions[cat][idx] >= self.ip['acc_text_bar_threshold'] / max(solution['count']):
+
+                    # If it's a dark color, change text color to white
+                    if 'Black' in cat or "Male" in cat:
+                        text_color = 'white'
+                    else:
+                        text_color = 'black'
+
+                    # Place the text
+                    self.ax.text(idx, (totals[idx] - proportions[cat][idx] / 2), int(quantities[cat][idx]),
+                                 color=text_color, zorder=2, fontsize=self.ip["acc_bar_text_size"],
+                                 horizontalalignment='center', verticalalignment='center')
 
 
 class ValueFunctionChart:
@@ -1633,7 +2042,7 @@ def individual_weight_graph(instance):
     """
 
     # Shorthand
-    p, vp, ip = instance.parameters, instance.value_parameters, instance.plt_p
+    p, vp, ip = instance.parameters, instance.value_parameters, instance.mdl_p
 
     # Initialize figure and title
     if ip["title"] is None:
@@ -1645,8 +2054,12 @@ def individual_weight_graph(instance):
         title = ip["title"]
 
     # Build figure
-    fig, ax = plt.subplots(figsize=ip["figsize"], facecolor=ip["facecolor"], dpi=ip["dpi"], tight_layout=True)
     if ip["cadets_graph"]:
+
+        # Cadets Graph
+        fig, ax = plt.subplots(figsize=ip["square_figsize"], facecolor=ip["facecolor"], dpi=ip["dpi"],
+                               tight_layout=True)
+        # ax.set_aspect('equal', adjustable='box')
 
         # Get x and y coordinates
         if 'merit_all' in p:
@@ -1665,16 +2078,20 @@ def individual_weight_graph(instance):
         ax.xaxis.label.set_size(ip["label_size"])
 
         # Ticks
-        x_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
-        ax.set_xticklabels(x_ticks, fontname='Times New Roman')
+        # x_ticks = [0, 0.2, 0.4, 0.6, 0.8, 1]
+        # ax.set_xticklabels(x_ticks, fontname='Times New Roman')
         ax.tick_params(axis='x', labelsize=ip["xaxis_tick_size"])
         ax.tick_params(axis='y', labelsize=ip["yaxis_tick_size"])
 
         # Margins
-        ax.margins(x=0)
-        ax.margins(y=0)
+        ax.set(xlim=(-0.02, 1.02))
+        # ax.margins(x=0)
+        # ax.margins(y=0)
 
     else:  # AFSC Chart
+
+        # AFSCs Graph
+        fig, ax = plt.subplots(figsize=ip["figsize"], facecolor=ip["facecolor"], dpi=ip["dpi"], tight_layout=True)
 
         # Labels
         ax.set_ylabel('AFSC Weight')
@@ -1703,7 +2120,7 @@ def individual_weight_graph(instance):
         ax.set_title(title, fontsize=ip["label_size"])
 
     if ip["save"]:
-        fig.savefig(afccp.core.globals.paths['figures'] + instance.data_name + "/value parameters/" + title + '.png',
+        fig.savefig(instance.export_paths['Analysis & Results'] + 'Value Parameters/' + title + '.png',
                     bbox_inches='tight')
 
     return fig

@@ -54,18 +54,25 @@ def initialize_instance_functional_parameters(N):
         # Generic Chart Handling
         "save": True, "figsize": (19, 10), "facecolor": "white", "title": None, "filename": None, "display_title": True,
         "label_size": 25, "afsc_tick_size": 20, "yaxis_tick_size": 25, "bar_text_size": 15, "xaxis_tick_size": 20,
-        "afsc_rotation": None, "bar_color": "black", "alpha": 1, "legend_size": 25,  "title_size": 25,
-        "text_size": 20, 'text_bar_threshold': 15, 'dot_size': 35, 'legend_dot_size': 15, 'ncol': 1,
+        "afsc_rotation": None, "bar_color": "#3287cd", "alpha": 1, "legend_size": 25,  "title_size": 25,
+        "text_size": 15, 'text_bar_threshold': 400, 'dot_size': 35, 'legend_dot_size': 15, 'ncol': 1,
+        "color_afsc_text_by_grp": True, "proportion_legend_size": 15, 'proportion_text_bar_threshold': 10,
+        "square_figsize": (11, 10),
 
         # AFSC Chart Elements
         "eligibility": True, "eligibility_limit": None, "skip_afscs": None, "all_afscs": True, "y_max": 1.1,
         "y_exact_max": None, "preference_chart": False, "preference_proportion": False, "dot_chart": False,
         "sort_by_pgl": True, "solution_in_title": True, "afsc": None, "only_desired_graphs": True,
-        'add_legend_afsc_chart': True, 'legend_loc': 'upper right',
+        'add_legend_afsc_chart': True, 'legend_loc': 'upper right', "add_bound_lines": False,
+        "large_afsc_distinction": False,
+
+        # Accessions Chart Elements
+        "label_size_acc": 25, "acc_text_size": 25, "acc_bar_text_size": 25, "acc_legend_size": 15,
+        "acc_text_bar_threshold": 10,
 
         # Macro Chart Controls
         "cadets_graph": True, "data_graph": "AFOCD Data", "results_graph": "Measure", "objective": "Merit",
-        "version": "bar",
+        "version": "bar", "macro_chart_kind": "AFSC",
 
         # Similarity Chart Elements
         "sim_dot_size": 220, "new_similarity_matrix": True, 'default_sim_color': 'black',
@@ -104,7 +111,8 @@ def initialize_instance_functional_parameters(N):
         # Pyomo General Parameters
         "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
         "executable": None, "exe_extension": False, "assignment_model_obj": "Global Utility",
-        're_calculate_x': True, 'ussf_merit_bound': 0.03,
+        're_calculate_x': True, 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': True,
+        'ussf_soc_pgl_constraint_bound': 0.01,
 
         # VFT Model Parameters
         "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,
@@ -131,14 +139,23 @@ def initialize_instance_functional_parameters(N):
 
         # Subset of charts I actually really care about
         "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
+                           ("Norm Score", "bar"),
                            ("Utility", "quantity_bar_proportion"), ("Utility", "quantity_bar_choice"),
-                           ("USAFA Proportion", "bar"), ("Merit", "bar"), ("USAFA Proportion", "quantity_bar_proportion"),
-                           ("Male", "quantity_bar_proportion"), ("USAFA Proportion", "preference_chart"),
-                           ("Male", "preference_chart"), ("Male", "bar")],
+                           ("Merit", "bar"), ("USAFA Proportion", "quantity_bar_proportion"),
+                           ("USAFA Proportion", "preference_chart"), ("Male", "preference_chart"),
+                           ('Extra', 'Race Chart'),
+                           ('Extra', 'Race Chart_proportion'), ('Extra', 'Ethnicity Chart'),
+                           ('Extra', 'Ethnicity Chart_proportion'), ('Extra', 'Gender Chart'),
+                           ('Extra', 'Gender Chart_proportion'), ('Extra', 'SOC Chart'),
+                           ('Extra', 'SOC Chart_proportion')],
 
         "desired_comparison_charts": [('Utility', 'median_preference'), ('Combined Quota', 'dot'), ('Utility', 'dot'),
-                                      ('Norm Score', 'dot'), ('Merit', 'dot'), ('Tier 1', 'dot'),
-                                      ('USAFA Proportion', 'dot'), ('Male', 'dot'), ('Utility', 'mean_preference')]
+                                      ('Norm Score', 'dot'), ('Merit', 'dot'), ('Tier 1', 'dot'), ('Extra', 'Race Chart'),
+                                      ('USAFA Proportion', 'dot'), ('Male', 'dot'), ('Utility', 'mean_preference')],
+
+        'desired_other_charts': [("Accessions Group", "Race Chart"), ("Accessions Group", "Gender Chart"),
+                                 ("Accessions Group", "SOC Chart"), ("Accessions Group", "Ethnicity Chart")]
+
     }
 
     # AFSC Measure Chart Versions
@@ -150,7 +167,10 @@ def initialize_instance_functional_parameters(N):
                            "Utility": ["bar", "quantity_bar_gradient", "quantity_bar_proportion", "quantity_bar_choice"],
                            "Mandatory": ["dot"], "Desired": ["dot"], "Permitted": ["dot"],
                            "Tier 1": ["dot"], "Tier 2": ["dot"], "Tier 3": ["dot"], "Tier 4": ["dot"],
-                           "Norm Score": ["dot", "quantity_bar_proportion"]}
+                           "Norm Score": ["dot", "quantity_bar_proportion", "bar"],
+                           'Extra': ['Race Chart', 'Race Chart_proportion', 'Gender Chart', 'SOC Chart',
+                                     'Ethnicity Chart', 'Gender Chart_proportion', 'SOC Chart_proportion',
+                                     'Ethnicity Chart_proportion']}
 
     # Colors for the various bar types:
     colors = {
@@ -175,12 +195,26 @@ def initialize_instance_functional_parameters(N):
 
         # PGL Charts
         "pgl": "#5490f0", "surplus": "#eef09e", "failed_pgl": "#f25d50",
+
+        # Race Colors
+        "American Indian/Alaska Native": "#d46013", "Asian": "#3ad413",
+        "Black or African American": "#1100ff", "Native Hawaiian/Pacific Islander": "#d4c013",
+        "Two or more races": "#ff0026", "Unknown": "#27dbe8", "White": "#a3a3a2",
+
+        # Gender/SOC written differently (need to fix this later)
+        "Male": "#6531d6", "Female": "#73d631", "USAFA": "#5ea0bf", "ROTC": "#cc9460",
+
+        # Accessions group colors
+        "All Cadets": "#000000", "Rated": "#ff0011", "USSF": "#0015ff", "NRL": "#000000",
+
+        "Hispanic or Latino": "#66d4ce", "Not Hispanic": "#e09758", "Unknown Ethnicity": "#9e9e9e"
+
     }
 
     # Animation Colors
-    choice_colors = {1: '#3700ff', 2: '#008dff', 3: '#00e7ff', 4: '#00ff8a', 5: '#00ff10',
-                     6: '#b4ff00', 7: '#f8fe01', 8: '#ffa100', 9: '#ff5d00', 10: '#ff1c00'}
-    mdl_p['all_other_choice_colors'] = '#ff000a'
+    choice_colors = {1: '#3700ff', 2: '#008dff', 3: '#00e7ff', 4: '#00FF93', 5: '#17FF00',  # #00ff04
+                     6: '#BDFF00', 7: '#FFFF00', 8: '#FFCD00', 9: '#FF8700', 10: '#FF5100'}
+    mdl_p['all_other_choice_colors'] = '#FF0000'
     mdl_p['choice_colors'] = choice_colors
     mdl_p['interest_colors'] = {'High': '#3700ff', 'Med': '#dad725', 'Low': '#ff9100', 'None': '#ff000a'}
     mdl_p['reserved_slot_color'] = "#ac9853"

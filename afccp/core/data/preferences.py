@@ -39,7 +39,7 @@ def get_utility_preferences_from_preference_array(parameters):
     preference_matrix = copy.deepcopy(p["c_pref_matrix"])
     preferences = np.array([[" " * 10 for _ in range(p['P'])] for _ in range(p['N'])])
     utilities_array = np.zeros([p['N'], p['P']])
-    for i in range(p['N']):
+    for i in p['I']:
 
         # Eliminate AFSCs that weren't in the cadet's preference list (Change the choice to a large #)
         zero_indices = np.where(preference_matrix[i, :] == 0)[0]
@@ -425,6 +425,39 @@ def update_preference_matrices(parameters):
         p['a_pref_matrix'] = np.zeros([p['N'], p['M']]).astype(int)
         for j in p['J']:
             p['a_pref_matrix'][p['afsc_preferences'][j], j] = np.arange(1, len(p['afsc_preferences'][j]) + 1)
+
+    return p
+
+
+def update_cadet_utility_matrices(parameters):
+    """
+    This method takes in the "Util_1 -> Util_P" columns from Cadets.csv and updates the utility matrices
+    accordingly
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Simple error checking
+    required_parameters = ['cadet_preferences', 'c_utilities']
+    for param in required_parameters:
+        if param not in p:
+            raise ValueError("Error. Parameter '" + param + "' not in instance parameters. It is required.")
+
+    # Initialize matrix (reported cadet utility)
+    p['utility'] = np.zeros((p['N'], p['M'] + 1))  # Additional column for unmatched cadets
+
+    # Loop through each cadet
+    for i in p['I']:
+
+        # List of ordered AFSC indices (by cadet preference) up to the number of utilities
+        afsc_indices = p['cadet_preferences'][i][:p['num_util']]
+
+        # Fill in the reported utilities
+        p['utility'][i, afsc_indices] = p['c_utilities'][i, :]
+
+    # Create the "cadet_utility" matrix by re-calculating utility based on ordinal rankings
+    p = create_new_cadet_utility_matrix(p)
 
     return p
 

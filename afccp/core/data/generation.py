@@ -306,24 +306,24 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
 
             maximum, minimum, actual = None, None, None
             if objective == 'Norm Score':
-                vp['objective_weight'][j, k] = np.random.rand() * 0.2 + 0.3
+                vp['objective_weight'][j, k] = (np.random.rand() * 0.2 + 0.3) * 100  # Scale up to 100
                 vp['value_functions'][j, k] = 'Min Increasing|0.3'
                 vp['objective_target'][j, k] = 1
 
             if objective == 'Merit':
-                vp['objective_weight'][j, k] = np.random.rand() * 0.4 + 0.05
+                vp['objective_weight'][j, k] = (np.random.rand() * 0.4 + 0.05) * 100
                 vp['value_functions'][j, k] = 'Min Increasing|-0.3'
                 vp['objective_target'][j, k] = p['sum_merit'] / p['N']
                 actual = np.mean(p['merit'][p['I^E'][j]])
 
             elif objective == 'USAFA Proportion':
-                vp['objective_weight'][j, k] = np.random.rand() * 0.3 + 0.05
+                vp['objective_weight'][j, k] = (np.random.rand() * 0.3 + 0.05) * 100
                 vp['value_functions'][j, k] = 'Balance|0.15, 0.15, 0.1, 0.08, 0.08, 0.1, 0.6'
                 vp['objective_target'][j, k] = p['usafa_proportion']
                 actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
 
             elif objective == 'Combined Quota':
-                vp['objective_weight'][j, k] = np.random.rand() * 0.8 + 0.2
+                vp['objective_weight'][j, k] = (np.random.rand() * 0.8 + 0.2) * 100
                 vp['value_functions'][j, k] = 'Quota_Normal|0.2, 0.25, 0.2'
                 vp['objective_target'][j, k] = p['quota_d'][j]
 
@@ -351,13 +351,13 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
                                                   str(int(p['quota_max'][j]))
 
             elif objective == 'Male':
-                vp['objective_weight'][j, k] = np.random.rand() * 0.25
+                vp['objective_weight'][j, k] = (np.random.rand() * 0.25) * 100
                 vp['value_functions'][j, k] = 'Balance|0.15, 0.15, 0.1, 0.08, 0.08, 0.1, 0.6'
                 vp['objective_target'][j, k] = p['male_proportion']
                 actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
 
             elif objective == 'Minority':
-                vp['objective_weight'][j, k] = np.random.rand() * 0.25
+                vp['objective_weight'][j, k] = (np.random.rand() * 0.25) * 100
                 vp['value_functions'][j, k] = 'Balance|0.15, 0.15, 0.1, 0.08, 0.08, 0.1, 0.6'
                 vp['objective_target'][j, k] = p['minority_proportion']
                 actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])

@@ -143,13 +143,17 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             model_type = 'approximate'
         else:
             model_type = 'exact'
-        print_str = "Measured " + model_type + " VFT objective value: " + str(round(solution['z'], 4))
+        if 'name' in solution:
+            print_str = "Solution Evaluated: " + solution['name'] + "."
+        else:
+            print_str = "New Solution Evaluated."
+        print_str += "\nMeasured " + model_type + " VFT objective value: " + str(round(solution['z'], 4))
         if 'z^gu' in solution:
-            print_str += ". Global Utility Score: " + str(round(solution['z^gu'], 4))
+            print_str += ".\nGlobal Utility Score: " + str(round(solution['z^gu'], 4))
         print_str += ". " + solution['cadets_fixed_correctly'] + ' AFSCs fixed. ' + \
                      solution['cadets_reserved_correctly'] + ' AFSCs reserved'
         if 'num_blocking_pairs' in solution:
-            print_str += ". Blocking pairs: " + str(solution['num_blocking_pairs'])
+            print_str += ".\nBlocking pairs: " + str(solution['num_blocking_pairs'])
         print_str += ". Unmatched cadets: " + str(solution["num_unmatched"])
         print_str += ". Ineligible cadets: " + str(solution['num_ineligible']) + "."
         print(print_str)
@@ -468,6 +472,30 @@ def calculate_additional_useful_metrics(solution, p, vp):
     quota_k = np.where(vp['objectives'] == 'Combined Quota')[0][0]
     solution['count'] = solution['objective_measure'][:, quota_k]
 
+    # Assigned cadets
+    solution['cadets_assigned'] = {j: np.where(solution['j_array'] == j)[0] for j in p['J']}
+
+    # Cadets assigned to each accession group
+    con_acc_grp_numerator = 0
+    con_acc_grp_denominator = 0
+    for acc_grp in p['afscs_acc_grp']:
+        solution['I^' + acc_grp] = np.array([i for i in p['I'] if solution['j_array'][i] in p['J^' + acc_grp]])
+
+        # Determine if we constrained Accessions groups properly
+        if "I^" + acc_grp in p:
+            acc_grp_constrained = len(p['I^' + acc_grp])
+
+            # Calculate metrics if we actually constrained some people from this group
+            if acc_grp_constrained > 0:
+                acc_grp_correct = len(np.intersect1d(p['I^' + acc_grp], solution['I^' + acc_grp]))
+                con_acc_grp_numerator += acc_grp_correct
+                con_acc_grp_denominator += acc_grp_constrained
+    solution['constrained_acc_grp_target'] = str(con_acc_grp_numerator) + " / " + str(con_acc_grp_denominator)
+
+    # Air Force Cadets
+    if 'USSF' in p['afscs_acc_grp']:
+        solution['I^USAF'] = np.array([i for i in p['I'] if i not in solution['I^USSF']])
+
     # Calculate USSF Merit Distribution
     solution['ussf_om'] = 0  # Just to have something to show
     if 'USSF' in p['afscs_acc_grp']:
@@ -483,13 +511,25 @@ def calculate_additional_useful_metrics(solution, p, vp):
         solution['ussf_cadets'] = np.array([i for i in p['I'] if solution['j_array'][i] in p['J^USSF']])
         solution['usaf_cadets'] = np.array([i for i in p['I'] if solution['j_array'][i] not in p['J^USSF']])
 
-        # Calculate cadet utility based on service
-        solution['ussf_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][solution['ussf_cadets']]), 4)
-        solution['usaf_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][solution['usaf_cadets']]), 4)
+        # Calculate cadet/AFSC utility relative to USSF/USAF cadets
+        for service in ['ussf', 'usaf']:
+            for entity in ['cadet', 'afsc']:
 
-        # Calculate AFSC utility based on service
-        solution['ussf_afsc_utility'] = round(np.mean(solution['afsc_utility_achieved'][solution['ussf_cadets']]), 4)
-        solution['usaf_afsc_utility'] = round(np.mean(solution['afsc_utility_achieved'][solution['usaf_cadets']]), 4)
+                if len(solution[service + '_cadets']) > 0:
+                    solution[service + '_' + entity + '_utility'] = round(
+                        np.mean(solution[entity + '_utility_achieved'][solution[service + '_cadets']]), 4)
+                else:
+                    solution[service + '_' + entity + '_utility'] = 0
+
+        # USSF SOC Breakout
+        solution['ussf_usafa_cadets'] = np.intersect1d(solution['ussf_cadets'], p['usafa_cadets'])
+        solution['ussf_rotc_cadets'] = np.intersect1d(solution['ussf_cadets'], p['rotc_cadets'])
+        solution['ussf_usafa_cadets_count'] = len(solution['ussf_usafa_cadets'])
+        solution['ussf_rotc_cadets_count'] = len(solution['ussf_rotc_cadets'])
+
+        # Metrics that will be printed to excel
+        solution['ussf_usafa_pgl_target'] = str(solution['ussf_usafa_cadets_count']) + " / " + str(p['ussf_usafa_pgl'])
+        solution['ussf_rotc_pgl_target'] = str(solution['ussf_rotc_cadets_count']) + " / " + str(p['ussf_rotc_pgl'])
 
     # Calculate weighted average AFSC choice (based on Norm Score)
     if 'Norm Score' in vp['objectives']:
@@ -519,6 +559,84 @@ def calculate_additional_useful_metrics(solution, p, vp):
         new_weights = new_weights / sum(new_weights)
         solution['objective_score'][k] = np.dot(new_weights, solution['objective_value'][:, k])
 
+    # SOC/Gender proportions across AFSCs
+    solution['usafa_proportion_afscs'] = np.array(
+        [round(np.mean(p['usafa'][solution['cadets_assigned'][j]]), 2) for j in p['J']])
+    if 'male' in p:
+        solution['male_proportion_afscs'] = np.array(
+            [round(np.mean(p['male'][solution['cadets_assigned'][j]]), 2) for j in p['J']])
+
+    # SOC/Gender proportions across each Accession group
+    for acc_grp in p['afscs_acc_grp']:
+        if len(solution['I^' + acc_grp]) > 0:
+            solution['usafa_proportion_' + acc_grp] = np.around(np.mean(p['usafa'][solution['I^' + acc_grp]]), 2)
+            if 'male' in p:
+                solution['male_proportion_' + acc_grp] = np.around(np.mean(p['male'][solution['I^' + acc_grp]]), 2)
+
+    # Simpson index
+    if 'race' in p:
+        races = p['race_categories']  # Shorthand (easier to type)
+
+        # Calculate Simpson diversity index for each AFSC
+        solution['simpson_index'] = np.zeros(p['M'])  # Initialize index array for all the AFSCs
+        for j in p['J']:
+            n = solution['count'][j]  # Just grabbing "n" as the number of cadets assigned to this AFSC
+
+            # "AFSC Cadets Race" dictionary of the number of cadets that were assigned to this AFSC from each race
+            acr = {race: len(np.intersect1d(p['I^' + race], solution['cadets_assigned'][j])) for race in races}
+
+            # Calculate simpson diversity index for this AFSC
+            solution['simpson_index'][j] = round(1 - np.sum([(acr[r] * (acr[r] - 1)) / (n * (n - 1)) for r in races]), 2)
+
+        # Calculate Simpson diversity index for each Accessions Group
+        for acc_grp in p['afscs_acc_grp']:
+            n = len(solution['I^' + acc_grp])  # Just grabbing "n" as the number of cadets assigned to this acc group
+
+            # "Accessions Cadets Race" dictionary of the number of cadets that were assigned to this grp from each race
+            acr = {race: len(np.intersect1d(p['I^' + race], solution['I^' + acc_grp])) for race in races}
+
+            # Calculate simpson diversity index for this accessions group
+            try:
+                solution['simpson_index_' + acc_grp] = round(1 - np.sum(
+                    [(acr[r] * (acr[r] - 1)) / (n * (n - 1)) for r in races]), 2)
+            except:
+                solution['simpson_index_' + acc_grp] = 0
+
+    # Simpson index (Ethnicity)
+    if 'ethnicity' in p:
+        eths = p['ethnicity_categories']  # Shorthand (easier to type)
+
+        # Calculate Simpson diversity index for each AFSC
+        solution['simpson_index_eth'] = np.zeros(p['M'])  # Initialize index array for all the AFSCs
+        for j in p['J']:
+            n = solution['count'][j]  # Just grabbing "n" as the number of cadets assigned to this AFSC
+
+            # "AFSC Cadets Ethnicity" dictionary of the number of cadets that were assigned to this AFSC from each eth
+            ace = {eth: len(np.intersect1d(p['I^' + eth], solution['cadets_assigned'][j])) for eth in eths}
+
+            # Calculate simpson diversity index for this AFSC
+            solution['simpson_index_eth'][j] = round(
+                1 - np.sum([(ace[eth] * (ace[eth] - 1)) / (n * (n - 1)) for eth in eths]), 2)
+
+        # Calculate Simpson diversity index for each Accessions Group
+        for acc_grp in p['afscs_acc_grp']:
+            n = len(
+                solution['I^' + acc_grp])  # Just grabbing "n" as the number of cadets assigned to this acc group
+
+            # "Accessions Cadets Ethnicity" dictionary of the number of cadets that were assigned to this grp/from eth
+            ace = {eth: len(np.intersect1d(p['I^' + eth], solution['I^' + acc_grp])) for eth in eths}
+
+            # Calculate simpson diversity index for this accessions group
+            try:
+                solution['simpson_index_eth_' + acc_grp] = round(1 - np.sum(
+                    [(ace[eth] * (ace[eth] - 1)) / (n * (n - 1)) for eth in eths]), 2)
+            except:
+                solution['simpson_index_eth_' + acc_grp] = 0
+
+    # Calculate STEM proportions in each AFSC
+    if 'stem' in p:
+        pass
+
     # Initialize dictionaries for cadet choice based on demographics
     dd = {"usafa": ["USAFA", "ROTC"], "male": ["Male", "Female"]}  # Demographic Dictionary
     demographic_dict = {cat: [dd[cat][0], dd[cat][1]] for cat in dd if cat in p}  # Demographic Dictionary (For this instance)
@@ -526,6 +644,15 @@ def calculate_additional_useful_metrics(solution, p, vp):
     for cat in demographic_dict:
         for dem in demographic_dict[cat]:
             solution["choice_counts"][dem] = {}
+
+    # Top 3 Choices from USSF and USAF (and ROTC/USAFA)
+    if 'USSF' in p['afscs_acc_grp']:
+        for cat in ['USSF', 'USAF']:
+            arr = np.array([i for i in solution['I^' + cat] if solution['j_array'][i] in p['cadet_preferences'][i][:3]])
+            solution['top_3_' + cat.lower() + '_count'] = round(len(arr) / len(solution['I^' + cat]), 4)
+    for cat in ['USAFA', 'ROTC']:
+        arr = np.array([i for i in p['I^' + cat] if solution['j_array'][i] in p['cadet_preferences'][i][:3]])
+        solution['top_3_' + cat.lower() + '_count'] = round(len(arr) / len(p['I^' + cat]), 4)
 
     # Initialize arrays within the choice dictionaries for the AFSCs
     choice_categories = ["Top 3", "Next 3", "All Others", "Total"]

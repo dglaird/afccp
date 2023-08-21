@@ -156,7 +156,8 @@ def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
     afscs_df = afscs_df.fillna('')
 
     # Initialize dictionary translating 'AFSCs' df columns to their parameter counterparts
-    afsc_columns_to_parameters = {"AFSC": "afscs", "Accessions Group": "acc_grp", "USAFA Target": "usafa_quota",
+    afsc_columns_to_parameters = {"AFSC": "afscs", "Accessions Group": "acc_grp", "STEM": 'afscs_stem',
+                                  "USAFA Target": "usafa_quota",
                                   "ROTC Target": "rotc_quota", "PGL Target": "pgl", "Estimated": "quota_e",
                                   "Desired": "quota_d", "Min": "quota_min", "Max": "quota_max"}
 
@@ -204,7 +205,8 @@ def import_cadets_data(import_filepaths, parameters):
     cadet_columns_to_parameters = {"Cadet": "cadets", 'Male': 'male', 'Minority': 'minority', 'Race': 'race',
                                    "Ethnicity": "ethnicity", 'USAFA': 'usafa', 'ASC1': 'asc1', 'ASC2': 'asc2',
                                    'CIP1': 'cip1', 'CIP2': 'cip2', 'Merit': 'merit', 'Real Merit': 'merit_all',
-                                   "Assigned": "assigned"}
+                                   "Assigned": "assigned", "STEM": "stem", "Accessions Group": "acc_grp_constraint",
+                                   "SF OM": "sf_om"}
 
     # Loop through each column in the 'Cadets' dataframe to put it into the p dictionary
     for col in cadets_df.columns:
@@ -602,7 +604,8 @@ def export_afscs_data(instance):
     p = instance.parameters
 
     # Initialize dictionary translating AFSC parameters to their "AFSCs" df column counterparts
-    afsc_parameters_to_columns = {"afscs": "AFSC", "acc_grp": "Accessions Group", "usafa_quota": "USAFA Target",
+    afsc_parameters_to_columns = {"afscs": "AFSC", "acc_grp": "Accessions Group", "afscs_stem": "STEM",
+                                  "usafa_quota": "USAFA Target",
                                   "rotc_quota": "ROTC Target", "pgl": "PGL Target", "quota_e": "Estimated",
                                   "quota_d": "Desired", "quota_min": "Min", "quota_max": "Max"}
 
@@ -655,10 +658,11 @@ def export_cadets_data(instance):
     p = instance.parameters
 
     # Initialize dictionary translating 'AFSCs' df columns to their parameter counterparts
-    cadet_parameters_to_columns = {"cadets": "Cadet", "assigned": "Assigned", 'usafa': 'USAFA', 'male': 'Male',
-                                   'minority': 'Minority', 'race': 'Race', "ethnicity": "Ethnicity",
-                                   'asc1': 'ASC1', 'asc2': 'ASC2', 'cip1': 'CIP1', 'cip2': 'CIP2',
-                                   'merit': 'Merit', 'merit_all': 'Real Merit'}
+    cadet_parameters_to_columns = {"cadets": "Cadet", "assigned": "Assigned", "acc_grp_constraint": "Accessions Group",
+                                   "sf_om": "SF OM", 'usafa': 'USAFA', 'male': 'Male', 'minority': 'Minority',
+                                   'race': 'Race', "ethnicity": "Ethnicity", 'asc1': 'ASC1', 'asc2': 'ASC2',
+                                   'stem': 'STEM', 'cip1': 'CIP1', 'cip2': 'CIP2', 'merit': 'Merit',
+                                   'merit_all': 'Real Merit'}
 
     # Loop through each parameter in the translation dictionary to get "Cadets" dataframe column counterpart
     cadets_columns = {}
@@ -954,7 +958,12 @@ def export_solution_results_excel(instance, filepath):
 
     # Additional solution metrics
     name_metric_dict = {'Blocking Pairs': 'num_blocking_pairs', 'Ineligible Cadets': 'num_ineligible',
-                        'Unmatched Cadets': 'num_unmatched', 'Average Cadet Choice': 'average_cadet_choice',
+                        'Unmatched Cadets': 'num_unmatched',
+                        'Top 3 Choices (Proportion) for USSF': 'top_3_ussf_count',
+                        'Top 3 Choices (Proportion) for USAF': 'top_3_usaf_count',
+                        'Top 3 Choices (Proportion) for USAFA': 'top_3_usafa_count',
+                        'Top 3 Choices (Proportion) for ROTC': 'top_3_rotc_count',
+                        'Average Cadet Choice': 'average_cadet_choice',
                         'Average Normalized AFSC Score': 'weighted_average_afsc_score',
                         'Failed Constraints': 'total_failed_constraints', 'USSF OM': 'ussf_om',
                         'Global Utility': 'z^gu', 'Cadet Utility': 'cadet_utility_overall',
@@ -963,11 +972,28 @@ def export_solution_results_excel(instance, filepath):
                         'USAF Cadet Utility': 'usaf_cadet_utility', 'USSF AFSC Utility': 'ussf_afsc_utility',
                         'USAF AFSC Utility': 'usaf_afsc_utility',
                         'Average Normalized AFSC Score (USSF)': 'weighted_average_ussf_afsc_score',
-                        'Average Normalized AFSC Score (USAF)': 'weighted_average_usaf_afsc_score'}
+                        'Average Normalized AFSC Score (USAF)': 'weighted_average_usaf_afsc_score',
+                        'USAFA USSF Cadets / USAFA USSF PGL': 'ussf_usafa_pgl_target',
+                        'ROTC USSF Cadets / ROTC USSF PGL': 'ussf_rotc_pgl_target',
+                        'Cadets Successfully Constrained to Accessions Group / Total Fixed Accession Group Slots':
+                            'constrained_acc_grp_target',
+                        "Cadets Successfully Constrained to AFSC / Total Fixed AFSC Slots":
+                            'cadets_fixed_correctly',
+                        "Cadets Successfully Reserved to AFSC / Total Reserved AFSC Slots":
+                            'cadets_reserved_correctly'}
+    for acc_grp in p['afscs_acc_grp']:
+        name_metric_dict[acc_grp + " Racial Simpson Index"] = 'simpson_index_' + acc_grp
+
+    # Add these metrics into excel
     for r, name in enumerate(list(name_metric_dict.keys())):
         if name_metric_dict[name] in solution:
-            worksheet.write('F' + str(3 + r), name, cell_format)
-            worksheet.write('G' + str(3 + r), solution[name_metric_dict[name]], cell_format)
+
+            # Sometimes we can't write in a value for a solution metric that is incomplete
+            try:
+                worksheet.write('F' + str(3 + r), name, cell_format)
+                worksheet.write('G' + str(3 + r), solution[name_metric_dict[name]], cell_format)
+            except:
+                pass
 
     # VFT Metrics
     worksheet.write('C4', round(solution['cadets_overall_value'], 4), cell_format)

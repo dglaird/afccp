@@ -176,8 +176,9 @@ class CadetBoardFigure:
         if 'iterations' not in self.solution:
             self.solution_iteration_frame(0, cadets_to_show='cadets_matched', kind='Final Solution')
 
-            # Save frame
-            filepath = self.paths['Analysis & Results'] + self.solution['name'] + '/' + self.b['focus'] + '.png'
+            # Save frame to solution sub-folder with solution name
+            filepath = self.paths['Analysis & Results'] + self.solution['name'] + '/' + self.solution['name'] + ' ' +\
+                       self.b['focus'] + '.png'
             self.fig.savefig(filepath)
 
             if self.printing:

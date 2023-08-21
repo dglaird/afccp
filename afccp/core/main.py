@@ -603,6 +603,19 @@ class CadetCareerProblem:
         # Update parameters
         self.parameters = afccp.core.data.preferences.update_preference_matrices(self.parameters)
 
+    def update_cadet_utility_matrices_from_cadets_data(self):
+        """
+        This method takes in the "Util_1 -> Util_P" columns from Cadets.csv and updates the utility matrices
+        accordingly
+        """
+
+        if self.printing:
+            print("Updating cadet utility matrices ('utility' and 'cadet_utility') from the 'c_utilities' matrix")
+
+        # Update parameters
+        self.parameters = afccp.core.data.preferences.update_cadet_utility_matrices(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
+
     # Adjust Rated Data
     def generate_rated_data(self):
         """
@@ -1346,17 +1359,27 @@ class CadetCareerProblem:
         self.parameters = afccp.core.solutions.handling.incorporate_rated_results_in_parameters(
             self, printing=printing)
 
-    def find_ineligible_cadets(self, fix_it=True):
+    def find_ineligible_cadets(self, solution_name=None, fix_it=True):
         """
         Prints out the ID's of ineligible pairs of cadets/AFSCs
         """
-        if self.solution is None:
-            raise ValueError("No solution activated.")
+
+        if solution_name is None:
+            if self.solution is None:
+                raise ValueError("No solution activated.")
+            else:
+                solution = self.solution['j_array']
+        else:
+            solution = self.solutions[solution_name]['j_array']
 
         # Loop through each cadet to see if they're ineligible for the AFSC they're assigned to
         total_ineligible = 0
-        for i, j in enumerate(self.solution):
+        for i, j in enumerate(solution):
             cadet, afsc = self.parameters['cadets'][i], self.parameters['afscs'][j]
+
+            # Unmatched AFSC
+            if j == self.parameters['M']:
+                continue
 
             # Cadet is not in the set of eligible cadets for this AFSC
             if i not in self.parameters['I^E'][j]:
@@ -1744,6 +1767,10 @@ class CadetCareerProblem:
         self.reset_functional_parameters(p_dict)
         self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self)
 
+        # Make the folder
+        if 'Value Parameters' not in os.listdir(self.export_paths['Analysis & Results']):
+            os.mkdir(self.export_paths['Analysis & Results'] + 'Value Parameters')
+
         if printing:
             if self.mdl_p["cadets_graph"]:
                 print("Creating cadet weight chart...")
@@ -1785,20 +1812,33 @@ class CadetCareerProblem:
             # Evaluate the solutions to get metrics
             self.evaluate_all_solutions(p_dict['solution_names'])
 
-        # Loop through the subset of charts that I actually care about
+        # Loop through the subset of AFSC charts that I actually care about
         charts = []
         for obj, version in self.mdl_p[desired_charts]:
             if printing:
                 print("<Objective '" + obj + "' version '" + version + "'>")
 
             # Build the figure
-            if obj in self.value_parameters['objectives']:
+            if obj in self.value_parameters['objectives'] or obj == 'Extra':
                 p_dict["objective"] = obj
                 p_dict["version"] = version
                 charts.append(self.display_results_graph(p_dict))
-            elif obj != 'Extra':
+            else:
                 if printing:
                     print("Objective '" + obj + "' passed since it isn't in our set of objectives.")
+
+        # Loop through the subset of "other charts" that I care about
+        if self.mdl_p['results_graph'] != "Solution Comparison":  # Only for a solution-specific chart
+            for kind, version in self.mdl_p['desired_other_charts']:
+                if printing:
+                    print("<'Other Charts' '" + kind + "' version '" + version + "'>")
+
+                # Build the figure
+                p_dict['objective'] = "Extra"
+                p_dict["version"] = version
+                p_dict['macro_chart_kind'] = 'Accessions Group'
+                charts.append(self.display_results_graph(p_dict))
+
 
         return charts
 
@@ -1823,11 +1863,22 @@ class CadetCareerProblem:
             self.error_checking('Solution')
             chart_type = 'Solution'
 
-        # Initialize the AFSC Chart object
-        afsc_chart = afccp.core.visualizations.charts.AFSCsChart(self)
+        # Determine which chart to create
+        if self.mdl_p["macro_chart_kind"] == "AFSC":
 
-        # Construct the specific chart
-        return afsc_chart.build(chart_type=chart_type, printing=printing)
+            # Initialize the AFSC Chart object
+            afsc_chart = afccp.core.visualizations.charts.AFSCsChart(self)
+
+            # Construct the specific chart
+            return afsc_chart.build(chart_type=chart_type, printing=printing)
+
+        elif self.mdl_p["macro_chart_kind"] == "Accessions Group":
+
+            # Initialize the AFSC Chart object
+            acc_chart = afccp.core.visualizations.charts.AccessionsGroupChart(self)
+
+            # Construct the specific chart
+            return acc_chart.build(chart_type=chart_type, printing=printing)
 
     def generate_results_slides(self, p_dict={}, printing=None):
         """
@@ -1941,12 +1992,6 @@ class CadetCareerProblem:
         # Compute similarity matrix and then calculate the similarity plot between all the solutions
         self.compute_similarity_matrix(solution_names=p_dict['solution_names'])
         self.similarity_plot(p_dict, folder='Comparison Charts')
-
-        # # Call the function to generate the slides
-        # if afccp.core.globals.use_pptx:
-        #     afccp.core.visualizations.slides.generate_comparison_slides(self)
-        # else:
-        #     print('PPTX library not installed.')
 
         if printing:
             print('Done.')
