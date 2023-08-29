@@ -508,13 +508,19 @@ def update_value_and_weight_functions(instance, num_breakpoints=None):
                 actual = np.mean(p['merit'][p['I^E'][j]])
             if objective in ['USAFA Proportion', 'Male', 'Minority']:
                 actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
-            if objective == 'Combined Quota':
-                minimum, maximum = p['quota_min'][j], p['quota_max'][j]
+            if objective in ['Combined Quota', 'ROTC Quota', 'USAFA Quota']:
+
+                # Dictionaries for getting the right value for the specific quota objective
+                min_dict = {"Combined Quota": 'quota_min', 'ROTC Quota': 'rotc_quota',
+                            'USAFA Quota': 'usafa_quota'}
+                target_dict = {"Combined Quota": 'quota_d', 'ROTC Quota': 'rotc_quota',
+                               'USAFA Quota': 'usafa_quota'}
+                minimum, maximum = int(p[min_dict[objective]][j]), int(p['quota_max'][j])
 
                 # Update minimum values for combined quota objective
                 vp['objective_value_min'][j, k] = str(minimum) + ', ' + str(maximum)
                 vp['objective_min'][j, k], vp['objective_max'][j, k] = minimum, maximum
-                vp['objective_target'][j, k] = p['quota_d'][j]
+                vp['objective_target'][j, k] = p[target_dict[objective]][j]
 
             # If we care about this objective, we load in its value function breakpoints
             if vp['objective_weight'][j, k] != 0:

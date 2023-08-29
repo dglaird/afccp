@@ -106,8 +106,7 @@ class CadetCareerProblem:
 
             # Print statement
             if self.printing:
-                files = [self.import_paths[filename] for filename in self.import_paths]
-                print("Importing '" + data_name + "' instance with datasets:\n", files)
+                print("Importing '" + data_name + "' instance...")
 
             # Initialize dictionary of instance parameters (Information pertaining to cadets and AFSCs)
             self.parameters = {"Qual Type": degree_qual_type}
@@ -1349,12 +1348,15 @@ class CadetCareerProblem:
         return solution
 
     # Solution Handling
-    def incorporate_rated_algorithm_results(self, printing=None):
+    def incorporate_rated_algorithm_results(self, p_dict={}, printing=None):
         """
         Takes the two sets of Rated Matches and Reserves and adds that into the parameters (J^Fixed and J^Reserved)
         """
         if printing is None:
             printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
 
         self.parameters = afccp.core.solutions.handling.incorporate_rated_results_in_parameters(
             self, printing=printing)
@@ -1822,6 +1824,7 @@ class CadetCareerProblem:
             if obj in self.value_parameters['objectives'] or obj == 'Extra':
                 p_dict["objective"] = obj
                 p_dict["version"] = version
+                p_dict['macro_chart_kind'] = 'AFSC Chart'
                 charts.append(self.display_results_graph(p_dict))
             else:
                 if printing:

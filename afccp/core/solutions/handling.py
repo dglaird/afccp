@@ -116,6 +116,24 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             if j in p['J^Reserved'][i]:
                 num_reserved_correctly += 1
 
+    # Alternate list situation
+    if 'J^Special' in p:
+        solution['num_alternates_allowed'] = {}  # Number of cadets with reserved slots that got something else
+        solution[
+            'num_correct_alternates'] = {}  # Number of cadets in the alternate list that correctly received AFSC
+        for j in p['J^Special']:
+            solution['num_alternates_allowed'][j] = len(
+                [i for i in p['I^Reserved'][j] if solution['j_array'][i] != j])
+            solution['num_correct_alternates'][j] = len(
+                [i for i in p['I^Alternate'][j][:solution['num_alternates_allowed'][j]] if
+                 solution['j_array'][i] == j])
+
+        total_allowed = int(np.sum(solution['num_alternates_allowed'][j] for j in p['J^Special']))
+        total_correct = int(np.sum(solution['num_correct_alternates'][j] for j in p['J^Special']))
+        solution['alternate_list_metric'] = str(total_correct) + " / " + str(total_allowed)
+    else:
+        solution['alternate_list_metric'] = "0 / 0"  # Not applicable here
+
     # Verification that AFSCs are being assigned properly to work with J^Fixed and J^Reserved
     num_fixed_needed = len(p['J^Fixed'].keys())
     num_reserved_needed = len(p['J^Reserved'].keys())
@@ -152,6 +170,7 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             print_str += ".\nGlobal Utility Score: " + str(round(solution['z^gu'], 4))
         print_str += ". " + solution['cadets_fixed_correctly'] + ' AFSCs fixed. ' + \
                      solution['cadets_reserved_correctly'] + ' AFSCs reserved'
+        print_str += ". " + solution['alternate_list_metric'] + ' cadets correctly pulled from alternate list'
         if 'num_blocking_pairs' in solution:
             print_str += ".\nBlocking pairs: " + str(solution['num_blocking_pairs'])
         print_str += ". Unmatched cadets: " + str(solution["num_unmatched"])
@@ -435,8 +454,9 @@ def calculate_additional_useful_metrics(solution, p, vp):
             if j in p['J']:
                 solution['cadet_choice'][i] = p['c_pref_matrix'][i, j]  # Assigned cadet choice
 
+                # Cadet is not in the AFSC's preferences
                 if i not in p['afsc_preferences'][j]:
-                    print(i, p['afscs'][j])
+                    print('Cadet', i, 'not in ' + p['afscs'][j] + "'s preferences. This will cause an error.")
                     continue
                 solution['afsc_choice'][i] = np.where(p['afsc_preferences'][j] == i)[0][0] + 1  # Where is the cadet ranked
                 solution['cadet_utility_achieved'][i] = p['cadet_utility'][i, j]
@@ -648,6 +668,13 @@ def calculate_additional_useful_metrics(solution, p, vp):
     # Top 3 Choices from USSF and USAF (and ROTC/USAFA)
     if 'USSF' in p['afscs_acc_grp']:
         for cat in ['USSF', 'USAF']:
+
+            # Might not have anyone assigned from this group
+            if len(solution['I^' + cat]) == 0:
+                solution['top_3_' + cat.lower() + '_count'] = 0
+                continue
+
+            # Calculate actual top 3 count
             arr = np.array([i for i in solution['I^' + cat] if solution['j_array'][i] in p['cadet_preferences'][i][:3]])
             solution['top_3_' + cat.lower() + '_count'] = round(len(arr) / len(solution['I^' + cat]), 4)
     for cat in ['USAFA', 'ROTC']:
@@ -993,8 +1020,12 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
     that had "reserved" slots from the algorithm
     """
 
+    if printing:
+        print("Incorporating rated algorithm results...")
+
     # Shorthand
     p, vp, solutions = instance.parameters, instance.value_parameters, instance.solutions
+    mdl_p = instance.mdl_p
 
     # Make sure we have the solutions from both SOCs with matches and reserves
     for soc in ['USAFA', 'ROTC']:
@@ -1022,6 +1053,56 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
             choice = np.where(p['cadet_preferences'][i] == j)[0][0]
             p['J^Reserved'][i] = p['cadet_preferences'][i][:choice + 1]
             counts["Reserved"][soc] += 1
+
+    # "ALTERNATE LIST" SPECIAL TREATMENT SITUATION
+    if mdl_p['special_afscs_with_alternates'] is not None:
+        p['J^Special'] = np.array(
+            [np.where(p['afscs'] == afsc)[0][0] for afsc in mdl_p['special_afscs_with_alternates']])
+
+        # *Mostly* already defined components of the reserved/matched algorithm idea
+        p['I^Reserved'] = {}  # Indexed set of cadets with reserved slots for each AFSC j
+        p['I^Matched'] = {}  # Indexed set of cadets that were definitively matched to AFSC j
+        p['num_reserved'] = {}  # Number of cadets with reserved slots for each AFSC j
+
+        # Indexed set of cadets (ordered by the AFSC's ranking) on the "alternate" list for each AFSC j
+        p['I^Alternate'] = {}
+
+        # Loop through each "Special" AFSC and develop components for enforcing the "alternate list" concept
+        for j in p['J^Special']:
+
+            # Defined components from above
+            p['I^Reserved'][j] = np.array(
+                [i for i in p['J^Reserved'] if p['cadet_preferences'][i][len(p['J^Reserved'][i]) - 1] == j])
+            p['I^Matched'][j] = np.array([i for i in p['J^Fixed'] if j == p['J^Fixed'][i]])
+            p['num_reserved'][j] = len(p['I^Reserved'][j])
+
+            # Need to get ordered alternate list
+            alternate_count, extra_reserved_count = 0, 0
+            alternates = []
+            for i in p['afsc_preferences'][j]:  # Loop through each cadet in order of the AFSC's preference
+
+                # If this cadet is "next in line" on the AFSC's preference list after the matched/reserved people
+                if i not in p['I^Reserved'][j] and i not in p['I^Matched'][j]:
+
+                    # If this AFSC was the cadet's first choice, we add them to the alternate list
+                    if p['cadet_preferences'][i][0] == j:
+                        alternates.append(i)
+                        alternate_count += 1
+
+                    # This AFSC was not the cadet's first choice, so we make sure they get one of their other choices
+                    elif i not in p['J^Fixed'] and i not in p['J^Reserved']:  # Make sure this is legitimate
+                        extra_reserved_count += 1
+                        choice = np.where(p['cadet_preferences'][i] == j)[0][0]  # Where the cadet ranked AFSC j
+                        p['J^Reserved'][i] = p['cadet_preferences'][i][:choice]  # They have to get a better preference
+
+                # If we've exhausted our alternate list, we're done here!
+                if alternate_count >= p['num_reserved'][j]:
+                    break
+            p['I^Alternate'][j] = np.array(alternates)  # Convert to numpy array
+
+            if printing:
+                print("AFSC '" + p['afscs'][j] + "' alternate list:", p['I^Alternate'][j])
+                print(alternate_count, "alternates;", extra_reserved_count, "extra reserved.")
 
     if printing:
         print_str = "Rated SOC Algorithm Results ["

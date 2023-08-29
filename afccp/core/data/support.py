@@ -112,7 +112,7 @@ def initialize_instance_functional_parameters(N):
         "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
         "executable": None, "exe_extension": False, "assignment_model_obj": "Global Utility",
         're_calculate_x': True, 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': True,
-        'ussf_soc_pgl_constraint_bound': 0.01,
+        'ussf_soc_pgl_constraint_bound': 0.01, 'special_afscs_with_alternates': None,
 
         # VFT Model Parameters
         "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,

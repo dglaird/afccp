@@ -454,7 +454,7 @@ def update_cadet_utility_matrices(parameters):
         afsc_indices = p['cadet_preferences'][i][:p['num_util']]
 
         # Fill in the reported utilities
-        p['utility'][i, afsc_indices] = p['c_utilities'][i, :]
+        p['utility'][i, afsc_indices] = p['c_utilities'][i, :len(afsc_indices)]
 
     # Create the "cadet_utility" matrix by re-calculating utility based on ordinal rankings
     p = create_new_cadet_utility_matrix(p)

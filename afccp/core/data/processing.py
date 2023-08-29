@@ -980,7 +980,9 @@ def export_solution_results_excel(instance, filepath):
                         "Cadets Successfully Constrained to AFSC / Total Fixed AFSC Slots":
                             'cadets_fixed_correctly',
                         "Cadets Successfully Reserved to AFSC / Total Reserved AFSC Slots":
-                            'cadets_reserved_correctly'}
+                            'cadets_reserved_correctly',
+                        "Cadets Successfully Pulled from Alternate List / Total Alternate List Slots":
+                            'alternate_list_metric'}
     for acc_grp in p['afscs_acc_grp']:
         name_metric_dict[acc_grp + " Racial Simpson Index"] = 'simpson_index_' + acc_grp
 
@@ -1094,6 +1096,12 @@ def export_solution_results_excel(instance, filepath):
         # Get the xlsxwriter worksheet object.
         workbook = writer.book
         worksheet = writer.sheets["Solution"]
+
+        # Freeze top row
+        worksheet.freeze_panes(1, 0)
+
+        # Add filter to headers
+        worksheet.autofilter('A1:W' + str(p['N'] + 1))
 
         # Small values good (1, 2, 3, 4, ...) Conditional Formatting
         for c in ['F']:  # AFSC Choice

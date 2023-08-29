@@ -966,6 +966,52 @@ def common_optimization_handling(m, p, vp, mdl_p):
     for i in p['J^Reserved']:
         m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
 
+    # "ALTERNATE LIST" SPECIAL TREATMENT SITUATION
+    if 'J^Special' in p:
+
+        # [1, 2, 3, 4, ..., num_reserved] for each special AFSC
+        a_counts = {j: np.arange(p['num_reserved'][j]).astype(int) + 1 for j in p['J^Special']}
+
+        # Dictionary with (key, value) pair as ("count" (defined above), cadet index)
+        a_cadets = {}
+        for j in p['J^Special']:
+            a_cadets[j] = {}
+            for c in a_counts[j]:
+                a_cadets[j][c] = p['I^Alternate'][j][c - 1]
+
+        # [1, 3, 6, 10, 15, ...] for each special AFSC (cumulative sums)
+        a_cum_sums = {}
+        for j in p['J^Special']:
+            sums = []
+            total = 0
+            for c in a_counts[j]:
+                total += c
+                sums.append(total)
+            a_cum_sums[j] = np.array(sums)  # Convert to numpy array
+
+        # "Alternate Count" variable: 1 if we need "c" # of alternates for AFSC j
+        m.alt = Var(((j, c) for j in p['J^Special'] for c in a_counts[j]), within=Binary)
+
+        # List of constraints we need to enforce this concept
+        m.alternate_list_constraints = ConstraintList()
+        for j in p['J^Special']:  # Loop through each special AFSC to add the constraints we need
+
+            # Number of alternates we need to pull (# Reserved slots - # reserved slots "filled")
+            num_alternates = p['num_reserved'][j] - np.sum(m.x[i, j] for i in p['I^Reserved'][j])
+            m.alternate_list_constraints.add(expr=np.sum(m.x[i, j] for i in p['I^Alternate'][j]) == num_alternates)
+
+            # At most one "Alternate Count" variable can be activated (# of alternates matched)
+            m.alternate_list_constraints.add(expr=np.sum(m.alt[j, c] for c in a_counts[j]) == 1)
+
+            # Defining the "Alternate Count" variable in relation to the number of alternates
+            m.alternate_list_constraints.add(  # Constraint determines which "alt" variable is activated
+                expr=np.sum(a_counts[j][c - 1] * m.alt[j, c] for c in a_counts[j]) == num_alternates)
+
+            # This constraint ensures that the cadets picked from the alternate list are at the top of the list
+            m.alternate_list_constraints.add(expr=np.sum(
+                a_counts[j][c - 1] * m.x[a_cadets[j][c], j] for c in a_counts[j]) == np.sum(
+                a_cum_sums[j][c - 1] * m.alt[j, c] for c in a_counts[j]))
+
     # Cadets may sometimes be constrained to be part of one "Accessions Group" (probably just USSF)
     m.acc_grp_constraints = ConstraintList()
     if 'acc_grp_constraint' in p:
