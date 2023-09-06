@@ -571,6 +571,9 @@ class CadetCareerProblem:
         This method takes the AFSC preference lists and turns them into normalized percentiles for each cadet for each
         AFSC.
         """
+
+        if self.printing:
+            print("Converting AFSC preferences (a_pref_matrix) into percentiles (afsc_utility on AFSCs Utility.csv)...")
         self.parameters = afccp.core.data.preferences.convert_afsc_preferences_to_percentiles(self.parameters)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
@@ -581,6 +584,10 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
+        if printing:
+            print("Removing ineligible cadets based on any of the three eligibility sources "
+                  "(c_pref_matrix, a_pref_matrix, qual)...")
+
         self.parameters = afccp.core.data.preferences.remove_ineligible_cadet_choices(self.parameters, printing=printing)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
@@ -588,6 +595,10 @@ class CadetCareerProblem:
         """
         Updates the preference and utilities columns from c_pref_matrix
         """
+
+        if self.printing:
+            print('Updating cadet columns (Cadets.csv...c_utilities, c_preferences) from the preference matrix '
+                  '(c_pref_matrix)...')
 
         # Update parameters
         self.parameters['c_preferences'], self.parameters['c_utilities'] = \
@@ -598,6 +609,10 @@ class CadetCareerProblem:
         This method takes the preference arrays and re-creates the preference
         matrices based on the cadets/AFSCs on each list
         """
+
+        if self.printing:
+            print("Updating cadet preference matrices from the preference dictionaries. "
+                  "ie. 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preference lists need to omit gaps)")
 
         # Update parameters
         self.parameters = afccp.core.data.preferences.update_preference_matrices(self.parameters)
@@ -632,6 +647,9 @@ class CadetCareerProblem:
         create a combined "1-N" list for the Rated AFSCs. The AFSC preference matrix is updated as well as the
         AFSC preference lists
         """
+
+        if self.printing:
+            print("Integrating rated preferences from OM matrices for each SOC...")
 
         # Generate Rated Preferences
         self.parameters = afccp.core.data.preferences.construct_rated_preferences_from_om_by_soc(self.parameters)
@@ -1834,7 +1852,7 @@ class CadetCareerProblem:
         if self.mdl_p['results_graph'] != "Solution Comparison":  # Only for a solution-specific chart
             for kind, version in self.mdl_p['desired_other_charts']:
                 if printing:
-                    print("<'Other Charts' '" + kind + "' version '" + version + "'>")
+                    print("<Other Charts '" + kind + "' version '" + version + "'>")
 
                 # Build the figure
                 p_dict['objective'] = "Extra"
@@ -1867,7 +1885,7 @@ class CadetCareerProblem:
             chart_type = 'Solution'
 
         # Determine which chart to create
-        if self.mdl_p["macro_chart_kind"] == "AFSC":
+        if self.mdl_p["macro_chart_kind"] == "AFSC Chart":
 
             # Initialize the AFSC Chart object
             afsc_chart = afccp.core.visualizations.charts.AFSCsChart(self)

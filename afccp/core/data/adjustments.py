@@ -902,8 +902,8 @@ def parameter_sanity_check(instance):
                     issue += 1
                     print(issue,
                           "ISSUE: Cadet '" + str(p['cadets'][i]) + "' is on " + soc.upper() +
-                          "'s Rated list (" + soc.upper() + " Rated OM.csv) but is not eligible for any Rated AFSCs. I"
-                                                            " recommend you remove their row from the csv.")
+                          "'s Rated list (" + soc.upper() + " Rated OM.csv) but is not eligible for any Rated AFSCs. "
+                                                            "You need to remove their row from the csv.")
 
     # Validate that the "totals" for minimums/maximums work
     if np.sum(p['pgl']) > p['N']:

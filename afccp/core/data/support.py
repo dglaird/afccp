@@ -72,7 +72,7 @@ def initialize_instance_functional_parameters(N):
 
         # Macro Chart Controls
         "cadets_graph": True, "data_graph": "AFOCD Data", "results_graph": "Measure", "objective": "Merit",
-        "version": "bar", "macro_chart_kind": "AFSC",
+        "version": "bar", "macro_chart_kind": "AFSC Chart",
 
         # Similarity Chart Elements
         "sim_dot_size": 220, "new_similarity_matrix": True, 'default_sim_color': 'black',
