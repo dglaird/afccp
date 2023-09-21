@@ -8,184 +8,6 @@ import afccp.core.globals
 import afccp.core.solutions.handling
 
 # Matching algorithms
-def hand_jam_missiles_fix(instance):
-    """
-    This is the 13N bandaid fix for FY24 NOT RECOMMENDED :P
-    """
-
-    # Shorthand
-    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
-
-    # Run this to get list of rated folks we can't take from
-    print("Running classic HR purely for list of Rated cadets we can't take...")
-    solution = classic_hr(instance, printing=False)
-
-    # These cadets received a Rated AFSC (so we can't put them into 13N)
-    rated_cadets = np.array([i for i in p['I'] if solution['j_array'][i] in p['J^Rated']])
-
-    # Initialize solution dictionary
-    solution = {'method': '13N_HR_LQ_Fix', 'j_array': np.array([p['M'] for _ in p['I']])}
-
-    # Pre-process 13N
-    print('Pre-processing 13N cadets...')
-    j_13N = np.where(p['afscs'] == '13N')[0][0]
-    def preprocess_missiles():
-        """
-        This algorithm purely preprocesses the missiles career field based on preferences for FY24. All 140
-        slots get filled from 13N people who weren't eligible for anything else that we would take from.
-        """
-
-        # Get a list of potential cadets to pre-process into 13N
-        potential_cadets = []
-        for i in p['I']:
-
-            # 13N has to be in top 8 choices and this cannot be a rated cadet
-            if p['c_pref_matrix'][i, j_13N] <= 8 and i not in rated_cadets:
-
-                # Get a list of AFSCs that "disqualify" the potential 13N cadet (62E afscs)
-                j_62E = [j for j in p['J'] if '62E' in p['afscs'][j]]
-
-                # Check to see if this cadet is eligible for any of the above defined AFSCs
-                missiles_potential = True
-                for j in j_62E:
-                    if i in p['I^E'][j]:
-                        missiles_potential = False
-                        break
-
-            # 13N wasn't in the top 6 choices
-            else:
-                missiles_potential = False
-
-            # Cadet is considered for pre-processing
-            if missiles_potential:
-                potential_cadets.append(i)
-
-        # 13N choices
-        potential_cadets = np.array(potential_cadets)  # So we can select a subset of a numpy array using indices below
-        missiles_cadet_pref = 0.40 * p['cadet_utility'][potential_cadets, j_13N] + \
-                              0.60 * p['afsc_utility'][potential_cadets, j_13N]
-
-        # Print statements!
-        print(len(potential_cadets), 'potential 13N cadets.')
-        for choice in np.arange(1, 9):
-            count = len(np.where(p['c_pref_matrix'][potential_cadets, j_13N] == choice)[0])
-            print(count, 'potential cadets had 13N as choice', choice)
-
-        # Sort the list of cadets in order of their preference for 13N
-        sorted_indices = np.argsort(missiles_cadet_pref)[::-1]
-        potential_cadets = potential_cadets[sorted_indices]  # Sorts cadets in order by their preference for 13N
-
-        # Fill 13N cadets until we've met the PGL
-        count = 0
-        for i in potential_cadets:
-            solution['j_array'][i] = j_13N
-            count += 1
-
-            # As soon as we hit the PGL, stop
-            if count == p['pgl'][j_13N]:
-                break
-
-        # Print statements!
-        cadets_13N = np.where(solution['j_array'] == j_13N)[0]
-        print('Average choice of 13N preprocessed cadets:', np.mean(p['c_pref_matrix'][cadets_13N, j_13N]))
-        for choice in np.arange(1, 9):
-            count = len(np.where(p['c_pref_matrix'][cadets_13N, j_13N] == choice)[0])
-            print(count, 'preprocessed cadets had 13N as choice', choice)
-        print('Done.', len(cadets_13N), 'cadets preprocessed to 13N.', p['N'] - len(cadets_13N), 'cadets left.')
-
-        # Return 13N pre-processed solution
-        return solution, cadets_13N
-    solution, cadets_13N = preprocess_missiles()
-
-    # Algorithm initialization
-    total_slots = p[mdl_p['capacity_parameter']]
-
-    # Array to keep track of what AFSC choice in their list the cadets are proposing to (python index at 0)
-    cadet_proposal_choice = np.zeros(p['N']).astype(int)  # Everyone proposes to their first choice initially
-
-    # Begin the simple Hospital/Residents Algorithm (omitting 13N)
-    total_rejections = np.zeros(p['M'])  # Number of rejections for each AFSC
-    total_matched = np.zeros(p['M'])  # Number of accepted cadets for each AFSC
-    total_matched[j_13N] = p['pgl'][j_13N]  # Fixing total matched for 13N
-    exhausted_cadets = []  # Will contain the cadets that have exhausted (been rejected by) all of their preferences
-    iteration = 0  # First iteration of the algorithm
-    while np.sum(total_matched) + len(exhausted_cadets) < p['N'] and iteration < 42:  # Stopping conditions
-
-        # Cadets propose to their top choice that hasn't been rejected
-        exhausted_cadets = np.where(cadet_proposal_choice >= p['num_cadet_choices'])[0]
-        proposals = np.array([p['cadet_preferences'][i][cadet_proposal_choice[i]] if i not in exhausted_cadets
-                              else p['M'] for i in p['I']])
-        for i in cadets_13N:
-            proposals[i] = j_13N  # Fix the 13N people!
-
-        # Print statement!
-        print("\nIteration", iteration + 1)
-        counts = {p['afscs'][j]: len(np.where(proposals == j)[0]) for j in p['J']}
-
-        print('Total Matched', np.sum(total_matched), 'Total Exhausted', len(exhausted_cadets))
-        print('Matched:', total_matched)
-
-        # Initialize matches information for this iteration
-        total_matched = np.zeros(p['M'])
-        total_matched[j_13N] = p['pgl'][j_13N]  # Fixing total matched for 13N
-
-        # AFSCs accept their best cadets and reject the others
-        for j in p['J']:
-
-            # Skip 13N
-            if j == j_13N:
-                for i in proposals:
-
-                    # If the cadet is proposing to 13N, but wasn't preprocessed, we reject them
-                    if proposals[i] == j and i not in cadets_13N:
-
-                        # Essentially "delete" the preference from the cadet's list
-                        cadet_proposal_choice[i] += 1
-                        proposals[i] = p['M']  # index of the unmatched AFSC (*)
-
-                        # Collect additional information
-                        iteration_rejections += 1
-                        total_rejections[j] += 1
-
-            # Loop through their preferred cadets from top to bottom
-            iteration_rejections = 0
-            for i in p['afsc_preferences'][j]:
-
-                # If this is a 13N cadet, ignore them (tough...better luck next time, cadet!)
-                if i in cadets_13N:
-                    continue  # This AFSC is forced to reject them
-
-                # If the cadet is proposing to this AFSC, we have two options
-                if proposals[i] == j:
-
-                    # We haven't hit capacity, so we accept this cadet
-                    if total_matched[j] < total_slots[j]:
-                        total_matched[j] += 1
-
-                    # We're at capacity, so we reject this cadet
-                    else:
-
-                        # Essentially "delete" the preference from the cadet's list
-                        cadet_proposal_choice[i] += 1
-                        proposals[i] = p['M']  # index of the unmatched AFSC (*)
-
-                        # Collect additional information
-                        iteration_rejections += 1
-                        total_rejections[j] += 1
-
-        # Print statement!
-        print('Proposals:', counts)
-        print('Matched', {p['afscs'][j]: int(total_matched[j]) for j in p['J']})
-        print('Rejected', {p['afscs'][j]: int(total_rejections[j]) for j in p['J']})
-
-        iteration += 1 # Next iteration!
-
-    # Return solution
-    solution['j_array'] = proposals
-    solution['afsc_array'] = np.array([p['afscs'][j] for j in solution['j_array']])
-    return solution
-
-
 def classic_hr(instance, capacities=None, printing=True):
     """
     Matches cadets and AFSCs across all rated, space, and NRL positions using the Hospitals/Residents algorithm.
@@ -301,264 +123,12 @@ def classic_hr(instance, capacities=None, printing=True):
         iteration += 1 # Next iteration!
 
     # Last solution iteration
-    solution['iterations']['last_s'] = iteration - 1
+    if mdl_p['collect_solution_iterations']:
+        solution['iterations']['last_s'] = iteration - 1
 
     # Return solution
     solution['j_array'] = proposals
     solution['afsc_array'] = np.array([p['afscs'][j] for j in solution['j_array']])
-    return solution
-
-
-def hr_lower_quota_fix(instance, solution, capacities=None, printing=True):
-    """
-    Insert Chatgpt here
-    """
-
-    impossible_quotas = []
-    cadets_moved = []
-
-    if printing:
-        print("Fixing the H/R algorithm lower quota issue...")
-
-    # Shorthand
-    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
-
-    # Algorithm initialization
-    if capacities is None:
-        total_slots = p[mdl_p['capacity_parameter']]
-    else:  # In case this is used in a genetic algorithm
-        total_slots = capacities
-
-    # Adjust solution method
-    if '13N' not in solution['method']:
-        solution['method'] = 'HR_LQ_Fix'
-
-    # Let's match 62EXE manually
-    matched_rated_cadets = []
-    for i in p['cadet_preferences'].keys():
-        if solution['afsc_array'][i] in [rated_afsc for rated_afsc in p['afscs_acc_grp']['Rated']]:
-            matched_rated_cadets.append(i)
-
-    cadets_desiring_62EXE = []
-    for i in (p['cadet_preferences'].keys()):
-        if i not in matched_rated_cadets and solution['afsc_array'][i] != '32EXE' and solution['afsc_array'][
-            i] != '62E1E1S' and solution['afsc_array'][i] != '62EXE':
-            any_62EXE_pref_cadet = p['cadet_preferences'][i]  # Extract all of the preferences
-            if any(pref == 40 for pref in any_62EXE_pref_cadet):
-                cadets_desiring_62EXE.append(i)
-
-    counter_62EXE = 0 + len(np.where(solution['j_array'] == 40)[0])
-    cadets_to_move = []  # Temporary list to store cadets to move
-    for i in cadets_desiring_62EXE:
-        if i not in cadets_moved:
-            # Get dictionary of cadet preferences for the AFSC that cadet is matched to
-            a = {i: p['c_pref_matrix'][i, solution['j_array'][i]] for i in cadets_desiring_62EXE}
-
-            b = {i: p['c_pref_matrix'][i, 40] for i in cadets_desiring_62EXE}
-
-            # Get dictionary of AFSC preferences on the cadets that were unassigned to this AFSC (but were eligible)
-            c = {i: p['a_pref_matrix'][i, 40] for i in cadets_desiring_62EXE}
-
-            d = {i: b[i] - a[i] for i in cadets_desiring_62EXE}
-            vals = [d[i] for i in cadets_desiring_62EXE]
-
-            minimum_cadets = sorted(cadets_desiring_62EXE, key=lambda x: d[x])
-            for i in minimum_cadets:
-                if counter_62EXE >= p['quota_min'][40]:
-                    break  # Stop adding cadets once the quota_min value is reached
-                cadets_to_move.append(i)
-                counter_62EXE += 1
-                print('counter_total', counter_62EXE)
-                cadet = i
-                current_afsc = p['afscs'][solution['j_array'][i]]
-                solution['j_array'][i] = 40
-                new_afsc = solution['afsc_array'][i] = '62EXE'
-                print('Moved cadet', cadet, 'from', current_afsc, 'to AFSC', new_afsc)
-    counts_62EXE = {40: len(np.where(solution['j_array'] == 40)[0])}
-
-    print(counts_62EXE)
-    # Add the moved cadets to cadets_moved list after the loop. This will also prevent movement of cadets below.
-    cadets_moved.extend(cadets_to_move)
-
-    print(cadets_moved)
-
-    impossible_quotas = []
-
-    # Need to keep track of unfilled AFSCs (from the start)
-    counts = {j: len(np.where(solution['j_array'] == j)[0]) for j in p['J']}
-    percent_of_lower_quota = np.array([counts[j] / total_slots[j] * 100 for j in p['J']])
-    unfilled_j = np.where(percent_of_lower_quota < 98)[0]
-    print(p['afscs'][unfilled_j])
-
-    # Determine which AFSCs we can pull from that aren't rated and are the largest 12 AFSCs
-    j_sorted = np.argsort(p['pgl'])[::-1]
-    j_selects = np.array([j for j in j_sorted if p['afscs'][j] not in p['afscs_acc_grp'][
-        'Rated'] and j != 20 and j != 21 and j != 22 and j != 23 and j != 24 and j != 25 and j != 33 and j != 39 and j != 40 and j != 41])
-
-    # Iterate until all AFSCs are at or over quota
-    iteration = 0
-    cadets_moved = []
-
-    while True:
-        counts = {j: len(np.where(solution['j_array'] == j)[0]) for j in p['J']}
-        percent_of_lower_quota = np.array([counts[j] / total_slots[j] * 100 for j in p['J']])
-        unfilled_j = np.where((percent_of_lower_quota < 98.5) & (~np.isin(p['J'], np.array(impossible_quotas))))[0]
-        unfilled_percent_of_lower_quota = {j: percent_of_lower_quota[j] for j in unfilled_j if
-                                           j not in impossible_quotas}
-        # Check if we have filled all AFSCs to their quotas
-        if len(unfilled_j) == 0 and len(np.where(solution['j_array'] == p['M'])[0]) == 0:
-            break
-        elif len(unfilled_j) != 0:
-            pass
-            # Breaking up the code to show that we only execute this loop in order to force the rest of the unmatched cadets to match.
-            # -------------------------------------------------------------------------------------------------------------#
-        else:
-            # We have met the 98 threshold. Move up to 99 and pull unmatched cadets.
-            unfilled_j = np.where((percent_of_lower_quota < 100) & (~np.isin(p['J'], np.array(impossible_quotas))))[0]
-            unfilled_percent_of_lower_quota = {j: percent_of_lower_quota[j] for j in unfilled_j if
-                                               j not in impossible_quotas}
-            j_u = min(unfilled_percent_of_lower_quota, key=unfilled_percent_of_lower_quota.get)
-            assigned_cadets = np.where(solution['j_array'] == j_u)[0]
-            unmatched_cadets = np.where(solution['j_array'] == p['M'])[0]
-            filtered_cadets = filter(lambda i: (i in unmatched_cadets
-                                                and i in p['I^E'][j_u]
-                                                and i not in assigned_cadets
-                                                and i not in cadets_moved), p['I^E'][j_u])
-
-            # Convert the filter object to a list and store it in potential_cadets
-            potential_cadets = list(filtered_cadets)
-
-            if len(potential_cadets) == 0:
-                impossible_quotas.append(j_u)
-                j_u_index = np.where(unfilled_j == j_u)
-                unfilled_j = np.delete(unfilled_j, j_u_index)
-                if len(unfilled_j) > 0:
-                    continue
-                else:
-                    if len(np.where(solution['j_array'] == p['M'])[0]) == 0:
-                        break
-
-            # Get dictionary of cadet preferences for the AFSC that cadet is matched to (for all unassigned eligible cadets)
-            a = {}
-            for i in potential_cadets:
-                if solution['j_array'][i] in j_selects:
-                    a[i] = p['c_pref_matrix'][i, solution['j_array'][i]]
-                else:
-                    a[i] = 100
-
-            # Get dictionary of cadet preferences for this AFSC of the cadets that were unassigned to this AFSC (but eligible)
-            b = {i: p['c_pref_matrix'][i, j_u] for i in potential_cadets}
-
-            # Get dictionary of AFSC preferences on the cadets that were unassigned to this AFSC (but were eligible)
-            c = {i: p['a_pref_matrix'][i, j_u] for i in potential_cadets}
-
-            # Get cadet(s) that minimize drop in preference between matched and j_u
-            d = {i: b[i] - a[i] for i in potential_cadets}
-            vals = [d[i] for i in potential_cadets]
-            min_val = min(vals)
-            minimum_cadets = [i for i in d if d[i] == min_val]
-
-            # Get dictionary of this AFSC's preference on the "minimum cadets"
-            minimum_cadets_j_u_choice = {i: c[i] for i in minimum_cadets}
-            cadet = min(minimum_cadets_j_u_choice, key=minimum_cadets_j_u_choice.get)
-
-            # Adjust solution and keep track of cadet
-            cadets_moved.append(cadet)
-            current_afsc = p['afscs'][solution['j_array'][cadet]]
-            solution['j_array'][cadet] = j_u
-            solution['afsc_array'][cadet] = p['afscs'][j_u]
-
-            if len(np.where(solution['j_array'] == p['M'])[0]) == 0:
-                break
-
-        # ----------------------------------------------------------------------------------------------------------------------#
-        j_u = min(unfilled_percent_of_lower_quota, key=unfilled_percent_of_lower_quota.get)
-
-        # Check if we have filled all AFSCs to their quotas
-        if len(unfilled_j) == 0 and len(np.where(solution['j_array'] == p['M'])[0]) == 0:
-            break
-
-        # Lists of cadets that were assigned to "j_u"
-        assigned_cadets = np.where(solution['j_array'] == j_u)[0]
-        unmatched_cadets = np.where(solution['j_array'] == p['M'])[0]
-
-        filtered_cadets = filter(lambda i: (i in p['I^E'][j_u]
-                                            and i not in assigned_cadets
-                                            and i not in cadets_moved
-                                            and solution['j_array'][i] in j_selects)
-                                           or (i in unmatched_cadets
-                                               and i in p['I^E'][j_u]
-                                               and i not in assigned_cadets
-                                               and i not in cadets_moved), p['I^E'][j_u])
-
-        # Convert the filter object to a list and store it in potential_cadets
-        potential_cadets = list(filtered_cadets)
-
-        # When we exhaust all possible cadets to move to unfilled AFSCs, remove this AFSC -- it's an impossible quota.
-        if len(potential_cadets) == 0:
-            impossible_quotas.append(j_u)
-            j_u_index = np.where(unfilled_j == j_u)
-            unfilled_j = np.delete(unfilled_j, j_u_index)
-            if len(unfilled_j) > 0:
-                continue
-            else:
-                if len(np.where(solution['j_array'] == p['M'])[0]) == 0:
-                    break
-
-        # Get dictionary of cadet preferences for the AFSC that cadet is matched to (for all unassigned eligible cadets)
-        a = {}
-        for i in potential_cadets:
-            if solution['j_array'][i] in j_selects:
-                a[i] = p['c_pref_matrix'][i, solution['j_array'][i]]
-            else:
-                a[i] = 100
-
-        # Get dictionary of cadet preferences for this AFSC of the cadets that were unassigned to this AFSC (but eligible)
-        b = {i: p['c_pref_matrix'][i, j_u] for i in potential_cadets}
-
-        # Get dictionary of AFSC preferences on the cadets that were unassigned to this AFSC (but were eligible)
-        c = {i: p['a_pref_matrix'][i, j_u] for i in potential_cadets}
-
-        # Get cadet(s) that minimize drop in preference between matched and j_u
-        d = {i: b[i] - a[i] for i in potential_cadets}
-        vals = [d[i] for i in potential_cadets]
-        min_val = min(vals)
-        minimum_cadets = [i for i in d if d[i] == min_val]
-
-        # Get dictionary of this AFSC's preference on the "minimum cadets"
-        minimum_cadets_j_u_choice = {i: c[i] for i in minimum_cadets}
-        cadet = min(minimum_cadets_j_u_choice, key=minimum_cadets_j_u_choice.get)
-
-        # Adjust solution and keep track of cadet
-        cadets_moved.append(cadet)
-        current_afsc = p['afscs'][solution['j_array'][cadet]]
-        solution['j_array'][cadet] = j_u
-        solution['afsc_array'][cadet] = p['afscs'][j_u]
-
-        # Iteration print statement
-        if printing:
-            print('Iteration', iteration, '\n', 'Cadet chosen:', cadet, 'AFSC moved to:', p['afscs'][j_u],
-                  'AFSC moved from:', current_afsc)
-
-        iteration += 1
-        if iteration > 1000:
-            break
-
-    # Final print statement
-    if printing:
-        counts = {j: len(np.where(solution['j_array'] == j)[0]) for j in p['J']}
-        percent_of_lower_quota = np.array([counts[j] / total_slots[j] * 100 for j in p['J']])
-        print('Finished.', iteration, 'iterations processed. Final percent filled:', percent_of_lower_quota)
-        for afsc, j in zip(p['afscs'], p['J']):
-            print(f"AFSC: {afsc}, % Lower Quota: {percent_of_lower_quota[j]}")
-
-    # Get the indices where afsc_solution is equal to '*'
-    indices_with_48 = np.where(solution['j_array'] == 48)[0]
-    indices_with_asterisk = np.where(solution['afsc_array'] == '*')[0]
-    # Print the indices
-    print(indices_with_48)
-    print(indices_with_asterisk)
-
     return solution
 
 
@@ -858,8 +428,8 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
         # Specific matching algorithm print statement
         if mdl_p['ma_printing']:
             print('Proposals:', counts)
-            print('Matched', {p['afscs'][j]: total_matched[j] for j in p['J']})
-            print('Rejected', {p['afscs'][j]: total_rejections[j] for j in p['J']})
+            print('Matched', {p['afscs'][j]: total_matched[j] for j in rated_J})
+            print('Rejected', {p['afscs'][j]: total_rejections[j] for j in rated_J})
 
         # Check exhausted cadets
         exhausted_cadets = []
@@ -870,7 +440,8 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
         iteration += 1 # Next iteration!
 
     # Last solution iteration
-    solution['iterations']['last_s'] = iteration - 1
+    if mdl_p['collect_solution_iterations']:
+        solution['iterations']['last_s'] = iteration - 1
 
     # Collect information on all 3 solutions: reserves, matches, and combined
     solution_reserves['j_array'] = np.zeros(p['N']).astype(int)
@@ -1341,11 +912,15 @@ def genetic_matching_algorithm(instance, printing=False):
 
         # Stopping conditions
         if mdl_p['stopping_conditions'] == 'Time':
-            if (time.perf_counter() - start_time) < mdl_p['gma_max_time']:
+            if (time.perf_counter() - start_time) > mdl_p['gma_max_time']:
                 generating = False
         elif mdl_p['stopping_conditions'] == 'Generations':
             if generation >= mdl_p['gma_num_generations']:
                 generating = False
+
+        # We have no blocking pairs!
+        if fitness[0] == 0:
+            generating = False
 
     if printing:
         print("Final capacities:", population[0])

@@ -8,6 +8,9 @@ import afccp.core.globals
 import afccp.core.data.preferences
 import afccp.core.data.adjustments
 import afccp.core.data.values
+import afccp.core.data.support
+import warnings
+warnings.filterwarnings('ignore')  # prevent red warnings from printing
 
 # Import sdv if it is installed
 if afccp.core.globals.use_sdv:
@@ -256,7 +259,8 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
     # Objective to parameters lookup dictionary (if the parameter is in "p", we include the objective)
     objective_lookups = {'Norm Score': 'a_pref_matrix', 'Merit': 'merit', 'USAFA Proportion': 'usafa',
                          'Combined Quota': 'quota_d', 'USAFA Quota': 'usafa_quota', 'ROTC Quota': 'rotc_quota',
-                         'Utility': 'utility', 'Male': 'male', 'Minority': 'minority'}
+                         'Utility': 'utility', 'Male': 'male', 'Minority': 'minority', 'Mandatory': 'mandatory',
+                         'Desired': 'desired', 'Permitted': 'permitted'}
     for t in ["1", "2", "3", "4"]:  # Add in AFOCD Degree tiers
         objective_lookups["Tier " + t] = "tier " + t
 
@@ -379,4 +383,334 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
         vp['K^A'][j] = np.where(vp['objective_weight'][j] != 0)[0]
 
     return vp
+
+# SDV functions (we may not have the SDV library!)
+if afccp.core.globals.use_sdv:
+
+    from sdv.single_table import CTGANSynthesizer
+    from sdv.metadata import SingleTableMetadata
+    from sdv.sampling import Condition
+
+    def train_ctgan(epochs=1000, printing=True, name='CTGAN_2024'):
+        """
+        Train CTGAN to produce realistic data based on the current "ctgan_data" file in the support sub-folder. This
+        function then saves the ".pkl" file back to the support sub-folder
+        """
+
+        # Import data
+        data = afccp.core.globals.import_csv_data(afccp.core.globals.paths['support'] + 'data/ctgan_data.csv')
+        metadata = SingleTableMetadata()  # SDV requires this now
+        metadata.detect_from_dataframe(data=data)  # get the metadata from dataframe
+
+        # Create the synthesizer model
+        model = CTGANSynthesizer(metadata, epochs=epochs, verbose=True)
+
+        # List of constraints for CTGAN
+        constraints = []
+
+        # Get list of columns that must be between 0 and 1
+        zero_to_one_columns = ["Merit"]
+        for col in data.columns:
+            if "_Cadet" in col or "_AFSC" in col:
+                zero_to_one_columns.append(col)
+
+        # Create the "zero to one" constraints and add them to our list of constraints
+        for col in zero_to_one_columns:
+            zero_to_one_constraint = {"constraint_class": "ScalarRange",
+                                      "constraint_parameters": {
+                                          'column_name': col,
+                                          'low_value': 0,
+                                          'high_value': 1,
+                                          'strict_boundaries': False
+                                      }}
+            constraints.append(zero_to_one_constraint)
+
+        # load the constraints from the file
+        model.load_custom_constraint_classes(
+            filepath='afccp/core/data/custom_ctgan_constraints.py',
+            class_names=['IfROTCNo11XX_U', 'IfUSAFANo11XX_R']
+        )
+
+        # create ROTC constraint using the class
+        rotc_no_11XX_U = {
+            'constraint_class': 'IfROTCNo11XX_U',
+            'constraint_parameters': {
+                'column_names': ['SOC', '11XX_U_Cadet'],
+            }
+        }
+        constraints.append(rotc_no_11XX_U)
+
+        # create USAFA constraint using the class
+        usafa_no_11XX_R = {
+            'constraint_class': 'IfUSAFANo11XX_R',
+            'constraint_parameters': {
+                'column_names': ['SOC', '11XX_R_Cadet'],
+            }
+        }
+        constraints.append(usafa_no_11XX_R)
+
+        # Add the constraints to the model
+        model.add_constraints(constraints)
+
+        # Train the model
+        if printing:
+            print("Training the model...")
+        model.fit(data)
+
+        # Save the model
+        filepath = afccp.core.globals.paths["support"] + name + '.pkl'
+        model.save(filepath)
+        if printing:
+            print("Model saved to", filepath)
+
+    def generate_ctgan_instance(N=1600, name='CTGAN_2024', pilot_condition=False):
+        """
+        This procedure takes in the specified number of cadets and then generates a representative problem
+        instance using CTGAN that has been trained from a real class year of cadets
+        :param pilot_condition: If we want to sample cadets according to pilot preferences
+        (make this more representative)
+        :param name: Name of the CTGAN model to import
+        :param N: number of cadets
+        :return: model fixed parameters
+        """
+
+        # Load in the model
+        filepath = afccp.core.globals.paths["support"] + name + '.pkl'
+        model = CTGANSynthesizer.load(filepath)
+
+        # Split up the number of ROTC/USAFA cadets
+        N_usafa = round(np.random.triangular(0.25, 0.33, 0.4) * N)
+        N_rotc = N - N_usafa
+
+        # Pilot is by far the #1 desired career field, let's make sure this is represented here
+        N_usafa_pilots = round(np.random.triangular(0.3, 0.4, 0.43) * N_usafa)
+        N_usafa_generic = N_usafa - N_usafa_pilots
+        N_rotc_pilots = round(np.random.triangular(0.25, 0.3, 0.33) * N_rotc)
+        N_rotc_generic = N_rotc - N_rotc_pilots
+
+        # Condition the data generated to produce the right composition of pilot first choice preferences
+        usafa_pilot_first_choice = Condition(num_rows = N_usafa_pilots, column_values={'SOC': 'USAFA', '11XX_U_Cadet': 1})
+        usafa_generic_cadets = Condition(num_rows=N_usafa_generic, column_values={'SOC': 'USAFA'})
+        rotc_pilot_first_choice = Condition(num_rows=N_rotc_pilots, column_values={'SOC': 'ROTC', '11XX_R_Cadet': 1})
+        rotc_generic_cadets = Condition(num_rows=N_rotc_generic, column_values={'SOC': 'ROTC'})
+
+        # Sample data  (Sampling from conditions may take too long!)
+        if pilot_condition:
+            data = model.sample_from_conditions(conditions=[usafa_pilot_first_choice, usafa_generic_cadets,
+                                                            rotc_pilot_first_choice, rotc_generic_cadets])
+        else:
+            data = model.sample(N)
+
+        # Extract information from the generated data
+        cadet_utility_cols = [col for col in data.columns if '_Cadet' in col]
+
+        # Get list of AFSCs
+        afscs = np.array([col[:-6] for col in cadet_utility_cols])
+
+        # Initialize parameter dictionary
+        p = {'afscs': afscs, 'N': N, 'P': len(afscs), 'M': len(afscs), 'race': np.array(data['Race']),
+             'ethnicity': np.array(data['Ethnicity']), 'merit': np.array(data['Merit']), 'cadets': np.arange(N),
+             'usafa': np.array(data['SOC'] == 'USAFA') * 1, 'male': np.array(data['Gender'] == 'Male') * 1,
+             'cip1': np.array(data['CIP1']), 'cip2': np.array(data['CIP2']), 'num_util': 10,  # 10 utilities taken
+             'rotc': np.array(data['SOC'] == 'ROTC'), 'I': np.arange(N), 'J': np.arange(len(afscs))}
+
+        # Clean up degree columns (remove the leading "c" I put there if it's there)
+        for i in p['I']:
+            if p['cip1'][i][0] == 'c':
+                p['cip1'][i] = p['cip1'][i][1:]
+            if p['cip2'][i][0] == 'c':
+                p['cip2'][i] = p['cip2'][i][1:]
+
+        # Fix percentiles for USAFA and ROTC
+        re_scaled_om = p['merit']
+        for soc in ['usafa', 'rotc']:
+            indices = np.where(p[soc])[0]  # Indices of these SOC-specific cadets
+            percentiles = p['merit'][indices]  # The percentiles of these cadets
+            N = len(percentiles)  # Number of cadets from this SOC
+            sorted_indices = np.argsort(percentiles)[::-1]  # Sort these percentiles (descending)
+            new_percentiles = (np.arange(N)) / (N - 1)  # New percentiles we want to replace these with
+            magic_indices = np.argsort(sorted_indices)  # Indices that let us put the new percentiles in right place
+            new_percentiles = new_percentiles[magic_indices]  # Put the new percentiles back in the right place
+            np.put(re_scaled_om, indices, new_percentiles)  # Put these new percentiles in combined SOC OM spot
+
+        # Replace merit
+        p['merit'] = re_scaled_om
+
+        # Load in AFSCs data
+        filepath = afccp.core.globals.paths["support"] + 'data/afscs_data.csv'
+        afscs_data = afccp.core.globals.import_csv_data(filepath)
+
+        # Add AFSC features to parameters
+        p['acc_grp'] = np.array(afscs_data['Accessions Group'])
+        p['afscs_stem'] = np.array(afscs_data['STEM'])
+        p['Deg Tiers'] = np.array(afscs_data.loc[:, 'Deg Tier 1': 'Deg Tier 4'])
+
+        # Determine AFSCs by Accessions Group
+        p['afscs_acc_grp'] = {}
+        if 'acc_grp' in p:
+            for acc_grp in ['Rated', 'USSF', 'NRL']:
+                p['J^' + acc_grp] = np.where(p['acc_grp'] == acc_grp)[0]
+                p['afscs_acc_grp'][acc_grp] = p['afscs'][p['J^' + acc_grp]]
+
+        # Useful data elements to help us generate PGL targets
+        usafa_prop, rotc_prop, pgl_prop = np.array(afscs_data['USAFA Proportion']), \
+                                          np.array(afscs_data['ROTC Proportion']), \
+                                          np.array(afscs_data['PGL Proportion'])
+
+        # Total targets needed to distribute
+        total_targets = int(p['N'] * min(0.95, np.random.normal(0.93, 0.08)))
+
+        # PGL targets
+        p['pgl'] = np.zeros(p['M']).astype(int)
+        p['usafa_quota'] = np.zeros(p['M']).astype(int)
+        p['rotc_quota'] = np.zeros(p['M']).astype(int)
+        for j in p['J']:
+
+            # Create the PGL target by sampling from the PGL proportion triangular distribution
+            p_min = max(0, 0.8 * pgl_prop[j])
+            p_max = 1.2 * pgl_prop[j]
+            prop = np.random.triangular(p_min, pgl_prop[j], p_max)
+            p['pgl'][j] = int(max(1, prop * total_targets))
+
+            # Get the ROTC proportion of this PGL target to allocate
+            if rotc_prop[j] in [1, 0]:
+                prop = rotc_prop[j]
+            else:
+                rotc_p_min = max(0, 0.8 * rotc_prop[j])
+                rotc_p_max = min(1, 1.2 * rotc_prop[j])
+                prop = np.random.triangular(rotc_p_min, rotc_prop[j], rotc_p_max)
+
+            # Create the SOC-specific targets
+            p['rotc_quota'][j] = int(prop * p['pgl'][j])
+            p['usafa_quota'][j] = p['pgl'][j] - p['rotc_quota'][j]
+
+        # Initialize the other pieces of information here
+        for param in ['quota_e', 'quota_d', 'quota_min', 'quota_max']:
+            p[param] = p['pgl']
+
+        # Cadet/AFSC initial utility matrices
+        cadet_utility = np.array(data.loc[:, afscs[0] + '_Cadet':afscs[p['M'] - 1] + '_Cadet'])
+        afsc_utility = np.array(data.loc[:, afscs[0] + '_AFSC':afscs[p['M'] - 1] + '_AFSC'])
+
+        # Rated eligibility needs to match from both sources
+        for i in p['I']:
+            for j in p['J^Rated']:
+                if cadet_utility[i, j] == 0:
+                    afsc_utility[i, j] = 0
+                if afsc_utility[i, j] == 0:
+                    cadet_utility[i, j] = 0
+
+        # Get the qual matrix to know what people are eligible for
+        qual = afccp.core.data.support.cip_to_qual_tiers(p['afscs'], p['cip1'], p['cip2'])
+        ineligible = (np.core.defchararray.find(qual, "I") != -1) * 1
+        eligible = (ineligible == 0) * 1
+        J_E = [np.where(eligible[i, :])[0] for i in p['I']]  # set of AFSCs that cadet i is eligible for
+        I_E = [np.where(eligible[:, j])[0] for j in p['J']]  # set of cadets that are eligible for AFSC j
+
+        # Create a default eligibility matrix including everyone
+        p['eligible'] = np.ones((p['N'], p['M']))
+
+        # Create the cadet preferences by sorting the utilities
+        p['cadet_preferences'] = {}
+        p['c_pref_matrix'] = np.zeros([p['N'], p['M']]).astype(int)  # Cadet preference matrix
+        for i in p['I']:
+
+            # Remove AFSC preferences if the cadet isn't eligible for them
+            for j in np.where(cadet_utility[i, :] > 0)[0]:
+                if j not in J_E[i]:
+                    cadet_utility[i, j] = 0
+
+            # Get cadet preferences (list of AFSC indices in order)
+            ineligibles = np.where(cadet_utility[i, :] == 0)[0]
+            num_ineligible = len(ineligibles)  # Ineligibles are going to be at the bottom of the list
+            p['cadet_preferences'][i] = np.argsort(cadet_utility[i, :])[::-1][:p['M'] - num_ineligible]
+
+            # Add AFSCs that this cadet is eligible for if they're not in this cadet's preference list
+            for j in J_E[i]:
+                if j in p['J^NRL']:  # USSF/Rated AFSCs require volunteers
+                    if j not in p['cadet_preferences'][i]:
+                        p['cadet_preferences'][i] = np.hstack((p['cadet_preferences'][i], j))
+
+            # Create cadet preference matrix
+            p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
+
+        # Create the AFSC preferences by sorting the utilities
+        p['afsc_preferences'] = {}
+        p['a_pref_matrix'] = np.zeros([p['N'], p['M']]).astype(int)  # AFSC preference matrix
+        for j in p['J']:
+
+            # Remove cadets from this AFSC's preferences if the cadet is not eligible
+            for i in np.where(afsc_utility[:, j] > 0)[0]:
+                if i not in I_E[j]:
+                    afsc_utility[i, j] = 0
+
+            # Get AFSC preferences (list of cadet indices in order)
+            ineligibles = np.where(afsc_utility[:, j] == 0)[0]
+            num_ineligible = len(ineligibles)  # Ineligibles are going to be at the bottom of the list
+            p['afsc_preferences'][j] = np.argsort(afsc_utility[:, j])[::-1][:p['N'] - num_ineligible]
+
+            # Add cadets that are eligible for this AFSC if they're not on the AFSC's preference list
+            if j in p['J^NRL']:  # USSF/Rated AFSCs require volunteers
+                for i in I_E[j]:
+                    if i not in p['afsc_preferences'][j]:
+                        p['afsc_preferences'][j] = np.hstack((p['afsc_preferences'][j], i))
+
+            # Create AFSC preference matrix
+            p['a_pref_matrix'][p['afsc_preferences'][j], j] = np.arange(1, len(p['afsc_preferences'][j]) + 1)
+
+        # Create "initial" cadet utility matrix from generated utility matrix
+        p['utility'] = np.zeros((p['N'], p['M']))
+        for i in p['I']:
+
+            # Gather top 10 utilities from generated matrix
+            p['utility'][i, p['cadet_preferences'][i][:10]] = np.around(
+                cadet_utility[i, p['cadet_preferences'][i][:10]], 2)
+
+            # First choice is a value of 1
+            p['utility'][i, p['cadet_preferences'][i][0]] = 1
+
+        # Create cadet preference and utility columns for Cadets.csv
+        p['c_preferences'], p['c_utilities'] = \
+            afccp.core.data.preferences.get_utility_preferences_from_preference_array(p)
+
+        # Needed information for rated OM matrices
+        dataset_dict = {'rotc': 'rr_om_matrix', 'usafa': 'ur_om_matrix'}
+        cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
+        p["Rated Cadets"] = {}
+
+        # Create rated OM matrices for each SOC
+        for soc in ['usafa', 'rotc']:
+
+            # Rated AFSCs for this SOC
+            if soc == 'rotc':
+                rated_J_soc = np.array([j for j in p['J^Rated'] if '_U' not in p['afscs'][j]])
+            else:  # usafa
+                rated_J_soc = np.array([j for j in p['J^Rated'] if '_R' not in p['afscs'][j]])
+
+            # Cadets from this SOC
+            soc_cadets = np.where(p[soc])[0]
+
+            # Determine which cadets are eligible for at least one rated AFSC
+            p["Rated Cadets"][soc] = np.array([i for i in soc_cadets if np.sum(p['c_pref_matrix'][i, rated_J_soc]) > 0])
+            p[cadets_dict[soc]] = p["Rated Cadets"][soc]
+
+            # Initialize OM dataset
+            p[dataset_dict[soc]] = np.zeros([len(p["Rated Cadets"][soc]), len(rated_J_soc)])
+
+            # Create OM dataset
+            for col, j in enumerate(rated_J_soc):
+
+                # Get the maximum rank someone had
+                max_rank = np.max(p['a_pref_matrix'][p["Rated Cadets"][soc], j])
+
+                # Loop through each cadet to convert rank to percentile
+                for row, i in enumerate(p["Rated Cadets"][soc]):
+                    rank = p['a_pref_matrix'][i, j]
+                    if rank == 0:
+                        p[dataset_dict[soc]][row, col] = 0
+                    else:
+                        p[dataset_dict[soc]][row, col] = (max_rank - rank + 1) / max_rank
+
+        # Return parameters
+        return p
 

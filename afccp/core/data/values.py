@@ -422,7 +422,10 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
                 elif objective == 'USAFA Proportion':
                     vp['objective_target'][j, k] = p['usafa_proportion']
-                    actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
+                    if len(p['I^E'][j]) == 0:  # In case there are no eligible USAFA cadets
+                        actual = 0
+                    else:
+                        actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
 
                 elif objective == 'Combined Quota':
                     vp['objective_target'][j, k] = p['quota_d'][j]
@@ -443,11 +446,17 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
 
                 elif objective == 'Male':
                     vp['objective_target'][j, k] = p['male_proportion']
-                    actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
+                    if len(p['I^E'][j]) == 0:  # In case there are no eligible male cadets
+                        actual = 0
+                    else:
+                        actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
 
                 elif objective == 'Minority':
                     vp['objective_target'][j, k] = p['minority_proportion']
-                    actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
+                    if len(p['I^E'][j]) == 0:  # In case there are no eligible minority cadets
+                        actual = 0
+                    else:
+                        actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
 
                 # If we care about this objective, we load in its value function breakpoints
                 if vp['objective_weight'][j, k] != 0:

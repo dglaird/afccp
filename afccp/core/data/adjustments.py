@@ -152,6 +152,10 @@ def parameter_sets_additions(parameters):
     # Shorthand
     p = parameters
 
+    # if 'eligible' not in p:
+    #     print("No eligibility matrix here yet. Using dummy matrix for now.")
+    #     p['eligible'] = np.ones((p['N'], p['M']))
+
     # Cadet Indexed Sets
     p['I'] = np.arange(p['N'])
     p['J'] = np.arange(p['M'])

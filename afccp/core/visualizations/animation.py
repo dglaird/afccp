@@ -538,6 +538,8 @@ class CadetBoardFigure:
         # Add the title
         if self.b['b_title'] is None:
             title = "Round 0 (Orientation)"
+        else:
+            title = self.b['b_title']
         self.fig.suptitle(title, fontsize=self.b['b_title_size'], color=self.b['text_color'])
 
         # Add the legend if necessary
@@ -987,6 +989,8 @@ class CadetBoardFigure:
         title_text += ') AFSCs (' + str(self.average_afsc_choice) + '), ' + str(self.num_unmatched) + ' Unmatched.'
 
         # Update the title
+        if self.b['b_title'] is not None:  # We specified a title directly
+            title_text = self.b['b_title']
         self.fig.suptitle(title_text, fontsize=self.b['b_title_size'], color=title_color)
 
     # Export/Save functions

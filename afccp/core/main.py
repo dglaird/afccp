@@ -35,7 +35,8 @@ if afccp.core.globals.use_pptx:
 # Main Problem Class
 class CadetCareerProblem:
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
-                 num_value_function_breakpoints=None, N=1600, M=32, P=6, generate_only_nrl=False, printing=True):
+                 num_value_function_breakpoints=None, N=1600, M=32, P=6, generate_only_nrl=False,
+                 ctgan_model_name='CTGAN_2024', ctgan_pilot_sampling=False, printing=True):
         """
         Represents the AFSC/Cadet matching problem object.
 
@@ -54,11 +55,13 @@ class CadetCareerProblem:
             M (int): Number of AFSCs to generate. Defaults to 32.
             P (int): Number of AFSC preferences to generate for each cadet. Defaults to 6.
             generate_only_nrl (bool): Whether to generate only NRL AFSCs. Defaults to False.
+            ctgan_model_name (str): Name of the CTGAN model to import
+            ctgan_pilot_sampling (bool): Whether we should sample cadets in CTGAN based on the pilot preference condition
             printing (bool): Whether to print status updates or not. Defaults to True.
 
         This class represents the AFSC/Cadet problem object. It can import existing data or generate new instances.
         The data set can be specified by providing the name of the instance folder or using the predefined data types
-        ("Random", "Perfect", "Realistic"). The problem instance includes information about cadets, AFSCs, value parameters,
+        ("Random", "CTGAN"). The problem instance includes information about cadets, AFSCs, value parameters,
         and solutions.
 
         Example usage:
@@ -138,14 +141,14 @@ class CadetCareerProblem:
         else:
 
             # Error Handling (Must be valid data generation parameter)
-            if data_name not in ["Random", "Perfect", "Realistic"]:
+            if data_name not in ["Random", "CTGAN"]:
                 raise ValueError(
                     "Error. Instance name '" + data_name + "' is not a valid instance name. Instances must "
                                                            "be either generated or imported. "
                                                            "(Instance not found in folder).")
 
             # Determine the name of this instance (Random_1, Random_2, etc.)
-            for data_variant in ["Random", "Perfect", "Realistic"]:
+            for data_variant in ["Random", "CTGAN"]:
                 if data_name == data_variant:
 
                     # Determine name of data based on what instances are already in our "instances" folder
@@ -172,21 +175,28 @@ class CadetCareerProblem:
                 if data_name == 'Random':
                     self.parameters = afccp.core.data.generation.generate_random_instance(
                         N, P, M, generate_only_nrl=generate_only_nrl)
+
+                    # Every cadet needs to be eligible for at least one AFSC
+                    for i in range(self.parameters['N']):
+                        if np.sum(self.parameters['eligible'][i, :]) == 0:
+                            invalid = True  # Guilty!
+                            break
+
+                    # Every AFSC needs to have at least one cadet eligible for it
+                    for j in range(self.parameters['M']):
+                        if np.sum(self.parameters['eligible'][:, j]) == 0:
+                            invalid = True  # Guilty!
+                            break
+
+                # Generate a "CTGAN" problem instance
+                elif data_name == "CTGAN":
+                    self.parameters = afccp.core.data.generation.generate_ctgan_instance(
+                        N, name=ctgan_model_name, pilot_condition=ctgan_pilot_sampling)
+
+                # We don't have that type of data available to generate
                 else:
                     raise ValueError("Data type '" + data_name + "' currently not a valid method of generating"
                                                                  " data.")
-
-                # Every cadet needs to be eligible for at least one AFSC
-                for i in range(self.parameters['N']):
-                    if np.sum(self.parameters['eligible'][i, :]) == 0:
-                        invalid = True  # Guilty!
-                        break
-
-                # Every AFSC needs to have at least one cadet eligible for it
-                for j in range(self.parameters['M']):
-                    if np.sum(self.parameters['eligible'][:, j]) == 0:
-                        invalid = True  # Guilty!
-                        break
 
             # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
             self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
@@ -232,13 +242,14 @@ class CadetCareerProblem:
             else:
                 print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
 
-    def solution_handling(self, solution):
+    def solution_handling(self, solution, printing=None):
         """
         Determines what to do with the generated solution. This is a "helper method" and not intended to be called
         directly by the user.
 
         Parameters:
             solution (dict): The solution dictionary containing the solution elements.
+            printing (str): Whether the code should print status updates or not
 
         This method takes a solution dictionary as input and performs the following tasks:
         - Evaluates the solution by calculating additional components.
@@ -250,9 +261,12 @@ class CadetCareerProblem:
         - Updates the solution name and assigns it to the instance.
         """
 
+        if printing is None:
+            printing = self.printing
+
         # Set the solution attribute to the instance (and calculate additional components)
         self.solution = afccp.core.solutions.handling.evaluate_solution(
-            solution, self.parameters, self.value_parameters, printing=self.printing)
+            solution, self.parameters, self.value_parameters, printing=printing)
         self.solution['vp_name'] = self.vp_name  # Name of the value parameters currently evaluating this solution
 
         # Adjust solution method for VFT models
@@ -283,10 +297,16 @@ class CadetCareerProblem:
 
             # Set the name of this solution to be the name of its equivalent that is already in the dictionary
             if p_i == 1:
-                new = False
-                self.solution_name = s_name
-                self.solution['name'] = s_name
-                break
+
+                # If this is an array of unmatched cadets, we count it as unique since it's likely a SOC algorithm
+                if len(np.unique(self.solution['j_array'])) == 1 and self.parameters['M'] in self.solution['j_array']:
+                    pass
+
+                else:
+                    new = False
+                    self.solution_name = s_name
+                    self.solution['name'] = s_name
+                    break
 
         # If it is new, we add it to the dictionary and adjust the name of the activated instance solution
         if new:
@@ -1060,7 +1080,7 @@ class CadetCareerProblem:
 
         # Determine what to do with the solution(s)
         for solution in [reserves, matches, combined]:
-            self.solution_handling(solution)
+            self.solution_handling(solution, printing=False)  # Don't want print updates for this
 
         return solution
 
@@ -1076,48 +1096,6 @@ class CadetCareerProblem:
 
         # Get the solution we need
         solution = afccp.core.solutions.algorithms.classic_hr(self, printing=printing)
-
-        # Determine what to do with the solution
-        self.solution_handling(solution)
-
-        return solution
-
-    def classic_hr_lower_quota(self, p_dict={}, printing=None):
-        """
-        Docstring here
-        """
-        if printing is None:
-            printing = self.printing
-
-        # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
-
-        # Get the solution we need from the classic_hr
-        solution = afccp.core.solutions.algorithms.classic_hr(self, printing=printing)
-
-        # "Complete" the solution by fixing lower_quotas
-        solution = afccp.core.solutions.algorithms.hr_lower_quota_fix(self, solution, printing=printing)
-
-        # Determine what to do with the solution
-        self.solution_handling(solution)
-
-        return solution
-
-    def hand_jam_missiles_fix(self, p_dict={}, printing=None):
-        """
-        Docstring here
-        """
-        if printing is None:
-            printing = self.printing
-
-        # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
-
-        # Get the solution we need from the classic_hr
-        solution = afccp.core.solutions.algorithms.hand_jam_missiles_fix(self)
-
-        # "Complete" the solution by fixing lower_quotas
-        solution = afccp.core.solutions.algorithms.hr_lower_quota_fix(self, solution, printing=printing)
 
         # Determine what to do with the solution
         self.solution_handling(solution)
@@ -1170,10 +1148,10 @@ class CadetCareerProblem:
         # Return the solution
         return solution
 
-    def solve_assignment_pyomo_model(self, p_dict={}, printing=None):
+    def solve_guo_pyomo_model(self, p_dict={}, printing=None):
         """
         Solve the "generalized assignment problem" model with the new global utility matrix constructed
-        from the AFSC and Cadet Utility matrices
+        from the AFSC and Cadet Utility matrices. This is the "GUO" model.
         """
         self.error_checking("Pyomo Model")
         if printing is None:
@@ -1187,7 +1165,7 @@ class CadetCareerProblem:
 
         # Build the model and then solve it
         model = afccp.core.solutions.optimization.assignment_model_build(self, printing=printing)
-        solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "APM", printing=printing)
+        solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "GUO", printing=printing)
 
         # Determine what to do with the solution
         self.solution_handling(solution)
@@ -1355,7 +1333,7 @@ class CadetCareerProblem:
         capacities = afccp.core.solutions.algorithms.genetic_matching_algorithm(self, printing=printing)
 
         # Update capacities in parameters (quota_max or quota_min)
-        p[self.mdl_p['capacity_parameter']] = capacities
+        self.parameters[self.mdl_p['capacity_parameter']] = capacities
 
         # Run the matching algorithm with these capacities
         solution = afccp.core.solutions.algorithms.classic_hr(self, printing=printing)

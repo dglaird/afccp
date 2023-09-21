@@ -161,6 +161,10 @@ class AFSCsChart:
                     if self.ip['version'] in ['Race Chart', 'Gender Chart', 'Ethnicity Chart', 'SOC Chart',
                                               'Race Chart_proportion', 'Gender Chart_proportion',
                                               'Ethnicity Chart_proportion', 'SOC Chart_proportion']:
+
+                        if 'race_categories' not in self.parameters:
+                            return None  # We're not doing this
+
                         self.results_demographic_proportion_chart()
 
             # Get filename
@@ -1796,6 +1800,10 @@ class AccessionsGroupChart:
             pass
 
         elif chart_type == "Solution":  # Solution chart
+
+            if 'race_categories' not in self.parameters:
+                return None  # We're not doing this
+
             self.results_demographic_chart()
 
         # Put the solution name in the title if specified

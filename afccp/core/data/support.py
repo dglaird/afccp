@@ -220,6 +220,7 @@ def initialize_instance_functional_parameters(N):
     mdl_p['reserved_slot_color'] = "#ac9853"
     mdl_p['matched_slot_color'] = "#3700ff"
     mdl_p['unfocused_color'] = "#aaaaaa"
+    mdl_p['unmatched_color'] = "#aaaaaa"
     mdl_p['exception_edge'] = "#FFD700"
     mdl_p['base_edge'] = 'black'
 

@@ -832,6 +832,10 @@ def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True)
         # Proxy for constraint purposes
         numerator = np.sum(p['afsc_utility'][i, j] * x[i, j] for i in p['I^E'][j])
 
+        # Temporary placeholder- need better methodology for calculating Norm Score in "Exact Model"!
+        if type(num_cadets) not in [int, np.int64]:
+            num_cadets = int(p['quota_e'][j])
+
         # Actual objective measure
         best_range = range(num_cadets)
         best_sum = np.sum(c for c in best_range)

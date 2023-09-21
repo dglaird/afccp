@@ -59,18 +59,18 @@ def assignment_model_build(instance, printing=False):
     # Shorthand
     p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
 
-    # *New* Utility/Cost Matrix based on CFM preferences and cadet preferences
+    # *New* Utility/Cost Matrix based on CFM preferences and cadet preferences (GUO model)
     if mdl_p['assignment_model_obj'] == 'Global Utility':
         c = vp['global_utility']
 
         if printing:
-            print("Building assignment problem model...")
+            print("Building assignment problem (GUO) model...")
 
-    # Original Model Utility/Cost Matrix
+    # Original Model Utility/Cost Matrix  (Original model)
     else:
 
         if printing:
-            print("Building original model...")
+            print("Building original assignment problem model...")
 
         c = np.zeros([p['N'], p['M']])
         for i in p['I']:
@@ -968,6 +968,12 @@ def common_optimization_handling(m, p, vp, mdl_p):
 
     # "ALTERNATE LIST" SPECIAL TREATMENT SITUATION
     if 'J^Special' in p:
+
+        # Make sure each special AFSC has an alternate list
+        for j in p['J^Special']:
+            if len(p['I^Alternate'][j]) == 0:
+                raise ValueError("Error. AFSC '" + p['afscs'][j] + "' is a 'special' AFSC with an alternate list "
+                                                                   "specified but there are no cadets in that list.")
 
         # [1, 2, 3, 4, ..., num_reserved] for each special AFSC
         a_counts = {j: np.arange(p['num_reserved'][j]).astype(int) + 1 for j in p['J^Special']}
