@@ -1108,6 +1108,13 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
                 print("AFSC '" + p['afscs'][j] + "' alternate list:", p['I^Alternate'][j])
                 print(alternate_count, "alternates;", extra_reserved_count, "extra reserved.")
 
+    else:
+
+        # Calculate additional rated algorithm result information for both SOCs
+        for soc in ['rotc', 'usafa']:
+            p = augment_rated_algorithm_results(p, soc=soc, printing=printing)
+
+    # Print statement
     if printing:
         print_str = "Rated SOC Algorithm Results ["
         for soc in ['USAFA', 'ROTC']:
@@ -1116,6 +1123,137 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
         print(print_str[:-1] + "]")
 
     return p  # Return the parameters!
+
+def augment_rated_algorithm_results(p, soc='rotc', printing=False):
+    """
+    Analyzes the rated algorithm results and gathers more information to include alternates
+    as well as definitively matching additional people
+    """
+
+    # Start with a full list of cadets eligible for this AFSC
+    possible_cadets = {j: list(p['I^E'][j]) for j in p['J^Rated']}
+
+    # Main algorithm
+    iteration = 0
+    while iteration < 8:
+
+        # Set of cadets reserved or matched to each AFSC
+        p['I^Reserved'] = {j: np.array([i for i in p['J^Reserved'] if p['cadet_preferences'][i][
+            len(p['J^Reserved'][i]) - 1] == j and p[soc][i]]) for j in p['J^Rated']}
+        p['I^Matched'] = {j: np.array([
+            i for i in p['J^Fixed'] if j == p['J^Fixed'][i] and p[soc][i]]) for j in p['J^Rated']}
+
+        # Print Statement
+        if printing:
+            print("Iteration", iteration)
+            print("Possible", {p['afscs'][j]: len(possible_cadets[j]) for j in p['J^Rated']})
+            print("Reserved", {p['afscs'][j]: len(p['I^Reserved'][j]) for j in p['J^Rated']})
+            print("Matched", {p['afscs'][j]: len(p['I^Matched'][j]) for j in p['J^Rated']})
+
+        # Number of alternates (number of reserved slots)
+        num_reserved = {j: len(p['I^Reserved'][j]) for j in p['J^Rated']}
+
+        # Need to determine who falls into each category of alternates
+        hard_alternates = {j: [] for j in p['J^Rated']}
+        soft_r_alternates = {j: [] for j in p['J^Rated']}
+        soft_n_alternates = {j: [] for j in p['J^Rated']}
+        alternates = {j: [] for j in p['J^Rated']}  # all the cadets ordered here
+
+        # Loop through each rated AFSC to determine alternates
+        for j in p['J^Rated']:
+
+            # Loop through each cadet in order of the AFSC's preference from this SOC
+            for i in p['afsc_preferences'][j]:
+                if not p[soc][i]:
+                    continue
+
+                # Assume this cadet is "next in line" until proven otherwise
+                next_in_line = True
+
+                # Is the cadet already fixed to something else?
+                if i in p['J^Fixed']:
+                    next_in_line = False
+
+                # Is this cadet reserved for something?
+                if i in p['J^Reserved']:
+
+                    # If they're already reserved for this AFSC or something better, they're not considered
+                    if len(p['J^Reserved'][i]) <= p['c_pref_matrix'][i, j]:  # <= temporary
+                        next_in_line = False
+
+                # If this cadet is next in line
+                if next_in_line:
+                    alternates[j].append(i)
+
+                    # Loop through the cadet's preferences:
+                    for j_c in p['cadet_preferences'][i]:
+
+                        if j_c == j:
+                            hard_alternates[j].append(i)
+                            break
+                        elif j_c in p['J^Rated']:
+                            if i in possible_cadets[j_c]:
+                                soft_r_alternates[j].append(i)
+                                break
+                            else:
+                                continue
+                        else:
+                            soft_n_alternates[j].append(i)
+                            break
+
+                # We're done with this AFSC after we've exhausted our "hard alternates"
+                if len(hard_alternates[j]) >= num_reserved[j]:
+                    break
+
+        # Loop through each rated AFSC to potentially turn "reserved" slots into "matched" slots
+        for j in p['J^Rated']:
+
+            # Loop through each cadet in order of the AFSC's preference from this SOC
+            for i in p['afsc_preferences'][j]:
+                if not p[soc][i]:
+                    continue
+
+                # Does this cadet have a reserved slot for something?
+                if i in p['J^Reserved']:
+
+                    # Is this cadet reserved for this AFSC?
+                    if len(p['J^Reserved'][i]) == p['c_pref_matrix'][i, j]:
+
+                        # Determine if there's any possible way this cadet might not be matched to this AFSC
+                        inevitable_match = True
+                        for j_c in p['J^Reserved'][i][:-1]:
+                            if j_c not in p['J^Rated']:
+                                inevitable_match = False
+                            else:  # Rated
+                                if i in alternates[j_c]:
+                                    inevitable_match = False
+                                else:
+                                    if i in possible_cadets[j_c]:
+                                        possible_cadets[j_c].remove(i)  # Remove this cadet as a possibility!
+
+                        # If still inevitable, change from reserved to fixed
+                        if inevitable_match:
+                            p['J^Fixed'][i] = j
+                            p['J^Reserved'].pop(i)
+
+        iteration += 1
+
+    # Incorporate alternate lists
+    if 'J^Alternates (Hard)' not in p:
+        p['J^Alternates (Hard)'] = {}
+    if 'J^Alternates (Soft)' not in p:
+        p['J^Alternates (Soft)'] = {}
+    for i in p['I']:
+        if p[soc][i]:
+            for j in p['J^Rated']:
+                if i in hard_alternates[j]:
+                    p['J^Alternates (Hard)'][i] = j
+                elif i in soft_r_alternates[j] or i in soft_n_alternates[j]:
+                    p['J^Alternates (Soft)'][i] = j
+
+    # Return updated parameters (and alternate lists)
+    return p
+
 
 
 

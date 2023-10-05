@@ -1085,10 +1085,9 @@ def common_optimization_handling(m, p, vp, mdl_p):
 
     # Cadet value constraint (Could work on any optimization model)
     m.min_cadet_value_constraints = ConstraintList()
-    for i in p['I']:
-        if vp['cadet_value_min'][i] != 0:
-            m.min_cadet_value_constraints.add(expr=np.sum(
-                p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) >= vp['cadet_value_min'][i])
+    for i in vp['I^C']:
+
+        m.min_cadet_value_constraints.add(expr=np.sum(m.x[i, j] for j in vp['J^Top_Choice'][i]) == 1)
 
     return m  # Return the model
 

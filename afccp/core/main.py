@@ -1357,6 +1357,34 @@ class CadetCareerProblem:
         self.parameters = afccp.core.solutions.handling.incorporate_rated_results_in_parameters(
             self, printing=printing)
 
+        # Shorthand
+        p = self.parameters
+
+        # Temporary stuff
+        if self.mdl_p['create_new_rated_solutions']:
+
+            name_dict = {'Rated Matches': 'J^Fixed', 'Rated Reserves': 'J^Reserved',
+                         'Rated Alternates (Hard)': 'J^Alternates (Hard)',
+                         'Rated Alternates (Soft)': 'J^Alternates (Soft)'}
+            new_solutions = {}
+            for s_name, s_param in name_dict.items():
+                new_solutions[s_name] = {'method': s_name,
+                                         'j_array': np.array([p['M'] for _ in p['I']]),
+                                         'afsc_array': np.array(['*' for _ in p['I']])}
+
+                # Create this solution array
+                for i in p['I']:
+                    if i in p[s_param]:
+                        if s_param == 'J^Reserved':
+                            j = p['J^Reserved'][i][len(p['J^Reserved'][i]) - 1]
+                        else:
+                            j = p[s_param][i]
+                        new_solutions[s_name]['j_array'][i] = j
+                        new_solutions[s_name]['afsc_array'][i] = p['afscs'][j]
+
+                # Integrate this solution
+                self.solution_handling(new_solutions[s_name])
+
     def find_ineligible_cadets(self, solution_name=None, fix_it=True):
         """
         Prints out the ID's of ineligible pairs of cadets/AFSCs

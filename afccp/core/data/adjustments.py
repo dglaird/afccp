@@ -211,8 +211,9 @@ def parameter_sets_additions(parameters):
 
     # USAFA/ROTC cadets
     if 'usafa' in p:
+        p['rotc'] = (p['usafa'] == 0) * 1
         p['usafa_cadets'] = np.where(p['usafa'])[0]
-        p['rotc_cadets'] = np.where(p['usafa'] == 0)[0]
+        p['rotc_cadets'] = np.where(p['rotc'])[0]
 
     # Initialize empty dictionaries of matched/reserved cadets
     p["J^Fixed"] = {}

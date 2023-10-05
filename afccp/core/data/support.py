@@ -97,6 +97,7 @@ def initialize_instance_functional_parameters(N):
         # Matching Algorithm Parameters
         'ma_printing': False, 'capacity_parameter': 'quota_max', 'rotc_rated_board_afsc_order': None,
         'collect_solution_iterations': True, 'soc': 'usafa', 'incorporate_rated_results': True,
+        'create_new_rated_solutions': True,
 
         # Genetic Matching Algorithm Parameters
         "gma_pop_size": 4, 'gma_max_time': 20, 'gma_num_crossover_points': 2, 'gma_mutations': 1,
