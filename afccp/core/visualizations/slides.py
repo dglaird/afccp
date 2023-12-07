@@ -19,38 +19,106 @@ def generate_results_slides(instance):
 
     # Build the presentation object
     prs = Presentation(afccp.core.globals.paths['support'] + 'results_slide_template.pptx')
-    title_slide_layout = prs.slide_layouts[0]
-    # blank_slide_layout = prs.slide_layouts[6]
-    #
-    # # Set width and height of presentation
-    # prs.slide_width = Inches(mdl_p['b_figsize'][0])
-    # prs.slide_height = Inches(mdl_p['b_figsize'][1])
-    #
-    # Add a slide
-    slide = prs.slides.add_slide(title_slide_layout)
 
-    # Add some text
+    # Delete the current slides in the template
+    for i in range(len(prs.slides) - 1, -1, -1):
+        rId = prs.slides._sldIdLst[i].rId
+        prs.part.drop_rel(rId)
+        del prs.slides._sldIdLst[i]
+
+    # Slide Layouts
+    title_slide_layout = prs.slide_layouts[0]
+    content_slide_layout = prs.slide_layouts[1]
+    chart_slide_layout = prs.slide_layouts[2]
+    bubble_slide_layout = prs.slide_layouts[3]
+    closing_slide_layout = prs.slide_layouts[4]
+
+    # Set width and height of presentation
+    prs.slide_width = Inches(mdl_p['b_figsize'][0])
+    prs.slide_height = Inches(mdl_p['b_figsize'][1])
+
+    # Add title slide
+    slide = prs.slides.add_slide(title_slide_layout)
     title = slide.shapes.title
-    # subtitle = slide.placeholders[1]
-    title.text = "Hello, World!"
-    # subtitle.text = "python-pptx was here!"
+    title.text = instance.data_name + " Classification Results (" + instance.solution['name'] + ")"
+    # print(len(slide.placeholders))
+    # print(slide.placeholders)
+    # content = slide.placeholders[1]
+    # content.text = "Rank, Name\nAFPC/DSYA\nTBD"
+
+    # Initial content slide
+    slide = prs.slides.add_slide(content_slide_layout)
+    title = slide.shapes.title
+    title.text = "Overview"
+    content = slide.placeholders[1]
+    content.text = "Here's where the overview goes"
 
     # # Size of the chart
     # top, left = Inches(instance.mdl_p['ch_top']), Inches(instance.mdl_p['ch_left'])
     # height, width = Inches(instance.mdl_p['ch_height']), Inches(instance.mdl_p['ch_width'])
 
     # Size of the chart
-    # top, left = Inches(0), Inches(0)
-    # height, width = Inches(mdl_p['figsize'][1]), Inches(mdl_p['figsize'][0])
-    #
-    # # Get the file paths to all the relevant images
-    # folder_path = instance.export_paths['Analysis & Results'] + instance.solution_name + "/"
-    # folder = os.listdir(folder_path)
-    # chart_paths = {}
-    # for file in folder:
-    #     if instance.solution_name in file and '.png' in file:
-    #         chart_paths[file] = folder_path + file
-    #
+    top, left = Inches(0), Inches(0)
+    height, width = Inches(mdl_p['figsize'][1]), Inches(mdl_p['figsize'][0])
+
+    # Get the file paths to all the relevant images
+    folder_path = instance.export_paths['Analysis & Results'] + instance.solution_name + "/"
+    folder = os.listdir(folder_path)
+    chart_paths = {}
+    for file in folder:
+        if instance.solution_name in file and '.png' in file:
+            chart_paths[file] = folder_path + file
+
+    # Loop through the pictures I want in the order I want
+    chart_text_order = {"PGL": ["Combined Quota", "quantity_bar"], "BUBBLE CHART": ["Cadet Choice.png"],
+                        "SOC by Accessions Group": ["Accessions", "SOC Chart"],
+                        "Gender by Accessions Group": ["Accessions", "Gender Chart"],
+                        "Race by Accessions Group": ["Accessions", "Race Chart"],
+                        "Ethnicity by Accessions Group": ["Accessions", "Ethnicity Chart"],
+                        "SOC by AFSC": ["Extra Measure", "SOC Chart_proportion"],
+                        "Gender by AFSC": ["Extra Measure", "Gender Chart_proportion"],
+                        "Race by AFSC": ["Extra Measure", "Race Chart_proportion"],
+                        "Ethnicity by AFSC": ["Extra Measure", "Ethnicity Chart_proportion"],
+                        "Cadet Preference by AFSC": ["Utility", "quantity_bar_choice"]}
+    for title_text in chart_text_order:
+
+        # Loop through each potential image
+        for file in chart_paths:
+
+            # Determine if this is the image I want here
+            found = True
+            for test_text in chart_text_order[title_text]:
+                if test_text not in file:
+                    found = False
+                    break
+
+            # If this is the file I want, we do things
+            if found:
+
+                # Determine the layout of the chart needed
+                if title_text == "BUBBLE CHART":
+
+                    # Create the bubble chart slide
+                    slide = prs.slides.add_slide(bubble_slide_layout)
+
+                    # Add the image to the slide
+                    for shape in slide.placeholders:
+                        if "Picture" in shape.name:
+                            shape.insert_picture(chart_paths[file])
+                else:
+
+                    # Create the AFSC/Accessions Chart slide
+                    slide = prs.slides.add_slide(chart_slide_layout)
+                    title = slide.shapes.title
+                    title.text = title_text
+
+                    # Add the picture to the slide
+                    slide.shapes.add_picture(chart_paths[file], left, top, height=height, width=width)
+
+                # Break out of this loop since we found the image we want
+                break
+
+
     # # Loop through each image file path to add the image to the presentation
     # for file in chart_paths:
     #
@@ -59,6 +127,9 @@ def generate_results_slides(instance):
     #
     #     # Add the picture to the slide
     #     slide.shapes.add_picture(chart_paths[file], left, top, height=height, width=width)
+
+    # Add closing slide
+    prs.slides.add_slide(closing_slide_layout)
 
     # Save the PowerPoint
     filepath = instance.export_paths['Analysis & Results'] + instance.solution_name + '/' + \

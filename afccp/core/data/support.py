@@ -32,7 +32,7 @@ def initialize_instance_functional_parameters(N):
     # Parameters for the graphs
     mdl_p = {
 
-        # Parameters for the animation (CadetBoardFigure)
+        # Parameters for the animation (BubbleChart)
         'b_figsize': (19, 10), 's': 1, 'fw': 100, 'circle_radius_percent': 0.8,
         'fh_ratio': 0.5, 'bw^t_ratio': 0.05, 'bw^l_ratio': 0, 'bw^r_ratio': 0, 'b_title': None,
         'bw^b_ratio': 0, 'bw^u_ratio': 0.02, 'abw^lr_ratio': 0.01, 'abw^ud_ratio': 0.02, 'b_title_size': 30,
@@ -113,11 +113,15 @@ def initialize_instance_functional_parameters(N):
         "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
         "executable": None, "exe_extension": False, "assignment_model_obj": "Global Utility",
         're_calculate_x': True, 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': True,
-        'ussf_soc_pgl_constraint_bound': 0.01, 'special_afscs_with_alternates': None,
+        'ussf_soc_pgl_constraint_bound': 0.01, 'special_afscs_with_alternates': None, 'rated_alternates': True,
+        'alternate_list_iterations_printing': False, 're-calculate x': True,
+
+        # Base/Training Model Additional Controls
+        'BIG M': 100, 'solve_extra_components': False,
 
         # VFT Model Parameters
         "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,
-        "obtain_warm_start_variables": False, "add_breakpoints": True, "approximate": True,
+        "obtain_warm_start_variables": True, "add_breakpoints": True, "approximate": True,
 
         # VFT Population Generation Parameters
         "populate": True, "iterate_from_quota": True, "max_quota_iterations": 5, "population_additions": 10,
@@ -252,7 +256,7 @@ def determine_afsc_plot_details(instance, results_chart=False):
 
     # Determine if we are "skipping" AFSC labels in the x-axis
     if mdl_p["skip_afscs"] is None:
-        if instance.data_variant == "Year":  # Real AFSCs don't get skipped!
+        if instance.data_variant == "Year" or "CTGAN" in instance.data_name:  # Real AFSCs don't get skipped!
             mdl_p["skip_afscs"] = False
         else:
             if mdl_p["M"] < p['M']:
@@ -267,7 +271,7 @@ def determine_afsc_plot_details(instance, results_chart=False):
         else:
 
             # We're not skipping the AFSCs, but we could rotate them
-            if instance.data_variant == "Year":
+            if instance.data_variant == "Year" or "CTGAN" in instance.data_name:
                 if mdl_p['M'] > 32:
                     mdl_p["afsc_rotation"] = 80
                 elif mdl_p["M"] > 18:
@@ -493,12 +497,27 @@ def pick_most_changed_afscs(instance):
 # Important function! This is the CIP -> Qual Matrix function!!
 def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=True):
     """
-    This procedure takes in a list of AFSCs, numpy array of CIP codes, and optionally a second array of CIP codes
-    (the cadets' second degrees) and generates a qual matrix for this year's specific cadets. AFOCD c/ao April 2023,
-    however discussions with CFMs have altered the AFOCD "unofficially" but we honor these modifications as they're
-    directly from the CFM. They should go into effect in future AFOCD iterations. (The Latest Modification: Jun 2023)
-    This qualification matrix incorporates both tier and requirement (M1, D2, etc.)
-    :return: None
+    Generate qualification tiers for cadets based on their CIP codes and AFSCs.
+
+    This function calculates qualification tiers for a list of cadets based on their CIP (Classification of Instructional
+    Programs) codes and the specified AFSCs. The qualification tiers consider both tier and requirement (e.g., M1, D2).
+
+    Args:
+        afscs (list of str): A list of Air Force Specialty Codes (AFSCs) to determine cadet qualifications for.
+        cip1 (numpy array): A numpy array containing CIP codes for the primary degrees of the cadets.
+        cip2 (numpy array, optional): A numpy array containing CIP codes for the secondary degrees of the cadets.
+        business_hours (numpy array, optional): An array indicating the number of business hours each cadet works.
+        true_tiers (bool, optional): Set to True to use more accurate qualification tiers (as of June 2023).
+
+    Returns:
+        numpy array: A qualification matrix representing the qualification tiers for each cadet and AFSC.
+
+    Details:
+    - The function calculates qualification tiers for both primary and, if specified, secondary degrees of the cadets.
+    - The qualification tiers are generated based on the CIP codes and the specified AFSCs.
+    - The `true_tiers` parameter allows you to choose between more accurate tiers (as of June 2023) or the
+      official tiers defined in the AFOCD (Air Force Officer Classification Directory).
+    ```
     """
 
     # AFOCD CLASSIFICATION
@@ -524,7 +543,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
             for j, afsc in enumerate(afscs):
 
                 # Rated
-                if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0", "92T1", "92T2", "92T3", "11XX_R", "11XX_U"]:
+                if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0",
+                            "92T1", "92T2", "92T3", "11XX_R", "11XX_U"]:
                     qual[d][i, j] = "P1"
 
                 # Aerospace Physiologist

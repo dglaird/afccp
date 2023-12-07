@@ -2,6 +2,8 @@ import random
 import numpy as np
 import pandas as pd
 import string
+import copy
+import datetime
 
 # afccp modules
 import afccp.core.globals
@@ -16,14 +18,16 @@ warnings.filterwarnings('ignore')  # prevent red warnings from printing
 if afccp.core.globals.use_sdv:
     import sdv
 
-def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
+def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, generate_extra=False):
     """
     This procedure takes in the specified parameters (defined below) and then simulates new random "fixed" cadet/AFSC
     input parameters. These parameters are then returned and can be used to solve the VFT model.
-    :param generate_only_nrl: Only generate NRL AFSCs (default to False)
     :param N: number of cadets
-    :param P: number of preferences allowed
     :param M: number of AFSCs
+    :param P: number of preferences allowed
+    :param S: number of Bases
+    :param generate_only_nrl: Only generate NRL AFSCs (default to False)
+    :param generate_extra: Whether to generate extra components (bases/IST). Defaults to False.
     :return: model fixed parameters
     """
 
@@ -32,7 +36,7 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
     p = {'N': N, 'P': P, 'M': M, 'num_util': P, 'cadets': np.arange(N),
          'minority': np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3]),
          'male': np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3]),
-         'usafa': np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3]), 'merit': np.random.rand(N)}
+         'usafa': np.random.choice([0, 1], size=N, p=[2 / 3, 1 / 3]), 'merit': np.random.rand(N)}
 
     # Generate various features of the cadets
     p['merit_all'] = p['merit']
@@ -243,6 +247,11 @@ def generate_random_instance(N=1600, P=6, M=32, generate_only_nrl=False):
             sorted_indices) + 1  # Add 1 to change from python index (at 0) to rank (start at 1)
         p["c_pref_matrix"][i, :] = preferences
 
+    # If we want to generate extra components to match with, we do so here
+    if generate_extra:
+        p['S'] = S
+        p = generate_extra_components(p)
+
     # Update set of parameters
     p = afccp.core.data.adjustments.parameter_sets_additions(p)
 
@@ -383,6 +392,172 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
         vp['K^A'][j] = np.where(vp['objective_weight'][j] != 0)[0]
 
     return vp
+
+def generate_extra_components(parameters):
+    """
+    If we generate extra components (such as bases and IST) for the CadetCareerProblem instance
+    :param parameters: instance parameters
+    :return: updated parameters
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Get list of ordered letters (based on Excel column names)
+    alphabet = list(string.ascii_uppercase)
+    excel_columns = copy.deepcopy(alphabet)
+    for letter in alphabet:
+        for letter_2 in alphabet:
+            excel_columns.append(letter + letter_2)
+
+    # Determine which AFSCs we assign bases for
+    p['afsc_assign_base'] = np.zeros(p['M']).astype(int)
+    for j in range(p['M']):
+        if p['acc_grp'][j] != "Rated" and np.random.rand() > 0.3:
+            p['afsc_assign_base'][j] = 1
+
+    # Name the bases according to the Excel columns (just a method of generating unique ordered letters)
+    p['bases'] = np.array(["Base " + excel_columns[b] for b in range(p['S'])])
+
+    # Get capacities for each AFSC at each base
+    p['base_min'] = np.zeros((p['S'], p['M'])).astype(int)
+    p['base_max'] = np.zeros((p['S'], p['M'])).astype(int)
+    afscs_with_base_assignments = np.where(p['afsc_assign_base'])[0]
+    for j in afscs_with_base_assignments:
+        total_max = p['pgl'][j] * 1.5
+        base_max = np.array([np.random.rand() for _ in range(p['S'])])
+        base_max = (base_max / np.sum(base_max)) * total_max
+        p['base_max'][:, j] = base_max.astype(int)
+        p['base_min'][:, j] = (base_max * 0.4).astype(int)
+
+    # Generate random cadet preferences for bases
+    bases = copy.deepcopy(p['bases'])
+    p['base_preferences'] = {}
+    p['b_pref_matrix'] = np.zeros((p['N'], p['S'])).astype(int)
+    p['base_utility'] = np.zeros((p['N'], p['S']))
+    for i in range(p['N']):
+        random.shuffle(bases)
+        num_base_pref = np.random.choice(np.arange(2, p['S'] + 1))
+        p['base_preferences'][i] = np.array([np.where(p['bases'] == base)[0][0] for base in bases[:num_base_pref]])
+
+        # Convert to base preference matrix
+        p['b_pref_matrix'][i, p['base_preferences'][i]] = np.arange(1, len(p['base_preferences'][i]) + 1)
+
+        utilities = np.around(np.random.rand(num_base_pref), 2)
+        p['base_utility'][i, p['base_preferences'][i]] = np.sort(utilities)[::-1]
+        p['base_utility'][i, p['base_preferences'][i][0]] = 1.0  # First choice is always utility of 1!
+
+    # Get the baseline starting date (January 1st of the year we're classifying)
+    next_year = datetime.datetime.now().year + 1
+    p['baseline_date'] = datetime.date(next_year, 1, 1)
+
+    # Generate training preferences for each cadet
+    p['training_preferences'] = np.array(
+        [random.choices(['Early', 'Late'], weights=[0.9, 0.1])[0] for _ in range(p['N'])])
+
+    # Generate base/training "thresholds" for when these preferences kick in (based on preferences for AFSCs)
+    p['training_threshold'] = np.array([np.random.choice(np.arange(p['M'] + 1)) for _ in range(p['N'])])
+    p['base_threshold'] = np.array([np.random.choice(np.arange(p['M'] + 1)) for _ in range(p['N'])])
+
+    # Generate weights for AFSCs, bases, and courses
+    p['weight_afsc'], p['weight_base'], p['weight_course'] = np.zeros(p['N']), np.zeros(p['N']), np.zeros(p['N'])
+    for i in range(p['N']):
+
+        # Force some percentage of cadets to make their threshold the last possible AFSC (this means these don't matter)
+        if np.random.rand() > 0.8:
+            p['base_threshold'][i] = p['M']
+        if np.random.rand() > 0.7:
+            p['training_threshold'][i] = p['M']
+
+        # Generate weights for bases, training (courses), and AFSCs
+        if p['base_threshold'][i] == p['M']:
+            w_b = 0
+        else:
+            w_b = np.random.triangular(0, 50, 100)
+        if p['training_threshold'][i] == p['M']:
+            w_c = 0
+        else:
+            w_c = np.random.triangular(0, 20, 100)
+        w_a = np.random.triangular(0, 90, 100)
+
+        # Scale weights so that they sum to one and load into arrays
+        p['weight_afsc'][i] = w_a / (w_a + w_b + w_c)
+        p['weight_base'][i] = w_b / (w_a + w_b + w_c)
+        p['weight_course'][i] = w_c / (w_a + w_b + w_c)
+
+    # Generate training start dates for each cadet
+    p['training_start'] = []
+    for i in range(p['N']):
+
+        # If this cadet is a USAFA cadet
+        if p['usafa'][i]:
+
+            # Make it May 28th of this year
+            p['training_start'].append(datetime.date(next_year, 5, 28))
+
+        # If it's an ROTC cadet, we sample from two different distributions (on-time and late grads)
+        else:
+
+            # 80% should be in spring
+            if np.random.rand() < 0.8:
+                dt = datetime.date(next_year, 4, 15) + datetime.timedelta(int(np.random.triangular(0, 30, 60)))
+                p['training_start'].append(dt)
+
+            # 20% should be after
+            else:
+                dt = datetime.date(next_year, 6, 1) + datetime.timedelta(int(np.random.triangular(0, 30*5, 30*6)))
+                p['training_start'].append(dt)
+    p['training_start'] = np.array(p['training_start'])
+
+    # Generate training courses for each AFSC
+    p['courses'], p['course_start'], p['course_min'], p['course_max'] = {}, {}, {}, {}
+    p['course_count'] = np.zeros(p['M'])
+    for j in range(p['M']):
+
+        # Determine total number of training slots to divide up
+        total_max = p['pgl'][j] * 1.5
+
+        # Determine number of courses to generate
+        if total_max <= 3:
+            T = 1
+        elif total_max <= 10:
+            T = np.random.choice([1, 2])
+        elif total_max < 25:
+            T = np.random.choice([2, 3])
+        elif total_max < 100:
+            T = np.random.choice([3, 4, 5])
+        else:
+            T = np.random.choice([4, 5, 6, 7, 8, 9])
+
+        # Course minimums and maximums
+        random_nums = np.random.rand(T)
+        p['course_max'][j] = np.around(total_max * (random_nums / np.sum(random_nums))).astype(int)
+        p['course_min'][j] = np.zeros(T).astype(int)
+
+        # Generate course specific information
+        p['courses'][j], p['course_start'][j] = [], []
+        current_date = p['baseline_date'] + datetime.timedelta(int(np.random.triangular(30*5, 30*9, 30*11)))
+        for _ in range(T):
+
+            # Course names (random strings of letters)
+            num_letters = random.choice(np.arange(4, 10))
+            p['courses'][j].append(''.join(random.choices(alphabet, k=num_letters)))
+
+            # Course start date
+            p['course_start'][j].append(current_date)
+
+            # Get next course start date
+            current_date += datetime.timedelta(int(np.random.triangular(30, 30*4, 30*6)))
+
+        # Convert to numpy arrays
+        for param in ['courses', 'course_start', 'course_max', 'course_min']:
+            p[param][j] = np.array(p[param][j])
+
+    # Number of training courses per AFSC
+    p['T'] = np.array([len(p['courses'][j]) for j in range(p['M'])])
+
+    # Return updated parameters
+    return p
 
 # SDV functions (we may not have the SDV library!)
 if afccp.core.globals.use_sdv:

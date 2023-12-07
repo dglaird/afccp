@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
+from datetime import datetime
 import copy
+from functools import reduce
 
 # afccp modules
 import afccp.core.data.preferences
@@ -145,8 +147,37 @@ def gather_degree_tier_qual_matrix(cadets_df, parameters):
 
 def parameter_sets_additions(parameters):
     """
-    Creates indexed sets and subsets for both the AFSCs and the cadets
-    :return instance parameters
+    Add Indexed Sets and Subsets to the Problem Instance Parameters.
+
+    This function enhances the problem instance parameters by creating indexed sets and subsets for both AFSCs and cadets.
+    It helps organize the data for efficient processing and optimization. These indexed sets and subsets include:
+
+    - Cadet Indexed Sets: `I`, `J`, `J^E`, `I^Choice`, `Choice Count`, and specific demographic subsets.
+    - AFSC Indexed Sets: `I^E` and counts of eligible cadets for each AFSC.
+    - Demographic Sets: Sets related to specific demographics such as USAFA cadets, minority cadets, male cadets, and
+      associated proportions.
+
+    Additionally, it handles other tasks like adjusting the utility matrix for unmatched cadets, calculating the sum of
+    cadet merits, differentiating USAFA and ROTC cadets, identifying fixed and reserved cadets, and managing cadet preferences
+    and rated cadets.
+
+    Args:
+        parameters: The problem instance parameters.
+
+    Returns:
+        The updated problem instance parameters with added indexed sets and subsets.
+
+    Example:
+    ```python
+    import your_module
+
+    # Create a problem instance
+    parameters = your_module.create_instance()
+
+    # Add indexed sets and subsets
+    updated_parameters = your_module.parameter_sets_additions(parameters)
+    ```
+
     """
 
     # Shorthand
@@ -241,12 +272,37 @@ def parameter_sets_additions(parameters):
     # Cadet preference/rated cadet set additions
     p = more_parameter_additions(p)
 
+    # Base/Training set additions
+    if "bases" in p:
+        p = base_training_parameter_additions(p)
+
     return p
 
 
 def more_parameter_additions(parameters):
     """
-    This function adds even more parameter sets to "parameters"
+    Enhance the problem instance parameters by adding additional parameter sets and subsets.
+
+    This function extends the 'parameters' dictionary by adding various parameter sets and subsets, improving the organization
+    of data for optimization. These additions include:
+
+    - Cadet Preferences: Sets cadet preferences and counts the number of cadet choices.
+    - AFSC Preferences: Sets AFSC preferences.
+    - AFSCs by Accessions Group: Categorizes AFSCs into accessions groups such as Rated, USSF, and NRL.
+    - Constrained Cadets: Identifies cadets constrained to specific accessions groups.
+    - PGL Totals for USSF: Calculates totals for USAFA and ROTC PGL (Projected Gain/Loss) within USSF.
+    - Rated Cadets: Identifies rated cadets, sets their preferences, and counts their choices.
+    - Cadet Utility Matrix: Constructs a utility matrix based on cadet preferences.
+    - Sets for cadets who have preferences and are eligible for specific AFSCs, and vice versa.
+    - Race and Ethnicity Categories: Organizes cadets based on race and ethnicity categories.
+    - SOC and Gender Categories: Organizes cadets into categories like USAFA, ROTC, male, female, etc.
+    - STEM Cadets: Identifies STEM cadets and related AFSCs.
+
+    Args:
+        parameters: The problem instance parameters.
+
+    Returns:
+        The updated problem instance parameters with added parameter sets and subsets.
     """
 
     # Shorthand
@@ -299,6 +355,7 @@ def more_parameter_additions(parameters):
     else:  # Previously, we've only assigned NRL cadets so we assume that's what we're dealing with here
         p['acc_grp'] = np.array(['NRL' for _ in p['J']])
         p['afscs_acc_grp']['NRL'] = p['afscs']
+        p['J^NRL'] = p['J']
 
     # If we have the "Accessions Group" column in Cadets.csv, we can check to see if anyone is fixed to a group here
     if 'acc_grp_constraint' in p:
@@ -413,6 +470,227 @@ def more_parameter_additions(parameters):
             p['J^STEM'] = np.where(p['afscs_stem'] == 'Yes')[0]
             p['J^Not STEM'] = np.where(p['afscs_stem'] == 'No')[0]
             p['J^Hybrid'] = np.where(p['afscs_stem'] == 'Hybrid')[0]
+
+    return p
+
+
+def base_training_parameter_additions(parameters):
+    """
+    This function takes in our set of parameters and adds more components to address the base/training model
+    components as an "expansion" of the afccp functionality. This model performs base assignments and schedules
+    cadets for training courses simultaneously.
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Sets of bases and courses
+    p['B'] = np.arange(p['S'])
+    p['C'] = {j: np.arange(p['T'][j]) for j in p['J']}
+
+    # Set of AFSCs that assign cadets to bases
+    p['J^B'] = np.where(p['afsc_assign_base'])[0]
+
+    # Set of bases that AFSC j may assign cadets to
+    p['B^A'] = {j: np.where(p['base_max'][:, j] > 0)[0] for j in p['J']}
+
+    # Set of bases that cadet i may be assigned to (based on the union of all eligible bases from AFSCs in J^E_i)
+    p['B^E'] = {i: reduce(np.union1d, (p['B^A'][j] for j in np.intersect1d(p['J^E'][i], p['J^B']))) for i in p['I']}
+
+    # Sets/Parameters for AFSC outcome states for each cadet
+    p['D'] = {}  # Set of all AFSC outcome states that cadet i has designated
+    p['Cadet Objectives'] = {}  # Set of cadet objectives included for each cadet and each state
+    p['J^State'] = {}  # Set of AFSCs that, if assigned, would put cadet i into state d
+    p['w^A'] = {}  # the weight that cadet i places on AFSCs in state d
+    p['w^B'] = {}  # the weight that cadet i places on bases in state d
+    p['w^C'] = {}  # the weight that cadet i places on courses in state d
+    p['u^S'] = {}  # the maximum utility that cadet i receives from state d (based on best AFSC)
+    p['B^State'] = {}  # Set of bases that cadet i can be assigned to in state d (According to J^State_id)
+
+    # Determine the "states" for each cadet based on the differences of AFSC outcomes
+    for i in p['I']:
+
+        # Base/Training Thresholds (Shorthand)
+        bt, tt = p['base_threshold'][i], p['training_threshold'][i]
+
+        # Determine "primary" set of AFSCs and states based on thresholds
+        if bt < tt:
+            afscs = {1: p['cadet_preferences'][i][:bt],
+                      2: p['cadet_preferences'][i][bt: tt],
+                      3: p['cadet_preferences'][i][tt:]}
+            included = {1: ['afsc'], 2: ['afsc', 'base'], 3: ['afsc', 'base', 'course']}
+        elif tt < bt:
+            afscs = {1: p['cadet_preferences'][i][:tt],
+                      2: p['cadet_preferences'][i][tt: bt],
+                      3: p['cadet_preferences'][i][bt:]}
+            included = {1: ['afsc'], 2: ['afsc', 'course'], 3: ['afsc', 'base', 'course']}
+        else:  # They're equal!
+            afscs = {1: p['cadet_preferences'][i][:bt],
+                      2: p['cadet_preferences'][i][bt:]}
+            included = {1: ['afsc'], 2: ['afsc', 'base', 'course']}
+
+        # Sets/Parameters for AFSC outcome states for each cadet
+        p['D'][i] = []  # Set of all AFSC outcome states that cadet i has designated
+        p['Cadet Objectives'][i] = {}  # Set of cadet objectives included for each cadet and each state
+        p['J^State'][i] = {}  # Set of AFSCs that, if assigned, would put cadet i into state d
+        p['w^A'][i] = {}  # the weight that cadet i places on AFSCs in state d
+        p['w^B'][i] = {}  # the weight that cadet i places on bases in state d
+        p['w^C'][i] = {}  # the weight that cadet i places on courses in state d
+        p['u^S'][i] = {}  # the maximum utility that cadet i receives from state d (based on best AFSC)
+        p['B^State'][i] = {}  # Set of bases that cadet i can be assigned to in state d (According to J^State_id)
+
+        # Loop through each "primary" state to get "final" states (Split up states based on base assignment AFSCs)
+        d = 1
+        for state in included:
+
+            # Empty state!
+            if len(afscs[state]) == 0:
+                continue
+
+            # Split up the AFSCs into two groups if they assign cadets to bases or not
+            sets = {'Assigned': np.intersect1d(p['J^B'], afscs[state]),
+                    'Not Assigned': np.array([j for j in afscs[state] if j not in p['J^B']])}
+
+            # Loop through both sets and create a new state if the set contains AFSCs
+            for set_name, afscs_in_set in sets.items():
+                if len(afscs_in_set) != 0:
+
+                    # Add information to this state
+                    p['D'][i].append(d)
+                    p['Cadet Objectives'][i][d] = included[state]
+                    p['J^State'][i][d] = afscs_in_set
+                    p['u^S'][i][d] = p['cadet_utility'][i, afscs[state][0]]  # Utility of the top preferred AFSC
+
+                    # Weights and set of bases are differentiated by if this is a set containing J^B AFSCs or not
+                    if set_name == "Assigned":
+
+                        # Re-scale weights based on the objectives included in this state
+                        p['w^A'][i][d] = p['weight_afsc'][i] / sum(p['weight_' + obj][i] for obj in included[state])
+                        p['w^C'][i][d] = p['weight_course'][i] / sum(p['weight_' + obj][i] for obj in included[state]) \
+                                         * ('course' in included[state])
+                        p['w^B'][i][d] = p['weight_base'][i] / sum(p['weight_' + obj][i] for obj in included[state]) \
+                                         * ('base' in included[state])
+
+                        # Union of bases that this cadet could be assigned to in this state according to J^State_id
+                        p['B^State'][i][d] = reduce(np.union1d, (p['B^A'][j] for j in p['J^State'][i][d]))
+
+                    else:
+
+                        # Re-scale weights based on the objectives included in this state
+                        p['w^A'][i][d] = p['weight_afsc'][i] / \
+                                         sum(p['weight_' + obj][i] for obj in included[state] if obj != "base")
+                        p['w^C'][i][d] = ('course' in included[state]) * p['weight_course'][i] / \
+                                         sum(p['weight_' + obj][i] for obj in included[state] if obj != "base")
+                        p['w^B'][i][d] = 0
+                        p['B^State'][i][d] = np.array([])  # Empty array (no bases)
+
+                    # Next state
+                    d += 1
+
+        # Print statement for specific cadet
+        if i == 10 and False:  # Meant for debugging and sanity checking this logic!
+            print('Cadet', i)
+            for d in p['D'][i]:
+                print('\n\n')
+                print('State', d)
+                print('Objectives', p['Cadet Objectives'][i][d])
+                print('J^State', p['afscs'][p['J^State'][i][d]])
+                if len(p['B^State'][i][d]) > 0:
+                    print('B^State', p['bases'][p['B^State'][i][d]])
+                else:
+                    print('B^State', [])
+                print('Weight (AFSC)', round(p['w^A'][i][d], 3))
+                print('Weight (Base)', round(p['w^B'][i][d], 3))
+                print('Weight (Course)', round(p['w^C'][i][d], 3))
+                print('Utility (State)', round(p['u^S'][i][d], 3))
+
+    # Adjust AFSC, base, course weights to give slight bump to ensure all are considered in each applicable state
+    max_afsc_weight = max([p['w^A'][i][d] for i in p['I'] for d in p['D'][i] if p['w^A'][i][d] != 1])
+    max_afsc_weight += (1 - max_afsc_weight) / 2
+    for i in p['I']:
+        for d in p['D'][i]:
+
+            # Take some weight from AFSCs
+            p['w^A'][i][d] = p['w^A'][i][d] * max_afsc_weight
+
+            # Redistribute the weight to Base/Courses depending on existence of J^B AFSCs
+            if len(p['B^State'][i][d]) > 0:
+                p['w^B'][i][d] = p['w^B'][i][d] * max_afsc_weight + (1 - max_afsc_weight) / 2
+                p['w^C'][i][d] = p['w^C'][i][d] * max_afsc_weight + (1 - max_afsc_weight) / 2
+            else:
+                p['w^C'][i][d] = p['w^C'][i][d] * max_afsc_weight + (1 - max_afsc_weight)
+                
+    # Sets pertaining to courses for each AFSC
+    p['C^E'] = {}  # Set of courses that cadet i is available to take with AFSC j
+    p['I^A'] = {}  # Set of cadets that are available to take course c with AFSC j
+
+    # Calculate course utility for each cadet, AFSC, course tuple
+    p['course_days_cadet'] = {}
+    p['course_utility'] = {}
+    for i in p['I']:
+
+        # Initialize information for this cadet
+        p['course_days_cadet'][i] = {}
+        p['course_utility'][i] = {}
+        p['C^E'][i] = {}
+
+        # Loop through each AFSC and course to determine days between cadet start and course start
+        for j in p['J^E'][i]:
+            p['course_days_cadet'][i][j] = {}
+            for c in p['C'][j]:
+
+                # Convert str format to datetime format if necessary
+                if type(p['course_start'][j][c]) == str:
+                    course_start = datetime.strptime(p['course_start'][j][c], '%Y-%m-%d').date()
+                    cadet_start = datetime.strptime(p['training_start'][i], '%Y-%m-%d').date()
+                else:
+                    course_start = p['course_start'][j][c]
+                    cadet_start = p['training_start'][i]
+
+                # Calculate days between
+                days_between = (course_start - cadet_start).days
+                if days_between >= 0:  # If the cadet is available to take the course before it starts
+                    p['course_days_cadet'][i][j][c] = days_between
+
+            # Get subset of courses that this cadet can take for this AFSC
+            p['C^E'][i][j] = np.array([c for c in p['course_days_cadet'][i][j]])
+
+        # Get course wait times and determine min and max
+        course_waits = [p['course_days_cadet'][i][j][c] for j in p['J^E'][i] for c in p['C^E'][i][j]]
+        max_wait, min_wait = max(course_waits), min(course_waits)
+
+        # Loop through each AFSC and course again to calculate utility (normalize the wait times)
+        for j in p['J^E'][i]:
+            p['course_utility'][i][j] = {}
+            for c in p['C^E'][i][j]:
+                if p['training_preferences'][i] == 'Early':
+                    p['course_utility'][i][j][c] = 1 - (p['course_days_cadet'][i][j][c] - min_wait) / \
+                                                   (max_wait - min_wait)
+                elif p['training_preferences'][i] == 'Late':
+                    p['course_utility'][i][j][c] = (p['course_days_cadet'][i][j][c] - min_wait) / \
+                                                   (max_wait - min_wait)
+                else:  # No preference
+                    p['course_utility'][i][j][c] = 0
+
+                if i == 0 and False:  # Meant for debugging and sanity checking this logic!
+                    print(i, j, c, "Dates", course_start, cadet_start, "DAYS", p['course_days_cadet'][i][j][c],
+                          "Utility", p['course_utility'][i][j][c])
+
+    # Determine set of cadets that are available to take course c with AFSC j
+    for j in p['J']:
+        p['I^A'][j] = {}
+        for c in p['C'][j]:
+            p['I^A'][j][c] = np.array([i for i in p['I^E'][j] if c in p['C^E'][i][j]])
+
+    # Get minimum and maximum quantities for bases
+    p['lo^B'], p['hi^B'] = {}, {}
+    for j in p['J^B']:
+        p['lo^B'][j], p['hi^B'][j] = {}, {}
+        for b in p['B^A'][j]:
+            p['lo^B'][j][b], p['hi^B'][j][b] = p['base_min'][b, j], p['base_max'][b, j]
+
+    # Get minimum and maximum quantities for courses
+    p['lo^C'], p['hi^C'] = p['course_min'], p['course_max']
 
     return p
 
@@ -599,8 +877,37 @@ def convert_instance_to_from_scrubbed(instance, new_letter=None, translation_dic
 # Data Verification
 def parameter_sanity_check(instance):
     """
-    This function runs through all the different parameters and sanity checks them to make sure that they make
-    sense and don't break the model
+    Perform a Sanity Check on Problem Instance Parameters.
+
+    This function rigorously checks the validity of various parameters and configurations within the given problem instance.
+    It's an essential step to ensure the consistency and feasibility of the problem definition before running any optimization.
+
+    Args:
+        instance: The problem instance to be checked.
+
+    Raises:
+        ValueError: If the provided instance doesn't have value parameters (vp).
+
+    The function examines a range of parameters and configurations within the problem instance. It checks for issues in the
+    following categories:
+
+    1. **Constraint Type**: It ensures that the 'constraint_type' matrix doesn't contain deprecated values (3 or 4).
+    2. **AFSC Quota Constraints**: Verifies the validity of quota constraints, such as minimum and maximum quotas for AFSCs.
+    3. **Objective Targets**: Validates that the 'quota_d' value matches the objective target for Combined Quota.
+    4. **Degree Tiers**: Checks if objectives related to degree tiers have a proper number of eligible cadets.
+    5. **Qualification Levels**: Ensures that qualification levels specified in the 'qual' matrix are coherent with value parameters.
+    6. **Constrained Objectives**: Verifies that constrained objectives have appropriate constraints defined.
+    7. **Value Functions**: Validates value functions, including the format of value function strings and breakpoints.
+    8. **Cadet Preferences**: Ensures that cadet preferences align with preference matrices (c_preferences and c_pref_matrix).
+    9. **Monotonically Decreasing Utility**: Checks that the cadet-reported utility matrix 'utility' is monotonically decreasing.
+    10. **Strictly Decreasing Cadet Utility**: Verifies that the constructed cadet utility matrix 'cadet_utility' is strictly decreasing.
+    11. **Objective Targets Null Values**: Checks for null values in the objective target array.
+    12. **USSF OM Constraint**: Ensures that the USSF OM constraint is not set if no USSF AFSCs are defined.
+    13. **Rated Preferences**: Verifies that rated cadets have at least one rated preference.
+    14. **Total Minimum and Maximum Capacities**: Checks that the total sum of minimum and maximum capacities is feasible.
+
+    This function provides detailed information about issues, if any, found within the problem instance. It is a crucial step
+    in guaranteeing the reliability and accuracy of the optimization process.
     """
 
     # Shorthand
@@ -909,6 +1216,25 @@ def parameter_sanity_check(instance):
                           "ISSUE: Cadet '" + str(p['cadets'][i]) + "' is on " + soc.upper() +
                           "'s Rated list (" + soc.upper() + " Rated OM.csv) but is not eligible for any Rated AFSCs. "
                                                             "You need to remove their row from the csv.")
+
+    # Make sure all cadets eligible for at least one rated AFSC are in their SOC's rated OM list
+    for soc in ['usafa', 'rotc']:
+        if 'J^Rated' in p:  # Make sure we have rated AFSCs
+
+            # Loop through each cadet from this SOC
+            for i in p[soc + '_cadets']:
+
+                # Check if they're eligible for at least one rated AFSC
+                if np.sum(p['eligible'][i][p['J^Rated']]) >= 1:
+
+                    # If they're eligible for a Rated AFSC but aren't in the "Rated OM.csv" file, that's a problem
+                    if i not in p['Rated Cadets'][soc]:
+                        rated_afscs_eligible = p['afscs'][np.intersect1d(p['J^Rated'], p['J^E'][i])]
+                        issue += 1
+                        print(issue, "ISSUE: Cadet '" + str(p['cadets'][i]) + "' is not on " + soc.upper() +
+                              "'s Rated list (" + soc.upper() + " Rated OM.csv), but is on the preference lists for",
+                              rated_afscs_eligible, "Please add a row in 'Rated OM.csv' for this cadet reflecting their "
+                                                    "OM.")
 
     # Validate that the "totals" for minimums/maximums work
     if np.sum(p['pgl']) > p['N']:

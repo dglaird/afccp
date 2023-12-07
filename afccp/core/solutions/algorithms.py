@@ -55,7 +55,7 @@ def classic_hr(instance, capacities=None, printing=True):
     # Initialize solution dictionary
     solution = {'method': 'HR'}
 
-    # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
+    # Dictionary of parameters used for the "BubbleChart" object (animation)
     if mdl_p['collect_solution_iterations']:
         solution['iterations'] = {'type': 'HR'}
         for key in ['proposals', 'matches', 'names']:
@@ -193,7 +193,7 @@ def rotc_rated_board_original(instance, printing=False):
     # Initialize solution dictionary
     solution = {'cadets_solved_for': 'ROTC Rated', 'afscs_solved_for': 'Rated', 'method': 'ROTCRatedBoard'}
 
-    # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
+    # Dictionary of parameters used for the "BubbleChart" object (animation)
     if mdl_p['collect_solution_iterations']:
         solution['iterations'] = {'type': 'ROTC Rated Board'}
         for key in ['matches', 'names']:
@@ -343,7 +343,7 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     solution = {'cadets_solved_for': soc.upper() + ' Rated', 'afscs_solved_for': 'Rated',  # Combined Solution
                 'method': 'Rated ' + soc.upper() + ' HR'}
 
-    # Dictionary of parameters used for the "CadetBoardFigure" object (animation)
+    # Dictionary of parameters used for the "BubbleChart" object (animation)
     if mdl_p['collect_solution_iterations']:
         solution['iterations'] = {'type': 'Rated SOC HR'}
         for key in ['proposals', 'matches', 'reserves', 'matched', 'names']:

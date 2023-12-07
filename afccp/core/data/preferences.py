@@ -28,8 +28,28 @@ def get_utility_preferences(parameters):
 
 def get_utility_preferences_from_preference_array(parameters):
     """
-    Takes the cadet preference matrix (NxM) of cadet "ranks" and converts it to preference columns (NxP) of AFSC names.
-    Uses this alongside utility dataframe (NxP) to get the utility columns (NxP) as well.
+    Convert cadet preference matrix to preference columns of AFSC names and calculate utility columns.
+
+    This function takes the cadet preference matrix (NxM) where cadet "ranks" are specified and converts it to
+    preference columns (NxP) of AFSC names, where P is the number of AFSC preferences for each cadet. It uses
+    this preference information alongside the utility dataframe (NxP) to extract the utility columns (NxP) as well.
+
+    Args:
+        parameters (dict): A dictionary containing the following elements:
+            - "c_pref_matrix" (numpy.ndarray): Cadet preference matrix (NxM) with cadet ranks.
+            - "P" (int): Number of AFSC preferences for each cadet.
+            - "N" (int): Total number of cadets.
+            - "I" (list): List of cadet indices.
+            - "M" (int): Total number of AFSCs.
+            - "afscs" (numpy.ndarray): Array of AFSC names.
+            - "num_util" (int): Number of utility values to extract.
+            - "utility" (numpy.ndarray): Utility dataframe (NxM) containing utility values for cadets and AFSCs.
+
+    Returns:
+        tuple: A tuple containing two elements:
+            - preferences (numpy.ndarray): Cadet preference columns (NxP) with AFSC names.
+            - utilities_array (numpy.ndarray): Utility columns (NxP) for each cadet and AFSC preference.
+
     """
 
     # Shorthand

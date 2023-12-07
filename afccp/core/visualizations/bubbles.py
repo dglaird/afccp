@@ -21,15 +21,40 @@ import afccp.core.solutions.handling
 if afccp.core.globals.use_pyomo:
     import afccp.core.solutions.optimization
 
-class CadetBoardFigure:
+class BubbleChart:
     def __init__(self, instance, printing=None):
         """
-        This is the object to construct the "AFSC/Cadet Board" graph and animation to show where cadets get placed in
-        a solution and how they move around through various algorithms. The problem instance is the only parameter
-        passed. We extract various attributes of the CadetCareerProblem instance for use in this 'CadetBoardFigure'
-        instance. One attribute we need in the instance is 'solution_iterations' which is a dictionary of a particular
-        set of solutions used in the figure. The 'b' dictionary contains the necessary animation/plot hyperparameters
-        as defined in afccp.core.data.ccp_helping_functions.py.
+        Initialize an "AFSC/Cadet Bubble" chart and animation object.
+
+        This class is designed to construct a graphical representation of the "AFSC/Cadet Bubble," showing the placement
+        of cadets in a solution and their movement through various algorithms. The problem instance is the only required
+        parameter.
+
+        Args:
+            instance: A CadetCareerProblem instance, containing various attributes and parameters necessary for constructing
+                the bubble chart.
+            printing (bool, None): A flag to control whether to print information during chart creation and animation. If set
+                to True, the class will print progress and debugging information. If set to False, it will suppress printing.
+                If None, the class will use the default printing setting from the instance.
+
+        Notes:
+        - This constructor extracts various attributes from the `CadetCareerProblem` instance provided as `instance`.
+        - The `solution_iterations` attribute of the problem instance is expected to be a dictionary of a particular set of
+          solutions used in the figure.
+        - The 'b' dictionary contains hyperparameters for the animation/plot, as defined in `afccp.core.data.ccp_helping_functions.py`.
+
+        Attributes:
+        - p: A dictionary containing parameters extracted from the `instance`.
+        - vp: A dictionary containing value parameters extracted from the `instance`.
+        - b: A dictionary containing hyperparameters for the bubble chart, populated from the `instance`.
+        - data_name: The name of the data used for the chart.
+        - data_version: The version of the data used for the chart.
+        - solution: The solution data extracted from the `instance`.
+        - mdl_p: Model parameters extracted from the `instance`.
+        - paths: Export paths from the `instance`.
+        - printing: A boolean flag for controlling printing behavior during chart creation and animation.
+        - v_hex_dict: A dictionary mapping value parameter values to their corresponding hexadecimal colors.
+        - ...
         """
 
         # Initialize attributes that we take directly from the CadetCareerProblem instance
@@ -64,11 +89,6 @@ class CadetBoardFigure:
             self.b['lh'] = self.b['fw'] * self.b['lh_ratio']
         else:
             self.b['lw'], self.b['lh'] = 0, 0
-
-        # # Loop through all the key value pairs of solution iterations and add them to "b"
-        # if 'iterations' in self.solution:
-        #     for key in self.solution['iterations']:
-        #         self.b[key] = self.solution['iterations'][key]
 
         # Set up "solutions" properly
         if 'iterations' in self.solution:

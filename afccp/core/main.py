@@ -19,7 +19,7 @@ import afccp.core.data.support
 import afccp.core.data.values
 import afccp.core.solutions.algorithms
 import afccp.core.solutions.handling
-import afccp.core.visualizations.animation
+import afccp.core.visualizations.bubbles
 import afccp.core.visualizations.charts
 
 # Import optimization models if pyomo is installed
@@ -35,8 +35,8 @@ if afccp.core.globals.use_pptx:
 # Main Problem Class
 class CadetCareerProblem:
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
-                 num_value_function_breakpoints=None, N=1600, M=32, P=6, generate_only_nrl=False,
-                 ctgan_model_name='CTGAN_2024', ctgan_pilot_sampling=False, printing=True):
+                 num_value_function_breakpoints=None, N=1600, M=32, P=6, S=10, generate_extra_components=False,
+                 generate_only_nrl=False, ctgan_model_name='CTGAN_2024', ctgan_pilot_sampling=False, printing=True):
         """
         Represents the AFSC/Cadet matching problem object.
 
@@ -54,7 +54,9 @@ class CadetCareerProblem:
             N (int): Number of cadets to generate. Defaults to 1600.
             M (int): Number of AFSCs to generate. Defaults to 32.
             P (int): Number of AFSC preferences to generate for each cadet. Defaults to 6.
+            S (int): Number of Bases to generate. Defaults to 10.
             generate_only_nrl (bool): Whether to generate only NRL AFSCs. Defaults to False.
+            generate_extra_components (bool): Whether to generate extra components (bases/IST). Defaults to False.
             ctgan_model_name (str): Name of the CTGAN model to import
             ctgan_pilot_sampling (bool): Whether we should sample cadets in CTGAN based on the pilot preference condition
             printing (bool): Whether to print status updates or not. Defaults to True.
@@ -116,7 +118,7 @@ class CadetCareerProblem:
 
             # Import the "fixed" parameters (the information about cadets/AFSCs that, for the most part, doesn't change)
             import_data_functions = [afccp_dp.import_afscs_data, afccp_dp.import_cadets_data,
-                                     afccp_dp.import_preferences_data]
+                                     afccp_dp.import_preferences_data, afccp_dp.import_additional_data]
             for import_function in import_data_functions:  # Here we're looping through a list of functions!
                 self.parameters = import_function(self.import_paths, self.parameters)  # Python is nice like that...
 
@@ -174,7 +176,7 @@ class CadetCareerProblem:
                 # Generate a "Random" problem instance
                 if data_name == 'Random':
                     self.parameters = afccp.core.data.generation.generate_random_instance(
-                        N, P, M, generate_only_nrl=generate_only_nrl)
+                        N, M, P, S, generate_only_nrl=generate_only_nrl, generate_extra=generate_extra_components)
 
                     # Every cadet needs to be eligible for at least one AFSC
                     for i in range(self.parameters['N']):
@@ -266,7 +268,8 @@ class CadetCareerProblem:
 
         # Set the solution attribute to the instance (and calculate additional components)
         self.solution = afccp.core.solutions.handling.evaluate_solution(
-            solution, self.parameters, self.value_parameters, printing=printing)
+            solution, self.parameters, self.value_parameters, re_calculate_x=self.mdl_p['re-calculate x'],
+            printing=printing)
         self.solution['vp_name'] = self.vp_name  # Name of the value parameters currently evaluating this solution
 
         # Adjust solution method for VFT models
@@ -357,8 +360,13 @@ class CadetCareerProblem:
 
     def manage_solution_folder(self):
         """
-        This small method creates a solution folder in the Analysis & Results folder if it doesn't already exist and
-        returns a list of files that are located inside that solution folder
+        This method creates a solution folder in the Analysis & Results directory if it doesn't already exist and
+        returns a list of files in that folder.
+
+        Returns:
+            List of filenames in the solution folder.
+
+        This method is used to manage solution folders for organizing analysis and result files.
         """
 
         # Make solution folder if it doesn't already exist
@@ -381,14 +389,23 @@ class CadetCareerProblem:
             print('Evaluating solutions in this list:', solution_names)
         for solution_name in solution_names:
             self.solutions[solution_name] = afccp.core.solutions.handling.evaluate_solution(
-                self.solutions[solution_name], self.parameters, self.value_parameters, printing=False)
+                self.solutions[solution_name], self.parameters, self.value_parameters, printing=False,
+                re_calculate_x=self.mdl_p['re-calculate x'])
 
     # Adjust Data
     def calculate_qualification_matrix(self, printing=None):
         """
-        This procedure simply re-runs the CIP to Qual function in case I change qualifications or I
-        identify errors since some cadets in the AFPC solution may receive AFSCs for which they
-        are ineligible for.
+        This procedure re-runs the CIP to Qual function to generate or update the qualification matrix.
+        The qualification matrix determines whether cadets are eligible for specific AFSCs.
+
+        Args:
+        printing (bool, optional): If True, print messages about the process. Defaults to the class's `printing` attribute.
+
+        Raises:
+        ValueError: Raised when there are no CIP codes provided.
+
+        This method recalculates the qualification matrix based on CIP (Career Intermission Program) codes and
+        AFSCs. It updates the matrix and related parameters within the class.
         """
         if printing is None:
             printing = self.printing
@@ -450,10 +467,13 @@ class CadetCareerProblem:
         return afccp.core.data.adjustments.convert_instance_to_from_scrubbed(
             self, translation_dict=translation_dict, data_name=data_name)
 
-    def fix_generated_data(self):
+    def fix_generated_data(self, printing=None):
         """
         NOTE: ONLY DO THIS FOR GENERATED DATA
         """
+
+        if printing is None:
+            printing = self.printing
 
         # Get "c_pref_matrix" from cadet preferences
         self.convert_utilities_to_preferences(cadets_as_well=True)
@@ -468,7 +488,7 @@ class CadetCareerProblem:
         self.update_qualification_matrix_from_afsc_preferences()
 
         # Removes ineligible cadets from all 3 matrices: degree qualifications, cadet preferences, AFSC preferences
-        self.remove_ineligible_choices()
+        self.remove_ineligible_choices(printing=printing)
 
         # Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)
         self.update_preference_matrices()  # 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preference lists need to omit gaps)
@@ -486,11 +506,36 @@ class CadetCareerProblem:
         self.parameter_sanity_check()
 
     # Adjust Preferences
-    def update_qualification_matrix_from_afsc_preferences(self):
+    def update_qualification_matrix_from_afsc_preferences(self, printing=None):
         """
-        This method updates the qualification matrix based on the "real" eligibility imbedded in the
-        preference lists. It also sanity checks both matrices
+        This method updates the qualification matrix to reflect cadet eligibility for AFSCs based on their preferences.
+
+        It performs the following steps:
+        1. Checks if there is an AFSC preference matrix ('a_pref_matrix') in the parameters. If not, it raises a ValueError.
+        2. Iterates through each AFSC ('afscs') in the parameters.
+        3. Determines cadet eligibility and ineligibility for each AFSC based on both AFSC preferences and degree qualifications.
+        4. If cadet eligibility differs between preference and qualification lists, it prints a message indicating the mismatch.
+        5. For Rated or USSF AFSCs, it updates the qualification matrix, making more cadets ineligible based on CFM lists.
+        6. For NRL AFSCs, it handles cadets eligible based on CFM lists but not the AFOCD by giving them exceptions.
+        7. For NRL AFSCs, it also handles cadets eligible based on the AFOCD but not the CFM lists by marking them as a warning.
+        8. Updates the qualification matrix with these changes and updates additional sets and subsets in the parameters.
+
+        This method helps ensure that the qualification matrix aligns with cadet preferences and the AFOCD.
+
+        Args:
+            self: The class instance containing the qualification matrix and parameters.
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: If there is no AFSC preference matrix ('a_pref_matrix') in the parameters.
+            :param printing: print status updates
+
         """
+
+        if printing is None:
+            printing = self.printing
 
         # Shorthand
         p = self.parameters
@@ -509,7 +554,7 @@ class CadetCareerProblem:
             qual_eligible_cadets = np.where(p['eligible'][:, j])[0]
 
             # There's a difference between the two
-            if len(preference_eligible_cadets) != len(qual_eligible_cadets):
+            if len(preference_eligible_cadets) != len(qual_eligible_cadets) and printing:
                 print(j, "AFSC '" + afsc + "' has", len(preference_eligible_cadets),
                       "eligible cadets according to the AFSC preference matrix but",
                       len(qual_eligible_cadets), "according to the qual matrix.")
@@ -525,11 +570,12 @@ class CadetCareerProblem:
                         val = "I" + str(p['t_count'][j])
                     else:
                         val = "I" + str(p['t_count'][j] + 1)
-                        print(j, "AFSC '" + afsc + "' doesn't have an ineligible tier in the Deg Tiers section"
-                                                " of the AFSCs.csv file. Please add one.")
+                        if printing:
+                            print(j, "AFSC '" + afsc + "' doesn't have an ineligible tier in the Deg Tiers section"
+                                                    " of the AFSCs.csv file. Please add one.")
 
                     # Update qual matrix if needed
-                    if len(preference_ineligible_cadets) > 0:
+                    if len(preference_ineligible_cadets) > 0 and printing:
                         print(j, "Making", len(preference_ineligible_cadets), "cadets ineligible for '" + afsc +
                               "' by altering their qualification to '" + val + "'. ")
                         self.parameters['qual'][preference_ineligible_cadets, j] = val
@@ -550,14 +596,15 @@ class CadetCareerProblem:
                         val = "E" + str(p['t_count'][j] + 1)
 
                     # Update qual matrix
-                    print(j, "Giving", len(exception_cadets), "cadets an exception for '" + afsc +
-                          "' by altering their qualification to '" + val + "'. ")
+                    if printing:
+                        print(j, "Giving", len(exception_cadets), "cadets an exception for '" + afsc +
+                              "' by altering their qualification to '" + val + "'. ")
                     self.parameters['qual'][exception_cadets, j] = val
 
                 # Cadets that are eligible for the AFSC based on the AFOCD but not the CFM lists
                 mistake_cadets = np.array([i for i in qual_eligible_cadets if i not in preference_eligible_cadets])
 
-                if len(mistake_cadets) > 0:
+                if len(mistake_cadets) > 0 and printing:
                     print(j, 'WARNING. There are', len(mistake_cadets), 'cadets that are eligible for AFSC', afsc,
                           ' according to the AFOCD but not the CFM lists. These are the cadets at indices',
                           mistake_cadets)
@@ -572,15 +619,49 @@ class CadetCareerProblem:
 
     def convert_utilities_to_preferences(self, cadets_as_well=False):
         """
-        Converts the utility matrices to preferences
+        Convert Utility Matrices to Preference Matrices.
+
+        This method converts utility matrices into preference matrices for AFSC assignments. It provides the option to
+        convert cadet utility matrices and, if necessary, cadet rankings as well.
+
+        Parameters:
+        - cadets_as_well (bool, optional): If True, both cadet and AFSC utility matrices are converted to preferences.
+          If False (default), only AFSC utility matrices are converted.
+
+        Description:
+        Utility matrices contain numerical values that represent the desirability or quality of a cadet's assignment
+        to a particular AFSC. Converting these utility values into preferences is essential for the assignment process.
+        Preferences are often represented as rankings or ordered lists, with higher values indicating higher preferences.
+
+        This method ensures that both cadet and AFSC utility matrices are properly transformed into preferences, making
+        them suitable for use in the assignment algorithm.
         """
+
+        # Rest of your method code here
+
         self.parameters = afccp.core.data.preferences.convert_utility_matrices_preferences(self.parameters,
                                                                                                  cadets_as_well)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     def generate_fake_afsc_preferences(self, fix_cadet_eligibility=False):
         """
-        Uses the VFT parameters to generate simulated AFSC preferences
+        Generate Simulated AFSC Preferences using Value Focussed Thinking (VFT) Parameters.
+
+        This method generates simulated AFSC preferences for cadets based on the VFT parameters.
+        These preferences are useful for testing and analysis purposes and can be used as inputs to the assignment algorithm.
+
+        Parameters:
+        - fix_cadet_eligibility (bool, optional): If True, it fixes cadet eligibility based on VFT parameters before
+        generating preferences. If False (default), preferences are generated without modifying eligibility. Use this
+        option to create preferences for a specific scenario where cadet eligibility should be controlled.
+
+        Description:
+        Simulated preferences are created by modeling cadet choices using the VFT parameters.
+        These preferences are essential for conducting experiments and evaluating the performance of the assignment
+        algorithm under various conditions.
+
+        This method allows you to generate preferences for a specific scenario by controlling cadet eligibility or
+        generate preferences without modifying eligibility, providing flexibility for testing and analysis.
         """
         self.parameters = afccp.core.data.preferences.generate_fake_afsc_preferences(
             self.parameters, self.value_parameters, fix_cadet_eligibility=fix_cadet_eligibility)
@@ -588,8 +669,13 @@ class CadetCareerProblem:
 
     def convert_afsc_preferences_to_percentiles(self):
         """
-        This method takes the AFSC preference lists and turns them into normalized percentiles for each cadet for each
-        AFSC.
+        Convert AFSC Preference Lists to Normalized Percentiles.
+
+        This method takes the AFSC preference lists (a_pref_matrix) for each cadet and converts them into normalized percentiles
+        based on the provided preferences. The resulting percentiles represent how each cadet ranks AFSCs compared to their peers.
+
+        The percentiles are stored in the 'afsc_utility' on AFSCs Utility.csv. This conversion can be helpful for analyzing cadet
+        preferences and running assignment algorithms.
         """
 
         if self.printing:
@@ -599,8 +685,16 @@ class CadetCareerProblem:
 
     def remove_ineligible_choices(self, printing=None):
         """
-        Uses the qual matrix to remove ineligible pairs from both AFSC and cadet preferences
+        Remove Ineligible Choices Based on Qualification.
+
+        This method utilizes the qualification matrix (qual) to remove ineligible choices from both AFSC preferences (a_pref_matrix)
+        and cadet preferences (c_pref_matrix). Ineligible choices are determined based on the qualification requirements, and
+        this process helps ensure that the final assignments meet the qualification criteria.
+
+        Parameters:
+        - printing (bool, optional): If True, print progress and debug information. If None (default), it uses the class-level 'printing' attribute.
         """
+
         if printing is None:
             printing = self.printing
 
@@ -613,7 +707,10 @@ class CadetCareerProblem:
 
     def update_cadet_columns_from_matrices(self):
         """
-        Updates the preference and utilities columns from c_pref_matrix
+        Update Cadet Columns from Preference Matrix.
+
+        This method updates the preference and utility columns for cadets based on the preference matrix (c_pref_matrix).
+        The preferences are converted to preference columns, and the utility values are extracted and stored in their respective columns.
         """
 
         if self.printing:
@@ -626,8 +723,10 @@ class CadetCareerProblem:
 
     def update_preference_matrices(self):
         """
-        This method takes the preference arrays and re-creates the preference
-        matrices based on the cadets/AFSCs on each list
+        Update Preference Matrices from Preference Arrays.
+
+        This method reconstructs the cadet preference matrices from the preference arrays by renumbering preferences to eliminate gaps.
+        In preference lists, gaps may exist due to unranked choices, and this method ensures preferences are sequentially numbered.
         """
 
         if self.printing:
@@ -639,8 +738,9 @@ class CadetCareerProblem:
 
     def update_cadet_utility_matrices_from_cadets_data(self):
         """
-        This method takes in the "Util_1 -> Util_P" columns from Cadets.csv and updates the utility matrices
-        accordingly
+        Update Cadet Utility Matrices from Cadets Data.
+
+        This method updates the utility matrices ('utility' and 'cadet_utility') by extracting data from the "Util_1 -> Util_P" columns in Cadets.csv.
         """
 
         if self.printing:
@@ -971,15 +1071,57 @@ class CadetCareerProblem:
 
     def parameter_sanity_check(self):
         """
-        This method runs through all of the parameters and value parameters to sanity check them to make sure
-        everything is correct and there are no issues with the data before we run the model.
+        This method performs a comprehensive sanity check on the parameters and value parameters
+        to ensure the data is in a valid and correct state before running the model.
+
+        It examines various parameters and their values within the class instance to identify and
+        address any issues or discrepancies. The checks are designed to ensure that the data is consistent,
+        within valid ranges, and suitable for use in the model.
+
+        While the exact details of these checks are implemented in an external function or module,
+        this method serves as the entry point for conducting these checks.
+
+        It is essential to run this method before executing the model to guarantee the integrity
+        of the input data and to prevent potential errors or unexpected behavior during the modeling process.
+
+        This method is part of an object-oriented programming structure and uses 'self' to access
+        the class instance's attributes and data.
+
+        Note: The specific details of the sanity checks are defined in an external function
+        or module called 'afccp.core.data.adjustments.parameter_sanity_check.'
         """
+
+        # Call the function
         afccp.core.data.adjustments.parameter_sanity_check(self)
 
     # noinspection PyDictCreation  # Rebecca's model stuff!
     def vft_to_gp_parameters(self, p_dict={}, printing=None):
         """
-        Converts the instance parameters and value parameters to parameters used by Rebecca's model
+        Translate VFT Model Parameters to *former* Lt Rebecca Reynold's Goal Programming Model Parameters.
+
+        This method is responsible for translating various parameters and settings used in the Value Focussed Thinking (VFT) model
+        into parameters suitable for the Goal Programming (GP) model. It facilitates the conversion between different modeling
+        frameworks.
+
+        Args:
+            p_dict (dict, optional): A dictionary of additional parameters that can be provided to fine-tune the translation process.
+                These parameters may include specific weights or settings required for the GP model. Defaults to an empty dictionary.
+
+            printing (bool, optional): A flag to control whether to print progress information during the translation process.
+                If True, it will print status updates; if False, it will run silently. Defaults to None.
+
+        Returns:
+            None
+
+        The method updates the internal representation of parameters and settings in the instance to match the requirements
+        of the Goal Programming (GP) model. It translates preference scores, rewards, and penalties according to the GP model's
+        specifications, making the instance ready for goal-based optimization.
+
+        Note:
+        - The method may apply normalization to ensure that rewards and penalties are consistent with the GP model's expectations.
+        - If the 'get_new_rewards_penalties' flag is set to True in the model parameters, the method may compute new rewards
+          and penalties based on the instance data and preferences, creating a fresh set of values for optimization.
+
         """
 
         if printing is None:
@@ -1066,7 +1208,8 @@ class CadetCareerProblem:
 
     def soc_rated_matching_algorithm(self, p_dict={}, printing=None):
         """
-        This is the Hospitals/Residents algorithm that matches or reserves cadets to their Rated AFSCs based on the SOC.
+        This is the Hospitals/Residents algorithm that matches or reserves cadets to their Rated AFSCs depending on the
+        source of commissioning (SOCs).
         """
         if printing is None:
             printing = self.printing
@@ -1105,7 +1248,27 @@ class CadetCareerProblem:
     # Optimization models
     def solve_vft_pyomo_model(self, p_dict={}, printing=None):
         """
-        Solve the VFT model using pyomo
+        Solve the VFT model using Pyomo, an optimization modeling library.
+
+        This method is responsible for solving the Value Focussed Thinking (VFT) model using Pyomo. The VFT model is a specific
+        type of optimization model. It conducts the necessary preparation, builds the model, solves it, and handles the
+        resulting solution. The goal is to find optimal solutions for the VFT problem.
+
+        Args:
+            p_dict (dict): A dictionary of parameters used for the model. It allows for customization of the model's
+                input parameters.
+            printing (bool, None): A flag to control whether to print information during the model-solving process. If set to
+                True, the method will print progress and debugging information. If set to False, it will suppress printing.
+                If None, the method will use the default printing setting from the class instance.
+
+        Returns:
+            solution: The solution of the VFT model, which contains the optimal values for the decision variables and other
+                relevant information.
+
+        Notes:
+        - Before using this method, it's important to ensure that the class instance contains valid and appropriate data.
+        - This method uses external functions for building and solving the Pyomo model, and the specifics of those functions
+          are located in the 'afccp.core.solutions.optimization' module.
         """
         self.error_checking("Pyomo Model")
         if printing is None:
@@ -1383,7 +1546,7 @@ class CadetCareerProblem:
                         new_solutions[s_name]['afsc_array'][i] = p['afscs'][j]
 
                 # Integrate this solution
-                self.solution_handling(new_solutions[s_name])
+                self.solution_handling(new_solutions[s_name], printing=False)
 
     def find_ineligible_cadets(self, solution_name=None, fix_it=True):
         """
@@ -1506,7 +1669,8 @@ class CadetCareerProblem:
 
         # Calculate solution metrics
         self.solution = afccp.core.solutions.handling.evaluate_solution(
-            self.solution, self.parameters, self.value_parameters, approximate=approximate, printing=printing)
+            self.solution, self.parameters, self.value_parameters, approximate=approximate, printing=printing,
+            re_calculate_x=self.mdl_p['re-calculate x'])
 
     def measure_fitness(self, printing=None):
         """
@@ -1549,7 +1713,7 @@ class CadetCareerProblem:
 
         # Update the solution iterations dictionary
         if 'sequence' not in self.solution['iterations']:
-            self.manage_animation_parameters()
+            self.manage_bubbles_parameters()
 
         # 'Sequence' Folder
         folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
@@ -1641,7 +1805,7 @@ class CadetCareerProblem:
             if printing:
                 print('Solution iterations imported from', filepath)
 
-    def manage_animation_parameters(self, p_dict={}):
+    def manage_bubbles_parameters(self, p_dict={}):
         """
         Handles the solution iterations that we should already have as an attribute of the problem instance
         """
@@ -1673,7 +1837,7 @@ class CadetCareerProblem:
                 elif "ROTC" in self.solution_name:
                     self.solution['cadets_solved_for'] = 'ROTC Rated'
 
-            # Determine name of this CadetBoardFigure sequence
+            # Determine name of this BubbleChart sequence
             self.solution['iterations']['sequence'] = \
                 self.data_name + ', ' + self.solution['cadets_solved_for'] + ' Cadets, ' + \
                 self.solution['iterations']['type'] + ', ' + self.solution['afscs_solved_for'] + \
@@ -1971,7 +2135,7 @@ class CadetCareerProblem:
             print("Generating animation slides...")
 
         # Manage the solution iterations
-        self.manage_animation_parameters(p_dict)
+        self.manage_bubbles_parameters(p_dict)
 
         # Call the function to generate the slides
         if afccp.core.globals.use_pptx:
@@ -2023,9 +2187,9 @@ class CadetCareerProblem:
         if printing:
             print('Done.')
 
-    def generate_cadet_board_animation(self, p_dict={}, printing=None):
+    def generate_bubbles_chart(self, p_dict={}, printing=None):
         """
-        Method to generate the "Cadet Board" animation by calling the CadetBoardFigure class and applying the parameters
+        Method to generate the "BubbleChart" figure by calling the BubbleChart class and applying the parameters
         as specified in the ccp helping functions.
         """
 
@@ -2033,14 +2197,14 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Manage the solution iterations
-        self.manage_animation_parameters(p_dict)
+        self.manage_bubbles_parameters(p_dict)
 
         # Print updates
         if printing:
-            print('Creating cadet board animation figures...')
+            print('Creating Bubbles Chart...')
 
         # Call the figure object
-        cadet_board = afccp.core.visualizations.animation.CadetBoardFigure(self, printing=printing)
+        cadet_board = afccp.core.visualizations.bubbles.BubbleChart(self, printing=printing)
         cadet_board.main()
 
         # Only build the animation slides if we're saving iteration frames
@@ -2462,7 +2626,8 @@ class CadetCareerProblem:
 
         # Parameter initialization
         if datasets is None:
-            datasets = ["Cadets", "AFSCs", "Preferences", "Goal Programming", "Value Parameters", "Solutions"]
+            datasets = ["Cadets", "AFSCs", "Preferences", "Goal Programming", "Value Parameters",
+                        "Solutions", "Additional", "Base Solutions", "Course Solutions"]
         if printing is None:
             printing = self.printing
 
@@ -2487,7 +2652,8 @@ class CadetCareerProblem:
                                  "Cadets": afccp_dp.export_cadets_data,
                                  "Preferences": afccp_dp.export_preferences_data,
                                  "Value Parameters": afccp_dp.export_value_parameters_data,
-                                 "Solutions": afccp_dp.export_solutions_data}
+                                 "Solutions": afccp_dp.export_solutions_data,
+                                 "Additional": afccp_dp.export_additional_data}
         for dataset in dataset_function_dict:
             if dataset in datasets:
                 dataset_function_dict[dataset](self)
@@ -2522,5 +2688,6 @@ class CadetCareerProblem:
 
         if printing:
             print("Done.")
+
 
 

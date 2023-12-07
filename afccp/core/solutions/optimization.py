@@ -61,7 +61,7 @@ def assignment_model_build(instance, printing=False):
 
     # *New* Utility/Cost Matrix based on CFM preferences and cadet preferences (GUO model)
     if mdl_p['assignment_model_obj'] == 'Global Utility':
-        c = vp['global_utility']
+        c = vp['global_utility'] / p['N']
 
         if printing:
             print("Building assignment problem (GUO) model...")
@@ -103,10 +103,26 @@ def assignment_model_build(instance, printing=False):
     m = common_optimization_handling(m, p, vp, mdl_p)  # Define x along with additional functional constraints
 
     # ___________________________________OBJECTIVE FUNCTION__________________________________
-    def objective_function(m):
-        return np.sum(np.sum(c[i, j] * m.x[i, j] for j in p["J^E"][i]) for i in p["I"])
+    if mdl_p['solve_extra_components']:
 
-    m.objective = Objective(rule=objective_function, sense=maximize)
+        # Base/Training model extra components
+        m = base_training_model_handling(m, p, mdl_p)
+
+        # Base/Training model objective function
+        def objective_function(m):
+            return vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * m.cadet_value[i] for i in p['I']) + \
+                   1 / p['N'] * vp['afscs_overall_weight'] * np.sum(
+                np.sum(p['afsc_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+
+        m.objective = Objective(rule=objective_function, sense=maximize)
+
+    else:
+
+        # AFSC-only objective function
+        def objective_function(m):
+            return np.sum(np.sum(c[i, j] * m.x[i, j] for j in p["J^E"][i]) for i in p["I"])
+
+        m.objective = Objective(rule=objective_function, sense=maximize)
 
     # ________________________________________CONSTRAINTS_____________________________________
     pass
@@ -299,14 +315,30 @@ def vft_model_build(instance, printing=False):
     m = variable_adjustments(m)  # Call the function
 
     # _________________________________OBJECTIVE FUNCTION_________________________________
-    def objective_function(m):
-        """
-        The objective function is to maximize "Z", the overall weighted sum of all VFT objectives
-        """
-        return vp['afscs_overall_weight'] * np.sum(vp['afsc_weight'][j] * np.sum(
-            vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) for j in p['J']) + \
-               vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * np.sum(
-            p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+    if mdl_p['solve_extra_components']:
+
+        # Base/Training model extra components
+        m = base_training_model_handling(m, p, mdl_p)
+
+        def objective_function(m):  # Z^VFT (w/base/training revision on cadet_value)
+            """
+            The objective function is to maximize "Z", the overall weighted sum of all VFT objectives
+            """
+            return vp['afscs_overall_weight'] * np.sum(vp['afsc_weight'][j] * np.sum(
+                vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) for j in p['J']) + \
+                   vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * m.cadet_value[i] for i in p['I'])
+
+    else:
+
+        # AFSC-only objective function
+        def objective_function(m):  # Z^VFT (Definition of variable in written formulation)
+            """
+            The objective function is to maximize "Z", the overall weighted sum of all VFT objectives
+            """
+            return vp['afscs_overall_weight'] * np.sum(vp['afsc_weight'][j] * np.sum(
+                vp['objective_weight'][j, k] * m.f_value[j, k] for k in vp['K^A'][j]) for j in p['J']) + \
+                   vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * np.sum(
+                p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
     m.objective = Objective(rule=objective_function, sense=maximize)
 
@@ -619,11 +651,16 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
     if printing:
         if model_name == "VFT":
             if mdl_p["approximate"]:
-                print('Solving Approximate VFT Model instance with solver ' + mdl_p["solver_name"] + '...')
+                specific_model_name = "Approximate VFT Model"
             else:
-                print('Solving Exact VFT Model instance with solver ' + mdl_p["solver_name"] + '...')
+                specific_model_name = "Exact VFT Model"
         else:
-            print('Solving ' + model_name + ' Model instance with solver ' + mdl_p["solver_name"] + '...')
+            specific_model_name = model_name + " Model"
+
+        if mdl_p['solve_extra_components']:
+            specific_model_name += " (w/base & training components)"
+
+        print('Solving ' + specific_model_name + ' instance with solver ' + mdl_p["solver_name"] + '...')
 
 
     # Solve Model
@@ -651,8 +688,9 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
         else:
             solver.solve(model) #, tee=True)
 
+    solve_time, obj_value = round(time.perf_counter() - start_time, 2), round(model.objective(), 4)
     if printing:
-        print("Model solved in", round(time.perf_counter() - start_time, 2), "seconds.")
+        print("Model solved in", solve_time, "seconds. Pyomo reported objective value:", obj_value)
 
     # Goal Programming Model specific actions
     if model_name == "GP":
@@ -698,7 +736,8 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             """
 
             # Get solution
-            solution = {"method": model_name, "j_array": np.zeros(p['N']).astype(int), "x": np.zeros((p['N'], p['M']))}
+            solution = {"method": model_name, "j_array": np.zeros(p['N']).astype(int), "x": np.zeros((p['N'], p['M'])),
+                        'solve_time': solve_time, 'pyomo_obj_value': obj_value, 'x_integer': True}
 
             # Loop through each cadet to determine what AFSC they're assigned
             for i in p['I']:
@@ -709,6 +748,9 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                         if round(solution['x'][i, j]):
                             solution['j_array'][i] = int(j)
                             found = True
+
+                        if 0.01 < solution['x'][i, j] < 0.99:
+                            solution['x_integer'] = False
                     except:
                         raise ValueError("Solution didn't come out right, likely model is infeasible.")
 
@@ -742,7 +784,74 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
 
             return solution
 
+        # Obtain base/training solution components from the model
+        def obtain_extra_solution_components(solution):
+            """
+            This nested function obtains the base/training variable components from the pyomo model
+            """
+
+            solution['b_array'] = np.zeros(p['N']).astype(int)
+            solution['c_array'] = np.array([(0, 0) for _ in p['I']])
+            solution['base_array'] = np.array([" " * 100 for _ in p['I']])
+            solution['course_array'] = np.array([" " * 100 for _ in p['I']])
+            solution['v'] = np.zeros((p['N'], p['S'])).astype(int)
+            solution['q'] = np.zeros((p['N'], p['M'], max(p['T']))).astype(int)
+            solution['cadet_value (Pyomo)'] = np.zeros(p['N'])
+            solution['v_integer'], solution['q_integer'] = True, True
+
+            # Loop through each cadet to determine what base they're assigned to
+            for i in p['I']:
+                found = False
+                for b in p['B^E'][i]:
+                    solution['v'][i, b] = model.v[i, b].value
+                    try:
+                        if round(solution['v'][i, b]):
+                            solution['b_array'][i] = int(b)
+                            found = True
+
+                        if 0.01 < solution['v'][i, b] < 0.99:
+                            warm_start['v_integer'] = False
+                    except:
+                        raise ValueError("Solution didn't come out right, likely model is infeasible.")
+
+                if found:
+                    solution['base_array'][i] = p['bases'][solution['b_array'][i]]
+                else:  # Not matched to a base
+                    solution['base_array'][i] = ""
+                    solution['b_array'][i] = p['S']
+
+            # Loop through each cadet to determine what course they're assigned to
+            for i in p['I']:
+                found = False
+                for j in p['J^E'][i]:
+                    for c in p['C^E'][i][j]:
+                        solution['q'][i, j, c] = model.q[i, j, c].value
+                        try:
+                            if round(solution['q'][i, j, c]):
+                                solution['c_array'][i] = (j, c)
+                                found = True
+
+                            if 0.01 < solution['q'][i, j, c] < 0.99:
+                                warm_start['q_integer'] = False
+                        except:
+                            raise ValueError("Solution didn't come out right, likely model is infeasible.")
+
+                if found:
+                    solution['course_array'][i] = p['courses'][solution['c_array'][i][0]][solution['c_array'][i][1]]
+                else:  # Not matched to a course
+                    print('Cadet', i, 'not matched to a course for some reason. Something went wrong.')
+
+            # Loop through each cadet to get their value from pyomo
+            for i in p['I']:
+                solution['cadet_value (Pyomo)'][i] = model.cadet_value[i].value
+
+            return solution
+
         solution = obtain_solution()
+
+        # Base/Training Model components
+        if mdl_p['solve_extra_components']:
+            solution = obtain_extra_solution_components(solution)
 
         # Obtain "warm start" variables used to initialize the VFT pyomo model
         def obtain_warm_start_variables():
@@ -758,9 +867,10 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                         max_r = q["r"][j][k]
 
             # Initialize dictionary
-            warm_start = {'f(measure)': np.zeros([p['M'], vp['O']]),
-                          'lambda': np.zeros([p['M'], p['O'], max_r + 1]),
-                          'y': np.zeros([p['M'], p['O'], max_r + 1]).astype(int), 'obj': model.objective()}
+            warm_start = {'f(measure)': np.zeros([p['M'], vp['O']]), 'r^max': max_r + 1,
+                          'lambda': np.zeros([p['M'], vp['O'], max_r + 1]),
+                          'y': np.zeros([p['M'], vp['O'], max_r + 1]).astype(int), 'obj': model.objective(),
+                          'y_original': np.zeros([p['M'], vp['O'], max_r + 1]), 'y_integer': True}
 
             # Load warm start variables
             for j in p['J']:
@@ -770,6 +880,9 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                         warm_start['lambda'][j, k, l] = model.lam[j, k, l].value
                         if l < q['r'][j, k] - 1:
                             warm_start['y'][j, k, l] = round(model.y[j, k, l].value)
+                            warm_start['y_original'][j, k, l] = model.y[j, k, l].value
+                            if 0.01 < warm_start['y_original'][j, k, l] < 0.99:
+                                warm_start['y_integer'] = False
 
             # Return the "warm start" dictionary
             return warm_start
@@ -942,88 +1055,84 @@ def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
 
 def common_optimization_handling(m, p, vp, mdl_p):
     """
-    This function takes in the optimization model, parameters, and value parameters
-    and then adds components that are common to all of my *main* optimization models
-    (VFT and the 2 generalized assignment problem models).
+    Adds optimization model components common to *main* optimization models like VFT and the generalized assignment
+    problem models.
+
+    Parameters:
+    m (ConcreteModel): The Pyomo ConcreteModel instance to which the optimization model components will be added.
+    p (dict): A dictionary containing problem-specific data, including cadet, AFSC, base, course, utility, and weight
+             information.
+    vp (dict): A dictionary containing value-specific parameters and information.
+    mdl_p (dict): A dictionary containing model-specific parameters and configurations.
+
+    Returns:
+    ConcreteModel: The modified Pyomo ConcreteModel instance with added optimization model components.
+
+    Notes:
+    - This function extends the given Pyomo ConcreteModel (m) by adding optimization model components common to
+      various main optimization models.
+    - The parameters include:
+        - m: The Pyomo ConcreteModel instance to be extended.
+        - p: A dictionary containing various problem-specific data, such as cadet information, AFSCs, bases, courses,
+             utility values, and weights.
+        - vp: A dictionary containing value-specific parameters and information.
+        - mdl_p: A dictionary containing model-specific parameters and configurations.
+    - The added optimization model components include binary variables (x), constraints for cadet AFSC assignment,
+      cadet value constraints, constraints for fixed variables, reserved AFSC constraints, and constraints for
+      AFSC cadet percentages, among others.
+    - Additional constraints handle special cases like alternate list rated addition, 5% cap on total percentage of
+      USAFA cadets allowed in certain AFSCs, USSF SOC PGL constraint, and USSF OM constraint.
+    - The given ConcreteModel (m) is modified in-place and returned for further use.
     """
 
     # Define the x-variable
     m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
-
-    # Fixing variables if necessary
-    for i in p['J^Fixed']:
-
-        # Fix the variable
-        m.x[i, p['J^Fixed'][i]].fix(1)
 
     # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
     m.one_afsc_constraints = ConstraintList()
     for i in p['I']:
         m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
 
-    # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
-    m.reserved_afsc_constraints = ConstraintList()
-    for i in p['J^Reserved']:
-        m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
-
-    # "ALTERNATE LIST" SPECIAL TREATMENT SITUATION
-    if 'J^Special' in p:
-
-        # Make sure each special AFSC has an alternate list
-        for j in p['J^Special']:
-            if len(p['I^Alternate'][j]) == 0:
-                raise ValueError("Error. AFSC '" + p['afscs'][j] + "' is a 'special' AFSC with an alternate list "
-                                                                   "specified but there are no cadets in that list.")
-
-        # [1, 2, 3, 4, ..., num_reserved] for each special AFSC
-        a_counts = {j: np.arange(p['num_reserved'][j]).astype(int) + 1 for j in p['J^Special']}
-
-        # Dictionary with (key, value) pair as ("count" (defined above), cadet index)
-        a_cadets = {}
-        for j in p['J^Special']:
-            a_cadets[j] = {}
-            for c in a_counts[j]:
-                a_cadets[j][c] = p['I^Alternate'][j][c - 1]
-
-        # [1, 3, 6, 10, 15, ...] for each special AFSC (cumulative sums)
-        a_cum_sums = {}
-        for j in p['J^Special']:
-            sums = []
-            total = 0
-            for c in a_counts[j]:
-                total += c
-                sums.append(total)
-            a_cum_sums[j] = np.array(sums)  # Convert to numpy array
-
-        # "Alternate Count" variable: 1 if we need "c" # of alternates for AFSC j
-        m.alt = Var(((j, c) for j in p['J^Special'] for c in a_counts[j]), within=Binary)
-
-        # List of constraints we need to enforce this concept
-        m.alternate_list_constraints = ConstraintList()
-        for j in p['J^Special']:  # Loop through each special AFSC to add the constraints we need
-
-            # Number of alternates we need to pull (# Reserved slots - # reserved slots "filled")
-            num_alternates = p['num_reserved'][j] - np.sum(m.x[i, j] for i in p['I^Reserved'][j])
-            m.alternate_list_constraints.add(expr=np.sum(m.x[i, j] for i in p['I^Alternate'][j]) == num_alternates)
-
-            # At most one "Alternate Count" variable can be activated (# of alternates matched)
-            m.alternate_list_constraints.add(expr=np.sum(m.alt[j, c] for c in a_counts[j]) == 1)
-
-            # Defining the "Alternate Count" variable in relation to the number of alternates
-            m.alternate_list_constraints.add(  # Constraint determines which "alt" variable is activated
-                expr=np.sum(a_counts[j][c - 1] * m.alt[j, c] for c in a_counts[j]) == num_alternates)
-
-            # This constraint ensures that the cadets picked from the alternate list are at the top of the list
-            m.alternate_list_constraints.add(expr=np.sum(
-                a_counts[j][c - 1] * m.x[a_cadets[j][c], j] for c in a_counts[j]) == np.sum(
-                a_cum_sums[j][c - 1] * m.alt[j, c] for c in a_counts[j]))
-
     # Cadets may sometimes be constrained to be part of one "Accessions Group" (probably just USSF)
     m.acc_grp_constraints = ConstraintList()
     if 'acc_grp_constraint' in p:
         for acc_grp in p['afscs_acc_grp']:
             for i in p['I^' + acc_grp]:
-                m.acc_grp_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^' + acc_grp] if j in p['J^E'][i]) == 1)
+                m.acc_grp_constraints.add(
+                    expr=np.sum(m.x[i, j] for j in p['J^' + acc_grp] if j in p['J^E'][i]) == 1)
+
+    # Cadet value constraint (Could work on any optimization model)
+    m.min_cadet_value_constraints = ConstraintList()
+    for i in vp['I^C']:  # "J^Top_Choice is set of AFSCs at or above designated utility value (typically top 3)
+        m.min_cadet_value_constraints.add(expr=np.sum(m.x[i, j] for j in vp['J^Top_Choice'][i]) == 1)
+
+    # Fixing variables if necessary
+    for i in p['J^Fixed']:
+        m.x[i, p['J^Fixed'][i]].fix(1)
+
+    # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
+    m.reserved_afsc_constraints = ConstraintList()
+    for i in p['J^Reserved']:
+        m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
+
+    # "AlTERNATE LIST" Rated Addition
+    if mdl_p['rated_alternates'] and 'J^Preferred [usafa]' in p:  # If [usafa] version is here, [rotc] will be too
+
+        # Initialize list of blocking pairs constraints for alternate lists
+        m.blocking_pairs_alternates = ConstraintList()
+
+        # Loop through each SOC and rated AFSC
+        for soc in ['usafa', 'rotc']:
+            for j in p['J^Rated']:
+
+                # Loop through each cadet on this rated AFSC's alternate list for this SOC
+                for i in p['I^Alternate [' + soc + ']'][j]:
+
+                    # Add the blocking pair constraint for the rated AFSC/cadet pair
+                    m.blocking_pairs_alternates.add(  # "j_p"/"i_p" indicate j/i "prime" or (')
+                        expr=p[soc + '_quota'][j] *
+                             (1 - np.sum(m.x[i, j_p] for j_p in p['J^Preferred [' + soc + ']'][j][i])) <=
+                             np.sum(m.x[i_p, j] for i_p in p['I^Preferred [' + soc + ']'][j][i]))
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if vp["J^USAFA"] is not None:
@@ -1041,7 +1150,7 @@ def common_optimization_handling(m, p, vp, mdl_p):
         m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
 
     # Space Force PGL Constraint (Honor USSF SOC split)
-    if mdl_p['ussf_soc_pgl_constraint']:
+    if mdl_p['ussf_soc_pgl_constraint'] and "USSF" in p['afscs_acc_grp']:
 
         # Necessary variables to calculate
         ussf_usafa_sum = np.sum(np.sum(m.x[i, j] for i in p['usafa_cadets'] if i in p['I^E'][j]) for j in p['J^USSF'])
@@ -1059,7 +1168,7 @@ def common_optimization_handling(m, p, vp, mdl_p):
                                             mdl_p['ussf_soc_pgl_constraint_bound'] * p['ussf_rotc_pgl'])
 
     # Space Force OM Constraint
-    if vp['USSF OM']:
+    if vp['USSF OM'] and "USSF" in p['afscs_acc_grp']:
 
         # Necessary variables to calculate
         ussf_merit_sum = np.sum(np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
@@ -1083,16 +1192,104 @@ def common_optimization_handling(m, p, vp, mdl_p):
         m.ussf_om_constraint_upper = Constraint(rule=ussf_om_upper_rule)
         m.ussf_om_constraint_lower = Constraint(rule=ussf_om_lower_rule)
 
-    # Cadet value constraint (Could work on any optimization model)
-    m.min_cadet_value_constraints = ConstraintList()
-    for i in vp['I^C']:
-
-        m.min_cadet_value_constraints.add(expr=np.sum(m.x[i, j] for j in vp['J^Top_Choice'][i]) == 1)
-
     return m  # Return the model
 
 
-# Cadet Board Animation
+def base_training_model_handling(m, p, mdl_p):
+    """
+    Adds optimization model components to handle base and training (IST) assignments.
+
+    Parameters:
+    m (ConcreteModel): The Pyomo ConcreteModel instance to which the optimization model components will be added.
+    p (dict): A dictionary containing problem data, including cadet, base, course, utility, and weight information.
+    mdl_p (dict): A dictionary containing model-specific parameters and configurations.
+
+    Returns:
+    ConcreteModel: The modified Pyomo ConcreteModel instance with added optimization model components.
+
+    Notes:
+    - This function extends the given Pyomo ConcreteModel (m) by adding optimization model components to handle base and
+      training (IST) assignments for cadets.
+    - The parameters are as follows:
+        - m: The Pyomo ConcreteModel instance to be extended.
+        - p: A dictionary containing various problem data, such as cadet information, base information, course
+          information, utility values, and weight information.
+        - mdl_p: A dictionary containing model-specific parameters and configurations.
+    - The added optimization model components include variables and constraints to handle cadet assignments to bases,
+      courses, and values based on utility outcomes and constraints to ensure that assigned bases and courses do not
+      exceed their capacities.
+    - Cadet assignments are modeled using binary variables (v and q), which represent assignments to bases and courses,
+      respectively.
+    - Constraints are formulated to ensure cadet value calculations based on cadet states, base assignments, course
+      assignments, and utility values.
+    - Additionally, constraints ensure that cadet assignments to bases and courses do not exceed base and course
+      capacities.
+
+    Note: The given ConcreteModel (m) is modified in-place and returned for further use.
+    """
+
+    # Define the v and q-variables
+    m.v = Var(((i, b) for i in p['I'] for b in p['B^E'][i]), within=Binary)
+    m.q = Var(((i, j, c) for i in p['I'] for j in p['J^E'][i] for c in p['C^E'][i][j]), within=Binary)
+
+    # Define the new cadet value variable
+    m.cadet_value = Var((i for i in p['I']), within=NonNegativeReals, bounds=(0, 1))
+
+    # Cadet Value Constraints. Define what the "cadet_value" variable should be based on which "state" the cadet is in.
+    m.bc_cadet_value_constraints = ConstraintList()
+    for i in p['I']:
+        for d in p['D'][i]:
+
+            # Calculate auxiliary variables for AFSC, base, course utility outcomes
+            u = {
+                'A': (1 / p['u^S'][i][d]) * np.sum(p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^State'][i][d]),
+                'C': np.sum(np.sum(
+                    p['course_utility'][i][j][c] * m.q[i, j, c] for c in p['C^E'][i][j]) for j in p['J^State'][i][d])
+            }
+
+            # Weighted sum of cadet utilities in each area depends on if bases are involved
+            if len(p['B^State'][i][d]) > 0:
+                u['B'] = np.sum(p['base_utility'][i, b] * m.v[i, b] for b in p['B^State'][i][d])
+                weighted_sum = p['w^A'][i][d] * u['A'] + p['w^B'][i][d] * u['B'] + p['w^C'][i][d] * u['C']
+            else:
+                weighted_sum = p['w^A'][i][d] * u['A'] + p['w^C'][i][d] * u['C']
+
+            # This is the base/course state cadet value constraint. It ensures cadet_value will be the right value
+            m.bc_cadet_value_constraints.add(expr=m.cadet_value[i] <= p['u^S'][i][d] * weighted_sum +
+                                                  mdl_p['BIG M'] * (1 - np.sum(m.x[i, j] for j in p['J^State'][i][d])))
+
+    # Cadet Base Constraints. If a cadet is assigned to a base, it has to be one that the AFSC is located at
+    m.bc_cadet_base_constraints = ConstraintList()
+    for i in p['I']:
+        m.bc_cadet_base_constraints.add(expr=np.sum(m.v[i, b] for b in p['B^E'][i]) ==
+                                             np.sum(m.x[i, j] for j in np.intersect1d(p['J^E'][i], p['J^B'])))
+        for j in np.intersect1d(p['J^B'], p['J^E'][i]):
+            m.bc_cadet_base_constraints.add(expr=m.x[i, j] <= np.sum(m.v[i, b] for b in p['B^A'][j]))
+
+    # Cadet Course Constraints. Cadets have to be assigned to a course for their designated AFSC
+    m.bc_cadet_course_constraints = ConstraintList()
+    for i in p['I']:
+        for j in p['J^E'][i]:
+            m.bc_cadet_course_constraints.add(expr=m.x[i, j] == np.sum(m.q[i, j, c] for c in p['C^E'][i][j]))
+
+    # Base Capacity Constraints. A base/AFSC pair cannot exceed its capacity
+    m.bc_base_capacity_constraints = ConstraintList()
+    for j in p['J^B']:
+        for b in p['B^A'][j]:
+            m.bc_base_capacity_constraints.add(expr=np.sum(m.v[i, b] for i in p['I^E'][j]) <= p['hi^B'][j][b])
+            m.bc_base_capacity_constraints.add(expr=np.sum(m.v[i, b] for i in p['I^E'][j]) >= p['lo^B'][j][b])
+
+    # Course Capacity Constraints. A course/AFSC pair cannot exceed its capacity
+    m.bc_course_capacity_constraints = ConstraintList()
+    for j in p['J']:
+        for c in p['C'][j]:
+            m.bc_course_capacity_constraints.add(expr=np.sum(m.q[i, j, c] for i in p['I^A'][j][c]) <= p['hi^C'][j][c])
+            m.bc_course_capacity_constraints.add(expr=np.sum(m.q[i, j, c] for i in p['I^A'][j][c]) >= p['lo^C'][j][c])
+
+    return m
+
+
+# Cadet Board Animation (BUBBLE CHART)
 def cadet_board_preprocess_model(b):
     """
     Builds a Pyomo optimization model to determine the x and y coordinates of AFSC squares on a chart.
