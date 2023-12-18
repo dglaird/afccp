@@ -454,17 +454,6 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=2
         if vp_cadet_df is not None:
             value_parameters["cadet_value_min"] = np.array(vp_cadet_df[vp_name]).astype(float)
 
-        # Check if other columns are present (phasing these in)
-        more_vp_columns = ["USAFA-Constrained AFSCs", "Cadets Top 3 Constraint", "USSF OM"]
-        for col in more_vp_columns:
-            if col in overall_vp_df:
-                element = str(np.array(overall_vp_df[col])[v])
-                if element == "nan":
-                    element = ""
-                value_parameters[col] = element
-            else:
-                value_parameters[col] = ""
-
         # Determine weights on cadets
         if 'merit_all' in parameters:
             value_parameters['cadet_weight'] = afccp_vp.cadet_weight_function(
@@ -978,10 +967,7 @@ def export_value_parameters_data(instance):
                               'Cadets Min Value': vp['cadets_overall_value_min'],
                               'AFSCs Min Value': vp['afscs_overall_value_min'],
                               'Cadet Weight Function': vp['cadet_weight_function'],
-                              'AFSC Weight Function': vp['afsc_weight_function'],
-                              "USAFA-Constrained AFSCs": vp["USAFA-Constrained AFSCs"],
-                              "Cadets Top 3 Constraint": vp["Cadets Top 3 Constraint"],
-                              "USSF OM": vp['USSF OM']}
+                              'AFSC Weight Function': vp['afsc_weight_function']}
 
         # Add the row for this set of value parameters to the overall df
         for col in overall_vp_columns:

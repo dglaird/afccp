@@ -316,7 +316,7 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
         print("Solving the rated matching algorithm for " + soc.upper() + " cadets...")
 
     # Shorthand
-    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
+    p, mdl_p = instance.parameters, instance.mdl_p
 
     # Slight change to Rated AFSCs (Remove SOC specific slots)
     if soc == 'usafa':

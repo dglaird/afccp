@@ -18,7 +18,7 @@ def generate_results_slides(instance):
     mdl_p = instance.mdl_p
 
     # Build the presentation object
-    prs = Presentation(afccp.core.globals.paths['support'] + 'results_slide_template.pptx')
+    prs = Presentation(afccp.core.globals.paths['files'] + 'results_slide_template.pptx')
 
     # Delete the current slides in the template
     for i in range(len(prs.slides) - 1, -1, -1):

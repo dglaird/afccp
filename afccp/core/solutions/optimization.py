@@ -688,9 +688,8 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
         else:
             solver.solve(model) #, tee=True)
 
-    solve_time, obj_value = round(time.perf_counter() - start_time, 2), round(model.objective(), 4)
-    if printing:
-        print("Model solved in", solve_time, "seconds. Pyomo reported objective value:", obj_value)
+    # Get solve time
+    solve_time = round(time.perf_counter() - start_time, 2)
 
     # Goal Programming Model specific actions
     if model_name == "GP":
@@ -737,7 +736,7 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
 
             # Get solution
             solution = {"method": model_name, "j_array": np.zeros(p['N']).astype(int), "x": np.zeros((p['N'], p['M'])),
-                        'solve_time': solve_time, 'pyomo_obj_value': obj_value, 'x_integer': True}
+                        'solve_time': solve_time, 'x_integer': True}
 
             # Loop through each cadet to determine what AFSC they're assigned
             for i in p['I']:
@@ -782,6 +781,8 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                         print("Cadet " + str(i) + " was not assigned by the model for some reason. "
                                                   "We assigned them to", afsc)
 
+            # Get objective value
+            solution['pyomo_obj_value'] = round(model.objective(), 4)
             return solution
 
         # Obtain base/training solution components from the model
@@ -892,6 +893,9 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             warm_start = obtain_warm_start_variables()
             for key in warm_start:
                 solution[key] = warm_start[key]
+
+        if printing:
+            print("Model solved in", solve_time, "seconds. Pyomo reported objective value:", solution['pyomo_obj_value'])
 
         # Return solution dictionary
         return solution
@@ -1135,8 +1139,11 @@ def common_optimization_handling(m, p, vp, mdl_p):
                              np.sum(m.x[i_p, j] for i_p in p['I^Preferred [' + soc + ']'][j][i]))
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
-    if vp["J^USAFA"] is not None:
+    if mdl_p["USAFA-Constrained AFSCs"] is not None:
         cap = 0.05 * instance.mdl_p["real_usafa_n"]  # Total number of graduating USAFA cadets
+
+        # Convert list of AFSC names to list of AFSC indices
+        constrained_afscs = [np.where(p['afscs'] == afsc)[0][0] for afsc in mdl_p["USAFA-Constrained AFSCs"]]
 
         # USAFA 5% Cap Constraint
         def usafa_afscs_rule(m):
@@ -1145,7 +1152,7 @@ def common_optimization_handling(m, p, vp, mdl_p):
             as of Mar '23 this constraint is effectively null and void! Still here for documentation however and for any
             potential future experiment
             """
-            return np.sum(np.sum(m.x[i, j] for i in p['usafa_cadets']) for j in vp["J^USAFA"]) <= cap
+            return np.sum(np.sum(m.x[i, j] for i in p['usafa_cadets']) for j in constrained_afscs) <= cap
 
         m.usafa_afscs_constraint = Constraint(rule=usafa_afscs_rule)
 
@@ -1168,7 +1175,7 @@ def common_optimization_handling(m, p, vp, mdl_p):
                                             mdl_p['ussf_soc_pgl_constraint_bound'] * p['ussf_rotc_pgl'])
 
     # Space Force OM Constraint
-    if vp['USSF OM'] and "USSF" in p['afscs_acc_grp']:
+    if mdl_p['USSF OM'] and "USSF" in p['afscs_acc_grp']:
 
         # Necessary variables to calculate
         ussf_merit_sum = np.sum(np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j]) for j in p['J^USSF'])

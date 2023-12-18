@@ -800,21 +800,6 @@ def convert_instance_to_from_scrubbed(instance, new_letter=None, translation_dic
                 elif np.shape(vp[key]) == (vp["M"], vp["O"]) and key not in ["a", "f^hat"]:
                     new_vp[key] = vp[key][t_indices, :]
 
-            # USAFA-constrained AFSCs
-            if vp["J^USAFA"] is not None:
-                usafa_afscs = vp["USAFA-Constrained AFSCs"].split(", ")
-                new_str = ""
-                for index, real_afsc in enumerate(usafa_afscs):
-                    real_afsc = str(real_afsc.strip())
-                    j = np.where(current_afscs == real_afsc)[0][0]
-                    usafa_afscs[index] = new_p["afscs"][j]
-                    if index == len(usafa_afscs) - 1:
-                        new_str += usafa_afscs[index]
-                    else:
-                        new_str += usafa_afscs[index] + ", "
-
-                new_vp["USAFA-Constrained AFSCs"] = new_str
-
             for j, old_j in enumerate(t_indices):
                 for k in vp["K"]:
                     for key in ["a", "f^hat"]:
@@ -1201,9 +1186,9 @@ def parameter_sanity_check(instance):
                   str(num_null) + " null target values ('objective_target').")
 
     # USSF OM Constraint rules
-    if vp['USSF OM'] is True and "USSF" not in p['afscs_acc_grp']:
+    if instance.mdl_p['USSF OM'] is True and "USSF" not in p['afscs_acc_grp']:
         issue += 1
-        print(issue, "ISSUE: Space Force OM constraint specified in value parameters (USSF OM = True) but no USSF"
+        print(issue, "ISSUE: Space Force OM constraint specified in controls (USSF OM = True) but no USSF"
                      " AFSCS found in the instance.")
 
     # At least one rated preference for rated eligible

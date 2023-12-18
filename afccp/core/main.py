@@ -343,6 +343,12 @@ class CadetCareerProblem:
             if not afccp.core.globals.use_pyomo:
                 raise ValueError("Error. Pyomo is not currently installed and is required to run pyomo models. Please"
                                  "install this library.")
+
+            # No Base/Training components
+            if self.mdl_p['solve_extra_components'] and 'B' not in self.parameters:
+                raise ValueError("Error. No base/training components found in parameters. Cannot solve "
+                                 "without the extra components.")
+
         elif test == 'Solutions':
             if self.solutions is None:
                 raise ValueError("Error. No solutions dictionary detected. You need to solve this problem first.")
@@ -1316,15 +1322,16 @@ class CadetCareerProblem:
         Solve the "generalized assignment problem" model with the new global utility matrix constructed
         from the AFSC and Cadet Utility matrices. This is the "GUO" model.
         """
-        self.error_checking("Pyomo Model")
-        if printing is None:
-            printing = self.printing
-
         # One little "switch" to get the new assignment model objective function
         p_dict['assignment_model_obj'] = "Global Utility"
 
         # Reset instance model parameters
         self.reset_functional_parameters(p_dict)
+
+        # Error handling
+        self.error_checking("Pyomo Model")
+        if printing is None:
+            printing = self.printing
 
         # Build the model and then solve it
         model = afccp.core.solutions.optimization.assignment_model_build(self, printing=printing)

@@ -16,10 +16,11 @@ def test_solve_times():
     """
 
     # size_list = [(100, 6, 0), (200, 6, 0), (1200, 6, 0), (2500, 16, 0)]
-    size_list = [(500, 10, 6)]
-    model_solver_list = [('GUO', 'cbc'), ('A-VFT', 'cbc'), ('E-VFT', 'ipopt')]
-    instances_per_size = 4
-    max_solve_time = 10
+    size_list = [(500, 10, 6), (1500, 14, 6), (3000, 14, 10)]
+    # model_solver_list = [('GUO', 'cbc'), ('A-VFT', 'cbc'), ('E-VFT', 'ipopt')]
+    model_solver_list = [('GUO', 'cbc')]
+    instances_per_size = 5
+    max_solve_time = 60
 
     df_columns = {'Iteration': [], 'Size (NxMxS)': [], 'Instance': [], 'Model': [], 'Solver': [], 'Result': [],
                   'Solve Time (s)': [], 'Pyomo Z': [], 'Real X Exact VFT Z': [], 'Real X Approx VFT Z': [],

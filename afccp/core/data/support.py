@@ -32,7 +32,55 @@ def initialize_instance_functional_parameters(N):
     # Parameters for the graphs
     mdl_p = {
 
-        # Parameters for the animation (BubbleChart)
+        # Generic Solution Handling (for multiple algorithms/models)
+        "initial_solutions": None, "solution_names": None, "add_to_dict": True, "set_to_instance": True,
+        "initialize_new_heuristics": False, 'gather_all_metrics': True, 're-calculate x': True,
+
+        # Matching Algorithm Parameters
+        'ma_printing': False, 'capacity_parameter': 'quota_max', 'rotc_rated_board_afsc_order': None,
+        'collect_solution_iterations': True, 'soc': 'usafa', 'incorporate_rated_results': True,
+        'create_new_rated_solutions': True,
+
+        # Genetic Matching Algorithm Parameters
+        "gma_pop_size": 4, 'gma_max_time': 20, 'gma_num_crossover_points': 2, 'gma_mutations': 1,
+        'gma_mutation_rate': 1, 'gma_printing': False, 'stopping_conditions': 'Time', 'gma_num_generations': 200,
+
+        # Genetic Algorithm Parameters
+        "pop_size": 12, "ga_max_time": 60, "num_crossover_points": 3, "initialize": True, "ga_printing": True,
+        "mutation_rate": 0.05, "num_time_points": 100, "num_mutations": int(np.ceil(N / 75)), "time_eval": False,
+        "percent_step": 10, "ga_constrain_first_only": False, 'mutation_function': 'cadet_choice',
+        'preference_mutation_rate': 0.5,
+
+        # Pyomo General Parameters
+        "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
+        "executable": None, "exe_extension": False, 'alternate_list_iterations_printing': False,
+
+        # Additional Constraints/Modeling
+        "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': True,
+        'ussf_soc_pgl_constraint_bound': 0.01, 'rated_alternates': True, 'USSF OM': False,
+        'USAFA-Constrained AFSCs': None, 'BIG M': 100, 'solve_extra_components': False,
+
+        # VFT Model Parameters
+        "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,
+        "obtain_warm_start_variables": True, "add_breakpoints": True, "approximate": True,
+
+        # VFT Population Generation Parameters
+        "populate": True, "iterate_from_quota": True, "max_quota_iterations": 5, "population_additions": 10,
+        "population_generation_model": "Assignment",
+
+        # Model Constraint Placement Algorithm parameters
+        'constraint_model_to_use': 'Assignment', "skip_quota_constraint": False,
+
+        # Sensitivity Analysis
+        "pareto_step": 10,
+
+        # Goal Programming Parameters
+        "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
+
+        # Value Parameter Generation
+        "new_vp_weight": 100, "num_breakpoints": 24,
+
+        # BubbleChart Parameters
         'b_figsize': (19, 10), 's': 1, 'fw': 100, 'circle_radius_percent': 0.8,
         'fh_ratio': 0.5, 'bw^t_ratio': 0.05, 'bw^l_ratio': 0, 'bw^r_ratio': 0, 'b_title': None,
         'bw^b_ratio': 0, 'bw^u_ratio': 0.02, 'abw^lr_ratio': 0.01, 'abw^ud_ratio': 0.02, 'b_title_size': 30,
@@ -54,7 +102,7 @@ def initialize_instance_functional_parameters(N):
         # Generic Chart Handling
         "save": True, "figsize": (19, 10), "facecolor": "white", "title": None, "filename": None, "display_title": True,
         "label_size": 25, "afsc_tick_size": 20, "yaxis_tick_size": 25, "bar_text_size": 15, "xaxis_tick_size": 20,
-        "afsc_rotation": None, "bar_color": "#3287cd", "alpha": 1, "legend_size": 25,  "title_size": 25,
+        "afsc_rotation": None, "bar_color": "#3287cd", "alpha": 1, "legend_size": 25, "title_size": 25,
         "text_size": 15, 'text_bar_threshold': 400, 'dot_size': 35, 'legend_dot_size': 15, 'ncol': 1,
         "color_afsc_text_by_grp": True, "proportion_legend_size": 15, 'proportion_text_bar_threshold': 10,
         "square_figsize": (11, 10),
@@ -89,55 +137,6 @@ def initialize_instance_functional_parameters(N):
 
         # Multi-Criteria Chart
         "num_afscs_to_compare": 8, "comparison_criteria": ["Utility", "Merit", "AFOCD"],
-
-        # Generic Solution Handling (for multiple algorithms/models)
-        "initial_solutions": None, "solution_names": None, "add_to_dict": True, "set_to_instance": True,
-        "initialize_new_heuristics": False, 'gather_all_metrics': True,
-
-        # Matching Algorithm Parameters
-        'ma_printing': False, 'capacity_parameter': 'quota_max', 'rotc_rated_board_afsc_order': None,
-        'collect_solution_iterations': True, 'soc': 'usafa', 'incorporate_rated_results': True,
-        'create_new_rated_solutions': True,
-
-        # Genetic Matching Algorithm Parameters
-        "gma_pop_size": 4, 'gma_max_time': 20, 'gma_num_crossover_points': 2, 'gma_mutations': 1,
-        'gma_mutation_rate': 1, 'gma_printing': False, 'stopping_conditions': 'Time', 'gma_num_generations': 200,
-
-        # Genetic Algorithm Parameters
-        "pop_size": 12, "ga_max_time": 60, "num_crossover_points": 3, "initialize": True, "ga_printing": True,
-        "mutation_rate": 0.05, "num_time_points": 100, "num_mutations": int(np.ceil(N / 75)), "time_eval": False,
-        "percent_step": 10, "ga_constrain_first_only": False, 'mutation_function': 'cadet_choice',
-        'preference_mutation_rate': 0.5,
-
-        # Pyomo General Parameters
-        "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
-        "executable": None, "exe_extension": False, "assignment_model_obj": "Global Utility",
-        're_calculate_x': True, 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': True,
-        'ussf_soc_pgl_constraint_bound': 0.01, 'special_afscs_with_alternates': None, 'rated_alternates': True,
-        'alternate_list_iterations_printing': False, 're-calculate x': True,
-
-        # Base/Training Model Additional Controls
-        'BIG M': 100, 'solve_extra_components': False,
-
-        # VFT Model Parameters
-        "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,
-        "obtain_warm_start_variables": True, "add_breakpoints": True, "approximate": True,
-
-        # VFT Population Generation Parameters
-        "populate": True, "iterate_from_quota": True, "max_quota_iterations": 5, "population_additions": 10,
-        "population_generation_model": "Assignment",
-
-        # Model Constraint Placement Algorithm parameters
-        'constraint_model_to_use': 'Assignment', "skip_quota_constraint": False,
-
-        # Sensitivity Analysis
-        "pareto_step": 10,
-
-        # Goal Programming Parameters
-        "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
-
-        # Value Parameter Generation
-        "new_vp_weight": 100, "num_breakpoints": 24,
 
         # Slide Parameters
         "ch_top": 2.35, "ch_left": 0.59, "ch_height": 4.64, "ch_width": 8.82,
