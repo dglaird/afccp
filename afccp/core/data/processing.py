@@ -703,7 +703,8 @@ def export_afscs_data(instance):
                                   "usafa_quota": "USAFA Target",
                                   "rotc_quota": "ROTC Target", "pgl": "PGL Target", "quota_e": "Estimated",
                                   "quota_d": "Desired", "quota_min": "Min", "quota_max": "Max",
-                                  "afsc_assign_base": 'Assign Base', 'T': 'Num Courses'}
+                                  "afsc_assign_base": 'Assign Base', 'T': 'Num Courses',
+                                  'usafa_eligible_count': 'USAFA Eligible', 'rotc_eligible_count': 'ROTC Eligible'}
 
     # Loop through each parameter in the translation dictionary to create dictionary of "AFSCs" columns
     afscs_columns = {}

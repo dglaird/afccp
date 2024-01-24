@@ -1034,24 +1034,31 @@ def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
     # Get count variables for this AFSC
     count = np.sum(m.x[i, j] for i in p['I^E'][j])
 
-    # "Number of Cadets" objectives handled separately
-    if vp['objectives'][k] in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
-        m.measure_constraints.add(expr=measure >= vp["objective_min"][j, k])
-        m.measure_constraints.add(expr=measure <= vp["objective_max"][j, k])
-    else:
-        # Constrained Approximate Measure
-        if vp['constraint_type'][j, k] == 1:
+    try:
+        # "Number of Cadets" objectives handled separately
+        if vp['objectives'][k] in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+            m.measure_constraints.add(expr=measure >= vp["objective_min"][j, k])
+            m.measure_constraints.add(expr=measure <= vp["objective_max"][j, k])
 
-            # Take the smallest value between the PGL and constrained minimum number for this constraint
-            m.measure_constraints.add(
-                expr=numerator - vp["objective_min"][j, k] * min(p["pgl"][j], p['quota_min'][j]) >= 0)
-            m.measure_constraints.add(
-                expr=numerator - vp["objective_max"][j, k] * min(p["pgl"][j], p['quota_min'][j]) <= 0)
+        else:
+            # Constrained Approximate Measure
+            if vp['constraint_type'][j, k] == 1:
 
-        # Constrained Exact Measure
-        elif vp['constraint_type'][j, k] == 2:
-            m.measure_constraints.add(expr=numerator - vp["objective_min"][j, k] * count >= 0)
-            m.measure_constraints.add(expr=numerator - vp["objective_max"][j, k] * count <= 0)
+                # Take the smallest value between the PGL and constrained minimum number for this constraint
+                m.measure_constraints.add(
+                    expr=numerator - vp["objective_min"][j, k] * min(p["pgl"][j], p['quota_min'][j]) >= 0)
+                m.measure_constraints.add(
+                    expr=numerator - vp["objective_max"][j, k] * min(p["pgl"][j], p['quota_min'][j]) <= 0)
+
+            # Constrained Exact Measure
+            elif vp['constraint_type'][j, k] == 2:
+                m.measure_constraints.add(expr=numerator - vp["objective_min"][j, k] * count >= 0)
+                m.measure_constraints.add(expr=numerator - vp["objective_max"][j, k] * count <= 0)
+
+    except Exception as error:
+
+        print("AFSC '" + p['afscs'][j] + "' Objective '" + vp['objectives'][k] + " constraint failed to add.")
+        print("Exception:", error)
 
     # Return the model
     return m

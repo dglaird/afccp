@@ -86,6 +86,7 @@ def initialize_instance_functional_parameters(N):
         'bw^b_ratio': 0, 'bw^u_ratio': 0.02, 'abw^lr_ratio': 0.01, 'abw^ud_ratio': 0.02, 'b_title_size': 30,
         'lh_ratio': 0.1, 'lw_ratio': 0.1, 'dpi': 200, 'pgl_linestyle': '-', 'pgl_color': 'gray',
         'pgl_alpha': 0.5, 'surplus_linestyle': '--', 'surplus_color': 'white', 'surplus_alpha': 1,
+        'usafa_pgl_color': 'blue', 'rotc_pgl_color': 'red', 'usafa_bubble': 'blue', 'rotc_bubble': 'red',
         'cb_edgecolor': 'black', 'save_board_default': True, 'circle_color': 'black', 'focus': 'Cadet Choice',
         'save_iteration_frames': True, 'afsc_title_size': 20, 'afsc_names_sized_box': False,
         'b_solver_name': 'couenne', 'b_pyomo_max_time': None, 'row_constraint': False, 'n^rows': 3,

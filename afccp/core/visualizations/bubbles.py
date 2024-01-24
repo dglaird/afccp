@@ -507,17 +507,40 @@ class BubbleChart:
                 # If we are under the maximum number of cadets allowed
                 if i + 1 <= self.b['max_afsc'][j]:
 
-                    # If we are under the PGL
-                    if i + 1 <= self.b['min_afsc'][j]:
-                        linestyle = self.b['pgl_linestyle']
-                        color = self.b['pgl_color']
-                        alpha = self.b['pgl_alpha']
+                    # Boxes based on SOC PGL Breakouts
+                    if 'SOC PGL' in self.b['focus']:
 
-                    # 'Surplus' Range
+                        # If we are under the USAFA PGL
+                        if i + 1 <= self.p['usafa_quota'][j]:
+                            linestyle = self.b['pgl_linestyle']
+                            color = self.b['usafa_pgl_color']
+                            alpha = self.b['pgl_alpha']
+
+                        # We're in the ROTC range
+                        elif i + 1 <= self.p['usafa_quota'][j] + self.p['rotc_quota'][j]:
+                            linestyle = self.b['pgl_linestyle']
+                            color = self.b['rotc_pgl_color']
+                            alpha = self.b['pgl_alpha']
+
+                        # 'Surplus' Range
+                        else:
+                            linestyle = self.b['surplus_linestyle']
+                            color = self.b['surplus_color']
+                            alpha = self.b['surplus_alpha']
+
                     else:
-                        linestyle = self.b['surplus_linestyle']
-                        color = self.b['surplus_color']
-                        alpha = self.b['surplus_alpha']
+
+                        # If we are under the USAFA PGL
+                        if i + 1 <= self.b['min_afsc'][j]:
+                            linestyle = self.b['pgl_linestyle']
+                            color = self.b['pgl_color']
+                            alpha = self.b['pgl_alpha']
+
+                        # 'Surplus' Range
+                        else:
+                            linestyle = self.b['surplus_linestyle']
+                            color = self.b['surplus_color']
+                            alpha = self.b['surplus_alpha']
 
                     # Make the rectangle patch (cadet box)
                     self.b['c_boxes'][j][i] = patches.Rectangle(self.b['cb_coords'][j][i], self.b['s'], self.b['s'],
@@ -576,7 +599,7 @@ class BubbleChart:
                     Line2D([0], [0], marker='o', label='11+', markerfacecolor=self.mdl_p['all_other_choice_colors'],
                            markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
 
-            if self.b['focus'] == 'ROTC Rated Interest':
+            elif self.b['focus'] == 'ROTC Rated Interest':
 
                 # Add legend elements
                 for level in self.mdl_p['interest_colors']:
@@ -584,7 +607,7 @@ class BubbleChart:
                         Line2D([0], [0], marker='o', label=level, markerfacecolor=self.mdl_p['interest_colors'][level],
                                markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
 
-            if self.b['focus'] == 'Rated Choice':
+            elif self.b['focus'] == 'Rated Choice':
 
                 # Add legend elements
                 for c in np.arange(1, len(self.b['J']) + 1):
@@ -599,6 +622,15 @@ class BubbleChart:
                     Line2D([0], [0], marker='o', label="Matched", markerfacecolor=self.mdl_p['matched_slot_color'],
                            markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
                     Line2D([0], [0], marker='o', label="Reserved", markerfacecolor=self.mdl_p['reserved_slot_color'],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
+
+            elif self.b['focus'] == 'SOC PGL':
+
+                # Add legend elements
+                legend_elements = [
+                    Line2D([0], [0], marker='o', label="USAFA", markerfacecolor=self.b['usafa_bubble'],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
+                    Line2D([0], [0], marker='o', label="ROTC", markerfacecolor=self.b['rotc_bubble'],
                            markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
 
             elif 'Tier 1' in self.b['focus']:
@@ -738,13 +770,16 @@ class BubbleChart:
         This method sorts the cadets in this frame through some means
         """
 
+        # Sort the cadets by SOC
+        if self.b['focus'] == 'SOC PGL':
+            indices = np.argsort(self.p['usafa'][cadets_unsorted])[::-1]
+
         # Sort the cadets by AFSC preferences
-        if self.mdl_p['sort_cadets_by'] == 'AFSC Preferences':
+        elif self.mdl_p['sort_cadets_by'] == 'AFSC Preferences':
             indices = np.argsort(self.p['a_pref_matrix'][cadets_unsorted, j])
-            cadets_sorted = cadets_unsorted[indices]
 
         # Return the sorted cadets
-        return cadets_sorted
+        return cadets_unsorted[indices]
 
     def change_circle_features(self, s, j, cadets):
         """
@@ -821,6 +856,21 @@ class BubbleChart:
                     color = self.b['reserved_slot_color']
                 else:
                     color = self.b['unmatched_color']
+
+                # Change circle color
+                self.b['c_circles'][j][i].set_facecolor(color)
+
+                # Show the circle
+                self.b['c_circles'][j][i].set_visible(True)
+
+        elif self.b['focus'] == 'SOC PGL':
+
+            # Change the cadet circles to reflect the appropriate colors
+            for i, cadet in enumerate(cadets):
+                if cadet in self.p['usafa_cadets']:
+                    color = self.b['usafa_bubble']
+                else:
+                    color = self.b['rotc_bubble']
 
                 # Change circle color
                 self.b['c_circles'][j][i].set_facecolor(color)
@@ -935,7 +985,25 @@ class BubbleChart:
             afsc_text = self.p['afscs'][j] + ": "
 
         # Change the text for the AFSCs
-        if self.b['afsc_text_to_show'] == 'Norm Score':
+        if self.b['focus'] == 'SOC PGL':
+            more = 'neither'
+            for soc, other_soc in {'usafa': 'rotc', 'rotc': 'usafa'}.items():
+                soc_cadets = len(np.intersect1d(self.b['cadets_matched'][s][j], self.p[soc + '_cadets']))
+                soc_pgl = self.p[soc + '_quota'][j]
+                diff = soc_cadets - soc_pgl
+                if diff > 0:
+                    more = soc
+                    afsc_text += '+' + str(diff)
+
+            if more == 'neither':
+                color = 'white'
+                afsc_text += '+0'
+            else:
+                color = self.b[more + '_bubble']
+            self.b['afsc_name_text'][j].set_color(color)
+
+
+        elif self.b['afsc_text_to_show'] == 'Norm Score':
             color = self.v_hex_dict[self.b['scores'][j]]  # New AFSC color
             afsc_text += str(self.b['scores'][j])
             self.b['afsc_name_text'][j].set_color(color)

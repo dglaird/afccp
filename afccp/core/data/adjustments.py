@@ -183,10 +183,6 @@ def parameter_sets_additions(parameters):
     # Shorthand
     p = parameters
 
-    # if 'eligible' not in p:
-    #     print("No eligibility matrix here yet. Using dummy matrix for now.")
-    #     p['eligible'] = np.ones((p['N'], p['M']))
-
     # Cadet Indexed Sets
     p['I'] = np.arange(p['N'])
     p['J'] = np.arange(p['M'])
@@ -245,6 +241,8 @@ def parameter_sets_additions(parameters):
         p['rotc'] = (p['usafa'] == 0) * 1
         p['usafa_cadets'] = np.where(p['usafa'])[0]
         p['rotc_cadets'] = np.where(p['rotc'])[0]
+        p['usafa_eligible_count'] = np.array([len(np.intersect1d(p['I^E'][j], p['usafa_cadets'])) for j in p['J']])
+        p['rotc_eligible_count'] = np.array([len(np.intersect1d(p['I^E'][j], p['rotc_cadets'])) for j in p['J']])
 
     # Initialize empty dictionaries of matched/reserved cadets
     p["J^Fixed"] = {}
