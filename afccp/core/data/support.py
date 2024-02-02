@@ -499,6 +499,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
     """
     Generate qualification tiers for cadets based on their CIP codes and AFSCs.
 
+    AFOCD c/ao Oct '23
+
     This function calculates qualification tiers for a list of cadets based on their CIP (Classification of Instructional
     Programs) codes and the specified AFSCs. The qualification tiers consider both tier and requirement (e.g., M1, D2).
 
@@ -542,24 +544,22 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
             cip = "0" * (6 - len(cip)) + cip
             for j, afsc in enumerate(afscs):
 
-                # Rated
+                # Rated Career Fields
                 if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0",
                             "92T1", "92T2", "92T3", "11XX_R", "11XX_U"]:
                     qual[d][i, j] = "P1"
 
                 # Aerospace Physiologist
-                elif afsc == '13H':
-                    if cip[:4] in ['2607', '3027']:
+                elif afsc == '13H':  # Proportions/Degrees Updated Oct '23
+                    if cip in ['302701', '260912', '310505', '260908', '260707', '260403']:
                         qual[d][i, j] = 'M1'
-                    elif cip[:4] in ['3105', '2609']:
-                        qual[d][i, j] = 'M2'
-                    elif cip[:4] in ['2904', '4228']:
-                        qual[d][i, j] = 'D3'
+                    elif cip in ['290402', '261501', '422813'] or cip[:4] in ['2609']:
+                        qual[d][i, j] = 'P2'
                     else:
-                        qual[d][i, j] = 'I4'
+                        qual[d][i, j] = 'I3'
 
                 # Airfield Ops
-                elif afsc == '13M':
+                elif afsc == '13M':  # Proportions Updated Oct '23
                     if cip == '290402' or cip[:4] == '4901':
                         qual[d][i, j] = 'D1'
                     elif cip[:4] in ['5201', '5202', '5206', '5207', '5211', '5212', '5213',
@@ -569,22 +569,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                         qual[d][i, j] = 'P3'
 
                 # Nuclear and Missile Operations
-                elif afsc == '13N':
-                    if true_tiers:
-                        qual[d][i, j] = 'P1'
-                    else:
-                        m_list4 = ['0402', '0403', '0404', '0405', '1427', '1428', '1437', '2903', '5202', '5213']
-                        for x in range(3, 10):
-                            m_list4.append('140' + str(x))
-                        for x in range(10, 15):
-                            m_list4.append('14' + str(x))
-                        m_list6 = ['290203', '290205', '290207']
-                        for x in ['0601', '0801', '1601', '3001', '3101']:
-                            m_list6.append('30' + x)
-                        if cip[:4] in m_list4 or cip in m_list6 or cip[:2] in ['11', '27', '40']:
-                            qual[d][i, j] = 'M1'
-                        else:
-                            qual[d][i, j] = 'P2'
+                elif afsc == '13N':  # Updated Oct '23
+                    qual[d][i, j] = 'P1'
 
                 # Space Operations
                 elif afsc in ['13S', '13S1S']:
@@ -639,7 +625,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                     else:
                         qual[d][i, j] = 'I4'
 
-                # Weather and Environmental Sciences (Current a/o Apr '23 AFOCD)
+                # Weather and Environmental Sciences
                 elif afsc == '15W':
                     if cip[:4] == '4004':
                         qual[d][i, j] = 'M1'
@@ -666,7 +652,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                         qual[d][i, j] = 'P3'
 
                 # Aircraft Maintenance
-                elif afsc == '21A':
+                elif afsc == '21A':  # Proportions Updated Oct '23
                     d_list4 = ['5202', '5206', '1101', '1102', '1103', '1104', '1107', '1110', '5212']
                     if cip[:2] == '14':
                         qual[d][i, j] = 'D1'
@@ -676,7 +662,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                         qual[d][i, j] = 'P3'
 
                 # Munitions and Missile Maintenance
-                elif afsc == '21M':
+                elif afsc == '21M':  # Proportions Updated Oct '23
                     d_list4 = ['1107', '1101', '1110', '5202', '5206', '5213']
                     d_list2 = ['27', '40']
 
@@ -689,9 +675,9 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                     else:
                         qual[d][i, j] = 'P3'
 
-                # Logistics Readiness: Conversations w/CFMs changed this! (Current a/o 4/28/2023)
+                # Logistics Readiness: Conversations w/CFMs changed this!
                 elif afsc == '21R':
-                    if true_tiers:  # More accurate than current AFOCD a/o Apr '23
+                    if true_tiers:  # More accurate than current AFOCD a/o Oct '23
                         cip_list = ['520203', '520409', '142501', '490199', '520209', '499999', '521001', '520201',
                                     '140101', '143501', '280799', '450601', '520601', '520304', '520899', '520213',
                                     '520211', '143701', '110802']
@@ -714,18 +700,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                             qual[d][i, j] = 'P3'
 
                 # Security Forces
-                elif afsc == '31P':  # Conversations w/CFMs changed this! (Current a/o 4/28/2023)
-                    if true_tiers:  # More accurate than current AFOCD a/o Apr '23
-                        qual[d][i, j] = 'P1'
-                    else:
-                        d_list6 = ['450902', '430301', '430302', '430303', '430304', '439999', '450401', '451101',
-                                   '301701', '220000', '220001', '229999']
-                        for x in ['03', '04', '07', '11', '12', '14', '18', '19', '20', '02', '13', '99']:
-                            d_list6.append('4301' + x)
-                        if cip in d_list6:
-                            qual[d][i, j] = 'D1'
-                        else:
-                            qual[d][i, j] = 'P2'
+                elif afsc == '31P':  # Updated Oct '23
+                    qual[d][i, j] = 'P1'
 
                 # Civil Engineering: Architect/Architectural Engineer
                 elif afsc == '32EXA':

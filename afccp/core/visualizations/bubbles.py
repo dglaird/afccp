@@ -530,7 +530,7 @@ class BubbleChart:
 
                     else:
 
-                        # If we are under the USAFA PGL
+                        # If we are under the PGL
                         if i + 1 <= self.b['min_afsc'][j]:
                             linestyle = self.b['pgl_linestyle']
                             color = self.b['pgl_color']
