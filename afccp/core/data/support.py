@@ -495,7 +495,7 @@ def pick_most_changed_afscs(instance):
 
 
 # Important function! This is the CIP -> Qual Matrix function!!
-def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=True):
+def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, true_tiers=True):
     """
     Generate qualification tiers for cadets based on their CIP codes and AFSCs.
 
@@ -508,6 +508,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
         afscs (list of str): A list of Air Force Specialty Codes (AFSCs) to determine cadet qualifications for.
         cip1 (numpy array): A numpy array containing CIP codes for the primary degrees of the cadets.
         cip2 (numpy array, optional): A numpy array containing CIP codes for the secondary degrees of the cadets.
+        cip3 (numpy array, optional): A numpy array containing CIP codes for a third "source of truth".
         business_hours (numpy array, optional): An array indicating the number of business hours each cadet works.
         true_tiers (bool, optional): Set to True to use more accurate qualification tiers (as of June 2023).
 
@@ -525,12 +526,18 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
     # AFOCD CLASSIFICATION
     N = len(cip1)  # Number of Cadets
     M = len(afscs)  # Number of AFSCs we're building the qual matrix for
-    cips = {1: cip1, 2: cip2}
+
+    # Dictionary of CIP codes
+    cips = {1: cip1, 2: cip2, 3: cip3}
+
+    # List of CIP degrees that are not empty
+    degrees = []
+    for d in cips:
+        if cips[d] is not None:
+            degrees.append(d)
+
+    # Initialize qual dictionary
     qual = {}
-    if cip2 is None:
-        degrees = [1]
-    else:
-        degrees = [1, 2]
 
     # Loop through both sets of degrees (if applicable)
     for d in degrees:
@@ -546,7 +553,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
 
                 # Rated Career Fields
                 if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0",
-                            "92T1", "92T2", "92T3", "11XX_R", "11XX_U"]:
+                            "92T1", "92T2", "92T3", "11XX_R", "11XX_U", "USSF"]:
                     qual[d][i, j] = "P1"
 
                 # Aerospace Physiologist
@@ -891,8 +898,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                 else:
                     raise ValueError("Error. AFSC '" + str(afsc) + "' not a valid AFSC that this code recognizes.")
 
-    # If CIP2 is not specified, we just take the qual matrix from the first degrees
-    if cip2 is None:
+    # If no other CIP list is specified, we just take the qual matrix from the first degrees
+    if len(degrees) == 1:
         qual_matrix = copy.deepcopy(qual[1])
 
     # If CIP2 is specified, we take the highest tier that the cadet qualifies for
@@ -907,11 +914,22 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, business_hours=None, true_tiers=Tr
                 qual_1 = qual[1][i, j]
                 qual_2 = qual[2][i, j]
 
-                # If the first degree qualification is higher (lower number ex. 1 < 2), we take that. Otherwise, #2
-                if int(qual_1[1]) < int(qual_2[1]):  # "M1, D2" -> "1 < 2" for example
-                    qual_matrix[i, j] = qual_1
+                if cip3 is not None:
+                    qual_3 = qual[3][i, j]
                 else:
-                    qual_matrix[i, j] = qual_2
+                    qual_3 = "I9"  # Dummy value
+
+                # Determine which qualification is best
+                if int(qual_1[1]) < int(qual_2[1]):  # D1 beats D2
+                    if int(qual_1[1]) < int(qual_3[1]): # D1 beats D3
+                        qual_matrix[i, j] = qual_1  # Qual 1 wins!
+                    else:  # D3 beats D1
+                        qual_matrix[i, j] = qual_3  # Qual 3 wins!
+                else:  # D2 beats D1
+                    if int(qual_2[1]) < int(qual_3[1]):  # D2 beats D3
+                        qual_matrix[i, j] = qual_2  # Qual 2 wins!
+                    else:  # D3 beats D2
+                        qual_matrix[i, j] = qual_3  # Qual 3 wins!
 
     return qual_matrix
 
