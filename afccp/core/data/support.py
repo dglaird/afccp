@@ -56,7 +56,7 @@ def initialize_instance_functional_parameters(N):
         "executable": None, "exe_extension": False, 'alternate_list_iterations_printing': False,
 
         # Additional Constraints/Modeling
-        "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': True,
+        "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': False,
         'ussf_soc_pgl_constraint_bound': 0.01, 'rated_alternates': True, 'USSF OM': False,
         'USAFA-Constrained AFSCs': None, 'BIG M': 100, 'solve_extra_components': False,
 
@@ -552,8 +552,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
             for j, afsc in enumerate(afscs):
 
                 # Rated Career Fields
-                if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0",
-                            "92T1", "92T2", "92T3", "11XX_R", "11XX_U", "USSF"]:
+                if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0", "92T1", "92T2", "92T3",
+                            "11XX_R", "11XX_U", "USSF", "USSF_U", "USSF_R"]:
                     qual[d][i, j] = "P1"
 
                 # Aerospace Physiologist
