@@ -59,14 +59,14 @@ def assignment_model_build(instance, printing=False):
     # Shorthand
     p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
 
-    # *New* Utility/Cost Matrix based on CFM preferences and cadet preferences (GUO model)
+    # *New* Utility/"Cost" Matrix based on CFM preferences and cadet preferences (GUO model)
     if mdl_p['assignment_model_obj'] == 'Global Utility':
         c = vp['global_utility'] / p['N']
 
         if printing:
             print("Building assignment problem (GUO) model...")
 
-    # Original Model Utility/Cost Matrix  (Original model)
+    # Original Model Utility/"Cost" Matrix  (Original model)
     else:
 
         if printing:
