@@ -798,7 +798,7 @@ def export_cadets_data(instance):
     cadets_df.to_csv(instance.export_paths["Cadets"], index=False)
 
 
-def export_preferences_data(instance):
+def export_afsc_cadet_matrices_data(instance):
     """
     Exports the preferences dataframes if they exist in the instance's parameters dictionary.
 

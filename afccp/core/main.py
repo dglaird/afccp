@@ -2657,7 +2657,7 @@ class CadetCareerProblem:
         # Export various data using the different functions
         dataset_function_dict = {"AFSCs": afccp_dp.export_afscs_data,
                                  "Cadets": afccp_dp.export_cadets_data,
-                                 "Preferences": afccp_dp.export_preferences_data,
+                                 "Preferences": afccp_dp.export_afsc_cadet_matrices_data,
                                  "Value Parameters": afccp_dp.export_value_parameters_data,
                                  "Solutions": afccp_dp.export_solutions_data,
                                  "Additional": afccp_dp.export_additional_data}
