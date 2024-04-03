@@ -247,9 +247,9 @@ def import_cadets_data(import_filepaths, parameters):
     return p
 
 
-def import_preferences_data(import_filepaths, parameters):
+def import_afsc_cadet_matrices_data(import_filepaths, parameters):
     """
-    Imports additional preference data (if available) for cadets and AFSCs, and adds the relevant information to the
+    Imports additional  data (if available) for cadets and AFSCs, and adds the relevant information to the
     input dictionary of parameters.
 
     Parameters:

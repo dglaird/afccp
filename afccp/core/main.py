@@ -118,7 +118,7 @@ class CadetCareerProblem:
 
             # Import the "fixed" parameters (the information about cadets/AFSCs that, for the most part, doesn't change)
             import_data_functions = [afccp_dp.import_afscs_data, afccp_dp.import_cadets_data,
-                                     afccp_dp.import_preferences_data, afccp_dp.import_additional_data]
+                                     afccp_dp.import_afsc_cadet_matrices_data, afccp_dp.import_additional_data]
             for import_function in import_data_functions:  # Here we're looping through a list of functions!
                 self.parameters = import_function(self.import_paths, self.parameters)  # Python is nice like that...
 
