@@ -555,19 +555,26 @@ def create_final_cadet_utility_matrix_from_new_formula(parameters):
         # Loop through all AFSCs that the cadet is eligible for
         for j in p['cadet_preferences'][i]:
 
-            # Get all inputs to formula
+            # A: AFSC is NOT the LAST choice
             a = (j != p['J^Last Choice'][i]) * 1
+
+            # B: AFSC is NOT in the bottom 3 choices
             b = ((j not in p['J^Bottom 2 Choices'][i]) and (j != p['J^Last Choice'][i])) * 1
+
+            # C: AFSC was selected as a preference
             c = (j in p['J^Selected'][i]) * 1
+
+            # D: AFSC was selected as a preference and has a utility assigned
             d = (p['utility'][i, j] > 0) * 1
-            if j in norm_ord_rankings_dict:
-                x = norm_ord_rankings_dict[j]
-            else:
-                x = 0
+
+            # X: Normalized ordinal ranking of the AFSC
+            x = norm_ord_rankings_dict[j] if j in norm_ord_rankings_dict else 0
+
+            # Y: Utility value the cadet assigned to the AFSC
             y = p['utility'][i, j]
 
-            # Run the formula
-            p['cadet_utility'][i, j] = 0.05*a + 0.05*b + 0.9*(0.3 * c * x + 0.7 * d * y)
+            # Execute the formula and load it into the cadet utility matrix
+            p['cadet_utility'][i, j] = 0.05*a + 0.05*b + 0.9*(0.3*c*x + 0.7*d*y)
 
     # Return parameters
     return p

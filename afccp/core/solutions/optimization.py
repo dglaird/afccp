@@ -1132,9 +1132,22 @@ def common_optimization_handling(m, p, vp, mdl_p):
         # Initialize list of blocking pairs constraints for alternate lists
         m.blocking_pairs_alternates = ConstraintList()
 
+        # Subset of Rated AFSCs that have alternate constraints
+        rated_afscs_with_constraints = []
+        if mdl_p['rated_alternate_afscs'] is None:
+            rated_afscs_with_constraints = p['J^Rated']
+        else:
+            for afsc in mdl_p['rated_alternate_afscs']:
+
+                if afsc not in p['afscs']:
+                    raise ValueError("AFSC '" + afsc + "' not valid.")
+
+                # Add the index of the AFSC
+                rated_afscs_with_constraints.append(np.where(p['afscs'] == afsc)[0][0])
+
         # Loop through each SOC and rated AFSC
         for soc in ['usafa', 'rotc']:
-            for j in p['J^Rated']:
+            for j in rated_afscs_with_constraints:
 
                 # Loop through each cadet on this rated AFSC's alternate list for this SOC
                 for i in p['I^Alternate [' + soc + ']'][j]:

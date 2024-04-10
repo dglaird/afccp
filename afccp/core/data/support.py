@@ -58,7 +58,7 @@ def initialize_instance_functional_parameters(N):
         # Additional Constraints/Modeling
         "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': False,
         'ussf_soc_pgl_constraint_bound': 0.01, 'rated_alternates': True, 'USSF OM': False,
-        'USAFA-Constrained AFSCs': None, 'BIG M': 100, 'solve_extra_components': False,
+        'USAFA-Constrained AFSCs': None, 'BIG M': 100, 'solve_extra_components': False, 'rated_alternate_afscs': None,
 
         # VFT Model Parameters
         "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,
