@@ -320,8 +320,14 @@ def more_parameter_additions(parameters):
             for j in cadet_sorted_preferences:
 
                 # Only add AFSCs that the cadet is eligible for and expressed a preference for
-                if j in p['J^E'][i] and p['c_pref_matrix'][i, j] != 0:
-                    p['cadet_preferences'][i].append(j)
+                if 'last_afsc' not in p:
+                    if j in p['J^E'][i] and p['c_pref_matrix'][i, j] != 0:
+                        p['cadet_preferences'][i].append(j)
+
+                # Only add AFSCs that the cadet expressed a preference for
+                else:
+                    if p['c_pref_matrix'][i, j] != 0:
+                        p['cadet_preferences'][i].append(j)
 
             p['cadet_preferences'][i] = np.array(p['cadet_preferences'][i])  # Convert to numpy array
             p['num_cadet_choices'][i] = len(p['cadet_preferences'][i])
@@ -418,10 +424,7 @@ def more_parameter_additions(parameters):
     if 'cadet_utility' not in p:
 
         # Build out cadet_utility using cadet preferences
-        if 'cadet_preferences' in p:
-            p = afccp.core.data.preferences.create_new_cadet_utility_matrix(p)
-        else:
-            p['cadet_utility'] = np.around(copy.deepcopy(p['utility']), 4)
+        p['cadet_utility'] = np.around(copy.deepcopy(p['utility']), 4)
 
     # set of AFSCs that cadet i has placed a preference for and is also eligible for
     non_zero_utils_j = [np.where(p['cadet_utility'][i, :] > 0)[0] for i in p['I']]
@@ -468,6 +471,39 @@ def more_parameter_additions(parameters):
             p['J^STEM'] = np.where(p['afscs_stem'] == 'Yes')[0]
             p['J^Not STEM'] = np.where(p['afscs_stem'] == 'No')[0]
             p['J^Hybrid'] = np.where(p['afscs_stem'] == 'Hybrid')[0]
+
+    # Selected AFSCs
+    if 'c_selected_matrix' in p:
+        p['J^Selected'] = {}
+        for i in p['I']:
+            p['J^Selected'][i] = np.where(p['c_selected_matrix'][i])[0]
+
+    # Last/Second to Last AFSCs
+    if 'last_afsc' in p and 'second_to_last_afscs' in p:
+        p['J^Bottom 2 Choices'] = {}
+        p['J^Last Choice'] = {}
+
+        # Loop through each cadet
+        for i in p['I']:
+
+            # Get a list of AFSC indices of the bottom 2 choices (but not last choice)
+            if type(p['second_to_last_afscs'][i]) == str:
+                afsc_list = p['second_to_last_afscs'][i].split(',')
+            else:
+                afsc_list = [""]
+
+            p['J^Bottom 2 Choices'][i] = []
+            for afsc in afsc_list:
+                afsc = afsc.strip()
+                if afsc in p['afscs']:
+                    j = np.where(p['afscs'] == afsc)[0][0]
+                    p['J^Bottom 2 Choices'][i].append(j)
+            p['J^Bottom 2 Choices'][i] = np.array(p['J^Bottom 2 Choices'][i])
+
+            # Get the last AFSC choice index
+            p['J^Last Choice'][i] = p['M']  # Unmatched AFSC (*)
+            if p['last_afsc'][i] in p['afscs']:
+                p['J^Last Choice'][i] = np.where(p['afscs'] == p['last_afsc'][i])[0][0]
 
     return p
 
@@ -1165,7 +1201,7 @@ def parameter_sanity_check(instance):
         print(issue, "ISSUE: The cadet-reported utility matrix 'utility', located in 'Cadets Utility.csv'\nand in the "
                      "'Util' columns of 'Cadets.csv', does not incorporate monotonically\ndecreasing utility values for "
                      "" + str(invalid_utility) + " cadets. Please adjust.")
-        if invalid_utility < 40:
+        if invalid_utility < 100:
             print('These are the cadets at indices', invalid_utility_cadets)
     if invalid_cadet_utility > 0:
         issue += 1

@@ -477,7 +477,10 @@ def update_cadet_utility_matrices(parameters):
         p['utility'][i, afsc_indices] = p['c_utilities'][i, :len(afsc_indices)]
 
     # Create the "cadet_utility" matrix by re-calculating utility based on ordinal rankings
-    p = create_new_cadet_utility_matrix(p)
+    if 'last_afsc' in p:
+        p = create_final_cadet_utility_matrix_from_new_formula(p)
+    else:
+        p = create_new_cadet_utility_matrix(p)
 
     return p
 
@@ -513,6 +516,96 @@ def create_new_cadet_utility_matrix(parameters):
         p['cadet_utility'][i, p['cadet_preferences'][i]] = new_utilities
 
     # Return parameters
+    return p
+
+
+def create_final_cadet_utility_matrix_from_new_formula(parameters):
+    """
+    This function creates a new "cadet_utility" matrix using normalized preferences and
+    the original "utility" matrix and some other stuff.
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Initialize matrix (0.1 for everyone by default as indifference)
+    p['cadet_utility'] = np.ones([p['N'], p['M'] + 1]) * 0.1  # Additional column for unmatched cadets
+
+    # Loop through each cadet
+    for i in p['I']:
+
+        # AFSCs the cadet is eligible for and selected (ordered appropriately)
+        intersection = np.intersect1d(p['J^Selected'][i], p['cadet_preferences'][i])
+        intersection = np.array([j for j in p['cadet_preferences'][i] if j in intersection])
+        num_selected = len(intersection)
+
+        # Skip this cadet if they don't have any eligible choices
+        if num_selected == 0:
+            continue
+
+        # 1, 2, 3, 4, ..., N  (Pure rankings)
+        rankings = np.arange(num_selected) + 1
+
+        # 1, 0.8, 0.6, 0.4, ..., 1 / N  (Scale rankings to range from 1 to 0)
+        normalized_rankings = 1 - (rankings / np.max(rankings)) + (1 / np.max(rankings))
+
+        # Create dictionary of normalized ordinal rankings
+        norm_ord_rankings_dict = {j: normalized_rankings[index] for index, j in enumerate(intersection)}
+
+        # Loop through all AFSCs that the cadet is eligible for
+        for j in p['cadet_preferences'][i]:
+
+            # Get all inputs to formula
+            a = (j != p['J^Last Choice'][i]) * 1
+            b = ((j not in p['J^Bottom 2 Choices'][i]) and (j != p['J^Last Choice'][i])) * 1
+            c = (j in p['J^Selected'][i]) * 1
+            d = (p['utility'][i, j] > 0) * 1
+            if j in norm_ord_rankings_dict:
+                x = norm_ord_rankings_dict[j]
+            else:
+                x = 0
+            y = p['utility'][i, j]
+
+            # Run the formula
+            p['cadet_utility'][i, j] = 0.05*a + 0.05*b + 0.9*(0.3 * c * x + 0.7 * d * y)
+
+    # Return parameters
+    return p
+
+
+def fill_remaining_preferences(parameters):
+    """
+
+    :param parameters:
+    :return:
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Loop through all cadets
+    for i in p['I']:
+
+        pref_num = len(p['cadet_preferences'][i]) + 1
+
+        # Loop through all "indifferent" AFSCs that they are eligible for
+        for j in p['J']:
+
+            # The AFSC is not in the cadet's preferences and it's not in the bottom choices
+            if j not in p['cadet_preferences'][i] and \
+                    j not in p['J^Bottom 2 Choices'][i] and j != p['J^Last Choice'][i]:
+                p['c_pref_matrix'][i, j] = pref_num
+                pref_num += 1
+
+        # Loop through bottom 2 choices
+        for j in p['J^Bottom 2 Choices'][i]:
+            p['c_pref_matrix'][i, j] = pref_num
+            pref_num += 1
+
+        # Set last choice preference if applicable
+        if p['J^Last Choice'][i] != p['M']:
+            p['c_pref_matrix'][i, p['J^Last Choice'][i]] = pref_num
+
     return p
 
 

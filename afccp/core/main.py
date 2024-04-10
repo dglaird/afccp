@@ -31,7 +31,6 @@ if afccp.core.globals.use_pyomo:
 if afccp.core.globals.use_pptx:
     import afccp.core.visualizations.slides
 
-
 # Main Problem Class
 class CadetCareerProblem:
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
@@ -754,6 +753,32 @@ class CadetCareerProblem:
 
         # Update parameters
         self.parameters = afccp.core.data.preferences.update_cadet_utility_matrices(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
+
+    def fill_remaining_afsc_choices(self):
+        """
+
+        :return:
+        """
+
+        if self.printing:
+            print("Filling remaining cadet preferences arbitrarily with the exception of the bottom choices")
+
+        # Update parameters
+        self.parameters = afccp.core.data.preferences.fill_remaining_preferences(self.parameters)
+        self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
+
+    def create_final_utility_matrix_from_new_formula(self):
+        """
+
+        :return:
+        """
+
+        if self.printing:
+            print("Creating 'Final' cadet utility matrix from the new formula with different conditions...")
+
+        # Update parameters
+        self.parameters = afccp.core.data.preferences.create_final_cadet_utility_matrix_from_new_formula(self.parameters)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
     # Adjust Rated Data

@@ -50,7 +50,7 @@ def initialize_file_information(data_name: str, data_version: str):
                                         "Cadets Utility (Final)", "AFSCs", "AFSCs Preferences", "AFSCs Utility",
                                         "Value Parameters", "Goal Programming", "ROTC Rated Interest",
                                         "ROTC Rated OM", "USAFA Rated OM", "Bases", "Bases Preferences",
-                                        "Bases Utility", "Courses"],
+                                        "Bases Utility", "Courses", "Cadets Selected", "AFSCs Buckets"],
                         "Analysis & Results": ["Solutions", "Base Solutions", "Course Solutions"]}
 
     # Loop through each sub-folder in the above list and determine the filepaths for the various files
@@ -212,7 +212,8 @@ def import_cadets_data(import_filepaths, parameters):
                                    "SF OM": "sf_om", 'Start Date': 'training_start', 'Start Pref': 'training_preferences',
                                    'Base Threshold': 'base_threshold', 'Course Threshold': 'training_threshold',
                                    'AFSC Weight': 'weight_afsc', 'Base Weight': 'weight_base',
-                                   'Course Weight': 'weight_course'}
+                                   'Course Weight': 'weight_course', 'Least Desired AFSC': 'last_afsc',
+                                   'Second Least Desired AFSCs': 'second_to_last_afscs'}
 
     # Loop through each column in the 'Cadets' dataframe to put it into the p dictionary
     for col in cadets_df.columns:
@@ -274,7 +275,8 @@ def import_afsc_cadet_matrices_data(import_filepaths, parameters):
     # Loop through the potential additional dataframes and import them if we have them
     datasets = {}
     for dataset in ["Cadets Utility", "Cadets Preferences", "AFSCs Utility", "AFSCs Preferences",
-                    "ROTC Rated Interest", "ROTC Rated OM", "USAFA Rated OM", 'Cadets Utility (Final)']:
+                    "ROTC Rated Interest", "ROTC Rated OM", "USAFA Rated OM", 'Cadets Utility (Final)',
+                    "Cadets Selected", "AFSCs Buckets"]:
 
         # If we have the dataset, import it
         if dataset in import_filepaths:
@@ -282,6 +284,11 @@ def import_afsc_cadet_matrices_data(import_filepaths, parameters):
 
     # First and last AFSC (for collecting matrices from dataframes)
     afsc_1, afsc_M = p["afscs"][0], p["afscs"][p["M"] - 1]
+
+    # Load in extra dataframes
+    for dataset, param in {'Cadets Selected': 'c_selected_matrix', 'AFSCs Buckets': 'a_bucket_matrix'}.items():
+        if dataset in datasets:
+            p[param] = np.array(datasets[dataset].loc[:, afsc_1: afsc_M])
 
     # Determine how we incorporate the original cadets' utility matrix
     if "Cadets Utility" in datasets:  # Load in the matrix directly
@@ -763,7 +770,8 @@ def export_cadets_data(instance):
                                    "sf_om": "SF OM", 'usafa': 'USAFA', 'male': 'Male', 'minority': 'Minority',
                                    'race': 'Race', "ethnicity": "Ethnicity", 'asc1': 'ASC1', 'asc2': 'ASC2',
                                    'stem': 'STEM', 'cip1': 'CIP1', 'cip2': 'CIP2', 'merit': 'Merit',
-                                   'merit_all': 'Real Merit'}
+                                   'merit_all': 'Real Merit', 'last_afsc': 'Least Desired AFSC',
+                                   'second_to_last_afscs': 'Second Least Desired AFSCs'}
 
     # Loop through each parameter in the translation dictionary to get "Cadets" dataframe column counterpart
     cadets_columns = {}
@@ -826,7 +834,9 @@ def export_afsc_cadet_matrices_data(instance):
     parameter_trans_dict = {"utility": "Cadets Utility", "c_pref_matrix": "Cadets Preferences",
                             "afsc_utility": "AFSCs Utility", "a_pref_matrix": "AFSCs Preferences",
                             "rr_interest_matrix": "ROTC Rated Interest", "rr_om_matrix": "ROTC Rated OM",
-                            'ur_om_matrix': 'USAFA Rated OM', 'cadet_utility': 'Cadets Utility (Final)'}
+                            'ur_om_matrix': 'USAFA Rated OM', 'cadet_utility': 'Cadets Utility (Final)',
+                            'c_selected_matrix': 'Cadets Selected', 'a_bucket_matrix': 'AFSCs Buckets'
+                            }
 
     # Loop through each potential dataset to export
     for parameter in parameter_trans_dict:

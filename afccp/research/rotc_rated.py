@@ -13,9 +13,8 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-
 # noinspection PyDictCreation
-def process_data_in_parameters(df, parameters):
+def process_data_in_parameters(df, parameters, autofix=False):
     """
     This function takes in a dataframe (must be of the "ROTC Rated Data" format), processes it,
     and loads it into the appropriate "parameters" data dictionary. The "parameters" dictionary is then returned
@@ -31,11 +30,13 @@ def process_data_in_parameters(df, parameters):
     p['rr_om_matrix'] = np.array(df.loc[:, p['rated_afscs'][0]: p['rated_afscs'][len(p['rated_afscs']) - 1]])
     p['afscs_preferences'] = {}
     for idx, j in enumerate(p['J^Rated']):
-
         sorted_cadets = np.argsort(p['rr_om_matrix'][:, idx])[::-1]
         zero_cadets = np.where(p['rr_om_matrix'][:, idx] == 0)[0]
         num_zero = len(zero_cadets)
         p['afscs_preferences'][j] = sorted_cadets[:p['N'] - num_zero]
+
+    # Cadets to remove
+    removals = []
 
     # Collect Cadet preferences
     p['c_preferences'] = np.array(df.loc[:, 'Pref_1':])
@@ -95,11 +96,17 @@ def process_data_in_parameters(df, parameters):
 
         # Make sure this cadet is eligible for at least one rated AFSC
         if p['num_eligible'][i] == 0:
-            raise ValueError("Error at index '" + str(i) + "'. Cadet '" + str(p['cadets'][i]) +
-                             "' not eligible for any rated AFSCs but is in the dataset. Please adjust.")
 
-    # Return parameters
-    return p
+            if autofix:
+                print("Error at index '" + str(i) + "'. Cadet '" + str(p['cadets'][i]) +
+                             "' not eligible for any rated AFSCs but is in the dataset. Cadet will be removed")
+                removals.append(p['cadets'][i])
+            else:
+                raise ValueError("Error at index '" + str(i) + "'. Cadet '" + str(p['cadets'][i]) +
+                                 "' not eligible for any rated AFSCs but is in the dataset. Please adjust.")
+
+    # Return parameters and removals
+    return p, removals
 
 def rotc_rated_hr_algorithm(parameters, printing=True):
     """
@@ -357,7 +364,7 @@ def rotc_rated_alternates_algorithm(parameters, printing=True):
     # Return updated parameters (and alternate lists)
     return p
 
-def rotc_rated_match(filename, afsc_quotas, printing=True):
+def rotc_rated_match(filename, afsc_quotas, afscs, auto_fix_eligibility=False, printing=True):
     """
     This is the main function to match ROTC rated cadets to their AFSCs prior to the main "One Market" model
     match. It calls all necessary functions to process the information and export it back to excel
@@ -370,27 +377,29 @@ def rotc_rated_match(filename, afsc_quotas, printing=True):
     # Load in data
     df = afccp.core.globals.import_csv_data(filename)
 
-    # Initialize parameter dictionary
-    parameters = {'rated_afscs': np.array([afsc for afsc in afsc_quotas]), 'cadets': np.array(df['Cadet']),
-                  'afscs': np.array(['11U', '11XX_R', '11XX_U', '12XX', '13B', '13H', '13M', '13N',
-                          '13S1S', '14F', '14N', '14N1S', '15A', '15W', '17S1S', '17X',
-                          '21A', '21M', '21R', '31P', '32EXA', '32EXC', '32EXE', '32EXF',
-                          '32EXG', '32EXJ', '35P', '38F', '61C', '61D', '62E1A1S', '62E1B1S',
-                          '62E1C1S', '62E1E1S', '62E1G1S', '62E1H1S', '62E1I1S', '62EXA',
-                          '62EXB', '62EXC', '62EXE', '62EXG', '62EXH', '62EXI', '63A', '63A1S',
-                          '64P', '65F'])}
+    # Process data twice, first to remove Rated ineligible cadets and then once more to finish
+    for iteration in [1, 2]:
 
-    # Additional information
-    parameters['N'], parameters['M'] = len(parameters['cadets']), len(parameters['afscs'])
-    parameters['I'], parameters['J'] = np.arange(parameters['N']), np.arange(parameters['M'])
-    parameters['J^Rated'] = np.array([np.where(afsc == parameters['afscs'])[0][0] for afsc in parameters['rated_afscs']])
-    parameters['total_slots'] = {j: afsc_quotas[parameters['afscs'][j]] for j in parameters['J^Rated']}
+        # Initialize parameter dictionary
+        parameters = {'rated_afscs': np.array([afsc for afsc in afsc_quotas]), 'cadets': np.array(df['Cadet']),
+                      'afscs': afscs}
 
-    if printing:
-        print("\nProcessing Data...\n")
+        # Additional information
+        parameters['N'], parameters['M'] = len(parameters['cadets']), len(parameters['afscs'])
+        parameters['I'], parameters['J'] = np.arange(parameters['N']), np.arange(parameters['M'])
+        parameters['J^Rated'] = np.array([np.where(afsc == parameters['afscs'])[0][0] for afsc in parameters['rated_afscs']])
+        parameters['total_slots'] = {j: afsc_quotas[parameters['afscs'][j]] for j in parameters['J^Rated']}
 
-    # Process data
-    parameters = process_data_in_parameters(df, parameters)
+        if printing:
+            print("\nProcessing Data...Iteration " + str(iteration) + "\n")
+
+        # Process data
+        parameters, removals = process_data_in_parameters(df, parameters, autofix=auto_fix_eligibility)
+
+        # Drop the cadets we don't want
+        df = df.set_index('Cadet')
+        df = df.drop(removals)
+        df = df.reset_index()
 
     if printing:
         print("\nROTC Rated Board Algorithm...")

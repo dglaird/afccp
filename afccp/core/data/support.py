@@ -632,16 +632,18 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                     else:
                         qual[d][i, j] = 'I4'
 
-                # Weather and Environmental Sciences
+                # Weather and Environmental Sciences (Current a/o Apr '24 AFOCD)
                 elif afsc == '15W':
                     if cip[:4] == '4004':
                         qual[d][i, j] = 'M1'
-                    elif cip[:2] in ['27', '40', '41'] or cip[:4] in ['3008', '3030'] or cip in \
-                            ['140902', '140903', '141201', '143010', '141401', '143701', '143901']:
+                    elif cip in ['270301', '270303', '270304', '303501', '303001', '140802',
+                                 '303801', '141201', '141301', '400601', '400605', '400607', '400801', '400805',
+                                 '400806', '400807', '400809']:
                         qual[d][i, j] = 'P2'
-                    elif cip in ['030104', '110102', '110101', '110803', '110201', '110701', '110802', '110104',
-                                 '110804']:
+                    elif cip[:2] in ['40'] or cip in ['040999', '030104', '110102', '110101', '110803', '110201',
+                                                      '110701', '110802', '110104', '110804']:
                         qual[d][i, j] = 'P3'
+
                     else:
                         qual[d][i, j] = 'I4'
 
