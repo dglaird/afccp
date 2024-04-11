@@ -788,7 +788,7 @@ class BubbleChart:
 
         # Colors based on cadet utility
         if self.b['focus'] == 'Cadet Utility':
-            utility = self.p['utility'][cadets, j]
+            utility = self.p['cadet_utility'][cadets, j]
 
             # Change the cadet circles to reflect the appropriate colors
             for i, cadet in enumerate(cadets):

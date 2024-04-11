@@ -115,6 +115,9 @@ def initialize_instance_functional_parameters(N):
         'add_legend_afsc_chart': True, 'legend_loc': 'upper right', "add_bound_lines": False,
         "large_afsc_distinction": False,
 
+        # Cadet Utility Chart Elements
+        "cadet": 0, "util_type": "Final Utility",
+
         # Accessions Chart Elements
         "label_size_acc": 25, "acc_text_size": 25, "acc_bar_text_size": 25, "acc_legend_size": 15,
         "acc_text_bar_threshold": 10,
@@ -197,6 +200,10 @@ def initialize_instance_functional_parameters(N):
         # Misc. AFSC Criteria  #cdddf7
         "large_afscs": "#060d47", "small_afscs": "#3287cd", "merit_above": "#c7b93a", "merit_within": "#3d8ee0",
         "merit_below": "#bf4343", "large_within": "#3d8ee0", "large_else": "#c7b93a",
+
+        # Utility Chart Colors
+        "Utility Ascribed": "#4793AF", "Normalized Rank": "#FFC470", "Not Bottom 3": "#DD5746",
+        "Not Last Choice": "#8B322C",
 
         # PGL Charts
         "pgl": "#5490f0", "surplus": "#eef09e", "failed_pgl": "#f25d50",

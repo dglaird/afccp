@@ -1754,6 +1754,159 @@ class AFSCsChart:
             self.ax.bar(afscs, measure, color=colors, edgecolor='black', alpha=self.ip["alpha"])
 
 
+class CadetUtilityGraph:
+    def __init__(self, instance):
+        """
+
+        :param instance:
+        """
+
+        # Load attributes
+        self.parameters = instance.parameters
+        self.value_parameters, self.vp_name = instance.value_parameters, instance.vp_name
+        self.ip = instance.mdl_p  # "instance plot parameters"
+        self.data_name, self.data_version = instance.data_name, instance.data_version
+
+        # Initialize the matplotlib figure/axes
+        self.fig, self.ax = plt.subplots(figsize=self.ip['figsize'], facecolor=self.ip['facecolor'], tight_layout=True,
+                                         dpi=self.ip['dpi'])
+
+        # Where to save the chart
+        self.path = instance.export_paths["Analysis & Results"] + "Data Charts/"
+
+        # Shorthand
+        i, p = self.ip['cadet'], self.parameters
+        J = p['cadet_preferences'][i]
+        afscs, M = p['afscs'][J], len(J)
+
+        # Utility categories
+        categories = ['Utility Ascribed', 'Normalized Rank', 'Not Bottom 3', 'Not Last Choice']
+        legend_elements = []
+        for cat in categories:
+            legend_elements.append(Patch(facecolor=self.ip['bar_colors'][cat], label=cat,
+                                         edgecolor='black'))
+
+        # AFSCs the cadet is eligible for and selected (ordered appropriately)
+        intersection = np.intersect1d(p['J^Selected'][i], J)
+        intersection = np.array([j for j in p['cadet_preferences'][i] if j in intersection])
+        num_selected = len(intersection)
+
+        # 1, 2, 3, 4, ..., N  (Pure rankings)
+        rankings = np.arange(num_selected) + 1
+
+        # 1, 0.8, 0.6, 0.4, ..., 1 / N  (Scale rankings to range from 1 to 0)
+        normalized_rankings = 1 - (rankings / np.max(rankings)) + (1 / np.max(rankings))
+
+        # Create dictionary of normalized ordinal rankings
+        norm_ord_rankings_dict = {j: normalized_rankings[index] for index, j in enumerate(intersection)}
+
+        # A: AFSC is NOT the LAST choice
+        a = np.array([(j != p['J^Last Choice'][i]) * 1 for j in J])
+
+        # B: AFSC is NOT in the bottom 3 choices
+        b = np.array([((j not in p['J^Bottom 2 Choices'][i]) and (j != p['J^Last Choice'][i])) * 1 for j in J])
+
+        # C: AFSC was selected as a preference
+        c = np.array([(j in p['J^Selected'][i]) * 1 for j in J])
+
+        # D: AFSC was selected as a preference and has a utility assigned
+        d = np.array([(p['utility'][i, j] > 0) * 1 for j in J])
+
+        # X: Normalized ordinal ranking of the AFSC
+        x = np.array([norm_ord_rankings_dict[j] if j in norm_ord_rankings_dict else 0 for j in J])
+
+        # Y: Utility value the cadet assigned to the AFSC
+        y = p['utility'][i, J]
+
+        # # Execute the formula and load it into the cadet utility matrix
+        # p['cadet_utility'][i, j] = 0.05 * a + 0.05 * b + 0.9 * (0.3 * c * x + 0.7 * d * y)
+
+        # Plot the bars
+        total = np.zeros(M)
+        self.ax.bar(np.arange(M), a * 0.05, color=self.ip['bar_colors']["Not Last Choice"], edgecolor='black')
+        total += a * 0.05
+        self.ax.bar(np.arange(M), b * 0.05, bottom=total, color=self.ip['bar_colors']["Not Bottom 3"], edgecolor='black')
+        total += b * 0.05
+        self.ax.bar(np.arange(M), c * x  * 0.3 * 0.9, bottom=total, color=self.ip['bar_colors']["Normalized Rank"],
+                    edgecolor='black')
+        total += c * x  * 0.3 * 0.9
+        self.ax.bar(np.arange(M), d * y * 0.7 * 0.9, bottom=total, color=self.ip['bar_colors']["Utility Ascribed"],
+                    edgecolor='black')
+
+        # Put text on the bars
+        for index, j in enumerate(J):
+
+            # Final utility above bar
+            self.ax.text(index, p['cadet_utility'][i, j] + 0.005,
+                         np.around(100 * p['cadet_utility'][i, j], 1).astype(str) + "%", fontsize=self.ip["bar_text_size"],
+                         horizontalalignment='center')
+
+            # Reported utility in bar
+            val = y[index] * 0.7 * 0.9
+            if d[index] == 1 and val > 0.02:
+                y_pt = 0.1 + x[index] * 0.3 * 0.9 + val / 2
+                self.ax.text(index, y_pt,
+                             np.around(p['utility'][i, j], 2), fontsize=self.ip["bar_text_size"],
+                             horizontalalignment='center', verticalalignment='center')
+
+            # Normalized ranking val in bar
+            val = x[index] * 0.3 * 0.9
+            if c[index] == 1 and val > 0.02:
+                y_pt = 0.1 + val / 2
+                self.ax.text(index, y_pt,
+                             np.around(norm_ord_rankings_dict[j], 2), fontsize=self.ip["bar_text_size"],
+                             horizontalalignment='center', verticalalignment='center')
+
+        # # Put text above the bar
+        # self.ax.text(np.arange(M), p['cadet_utility'][i, J] + 0.02,
+        #              np.around(p['cadet_utility'][i, J], 3).astype(str), fontsize=self.ip["bar_text_size"],
+        #              horizontalalignment='center')
+
+        # Display title
+        self.ip['title'] = 'Cadet "' + str(i) + '" Utility Chart'
+        if self.ip['display_title']:
+            self.fig.suptitle(self.ip['title'], fontsize=self.ip['title_size'])
+
+        # Labels
+        self.ax.set_ylabel("Utility")
+        self.ax.yaxis.label.set_size(self.ip['label_size'])
+        self.ax.set_xlabel('AFSCs')
+        self.ax.xaxis.label.set_size(self.ip['label_size'])
+
+        # Color the AFSCs on the x axis
+        if self.ip["color_afsc_text_by_grp"]:
+            afsc_colors = [self.ip['bar_colors'][p['acc_grp'][j]] for j in p['cadet_preferences'][i]]
+        else:
+            afsc_colors = ["black" for _ in afscs]
+
+        # X axis
+        self.ax.tick_params(axis='x', labelsize=self.ip['afsc_tick_size'])
+        self.ax.set_xticks(np.arange(M))
+        self.ax.set_xticklabels(afscs, rotation=self.ip['afsc_rotation'])
+        self.ax.set(xlim=(-0.8, M))
+
+        # Unique AFSC colors potentially based on accessions group
+        for index, xtick in enumerate(self.ax.get_xticklabels()):
+            xtick.set_color(afsc_colors[index])
+
+        # Y axis
+        self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
+        self.ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1])
+        self.ax.set_yticklabels(['0%', '20%', '40%', '60%', '80%', '100%'])
+
+        # Legend
+        if self.ip["add_legend_afsc_chart"]:
+            self.ax.legend(handles=legend_elements, edgecolor='black', loc=self.ip['legend_loc'],
+                           fontsize=self.ip['legend_size'], ncol=self.ip['ncol'], labelspacing=1, handlelength=0.8,
+                           handletextpad=0.2, borderpad=0.2, handleheight=2)
+
+        # Save the chart
+        self.ip['filename'] = self.ip['title']
+        if self.ip['save']:
+            self.fig.savefig(self.path + self.ip["filename"])
+            print("Saved", self.ip["filename"], "Chart to " + self.path + ".")
+
+
 class AccessionsGroupChart:
     def __init__(self, instance):
         """

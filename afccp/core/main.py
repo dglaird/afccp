@@ -770,8 +770,6 @@ class CadetCareerProblem:
 
     def create_final_utility_matrix_from_new_formula(self):
         """
-
-        :return:
         """
 
         if self.printing:
@@ -2064,6 +2062,21 @@ class CadetCareerProblem:
 
 
         return charts
+
+    def display_cadet_individual_utility_graph(self, p_dict={}, printing=None):
+        """
+        Builds the cadet utility graph for a particular cadet
+        """
+
+        # Print statement
+        if printing is None:
+            printing = self.printing
+
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Build the chart
+        afccp.core.visualizations.charts.CadetUtilityGraph(self)
 
     def display_results_graph(self, p_dict={}, printing=None):
         """
