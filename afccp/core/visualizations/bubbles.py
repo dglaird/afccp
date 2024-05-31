@@ -1126,28 +1126,26 @@ class BubbleChart:
         self.num_unmatched = len(unmatched_cadets)
         matched_cadets = np.array([i for i in self.b['cadets'] if i not in unmatched_cadets])
 
-        # # Calculate average cadet choice based on matched cadets
-        # choices = np.zeros(len(matched_cadets))
-        # for idx, i in enumerate(matched_cadets):
-        #     j = self.b['solutions'][s][i]
-        #     choices[idx] = self.p['c_pref_matrix'][i, j]
-        # self.average_cadet_choice = round(np.mean(choices), 2)
-        # title_text += ' Averages: Cadets (' + str(self.average_cadet_choice)
+        # Calculate average cadet choice based on matched cadets
+        choices = np.zeros(len(matched_cadets))
+        for idx, i in enumerate(matched_cadets):
+            j = self.b['solutions'][s][i]
+            choices[idx] = self.p['c_pref_matrix'][i, j]
+        self.average_cadet_choice = round(np.mean(choices), 2)
 
+        # Calculate AFSC weighted average score (and add number of unmatched cadets)
+        counts = np.array([len(np.where(self.b['solutions'][s] == j)[0]) for j in self.b['J']])
+        weights = counts / np.sum(counts)
+        scores = np.array([self.b['scores'][j] for j in self.b['J']])
+        self.average_afsc_choice = round(np.dot(weights, scores), 2)
+
+        # Add title text
         if self.b['focus'] in ['Specific Choice', 'Tier 1']:
             title_text += ' Highlighting Results for ' + self.mdl_p['afsc']
         else:
             percent_text = str(np.around(self.solution['top_3_choice_percent'] * 100, 3)) + "%"
             title_text += ' Results: Cadet Top3: ' + percent_text
-            title_text += ', AFSC Score: ' + str(np.around(weighted_average_afsc_score, 2))
-
-
-        # # Calculate AFSC weighted average score (and add number of unmatched cadets)
-        # counts = np.array([len(np.where(self.b['solutions'][s] == j)[0]) for j in self.b['J']])
-        # weights = counts / np.sum(counts)
-        # scores = np.array([self.b['scores'][j] for j in self.b['J']])
-        # self.average_afsc_choice = round(np.dot(weights, scores), 2)
-        # title_text += ') AFSCs (' + str(self.average_afsc_choice) + '), ' + str(self.num_unmatched) + ' Unmatched.'
+            title_text += ', AFSC Score: ' + str(np.around(self.average_afsc_choice, 2))
 
         # Update the title
         if self.b['b_title'] is not None:  # We specified a title directly
