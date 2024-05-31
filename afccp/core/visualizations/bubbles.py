@@ -198,7 +198,7 @@ class BubbleChart:
 
             # Save frame to solution sub-folder with solution name
             filepath = self.paths['Analysis & Results'] + self.solution['name'] + '/' + self.solution['name'] + ' ' +\
-                       self.b['focus'] + '.png'
+                       self.b['chart_filename'] + '.png'
             self.fig.savefig(filepath)
 
             if self.printing:
@@ -587,77 +587,7 @@ class BubbleChart:
 
         # Add the legend if necessary
         if self.b['b_legend']:
-            legend_elements = []
-            if self.b['focus'] == 'Cadet Choice' or 'Specific Choice' in self.b['focus']:
-
-                # Add legend elements
-                for c in np.arange(1, 11):
-                    legend_elements.append(
-                        Line2D([0], [0], marker='o', label=str(c), markerfacecolor=self.mdl_p['choice_colors'][c],
-                               markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
-                legend_elements.append(
-                    Line2D([0], [0], marker='o', label='11+', markerfacecolor=self.mdl_p['all_other_choice_colors'],
-                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
-
-            elif self.b['focus'] == 'ROTC Rated Interest':
-
-                # Add legend elements
-                for level in self.mdl_p['interest_colors']:
-                    legend_elements.append(
-                        Line2D([0], [0], marker='o', label=level, markerfacecolor=self.mdl_p['interest_colors'][level],
-                               markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
-
-            elif self.b['focus'] == 'Rated Choice':
-
-                # Add legend elements
-                for c in np.arange(1, len(self.b['J']) + 1):
-                    legend_elements.append(
-                        Line2D([0], [0], marker='o', label=str(c), markerfacecolor=self.mdl_p['choice_colors'][c],
-                               markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
-
-            elif self.b['focus'] == 'Reserves':
-
-                # Add legend elements
-                legend_elements = [
-                    Line2D([0], [0], marker='o', label="Matched", markerfacecolor=self.mdl_p['matched_slot_color'],
-                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
-                    Line2D([0], [0], marker='o', label="Reserved", markerfacecolor=self.mdl_p['reserved_slot_color'],
-                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
-
-            elif self.b['focus'] == 'SOC PGL':
-
-                # Add legend elements
-                legend_elements = [
-                    Line2D([0], [0], marker='o', label="USAFA", markerfacecolor=self.b['usafa_bubble'],
-                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
-                    Line2D([0], [0], marker='o', label="ROTC", markerfacecolor=self.b['rotc_bubble'],
-                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
-
-            elif 'Tier 1' in self.b['focus']:
-
-                # Add legend elements
-                legend_elements = [
-                    Line2D([0], [0], marker='o', label=self.mdl_p['afsc'] + " Unqualified",
-                           markerfacecolor=self.mdl_p['unfocused_color'],
-                           markersize=self.mdl_p['b_legend_marker_size'], color=self.mdl_p['unfocused_color'],
-                           markeredgecolor=self.mdl_p['base_edge']),
-                    Line2D([0], [0], marker='o', label=self.mdl_p['afsc'] + " Exception",
-                           markerfacecolor=self.mdl_p['unfocused_color'],
-                           markersize=self.mdl_p['b_legend_marker_size'], color=self.mdl_p['unfocused_color'],
-                           markeredgecolor=self.mdl_p['exception_edge'])]
-            # Create legend
-            leg = self.ax.legend(handles=legend_elements, edgecolor='white', loc=self.b['b_legend_loc'], facecolor='black',
-                                 fontsize=self.mdl_p['b_legend_size'], ncol=len(legend_elements), labelspacing=1,
-                                 handlelength=0.8, handletextpad=0.2, borderpad=0.2, handleheight=2,
-                                 title=self.b['focus'])
-
-            # Change title color in legend
-            title = leg.get_title()
-            title.set_color('white'), title.set_fontsize(self.mdl_p['b_legend_title_size'])
-
-            # Change label colors in legend
-            for text in leg.get_texts():
-                text.set_color("white")
+            self.create_legend()
 
         # Save the figure
         if self.b['save_board_default']:
@@ -672,6 +602,109 @@ class BubbleChart:
             else:
                 filepath += ' (M = ' + str(self.b['M']) + ').png'
             self.fig.savefig(filepath)
+
+    def create_legend(self):
+
+        # Initialize legend elements
+        legend_elements = []
+        legend_title = self.b['focus']
+        self.b['chart_filename'] = self.b['focus']  # Filename for chart
+        if self.b['focus'] in ['Cadet Choice', 'Specific Choice', 'Tier 1']:
+
+            # Add legend elements
+            for c in np.arange(1, 11):
+                legend_elements.append(
+                    Line2D([0], [0], marker='o', label=str(c), markerfacecolor=self.mdl_p['choice_colors'][c],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+            legend_elements.append(
+                Line2D([0], [0], marker='o', label='11+', markerfacecolor=self.mdl_p['all_other_choice_colors'],
+                       markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+
+            if self.b['focus'] in ['Specific Choice', 'Tier 1']:
+
+                # Update filename and legend title
+                self.b['chart_filename'] = self.mdl_p['afsc'] + " " + self.b['focus']
+                if "Specific Choice" in self.b['focus']:
+                    legend_title = "Cadet Choice For " + self.mdl_p['afsc']
+                else:
+                    legend_title = "Cadet Choice For Their Assigned AFSC"
+
+                # Get the AFSC we're highlighting
+                j_focus = np.where(self.p['afscs'] == self.mdl_p['afsc'])[0][0]
+
+                # Add "Unqualified" legend element if we have enough people ineligible for this AFSC
+                if len(self.p['I^E'][j_focus]) <= (self.p['N'] - 20):  # Might be handful of cadets on PRP or something
+                    legend_elements.append(
+                        Line2D([0], [0], marker='o', label=self.mdl_p['afsc'] + " Unqualified",
+                               markerfacecolor=self.mdl_p['unfocused_color'],
+                               markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+
+        elif self.b['focus'] == 'Cadet Choice Categories':
+
+            # Add legend elements
+            for c in np.arange(1, 7):
+                legend_elements.append(
+                    Line2D([0], [0], marker='o', label=str(c), markerfacecolor=self.mdl_p['choice_colors'][c],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+            legend_elements.append(
+                Line2D([0], [0], marker='o', label='Selected',
+                       markerfacecolor=self.mdl_p['choice_colors'][8],
+                       markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+            legend_elements.append(
+                Line2D([0], [0], marker='o', label='Not Selected',
+                       markerfacecolor=self.mdl_p['choice_colors'][9],
+                       markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+            legend_elements.append(
+                Line2D([0], [0], marker='o', label='Last 3', markerfacecolor=self.mdl_p['all_other_choice_colors'],
+                       markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+
+        elif self.b['focus'] == 'ROTC Rated Interest':
+
+            # Add legend elements
+            for level in self.mdl_p['interest_colors']:
+                legend_elements.append(
+                    Line2D([0], [0], marker='o', label=level, markerfacecolor=self.mdl_p['interest_colors'][level],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+
+        elif self.b['focus'] == 'Rated Choice':
+
+            # Add legend elements
+            for c in np.arange(1, len(self.b['J']) + 1):
+                legend_elements.append(
+                    Line2D([0], [0], marker='o', label=str(c), markerfacecolor=self.mdl_p['choice_colors'][c],
+                           markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
+
+        elif self.b['focus'] == 'Reserves':
+
+            # Add legend elements
+            legend_elements = [
+                Line2D([0], [0], marker='o', label="Matched", markerfacecolor=self.mdl_p['matched_slot_color'],
+                       markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
+                Line2D([0], [0], marker='o', label="Reserved", markerfacecolor=self.mdl_p['reserved_slot_color'],
+                       markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
+
+        elif self.b['focus'] == 'SOC PGL':
+
+            # Add legend elements
+            legend_elements = [
+                Line2D([0], [0], marker='o', label="USAFA", markerfacecolor=self.b['usafa_bubble'],
+                       markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
+                Line2D([0], [0], marker='o', label="ROTC", markerfacecolor=self.b['rotc_bubble'],
+                       markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
+
+        # Create legend
+        leg = self.ax.legend(handles=legend_elements, edgecolor='white', loc=self.b['b_legend_loc'], facecolor='black',
+                             fontsize=self.mdl_p['b_legend_size'], ncol=len(legend_elements), labelspacing=1,
+                             handlelength=0.8, handletextpad=0.2, borderpad=0.2, handleheight=2,
+                             title=legend_title)
+
+        # Change title color in legend
+        title = leg.get_title()
+        title.set_color('white'), title.set_fontsize(self.mdl_p['b_legend_title_size'])
+
+        # Change label colors in legend
+        for text in leg.get_texts():
+            text.set_color("white")
 
     # Iteration functions
     def solution_iteration_frame(self, s, cadets_to_show='cadets_matched', kind=None):
@@ -816,6 +849,36 @@ class BubbleChart:
                 # Show the circle
                 self.b['c_circles'][j][i].set_visible(True)
 
+        elif self.b['focus'] == 'Cadet Choice Categories':
+            choice = self.p['c_pref_matrix'][cadets, j]
+
+            # Change the cadet circles to reflect the appropriate colors
+            for i, cadet in enumerate(cadets):
+
+                # If the AFSC was a top 6 choice, we use that color
+                if choice[i] in [1, 2, 3, 4, 5, 6]:
+                    color = self.mdl_p['choice_colors'][choice[i]]
+
+                # If the AFSC was at least selected, we make it that color
+                elif j in self.p['J^Selected'][cadet]:
+
+                    # Use the color for the 8th choice
+                    color = self.mdl_p['choice_colors'][8]
+
+                # If the AFSC was not in the bottom 3 choices, we make it that color
+                elif j not in self.p['J^Bottom 2 Choices'][cadet] and j != self.p['J^Last Choice'][cadet]:
+
+                    # Use the color for the 9th choice
+                    color = self.mdl_p['choice_colors'][9]
+
+                # Otherwise, it's a bottom 3 choice
+                else:
+                    color = self.mdl_p['all_other_choice_colors']
+                self.b['c_circles'][j][i].set_facecolor(color)
+
+                # Show the circle
+                self.b['c_circles'][j][i].set_visible(True)
+
         elif self.b['focus'] == 'AFSC Choice':
             choice = self.p['a_pref_matrix'][cadets, j]
 
@@ -912,7 +975,9 @@ class BubbleChart:
                 # Change circle color
                 if choice[i] in self.mdl_p['choice_colors']:
                     color = self.mdl_p['choice_colors'][choice[i]]
-                else:
+                elif choice[i] == 0:  # Ineligible
+                    color = self.mdl_p['unfocused_color']
+                else:  # All other choices
                     color = self.mdl_p['all_other_choice_colors']
                 self.b['c_circles'][j][i].set_facecolor(color)
 
@@ -938,11 +1003,11 @@ class BubbleChart:
                     color = self.mdl_p['unfocused_color']
                 self.b['c_circles'][j][i].set_facecolor(color)
 
-                # Edgecolor
-                if 'E' in self.p['qual'][cadet, j_focus]:# and j == j_focus:
-                    self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['exception_edge'])
-                else:
-                    self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['base_edge'])
+                # # Edgecolor (Don't worry about exception anymore)
+                # if 'E' in self.p['qual'][cadet, j_focus]:# and j == j_focus:
+                #     self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['exception_edge'])
+                # else:
+                #     self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['base_edge'])
 
                 # Show the circle
                 self.b['c_circles'][j][i].set_visible(True)
@@ -1041,7 +1106,7 @@ class BubbleChart:
 
             # Update the title text in a specific way
             if kind == 'Final Solution':
-                title_text = 'Final Solution'
+                title_text = 'Solution'
             elif kind == 'Rejections':
                 title_text = 'Round ' + str(s + 1) + ' (Rejections)'
 
@@ -1061,20 +1126,28 @@ class BubbleChart:
         self.num_unmatched = len(unmatched_cadets)
         matched_cadets = np.array([i for i in self.b['cadets'] if i not in unmatched_cadets])
 
-        # Calculate average cadet choice based on matched cadets
-        choices = np.zeros(len(matched_cadets))
-        for idx, i in enumerate(matched_cadets):
-            j = self.b['solutions'][s][i]
-            choices[idx] = self.p['c_pref_matrix'][i, j]
-        self.average_cadet_choice = round(np.mean(choices), 2)
-        title_text += ' Averages: Cadets (' + str(self.average_cadet_choice)
+        # # Calculate average cadet choice based on matched cadets
+        # choices = np.zeros(len(matched_cadets))
+        # for idx, i in enumerate(matched_cadets):
+        #     j = self.b['solutions'][s][i]
+        #     choices[idx] = self.p['c_pref_matrix'][i, j]
+        # self.average_cadet_choice = round(np.mean(choices), 2)
+        # title_text += ' Averages: Cadets (' + str(self.average_cadet_choice)
 
-        # Calculate AFSC weighted average score (and add number of unmatched cadets)
-        counts = np.array([len(np.where(self.b['solutions'][s] == j)[0]) for j in self.b['J']])
-        weights = counts / np.sum(counts)
-        scores = np.array([self.b['scores'][j] for j in self.b['J']])
-        self.average_afsc_choice = round(np.dot(weights, scores), 2)
-        title_text += ') AFSCs (' + str(self.average_afsc_choice) + '), ' + str(self.num_unmatched) + ' Unmatched.'
+        if self.b['focus'] in ['Specific Choice', 'Tier 1']:
+            title_text += ' Highlighting Results for ' + self.mdl_p['afsc']
+        else:
+            percent_text = str(np.around(self.solution['top_3_choice_percent'] * 100, 3)) + "%"
+            title_text += ' Results: Cadet Top3: ' + percent_text
+            title_text += ', AFSC Score: ' + str(np.around(weighted_average_afsc_score, 2))
+
+
+        # # Calculate AFSC weighted average score (and add number of unmatched cadets)
+        # counts = np.array([len(np.where(self.b['solutions'][s] == j)[0]) for j in self.b['J']])
+        # weights = counts / np.sum(counts)
+        # scores = np.array([self.b['scores'][j] for j in self.b['J']])
+        # self.average_afsc_choice = round(np.dot(weights, scores), 2)
+        # title_text += ') AFSCs (' + str(self.average_afsc_choice) + '), ' + str(self.num_unmatched) + ' Unmatched.'
 
         # Update the title
         if self.b['b_title'] is not None:  # We specified a title directly

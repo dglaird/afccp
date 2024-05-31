@@ -52,7 +52,7 @@ def initialize_instance_functional_parameters(N):
         'preference_mutation_rate': 0.5,
 
         # Pyomo General Parameters
-        "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": 10, "provide_executable": False,
+        "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": None, "provide_executable": False,
         "executable": None, "exe_extension": False, 'alternate_list_iterations_printing': False,
 
         # Additional Constraints/Modeling
@@ -72,7 +72,7 @@ def initialize_instance_functional_parameters(N):
         'constraint_model_to_use': 'Assignment', "skip_quota_constraint": False,
 
         # Sensitivity Analysis
-        "pareto_step": 10,
+        "pareto_step": 10, "num_pgl_analysis_iterations": 30, "import_pgl_analysis_folder": None,
 
         # Goal Programming Parameters
         "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
@@ -209,8 +209,10 @@ def initialize_instance_functional_parameters(N):
         "pgl": "#5490f0", "surplus": "#eef09e", "failed_pgl": "#f25d50",
 
         # Race Colors
-        "American Indian/Alaska Native": "#d46013", "Asian": "#3ad413",
+        "American Indian/Alaska Native": "#d46013", "American Indian or Alaska Native": "#d46013",
+        "Asian": "#3ad413",
         "Black or African American": "#1100ff", "Native Hawaiian/Pacific Islander": "#d4c013",
+        "Native Hawaiian or Other Pacific Islander": "#d4c013",
         "Two or more races": "#ff0026", "Unknown": "#27dbe8", "White": "#a3a3a2",
 
         # Gender/SOC written differently (need to fix this later)
@@ -219,7 +221,8 @@ def initialize_instance_functional_parameters(N):
         # Accessions group colors
         "All Cadets": "#000000", "Rated": "#ff0011", "USSF": "#0015ff", "NRL": "#000000",
 
-        "Hispanic or Latino": "#66d4ce", "Not Hispanic": "#e09758", "Unknown Ethnicity": "#9e9e9e"
+        "Hispanic or Latino": "#66d4ce", "Not Hispanic": "#e09758", "Not Hispanic or Latino": "#e09758",
+        "Unknown Ethnicity": "#9e9e9e"
 
     }
 
@@ -442,7 +445,7 @@ def determine_afscs_in_image(p, mdl_p):
     if mdl_p["eligibility_limit"] is not None:
 
         # Update set of AFSCs
-        mdl_p['J'] = np.array([j for j in mdl_p['J'] if len(p['I^E'][j]) < mdl_p["eligibility_limit"]])
+        mdl_p['J'] = np.array([j for j in mdl_p['J'] if len(p['I^E'][j]) <= mdl_p["eligibility_limit"]])
         mdl_p['afscs'] = np.array([p['afscs'][j] for j in mdl_p['J']])
         mdl_p['M'] = len(mdl_p['J'])
     else:

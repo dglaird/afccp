@@ -815,6 +815,9 @@ def calculate_additional_useful_metrics(solution, p, vp):
             solution["choice_counts"][dem]["All Others"][j] = int(len(
                 dem_cadets[dem]) - solution["choice_counts"][dem]["Top 3"][j] - solution["choice_counts"][dem]["Next 3"][j])
 
+    # Top 3 Choice Percentage
+    solution['top_3_choice_percent'] = np.around(
+        np.sum([1 <= solution['cadet_choice'][i] <= 3 for i in p['I']]) / p['N'], 3)
     return solution
 
 def calculate_base_training_metrics(solution, p, vp):

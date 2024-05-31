@@ -228,8 +228,8 @@ class AFSCsChart:
             if printing:
                 print("Created", self.ip["filename"], "Chart.")
 
-        # Return the chart
-        return self.fig
+        # Return the full chart object
+        return self
 
     # Chart helper methods
     def condense_afscs_based_on_objective(self):

@@ -4,6 +4,13 @@ import numpy as np
 import logging
 import warnings
 import pandas as pd
+import os
+
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+from PIL import Image
+import io
 
 # afccp modules
 import afccp.core.globals
@@ -545,5 +552,319 @@ def optimization_what_if_analysis(instance, printing=True):
     # Create and export solutions dataframe
     solution_df = pd.DataFrame(afsc_solutions)
     solution_df.to_csv(instance.export_paths['Analysis & Results'] + "What If Solutions.csv", index=False)
+
+
+def solve_pgl_capacity_sensitivity(instance, p_dict={}, printing=True):
+    """
+    Doc string here
+    """
+
+    def alter_quota_max(done_iterating):
+        """
+
+        :return:
+        """
+
+        # Determine which AFSCs were most over quota
+        count = instance.solution['count']
+        surplus = count - p['pgl']
+        percentage = count / p['pgl']
+
+        # Determine which AFSC to alter
+        sorted_afscs = np.argsort(percentage)[::-1]
+        for j in sorted_afscs:
+
+            # If we're already at our "true max", pick the next AFSC in the list
+            if count[j] <= true_max[j]:
+                continue
+
+            # Calculate what the new max should be
+            new_max_val = np.floor(p['pgl'][j] + surplus[j] / 2)
+
+            # If the difference is small enough, skip straight to true max
+            difference = count[j] - new_max_val
+            if difference <= 5:
+                new_max_val = true_max[j]
+
+            # If this would put the maximum under the "true maximum", force it to be the true maximum
+            if new_max_val < true_max[j]:
+                new_max_val = true_max[j]
+
+            # Set the new maximum value for this AFSC
+            if p['quota_max'][j] == new_max_val:
+                print("Iterations complete.")
+                done_iterating = True
+            else:
+                p['quota_max'][j] = new_max_val
+
+            # Break out of the loop
+            break
+
+        return done_iterating
+
+    # Shorthand
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
+
+    # Make the main directory if needed
+    folder_path = instance.export_paths['Analysis & Results']
+    if "PGL Sensitivity Analysis" not in os.listdir(folder_path):
+        os.mkdir(folder_path + '/' + 'PGL Sensitivity Analysis')
+    folder_path += '/' + 'PGL Sensitivity Analysis/'
+
+    # Adjust the chart settings
+    p_dict["objective"] = "Combined Quota"
+    p_dict["version"] = "quantity_bar"
+    p_dict['macro_chart_kind'] = 'AFSC Chart'
+    p_dict['save'] = False
+
+    # Get contents of folder to determine sub-folder this analysis will be in
+    folder = os.listdir(folder_path)
+
+    # Settings for max quotas
+    true_max = copy.deepcopy(p['quota_max'])
+
+    # If we are starting where we left off and have provided a valid Analysis folder, we import there
+    if mdl_p['import_pgl_analysis_folder'] in folder:
+        sub_folder_name = mdl_p['import_pgl_analysis_folder']
+        folder_path += sub_folder_name + "/"
+
+        # Print statement
+        if printing:
+            print("Conducting PGL sensitivity analysis on this problem instance "
+                  "from imported '" + sub_folder_name + "'...")
+
+        # Import dataframes
+        capacities_df = pd.read_csv(folder_path + "Capacities.csv")
+        solutions_df = pd.read_csv(folder_path + "Solutions.csv")
+
+        # Load dictionaries
+        capacities_dict = {int(col): np.array(capacities_df[col]) for col in capacities_df}
+        solutions_dict = {int(col): np.array(solutions_df[col]) for col in solutions_df}
+
+        # Determine what our last iteration was
+        iteration = len(capacities_df.columns) - 1
+
+        # Set initial quota_max
+        p['quota_max'] = capacities_dict[iteration]
+
+        # Add the current solution to the instance
+        instance.add_solution(solutions_dict[iteration])
+
+        # Process that solution to get new quota max
+        alter_quota_max(done_iterating=False)
+
+        # Set the iterations
+        iteration += 1
+        iterations = np.arange(iteration, iteration + mdl_p['num_pgl_analysis_iterations'])
+
+    # If we are starting from scratch, create the new analysis folder and start that way
+    else:
+
+        # Crate the new folder
+        name_determined, i = False, 1
+        while not name_determined:
+            sub_folder_name = "Analysis " + str(i)
+            if sub_folder_name not in folder:
+                folder_path += sub_folder_name + "/"
+                os.mkdir(folder_path)  # Make the folder
+                name_determined = True
+            else:
+                i += 1
+
+        # Print statement
+        if printing:
+            print("Conducting PGL sensitivity analysis on this problem instance "
+                  "using new '" + sub_folder_name + "'...")
+
+        # Set essentially no maximum value for each AFSC at the beginning
+        p['quota_max'] = np.array([1000 if j in p['J^NRL'] else p['quota_max'][j] for j in p['J']])
+
+        # Create dictionaries of solution/capacity arrays
+        solutions_dict, capacities_dict = {},{}
+
+        # Set the iterations
+        iterations = np.arange(mdl_p['num_pgl_analysis_iterations'])
+
+    # Loop through each iteration
+    done_iterating = False
+    for iteration in iterations:
+
+        # Update the value parameters with the new quota max
+        instance.update_value_parameters()
+
+        # Run the model
+        if printing:
+            print("\n\nSolving iteration", iteration, "with capacities", p['quota_max'])
+        instance.solve_guo_pyomo_model(p_dict, printing=True)
+
+        # Save solution and capacities information
+        capacities_dict[iteration] = copy.deepcopy(p['quota_max'])
+        solutions_dict[iteration] = instance.solution['afsc_array']
+
+        # Process the solution
+        done_iterating = alter_quota_max(done_iterating)
+
+        # If we're done iterating, stop. Otherwise, build the chart
+        if done_iterating:
+            break
+        else:
+
+            # Save dataframes at each step
+            print("Saving dataframes..")
+            capacities_df = pd.DataFrame(capacities_dict)
+            capacities_df.to_csv(folder_path + "Capacities.csv", index=False)
+            solutions_df = pd.DataFrame(solutions_dict)
+            solutions_df.to_csv(folder_path + "Solutions.csv", index=False)
+            print("Done.")
+
+
+def build_pgl_sensitivity_chart(instance, folder_path, iteration, c_dict, s_dict):
+
+    # Adjust instance plot parameters
+    instance.mdl_p = afccp.core.data.support.determine_afsc_plot_details(instance, results_chart=True)
+
+    # Create basic AFSC Chart
+    chart = afccp.core.visualizations.charts.AFSCsChart(instance)
+    chart.build(chart_type="Solution", printing=False)
+
+    # Modify chart title
+    chart.fig.suptitle("", fontsize=chart.ip['title_size'])
+
+    # Import images
+    gavel_hit = mpimg.imread(afccp.core.globals.paths['files'] + 'gavel_hit.png')
+    gavel_swing = mpimg.imread(afccp.core.globals.paths['files'] + 'gavel_swing.png')
+    # mole = mpimg.imread(afccp.core.globals.paths['files'] + 'mole.png')
+
+    # Num iterations
+    num_iterations = len(c_dict.keys())
+
+    # AFSCs that we're swinging or hitting
+    j_swing, j_hit = None, None
+
+    # We're not on the last iteration
+    if iteration < num_iterations - 1:
+
+        # Determine which AFSC we hit next
+        indices = np.where(c_dict[iteration] - c_dict[iteration + 1] != 0)[0]
+        print('afscs swing', instance.parameters['afscs'][indices])
+        if len(indices) == 1:
+            j_swing = indices[0]
+
+        else:
+            print("SWING: No change in capacities between iterations", iteration, "and",
+                  iteration + 1)
+
+    # We're not on the first iteration
+    if iteration != 0:
+
+        # Determine which AFSC we hit this time
+        indices = np.where(c_dict[iteration - 1] - c_dict[iteration] != 0)[0]
+        print('afscs hit', instance.parameters['afscs'][indices])
+        if len(indices) == 1:
+            j_hit = indices[0]
+
+        else:
+            print("HIT: No change in capacities between iterations", iteration, "and",
+                  iteration + 1)
+
+    # If this is the first iteration, we have to create the initial image without wack a moles
+    else:
+
+        # Save chart
+        filepath = folder_path + "Iteration Start.png"
+        chart.fig.savefig(filepath)
+        print("Saved figure to", filepath)
+
+    # Put on the gavel hit image
+    if j_hit is not None:
+        y = instance.solution['count'][j_hit]
+        loc = np.where(chart.c["afscs"] == instance.parameters['afscs'][j_hit])[0][0]
+
+        # Add gavel
+        imagebox = OffsetImage(gavel_hit, zoom=0.2)  # Adjust zoom as needed
+        ab = AnnotationBbox(imagebox, (loc - 0.2, y - 1), xycoords='data', boxcoords="offset points", pad=0.5,
+                            frameon=False)
+        chart.ax.add_artist(ab)
+
+    # Put on the gavel swing image
+    if j_swing is not None and j_hit != j_swing:
+        y = instance.solution['count'][j_swing]
+        loc = np.where(chart.c["afscs"] == instance.parameters['afscs'][j_swing])[0][0]
+
+        # Add gavel
+        imagebox = OffsetImage(gavel_swing, zoom=0.2)  # Adjust zoom as needed
+        ab = AnnotationBbox(imagebox, (loc - 0.2, y + 10), xycoords='data', boxcoords="offset points", pad=0.5,
+                            frameon=False)
+        chart.ax.add_artist(ab)
+
+    # Save chart
+    filepath = folder_path + "Iteration " + str(iteration) + ".png"
+    chart.fig.savefig(filepath)
+    print("Saved figure to", filepath)
+
+
+def generate_pgl_capacity_charts(instance, p_dict={}, printing=True):
+
+    # Shorthand
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
+
+    # Make the main directory if needed
+    folder_path = instance.export_paths['Analysis & Results']
+    if "PGL Sensitivity Analysis" not in os.listdir(folder_path):
+        os.mkdir(folder_path + '/' + 'PGL Sensitivity Analysis')
+    folder_path += 'PGL Sensitivity Analysis/'
+
+    # Get folder information if we have it, otherwise raise error
+    folder = os.listdir(folder_path)
+    if mdl_p['import_pgl_analysis_folder'] in folder:
+        sub_folder_name = mdl_p['import_pgl_analysis_folder']
+        folder_path += sub_folder_name + "/"
+
+        # We want another sub-folder to contain all the images from the wack-a-mole stuff
+        if "Snapshots" not in os.listdir(folder_path):
+            os.mkdir(folder_path + '/' + 'Snapshots')
+    else:
+        raise ValueError("Error. Analysis sub-folder '",
+                         mdl_p['import_pgl_analysis_folder'], 'not in ' + folder_path +
+                         '. Please specify valid Analysis sub-folder (e.g. "Analysis 1") through model parameter '
+                         '(mdl_p) "import_pgl_analysis_folder".')
+
+    # Adjust the chart settings
+    mdl_p["objective"] = "Combined Quota"
+    mdl_p["version"] = "quantity_bar"
+    mdl_p['macro_chart_kind'] = 'AFSC Chart'
+    mdl_p['save'] = False
+
+    # Print statement
+    if printing:
+        print("Conducting PGL sensitivity analysis on this problem instance "
+              "from imported '" + sub_folder_name + "'...")
+
+    # Import dataframes
+    capacities_df = pd.read_csv(folder_path + "Capacities.csv")
+    solutions_df = pd.read_csv(folder_path + "Solutions.csv")
+
+    # Get into snapshots folder
+    folder_path += 'Snapshots/'
+
+    # Load dictionaries
+    capacities_dict = {int(col): np.array(capacities_df[col]) for col in capacities_df}
+    solutions_dict = {int(col): np.array(solutions_df[col]) for col in solutions_df}
+
+    # Create snapshots
+    for iteration in capacities_dict:
+
+        # Add the current solution to the instance
+        instance.add_solution(solutions_dict[iteration])
+
+        # Build the chart and save it
+        build_pgl_sensitivity_chart(instance, folder_path, iteration, capacities_dict, solutions_dict)
+
+
+
+
+
+
+
 
 

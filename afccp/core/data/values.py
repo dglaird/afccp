@@ -71,7 +71,8 @@ def value_parameters_sets_additions(parameters, value_parameters, printing=False
     # Create a set of preferred AFSCs that are constrained for cadets with utility constraints
     vp['J^Top_Choice'] = {}
     for i in vp['I^C']:
-        vp['J^Top_Choice'][i] = np.where(p['cadet_utility'][i, :] >= vp['cadet_value_min'][i])[0]
+        vp['J^Top_Choice'][i] = np.intersect1d(np.where(p['cadet_utility'][i, :] >= vp['cadet_value_min'][i])[0],
+                                               p['J^E'][i])
 
     # AFSC Value Constraint Set
     vp['J^C'] = np.where(vp['afsc_value_min'] > 0)[0]

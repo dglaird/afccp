@@ -1648,6 +1648,21 @@ class CadetCareerProblem:
             if self.value_parameters is not None:
                 self.measure_solution(printing=printing)
 
+    def add_solution(self, afsc_solution):
+        """
+        Takes a numpy array of AFSCs and adds this new solution into the solution dictionary
+        """
+
+        # Create solution dictionary
+        solution = {'j_array': np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution]),
+                    'method': "Added", 'afsc_array': afsc_solution}
+
+        # Determine what to do with the solution
+        self.solution_handling(solution)
+
+        # Return the solution
+        return solution
+
     def compute_similarity_matrix(self, solution_names=None):
         """
         Generates the similarity matrix for a given set of solutions
@@ -2642,6 +2657,38 @@ class CadetCareerProblem:
 
         # Run the "what if" analysis function
         afccp.core.solutions.sensitivity.optimization_what_if_analysis(self, printing)
+
+    def solve_pgl_capacity_sensitivity(self, p_dict={}, printing=None):
+        """
+        Docstring
+        """
+
+        if printing is None:
+            printing = self.printing
+
+        self.error_checking("Pyomo Model")
+
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self, results_chart=True)
+
+        # Run the function
+        afccp.core.solutions.sensitivity.solve_pgl_capacity_sensitivity(self, p_dict, printing)
+
+    def generate_pgl_capacity_charts(self, p_dict={}, printing=None):
+        """
+        Docstring
+        """
+
+        if printing is None:
+            printing = self.printing
+
+        # Adjust instance plot parameters
+        self.reset_functional_parameters(p_dict)
+        self.mdl_p = afccp.core.data.support.determine_afsc_plot_details(self, results_chart=True)
+
+        # Run the function
+        afccp.core.solutions.sensitivity.generate_pgl_capacity_charts(self, p_dict, printing)
 
     # Export
     def export_data(self, datasets=None, printing=None):
