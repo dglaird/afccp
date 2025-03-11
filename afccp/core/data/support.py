@@ -77,6 +77,10 @@ def initialize_instance_functional_parameters(N):
         # Goal Programming Parameters
         "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
 
+        # CASTLE Integration Parameters
+        "w^G": 0.5,  # Weight on GUO solution relative to CASTLE
+        "solve_castle_guo": False,  # Whether we should solve the castle version of GUO or not
+
         # Value Parameter Generation
         "new_vp_weight": 100, "num_breakpoints": 24,
 

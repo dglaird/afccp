@@ -162,6 +162,10 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
     if 'base_array' in solution:
         solution = calculate_base_training_metrics(solution, p, vp)
 
+    # Add Castle solution metrics
+    if 'castle_q' in p:
+        solution = calculate_castle_solution_metrics(solution, p)
+
     # Calculate blocking pairs
     if 'a_pref_matrix' in p:
         solution['blocking_pairs'] = calculate_blocking_pairs(p, solution)
@@ -183,6 +187,9 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         print_str += ". " + solution['cadets_fixed_correctly'] + ' AFSCs fixed. ' + \
                      solution['cadets_reserved_correctly'] + ' AFSCs reserved'
         print_str += ". " + solution['alternate_list_metric'] + ' alternate list scenarios respected'
+        if 'z^CASTLE' in solution:
+            print_str += f".\nCASTLE GUO Score: {solution['z^CASTLE']}. " \
+                         f"Value Curve Score: {solution['z^CASTLE (Values)']}"
         if 'num_blocking_pairs' in solution:
             print_str += ".\nBlocking pairs: " + str(solution['num_blocking_pairs'])
         print_str += ". Unmatched cadets: " + str(solution["num_unmatched"])
@@ -878,6 +885,32 @@ def calculate_base_training_metrics(solution, p, vp):
     solution['z^gu'] = (1 / p['N']) * vp['afscs_overall_weight'] * np.sum(solution['afsc_utility_achieved']) + \
                        vp['cadets_overall_weight'] * solution['cadets_overall_value']
 
+    return solution
+
+def calculate_castle_solution_metrics(solution, p):
+    """
+    Add CASTLE-specific solution metrics
+    """
+
+    # Shorthand
+    x, q = solution['x'], p['castle_q']
+
+    # Loop through each CASTLE AFSC to calculate the numbers of people assigned
+    solution['castle_counts'], solution['castle_v'] = {}, {}
+    afscs = [afsc for afsc, _ in p['J^CASTLE'].items()]
+    for afsc, j_indices in p['J^CASTLE'].items():
+
+        # Get the number of people assigned to each AFSC under this "CASTLE" AFSC umbrella
+        measure = np.sum(np.sum(x[i, j] for i in p['I^E'][j]) for j in j_indices)
+        solution['castle_counts'][afsc] = measure
+
+        # Get the value from this AFSC's curve
+        v = value_function(q['a'][afsc], q['f^hat'][afsc], q['r'][afsc], measure)
+        solution['castle_v'][afsc] = v
+
+    # Calculate "z^CASTLE"
+    solution['z^CASTLE (Values)'] = round(np.sum(solution['castle_v'][afsc] for afsc in afscs) / len(afscs), 4)
+    solution['z^CASTLE'] = round(p['w^G'] * solution['z^gu'] + (1 - p['w^G']) * solution['z^CASTLE (Values)'], 4)
     return solution
 
 # AFSC Objective Measure Calculation Functions

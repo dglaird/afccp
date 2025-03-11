@@ -50,7 +50,8 @@ def initialize_file_information(data_name: str, data_version: str):
                                         "Cadets Utility (Final)", "AFSCs", "AFSCs Preferences", "AFSCs Utility",
                                         "Value Parameters", "Goal Programming", "ROTC Rated Interest",
                                         "ROTC Rated OM", "USAFA Rated OM", "Bases", "Bases Preferences",
-                                        "Bases Utility", "Courses", "Cadets Selected", "AFSCs Buckets"],
+                                        "Bases Utility", "Courses", "Cadets Selected", "AFSCs Buckets",
+                                        'Castle Input'],
                         "Analysis & Results": ["Solutions", "Base Solutions", "Course Solutions"]}
 
     # Loop through each sub-folder in the above list and determine the filepaths for the various files
@@ -645,7 +646,7 @@ def import_additional_data(import_filepaths, parameters):
 
     # Loop through the potential additional dataframes and import them if we have them
     datasets = {}
-    for dataset in ["Bases", "Bases Preferences", "Bases Utility", "Courses"]:
+    for dataset in ["Bases", "Bases Preferences", "Bases Utility", "Courses", "Castle Input"]:
 
         # If we have the dataset, import it
         if dataset in import_filepaths:
@@ -682,6 +683,37 @@ def import_additional_data(import_filepaths, parameters):
         for col, param in column_translation.items():
             arr = np.array(datasets['Courses'][col])  # Convert dataframe column to numpy array
             p[param] = {j: arr[afsc_courses[j]] for j in range(p['M'])}
+
+    # Extract data from "Castle Input.csv" if applicable
+    if "Castle Input" in datasets:
+
+        # Load in AFSC arrays
+        castle_afscs = np.array(datasets['Castle Input']['CASTLE AFSC'])
+        afpc_afscs = np.array(datasets['Castle Input']['AFPC AFSC'])
+        p['castle_afscs_arr'], p['afpc_afscs_arr'] = castle_afscs, afpc_afscs
+
+        # Create dictionary of CASTLE AFSCs -> AFPC AFSCs (account for groupings)
+        p['castle_afscs'], p['J^CASTLE'] = {}, {}
+        for castle_afsc in np.unique(castle_afscs):
+            indices = np.where(castle_afscs == castle_afsc)[0]
+            p['castle_afscs'][castle_afsc] = afpc_afscs[indices]
+            p['J^CASTLE'][castle_afsc] = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afpc_afscs[indices]])
+
+        # Load in "q" dictionary information if it exists
+        df = datasets['Castle Input']  # Shorthand
+        if 'a' in df.columns:
+            q = {'a': {}, 'f^hat': {}, 'r': {}, 'L': {}}
+            for afsc in np.unique(castle_afscs):
+                row = df.loc[df['CASTLE AFSC'] == afsc].head(1).iloc[0]
+
+                # Load breakpoint coordinates into q dictionary
+                a_str, f_hat_str = str(row['a']), str(row['f^hat'])
+                q['a'][afsc] = np.array([float(x) for x in a_str.split(",")])
+                q['f^hat'][afsc] = np.array([float(x) for x in f_hat_str.split(",")])
+
+                # Save additional information to q dictionary
+                q['r'][afsc], q['L'][afsc] = len(q['a'][afsc]), np.arange(len(q['a'][afsc]))
+                p['castle_q'] = q  # Save to parameters dictionary
 
     # Return parameters dictionary
     return p
@@ -1143,6 +1175,22 @@ def export_additional_data(instance):
         # Export the dataframe
         df.to_csv(instance.export_paths['Courses'], index=False)
 
+    # Export Castle AFSCs data
+    if 'castle_afscs_arr' in p:
+
+        # Create dataframe
+        df = pd.DataFrame({'AFPC AFSC': p['afpc_afscs_arr'],
+                           'CASTLE AFSC': p['castle_afscs_arr']})
+
+        # Add in value curve data
+        if 'castle_q' in p:
+            df['a'] = [', '.join(np.around(p['castle_q']['a'][afsc], 3).astype(str)) for afsc in p['castle_afscs_arr']]
+            df['f^hat'] = \
+                [', '.join(np.around(p['castle_q']['f^hat'][afsc], 3).astype(str)) for afsc in p['castle_afscs_arr']]
+
+        # Export the dataframe
+        df.to_csv(instance.export_paths['Castle Input'], index=False)
+
 
 # Solution Results excel file
 def export_solution_results_excel(instance, filepath):
@@ -1278,6 +1326,7 @@ def export_solution_results_excel(instance, filepath):
                         'Average Normalized AFSC Score': 'weighted_average_afsc_score',
                         'Failed Constraints': 'total_failed_constraints', 'USSF OM': 'ussf_om',
                         'Global Utility': 'z^gu', 'Cadet Utility': 'cadet_utility_overall',
+                        'z^CASTLE': 'z^CASTLE', 'z^CASTLE (Values)': 'z^CASTLE (Values)',
                         'AFSC Utility': 'afsc_utility_overall', 'USAFA Cadet Utility': 'usafa_cadet_utility',
                         'ROTC Cadet Utility': 'rotc_cadet_utility', 'USSF Cadet Utility': 'ussf_cadet_utility',
                         'USAF Cadet Utility': 'usaf_cadet_utility', 'USSF AFSC Utility': 'ussf_afsc_utility',

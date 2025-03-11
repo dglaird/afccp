@@ -206,6 +206,9 @@ class CadetCareerProblem:
         self.mdl_p = afccp.core.data.support.initialize_instance_functional_parameters(
             self.parameters["N"])
 
+        # Copy weight on GUO solution (relative to CASTLE) from "mdl_p" to "parameters"
+        self.parameters['w^G'] = self.mdl_p['w^G']
+
         if self.printing:
             print("Instance '" + self.data_name + "' initialized.")
 
@@ -509,6 +512,16 @@ class CadetCareerProblem:
 
         # Sanity check the parameters to make sure it all looks good! (No issues found.)
         self.parameter_sanity_check()
+
+    # Castle adjustments
+    def generate_example_castle_value_curves(self, num_breakpoints: int=10):
+
+        # Create "q" dictionary containing breakpoint information for castle value curves
+        q = afccp.core.data.values.generate_realistic_castle_value_curves(self.parameters,
+                                                                          num_breakpoints=num_breakpoints)
+
+        # Save "q" dictionary for castle to parameters
+        self.parameters['castle_q'] = q
 
     # Adjust Preferences
     def update_qualification_matrix_from_afsc_preferences(self, printing=None):

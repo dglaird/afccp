@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/afccp.iml" filepath="$PROJECT_DIR$/.idea/afccp.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../dorado/.idea/dorado.iml" filepath="$PROJECT_DIR$/../dorado/.idea/dorado.iml" />
     </modules>
   </component>
 </project>

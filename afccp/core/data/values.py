@@ -1231,3 +1231,42 @@ def translate_vft_to_gp_parameters(instance):
 
     return gp
 
+
+# Castle Integration
+def generate_concave_curve(num_points, max_x):
+    """
+    Generates x and y coordinates for a concave function.
+
+    Args:
+        num_points (int): Number of points to generate.
+        max_x (float): Maximum value along the x-axis.
+
+    Returns:
+        tuple: (x_values, y_values) as numpy arrays.
+    """
+    x_values = np.linspace(0, max_x, num_points)
+    y_values = 1 - np.exp(-x_values / (max_x / 6))  # Adjust curvature
+    return x_values, y_values
+
+
+def generate_realistic_castle_value_curves(parameters, num_breakpoints: int = 10):
+    # Shorthand
+    p = parameters
+
+    # Define "q" dictionary for value function components
+    q = {'a': {}, 'f^hat': {}, 'r': {}, 'L': {}}
+    for afsc in p['castle_afscs']:
+        # Sum up the PGL targets for all "AFPC" AFSCs grouped for this "CASTLE" AFSC
+        pgl = np.sum(p['pgl'][p['J^CASTLE'][afsc]])
+
+        # Generate x and y coordinates for concave shape
+        x, y = generate_concave_curve(num_points=num_breakpoints, max_x=pgl * 2)
+
+        # Save breakpoint information to q dictionary
+        q['a'][afsc], q['f^hat'][afsc] = x, y
+        q['r'][afsc], q['L'][afsc] = len(x), np.arange(len(x))
+
+    return q
+
+
+

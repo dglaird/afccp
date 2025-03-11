@@ -67,7 +67,7 @@ def assignment_model_build(instance, printing=False):
             print("Building assignment problem (GUO) model...")
 
     # Original Model Utility/"Cost" Matrix  (Original model)
-    else:
+    else:  # This is the "legacy" AFPC model!
 
         if printing:
             print("Building original assignment problem model...")
@@ -102,33 +102,32 @@ def assignment_model_build(instance, printing=False):
     # ___________________________________VARIABLE DEFINITION_________________________________
     m = common_optimization_handling(m, p, vp, mdl_p)  # Define x along with additional functional constraints
 
-    # ___________________________________OBJECTIVE FUNCTION__________________________________
+    # Base/Training model extra components
     if mdl_p['solve_extra_components']:
-
-        # Base/Training model extra components
         m = base_training_model_handling(m, p, mdl_p)
 
-        # Base/Training model objective function
-        def objective_function(m):
-            return vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * m.cadet_value[i] for i in p['I']) + \
-                   1 / p['N'] * vp['afscs_overall_weight'] * np.sum(
-                np.sum(p['afsc_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+    # Initialize CASTLE value curve variables
+    if mdl_p['solve_castle_guo']:
+        m = initialize_castle_value_curve_function_variables(m, p, q=p['castle_q'])
 
-        m.objective = Objective(rule=objective_function, sense=maximize)
-
-    else:
-
-        # AFSC-only objective function
-        def objective_function(m):
-            return np.sum(np.sum(c[i, j] * m.x[i, j] for j in p["J^E"][i]) for i in p["I"])
-
-        m.objective = Objective(rule=objective_function, sense=maximize)
+    # ___________________________________OBJECTIVE FUNCTION__________________________________
+    m.objective = assignment_model_objective_function_definition(m=m, p=p, vp=vp, mdl_p=mdl_p, c=c)
 
     # ________________________________________CONSTRAINTS_____________________________________
-    pass
+    m.measure_constraints = ConstraintList()  # AFSC Objective Measure Constraints (Optional decision-maker constraints)
 
-    # AFSC Objective Measure Constraints (Optional decision-maker constraints)
-    m.measure_constraints = ConstraintList()
+    # Incorporate CASTLE value curve functional constraints
+    if mdl_p['solve_castle_guo']:
+        m = initialize_value_function_constraint_lists(m)
+
+        # Loop through each CASTLE AFSC to add the constraints
+        for castle_afsc, j_indices in p['J^CASTLE'].items():
+
+            # Get the number of people assigned to each AFSC under this "CASTLE" AFSC umbrella
+            measure = np.sum(np.sum(m.x[i, j] for i in p['I^E'][j]) for j in j_indices)
+
+            # Add the value curve constraints for this "CASTLE" AFSC
+            m = add_castle_value_curve_function_constraints(m, measure, afsc=castle_afsc, q=p['castle_q'])
 
     # Loop through all AFSCs to add AFSC objective measure constraints
     for j in p['J']:
@@ -345,18 +344,8 @@ def vft_model_build(instance, printing=False):
     # ____________________________________CONSTRAINTS_____________________________________
     pass  # Here so pycharm doesn't yell at me for the constraint line above
 
-    # Value Function Constraints: Linking main methodology with value function methodology
-    m.measure_vf_constraints = ConstraintList()  # 20a in Thesis
-    m.value_vf_constraints = ConstraintList()  # 20b in Thesis
-
-    # Value Function Constraints: Functional constraints enforcing the relationship above
-    m.lambda_y_constraint1 = ConstraintList()  # 20c in Thesis
-    m.lambda_y_constraint2 = ConstraintList()  # 20d in Thesis
-    m.lambda_y_constraint3 = ConstraintList()  # 20e in Thesis
-    m.y_sum_constraint = ConstraintList()  # 20f in Thesis
-    m.lambda_sum_constraint = ConstraintList()  # 20g in Thesis
-    m.lambda_positive = ConstraintList()  # Lambda domain (20h)
-    m.f_value_positive = ConstraintList()  # AFSC objective value domain
+    # Value Function Constraints: Linking main methodology with value function methodology...
+    m = initialize_value_function_constraint_lists(m)  # ...and then enforcing that methodology
 
     # AFSC Value Constraints (Optional decision-maker constraints)
     m.min_afsc_value_constraints = ConstraintList()
@@ -377,29 +366,8 @@ def vft_model_build(instance, printing=False):
                 measure, numerator = afccp.core.solutions.handling.calculate_objective_measure_matrix(
                     m.x, j, objective, p, vp, approximate=instance.mdl_p['approximate'])
 
-                # Add Linear Value Function Constraints
-                m.measure_vf_constraints.add(expr=measure == np.sum(  # Measure Constraint for Value Function (20a)
-                    q['a'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
-                m.value_vf_constraints.add(expr=m.f_value[j, k] == np.sum(  # Value Constraint for Value Function (20b)
-                    q['f^hat'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
-
-                # Lambda .. y constraints (20c, 20d, 20e)
-                m.lambda_y_constraint1.add(expr=m.lam[j, k, 0] <= m.y[j, k, 0])  # (20c)
-                if q['r'][j, k] > 2:
-                    for l in range(1, q['r'][j, k] - 1):
-                        m.lambda_y_constraint2.add(expr=m.lam[j, k, l] <= m.y[j, k, l - 1] + m.y[j, k, l])  # (20d)
-                m.lambda_y_constraint3.add(expr=m.lam[j, k, q['r'][j, k] - 1] <= m.y[j, k, q['r'][j, k] - 2])  # (20e)
-
-                # Y sum to 1 constraint (20f)
-                m.y_sum_constraint.add(expr=np.sum(m.y[j, k, l] for l in range(0, q['r'][j, k] - 1)) == 1)
-
-                # Lambda sum to 1 constraint (20g)
-                m.lambda_sum_constraint.add(expr=np.sum(m.lam[j, k, l] for l in q['L'][j, k]) == 1)
-
-                # Lambda .. value positive constraint (20h) although the "f_value" constraint is implied in the thesis
-                for l in q['L'][j, k]:
-                    m.lambda_positive.add(expr=m.lam[j, k, l] >= 0)
-                m.f_value_positive.add(expr=m.f_value[j, k] >= 0)
+                # Add Value Function constraints (for functionality)
+                m = add_objective_value_function_constraints(m, j, k, measure, q=q)
 
                 # Add AFSC objective measure constraint
                 if k in vp['K^C'][j]:
@@ -659,6 +627,8 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
 
         if mdl_p['solve_extra_components']:
             specific_model_name += " (w/base & training components)"
+        if mdl_p['solve_castle_guo']:
+            specific_model_name += " (w/CASTLE value curve modifications)"
 
         print('Solving ' + specific_model_name + ' instance with solver ' + mdl_p["solver_name"] + '...')
 
@@ -1000,6 +970,63 @@ def calculate_rewards_penalties(instance, printing=True):
 
 
 # Optimization Model Helper Functions
+def initialize_value_function_constraint_lists(m):
+    """
+    Initialize constraint lists for the value function methodology.
+
+    This function sets up empty constraint lists in the Pyomo model to enforce the relationships
+    between the primary methodology and the value function methodology. These constraints
+    are used later when defining the value function constraints.
+
+    The constraint lists initialized correspond to the following formulations:
+
+    - `measure_vf_constraints` (20a): Ensures the measure is computed using a weighted sum.
+    - `value_vf_constraints` (20b): Computes the value function as a weighted sum.
+    - `lambda_y_constraint1` (20c): Ensures the first lambda variable is bounded by y.
+    - `lambda_y_constraint2` (20d): Ensures intermediate lambda variables are bounded by y variables.
+    - `lambda_y_constraint3` (20e): Ensures the last lambda variable is bounded by y.
+    - `y_sum_constraint` (20f): Ensures the y variables sum to 1.
+    - `lambda_sum_constraint` (20g): Ensures the lambda variables sum to 1.
+    - `lambda_positive` (20h): Enforces non-negativity on lambda variables.
+    - `f_value_positive`: Enforces non-negativity on the AFSC objective value.
+
+    Args:
+        m (ConcreteModel): The Pyomo model to which the constraint lists will be added.
+
+    Returns:
+        ConcreteModel: The updated Pyomo model with initialized constraint lists.
+    """
+
+    # Value Function Constraints: Linking main methodology with value function methodology
+    m.measure_vf_constraints = ConstraintList()  # 20a in Thesis
+    m.value_vf_constraints = ConstraintList()  # 20b in Thesis
+
+    # Value Function Constraints: Functional constraints enforcing the relationship above
+    m.lambda_y_constraint1 = ConstraintList()  # 20c in Thesis
+    m.lambda_y_constraint2 = ConstraintList()  # 20d in Thesis
+    m.lambda_y_constraint3 = ConstraintList()  # 20e in Thesis
+    m.y_sum_constraint = ConstraintList()  # 20f in Thesis
+    m.lambda_sum_constraint = ConstraintList()  # 20g in Thesis
+    m.lambda_positive = ConstraintList()  # Lambda domain (20h)
+    m.f_value_positive = ConstraintList()  # AFSC objective value domain
+
+    # Return updated model
+    return m
+
+
+def initialize_castle_value_curve_function_variables(m, p, q):
+
+    # Castle AFSCs
+    afscs = [afsc for afsc, _ in p['castle_afscs'].items()]
+    m.f_value = Var((afsc for afsc in afscs), within=NonNegativeReals)  # AFSC objective value
+    m.lam = Var(((afsc, l) for afsc in afscs for l in q['L'][afsc]),
+                within=NonNegativeReals, bounds=(0, 1))  # Lambda and y variables for value functions
+    m.y = Var(((afsc, l) for afsc in afscs for l in range(q['r'][afsc] - 1)), within=Binary)
+
+    # Return updated model
+    return m
+
+
 def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
     """
     Add an objective measure constraint to the model.
@@ -1060,7 +1087,97 @@ def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
         print("AFSC '" + p['afscs'][j] + "' Objective '" + vp['objectives'][k] + " constraint failed to add.")
         print("Exception:", error)
 
-    # Return the model
+    # Return updated model
+    return m
+
+
+def add_objective_value_function_constraints(m, j, k, measure, q):
+    """
+    Add linear value function constraints to the Pyomo model.
+
+    This function incorporates constraints related to the value function into the Pyomo optimization model.
+    These constraints ensure that the measure and value function constraints are properly enforced, the lambda
+    variables are bounded by y variables, and that summation and positivity constraints hold.
+
+    The constraints implemented correspond to the following formulations:
+
+    - Measure Constraint (20a): Ensures the measure is computed as a weighted sum of coefficients.
+    - Value Function Constraint (20b): Computes the value function as a weighted sum of given parameters.
+    - Lambda-Y Constraints (20c, 20d, 20e): Enforce relationships between lambda and y variables.
+    - Y Summation Constraint (20f): Ensures the sum of y values equals 1.
+    - Lambda Summation Constraint (20g): Ensures the sum of lambda values equals 1.
+    - Lambda and Value Function Positivity Constraints (20h): Enforces non-negativity of lambda and the value function.
+
+    Args:
+        m (ConcreteModel): The Pyomo model to which the constraints will be added.
+        j (int): The index representing the AFSC.
+        k (int): The index representing the objective.
+        measure (Expression): The measure variable in the value function.
+        q (dict): A dictionary containing problem parameters, including:
+            - 'a': Coefficients for the measure function.
+            - 'f^hat': Coefficients for the value function.
+            - 'L': Set of lambda indices.
+            - 'r': The range parameter defining the number of lambda variables.
+
+    Returns:
+        ConcreteModel: The updated Pyomo model with the value function constraints added.
+    """
+
+    # Add Linear Value Function Constraints
+    m.measure_vf_constraints.add(expr=measure == np.sum(  # Measure Constraint for Value Function (20a)
+        q['a'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
+    m.value_vf_constraints.add(expr=m.f_value[j, k] == np.sum(  # Value Constraint for Value Function (20b)
+        q['f^hat'][j, k][l] * m.lam[j, k, l] for l in q['L'][j, k]))
+
+    # Lambda .. y constraints (20c, 20d, 20e)
+    m.lambda_y_constraint1.add(expr=m.lam[j, k, 0] <= m.y[j, k, 0])  # (20c)
+    if q['r'][j, k] > 2:
+        for l in range(1, q['r'][j, k] - 1):
+            m.lambda_y_constraint2.add(expr=m.lam[j, k, l] <= m.y[j, k, l - 1] + m.y[j, k, l])  # (20d)
+    m.lambda_y_constraint3.add(expr=m.lam[j, k, q['r'][j, k] - 1] <= m.y[j, k, q['r'][j, k] - 2])  # (20e)
+
+    # Y sum to 1 constraint (20f)
+    m.y_sum_constraint.add(expr=np.sum(m.y[j, k, l] for l in range(0, q['r'][j, k] - 1)) == 1)
+
+    # Lambda sum to 1 constraint (20g)
+    m.lambda_sum_constraint.add(expr=np.sum(m.lam[j, k, l] for l in q['L'][j, k]) == 1)
+
+    # Lambda .. value positive constraint (20h) although the "f_value" constraint is implied in the thesis
+    for l in q['L'][j, k]:
+        m.lambda_positive.add(expr=m.lam[j, k, l] >= 0)
+    m.f_value_positive.add(expr=m.f_value[j, k] >= 0)
+
+    # Return updated model
+    return m
+
+
+def add_castle_value_curve_function_constraints(m, measure, afsc, q):
+
+    # Add Linear Value Function Constraints
+    m.measure_vf_constraints.add(expr=measure == np.sum(  # Measure Constraint for Value Function (20a)
+        q['a'][afsc][l] * m.lam[afsc, l] for l in q['L'][afsc]))
+    m.value_vf_constraints.add(expr=m.f_value[afsc] == np.sum(  # Value Constraint for Value Function (20b)
+        q['f^hat'][afsc][l] * m.lam[afsc, l] for l in q['L'][afsc]))
+
+    # Lambda .. y constraints (20c, 20d, 20e)
+    m.lambda_y_constraint1.add(expr=m.lam[afsc, 0] <= m.y[afsc, 0])  # (20c)
+    if q['r'][afsc] > 2:
+        for l in range(1, q['r'][afsc] - 1):
+            m.lambda_y_constraint2.add(expr=m.lam[afsc, l] <= m.y[afsc, l - 1] + m.y[afsc, l])  # (20d)
+    m.lambda_y_constraint3.add(expr=m.lam[afsc, q['r'][afsc] - 1] <= m.y[afsc, q['r'][afsc] - 2])  # (20e)
+
+    # Y sum to 1 constraint (20f)
+    m.y_sum_constraint.add(expr=np.sum(m.y[afsc, l] for l in range(0, q['r'][afsc] - 1)) == 1)
+
+    # Lambda sum to 1 constraint (20g)
+    m.lambda_sum_constraint.add(expr=np.sum(m.lam[afsc, l] for l in q['L'][afsc]) == 1)
+
+    # Lambda .. value positive constraint (20h) although the "f_value" constraint is implied in the thesis
+    for l in q['L'][afsc]:
+        m.lambda_positive.add(expr=m.lam[afsc, l] >= 0)
+    m.f_value_positive.add(expr=m.f_value[afsc] >= 0)
+
+    # Return updated model
     return m
 
 
@@ -1219,7 +1336,8 @@ def common_optimization_handling(m, p, vp, mdl_p):
         m.ussf_om_constraint_upper = Constraint(rule=ussf_om_upper_rule)
         m.ussf_om_constraint_lower = Constraint(rule=ussf_om_lower_rule)
 
-    return m  # Return the model
+    # Return updated model
+    return m
 
 
 def base_training_model_handling(m, p, mdl_p):
@@ -1314,6 +1432,81 @@ def base_training_model_handling(m, p, mdl_p):
             m.bc_course_capacity_constraints.add(expr=np.sum(m.q[i, j, c] for i in p['I^A'][j][c]) >= p['lo^C'][j][c])
 
     return m
+
+
+def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
+    """
+    Define the objective function for the assignment model.
+
+    This function constructs the objective function for an assignment optimization model.
+    The objective function varies depending on whether the model includes additional components
+    (`solve_extra_components`) or only considers AFSC-based assignments.
+
+    If `solve_extra_components` is enabled, the objective function consists of two weighted
+    components:
+    - A cadet-specific value function weighted by `cadets_overall_weight` and individual
+      cadet weights.
+    - An AFSC-specific utility function weighted by `afscs_overall_weight` and normalized by `1/N`.
+
+    If `solve_extra_components` is disabled, the function simplifies to maximizing
+    the AFSC-only utility values.
+
+    Args:
+        m (ConcreteModel): The Pyomo model to which the objective function will be added.
+        p (dict): A dictionary containing problem parameters, including:
+            - 'I': Set of cadets.
+            - 'J^E': Set of available AFSCs for each cadet.
+            - 'afsc_utility': Utility values for cadet-to-AFSC assignments.
+            - 'N': Normalization factor for AFSC weight.
+        vp (dict): A dictionary containing value parameters, including:
+            - 'cadets_overall_weight': Overall weight for cadet value.
+            - 'cadet_weight': Individual weights for cadets.
+            - 'afscs_overall_weight': Overall weight for AFSC utility.
+        mdl_p (dict): Model parameters containing:
+            - 'solve_extra_components' (bool): Determines whether additional components
+              (cadet-based value) are included in the objective.
+        c (dict): A dictionary of AFSC-only utility values used when `solve_extra_components`
+            is disabled.
+
+    Returns:
+        Objective: The Pyomo Objective function, maximizing either the full weighted sum
+        of cadet and AFSC utility (if `solve_extra_components` is True) or just AFSC utility
+        (if False).
+    """
+
+    # Do we incorporate base/training decision components to the model?
+    if mdl_p['solve_extra_components']:
+
+        # Base/Training model objective function
+        def objective_function(m):
+            return vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * m.cadet_value[i] for i in p['I']) + \
+                   1 / p['N'] * vp['afscs_overall_weight'] * np.sum(
+                np.sum(p['afsc_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+
+        return Objective(rule=objective_function, sense=maximize)
+
+    else:  # If not, we solve the "AFSC-only" assignment problem model
+
+        # AFSC-only objective function (GUO) i.e. (not base/training component considerations)
+        z_guo = np.sum(np.sum(c[i, j] * m.x[i, j] for j in p["J^E"][i]) for i in p["I"])
+        def objective_function(m):  # Standard "GUO" function value "z^GUO"
+            return z_guo
+
+        # Determine whether we want to add "CASTLE" modeling components or not
+        if mdl_p['solve_castle_guo']:
+            if 'castle_q' not in p:  # If we don't have castle parameters, we can't solve the model
+                print("CASTLE Parameters not found. We cannot solve model w/CASTLE modifications.")
+                return Objective(rule=objective_function, sense=maximize)  # Return normal GUO function
+
+            # Create new objective function using Castle information
+            afscs = [afsc for afsc, _ in p['castle_afscs'].items()]
+            def objective_function(m):  # Standard "GUO" function value "z^GUO"
+                return mdl_p['w^G'] * z_guo + (1 - mdl_p['w^G']) * np.sum(m.f_value[afsc] for afsc in afscs)  / \
+                       len(afscs)
+            return Objective(rule=objective_function, sense=maximize)
+
+        else:  # Just return the normal objective function (GUO)
+            return Objective(rule=objective_function, sense=maximize)
 
 
 # Cadet Board Animation (BUBBLE CHART)

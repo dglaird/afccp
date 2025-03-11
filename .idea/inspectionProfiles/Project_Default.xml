@@ -1,21 +1,38 @@
 <component name="InspectionProjectProfileManager">
   <profile version="1.0">
     <option name="myName" value="Project Default" />
-    <inspection_tool class="DuplicatedCode" enabled="true" level="WEAK WARNING" enabled_by_default="true">
-      <Languages>
-        <language minSize="9092" name="Python" />
-      </Languages>
+    <inspection_tool class="PyArgumentListInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyAttributeOutsideInitInspection" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyChainedComparisonsInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoreConstantInTheMiddle" value="true" />
     </inspection_tool>
-    <inspection_tool class="PyBroadExceptionInspection" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyInterpreterInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="ignoredPackages">
         <value>
-          <list size="5">
-            <item index="0" class="java.lang.String" itemvalue="numba" />
-            <item index="1" class="java.lang.String" itemvalue="scipy" />
-            <item index="2" class="java.lang.String" itemvalue="certifi" />
-            <item index="3" class="java.lang.String" itemvalue="llvmlite" />
-            <item index="4" class="java.lang.String" itemvalue="numpy" />
+          <list size="22">
+            <item index="0" class="java.lang.String" itemvalue="rdt" />
+            <item index="1" class="java.lang.String" itemvalue="sdv" />
+            <item index="2" class="java.lang.String" itemvalue="ctgan" />
+            <item index="3" class="java.lang.String" itemvalue="torch" />
+            <item index="4" class="java.lang.String" itemvalue="torchvision" />
+            <item index="5" class="java.lang.String" itemvalue="copulas" />
+            <item index="6" class="java.lang.String" itemvalue="sdmetrics" />
+            <item index="7" class="java.lang.String" itemvalue="deepecho" />
+            <item index="8" class="java.lang.String" itemvalue="scipy" />
+            <item index="9" class="java.lang.String" itemvalue="wincertstore" />
+            <item index="10" class="java.lang.String" itemvalue="Pyomo" />
+            <item index="11" class="java.lang.String" itemvalue="kiwisolver" />
+            <item index="12" class="java.lang.String" itemvalue="et-xmlfile" />
+            <item index="13" class="java.lang.String" itemvalue="pandas" />
+            <item index="14" class="java.lang.String" itemvalue="tqdm" />
+            <item index="15" class="java.lang.String" itemvalue="fonttools" />
+            <item index="16" class="java.lang.String" itemvalue="colorama" />
+            <item index="17" class="java.lang.String" itemvalue="pytz" />
+            <item index="18" class="java.lang.String" itemvalue="openpyxl" />
+            <item index="19" class="java.lang.String" itemvalue="Pillow" />
+            <item index="20" class="java.lang.String" itemvalue="tensorflow" />
+            <item index="21" class="java.lang.String" itemvalue="gast" />
           </list>
         </value>
       </option>
@@ -23,38 +40,69 @@
     <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
       <option name="ignoredErrors">
         <list>
-          <option value="E127" />
-          <option value="E722" />
-          <option value="E122" />
+          <option value="W292" />
           <option value="E402" />
-          <option value="E266" />
-          <option value="E502" />
-          <option value="E301" />
         </list>
       </option>
     </inspection_tool>
     <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
       <option name="ignoredErrors">
         <list>
-          <option value="N802" />
-          <option value="N806" />
           <option value="N803" />
-          <option value="N812" />
-          <option value="N801" />
+          <option value="N806" />
         </list>
       </option>
     </inspection_tool>
     <inspection_tool class="PyRedeclarationInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyShadowingBuiltinsInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredNames">
+        <list>
+          <option value="str" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyShadowingNamesInspection" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
     <inspection_tool class="PyTypeCheckerInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="PyUnboundLocalVariableInspection" enabled="false" level="WARNING" enabled_by_default="false" />
-    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="false" level="WARNING" enabled_by_default="false">
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="ignoredIdentifiers">
         <list>
-          <option value="Model_Functions_Refactor.PositiveReals" />
-          <option value="Model_Functions.PositiveReals" />
-          <option value="Model_Functions2.PositiveReals" />
-          <option value="list.argsort" />
-          <option value="int.__getitem__" />
+          <option value="afccp.core.pyomo_models.Binary" />
+          <option value="afccp.core.pyomo_models.NonNegativeReals" />
+          <option value="afccp.core.pyomo_models.PositiveReals" />
+          <option value="dorado.core" />
+          <option value="pandas" />
+          <option value="dorado.users.laird.test.Dorado" />
+          <option value="dorado.core.object.obtain_user" />
+          <option value="dorado.core.object.check_available_data" />
+          <option value="dorado.core.object.os" />
+          <option value="openpyxl" />
+          <option value="afccp.core.comprehensive_functions.PositiveReals" />
+          <option value="afccp.core.comprehensive_functions.Binary" />
+          <option value="afccp.core.problem_class.CadetCareerProblem.*" />
+          <option value="afccp.core.problem_class_add.MoreCCPMethods.*" />
+          <option value="afccp.core.pyomo_models.executable" />
+          <option value="afccp.core.pyomo_models.*" />
+          <option value="xlsxwriter" />
+          <option value="numpy.array" />
+          <option value="numpy.*" />
+          <option value="pandas.io.excel._base.ExcelWriter.book" />
+          <option value="dorado.core.data.verifications.User.*" />
+          <option value="dorado.core.user.User.log_lines" />
+          <option value="dorado.core.user.User.debug_all_functions" />
+          <option value="dorado.core.user.User.debug_functions" />
+          <option value="dorado.core.user.User.log_level" />
+          <option value="dorado.core.user.User.log_cat" />
+          <option value="dorado.core.user.User.*" />
+          <option value="dorado.core.data.collection.User.*" />
+          <option value="tuple.strftime" />
+          <option value="zillow.ZillowProcessor.*" />
+          <option value="dorado.core.data.collection.emails.User.path" />
+          <option value="dorado.core.data.collection.emails.User.*" />
+          <option value="pandas.core.series" />
+          <option value="pandas.core.indexes.base.Index.dt" />
+          <option value="dict.__getitem__" />
+          <option value="dict.items" />
         </list>
       </option>
     </inspection_tool>

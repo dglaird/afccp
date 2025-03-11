@@ -515,6 +515,15 @@ def base_training_parameter_additions(parameters):
     cadets for training courses simultaneously.
     """
 
+    # Helpful function to extract the datetime object from a specific string containing date information
+    def parse_date(date_str):
+        for fmt in ('%m/%d/%y', '%Y-%m-%d'):
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                pass
+        return None  # Return None if no format matches
+
     # Shorthand
     p = parameters
 
@@ -675,8 +684,8 @@ def base_training_parameter_additions(parameters):
 
                 # Convert str format to datetime format if necessary
                 if type(p['course_start'][j][c]) == str:
-                    course_start = datetime.strptime(p['course_start'][j][c], '%Y-%m-%d').date()
-                    cadet_start = datetime.strptime(p['training_start'][i], '%Y-%m-%d').date()
+                    course_start = parse_date(p['course_start'][j][c])
+                    cadet_start = parse_date(p['training_start'][i])
                 else:
                     course_start = p['course_start'][j][c]
                     cadet_start = p['training_start'][i]
