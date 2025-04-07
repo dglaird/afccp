@@ -123,8 +123,8 @@ def assignment_model_build(instance, printing=False):
         # Loop through each CASTLE AFSC to add the constraints
         for castle_afsc, j_indices in p['J^CASTLE'].items():
 
-            # Get the number of people assigned to each AFSC under this "CASTLE" AFSC umbrella
-            measure = np.sum(np.sum(m.x[i, j] for i in p['I^E'][j]) for j in j_indices)
+            # Get the number of people assigned to each AFSC under this "CASTLE" AFSC umbrella (+ ADD OTS!!)
+            measure = np.sum(np.sum(m.x[i, j] for i in p['I^E'][j]) for j in j_indices) + p['ots_counts'][castle_afsc]
 
             # Add the value curve constraints for this "CASTLE" AFSC
             m = add_castle_value_curve_function_constraints(m, measure, afsc=castle_afsc, q=p['castle_q'])
@@ -1483,8 +1483,6 @@ def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
                    1 / p['N'] * vp['afscs_overall_weight'] * np.sum(
                 np.sum(p['afsc_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
-        return Objective(rule=objective_function, sense=maximize)
-
     else:  # If not, we solve the "AFSC-only" assignment problem model
 
         # AFSC-only objective function (GUO) i.e. (not base/training component considerations)
@@ -1497,16 +1495,22 @@ def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
             if 'castle_q' not in p:  # If we don't have castle parameters, we can't solve the model
                 print("CASTLE Parameters not found. We cannot solve model w/CASTLE modifications.")
                 return Objective(rule=objective_function, sense=maximize)  # Return normal GUO function
-
-            # Create new objective function using Castle information
             afscs = [afsc for afsc, _ in p['castle_afscs'].items()]
-            def objective_function(m):  # Standard "GUO" function value "z^GUO"
-                return mdl_p['w^G'] * z_guo + (1 - mdl_p['w^G']) * np.sum(m.f_value[afsc] for afsc in afscs)  / \
-                       len(afscs)
-            return Objective(rule=objective_function, sense=maximize)
 
-        else:  # Just return the normal objective function (GUO)
-            return Objective(rule=objective_function, sense=maximize)
+            # Define the Castle-informed objective function!
+            z_castle_values = np.sum(m.f_value[afsc] for afsc in afscs)
+            if mdl_p['w^G'] == 1:  # Weight on Castle solution is zero so we don't need to include it!
+                def objective_function(m):  # Standard "GUO" function value "z^GUO"
+                    return z_guo
+            elif mdl_p['w^G'] == 0:  # Weight on GUO solution is zero so just use Castle information
+                def objective_function(m):  # Castle-values portion of objective function
+                    return z_castle_values
+            else:
+                def objective_function(m):  # Full weighted function of GUO and Castle
+                    return mdl_p['w^G'] * z_guo + (1 - mdl_p['w^G']) * z_castle_values
+
+    # Objective function has been defined
+    return Objective(rule=objective_function, sense=maximize)
 
 
 # Cadet Board Animation (BUBBLE CHART)

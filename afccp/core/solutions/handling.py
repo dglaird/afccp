@@ -902,6 +902,7 @@ def calculate_castle_solution_metrics(solution, p):
 
         # Get the number of people assigned to each AFSC under this "CASTLE" AFSC umbrella
         measure = np.sum(np.sum(x[i, j] for i in p['I^E'][j]) for j in j_indices)
+        measure += p['ots_counts'][afsc]  # (+ ADD OTS!!)
         solution['castle_counts'][afsc] = measure
 
         # Get the value from this AFSC's curve
@@ -909,7 +910,7 @@ def calculate_castle_solution_metrics(solution, p):
         solution['castle_v'][afsc] = v
 
     # Calculate "z^CASTLE"
-    solution['z^CASTLE (Values)'] = round(np.sum(solution['castle_v'][afsc] for afsc in afscs) / len(afscs), 4)
+    solution['z^CASTLE (Values)'] = round(np.sum(solution['castle_v'][afsc] for afsc in afscs), 4)
     solution['z^CASTLE'] = round(p['w^G'] * solution['z^gu'] + (1 - p['w^G']) * solution['z^CASTLE (Values)'], 4)
     return solution
 
