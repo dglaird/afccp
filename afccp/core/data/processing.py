@@ -699,8 +699,8 @@ def import_additional_data(import_filepaths, parameters):
             p['castle_afscs'][castle_afsc] = afpc_afscs[indices]
             p['J^CASTLE'][castle_afsc] = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afpc_afscs[indices]])
 
-        # Initialize OTS counts dictionary
-        p['ots_counts'] = {}
+        # Initialize OTS counts and optimal policy dictionary
+        p['ots_counts'], p['optimal_policy'] = {}, {}
 
         # Load in "q" dictionary information if it exists
         df = datasets['Castle Input']  # Shorthand
@@ -709,8 +709,9 @@ def import_additional_data(import_filepaths, parameters):
             for afsc in np.unique(castle_afscs):
                 row = df.loc[df['CASTLE AFSC'] == afsc].head(1).iloc[0]
 
-                # Add OTS count information for this AFSC
+                # Add OTS count information and optimal policy information for this AFSC
                 p['ots_counts'][afsc] = row['OTS Count']
+                p['optimal_policy'][afsc] = row['Optimal']
 
                 # Load breakpoint coordinates into q dictionary
                 a_str, f_hat_str = str(row['a']), str(row['f^hat'])
@@ -1193,6 +1194,7 @@ def export_additional_data(instance):
             df['a'] = [', '.join(np.around(p['castle_q']['a'][afsc], 3).astype(str)) for afsc in p['castle_afscs_arr']]
             df['f^hat'] = \
                 [', '.join(np.around(p['castle_q']['f^hat'][afsc], 3).astype(str)) for afsc in p['castle_afscs_arr']]
+            df['Optimal'] = [p['optimal_policy'][afsc] for afsc in p['castle_afscs_arr']]
             df['OTS Count'] = [p['ots_counts'][afsc] for afsc in p['castle_afscs_arr']]
 
         # Export the dataframe
