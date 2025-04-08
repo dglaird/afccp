@@ -1269,6 +1269,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
 
     # Shorthand
     p, vp, solutions = instance.parameters, instance.value_parameters, instance.solutions
+    mdl_p = instance.mdl_p
 
     # Make sure we have the solutions from both SOCs with matches and reserves
     for soc in ['USAFA', 'ROTC']:
@@ -1295,8 +1296,31 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
             p['J^Reserved'][i] = p['cadet_preferences'][i][:choice + 1]
 
     # Calculate additional rated algorithm result information for both SOCs
-    for soc in ['rotc', 'usafa']:
-        p = augment_rated_algorithm_results(p, soc=soc, printing=instance.mdl_p['alternate_list_iterations_printing'])
+    for soc in ['usafa', 'rotc']:
+
+        # Do we want to potentially allow ROTC to fill USAFA pilot slots?
+        if mdl_p['usafa_soc_pilot_cross_in'] and soc == 'rotc':
+
+            # If we want to allow cross-flow, we need to add USAFA reserved pilot slots to be potentially filled
+            j_pilot_u = np.where(p['afscs'] == '11XX_U')[0][0]  # by ROTC (increase their alternate list)
+
+            # First we calculate the number of reserved USAFA pilot slots there are
+            u_reserved_pilot = \
+                [i for i in p['J^Reserved'] if
+                 p['cadet_preferences'][i][len(p['J^Reserved'][i]) - 1] == j_pilot_u and p['usafa'][i]]
+            num_reserved_u_pilot = len(u_reserved_pilot)
+
+            # We also need the number of hard alternates for USAFA pilot
+            u_hard_alternates_pilot = [i for i, j in p['J^Alternates (Hard)'].items() if j == j_pilot_u]
+            num_hard_alternates_u_pilot = len(u_hard_alternates_pilot)
+
+            # The number of potential additions for ROTC pilot is going to be the total number of resered USAFA slots
+            num_additions_rotc_pilot = num_reserved_u_pilot - num_hard_alternates_u_pilot  # minus hard alternates
+
+        else:
+            num_additions_rotc_pilot = 0
+        p = augment_rated_algorithm_results(p, soc=soc, printing=instance.mdl_p['alternate_list_iterations_printing'],
+                                            num_additions_rotc_pilot=num_additions_rotc_pilot)
 
     # Print statement
     if printing:
@@ -1316,7 +1340,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
 
     return p  # Return the parameters!
 
-def augment_rated_algorithm_results(p, soc='rotc', printing=False):
+def augment_rated_algorithm_results(p, soc='rotc', printing=False, num_additions_rotc_pilot: int = 0):
     """
     Analyzes the results of the Rated SOC algorithm for a specific SOC (Source of Commissioning),
     such as ROTC or USAFA, and augments the system's parameters. This analysis includes identifying
@@ -1381,6 +1405,12 @@ def augment_rated_algorithm_results(p, soc='rotc', printing=False):
         # Loop through each rated AFSC to determine alternates
         for j in p['J^Rated']:
 
+            # We may want to increase the length of ROTC pilot alternate list to account for USAFA
+            if j == '11XX_R':
+                num_additions = copy.deepcopy(num_additions_rotc_pilot)
+            else:
+                num_additions = 0
+
             # Loop through each cadet in order of the AFSC's preference from this SOC
             for i in p['afsc_preferences'][j]:
                 if not p[soc][i]:
@@ -1405,7 +1435,7 @@ def augment_rated_algorithm_results(p, soc='rotc', printing=False):
                             possible_cadets[j].remove(i)
 
                 # If this cadet is next in line (and we still have alternates to assign)
-                if next_in_line and len(hard_alternates[j]) < num_reserved[j]:
+                if next_in_line and len(hard_alternates[j]) < (num_reserved[j] + num_additions):
                     alternates[j].append(i)
 
                     # Loop through the cadet's preferences:
@@ -1426,7 +1456,7 @@ def augment_rated_algorithm_results(p, soc='rotc', printing=False):
                             break
 
                 # We've run out of hard alternates to assign (thus, we're done assigning alternates)
-                elif len(hard_alternates[j]) >= num_reserved[j]:
+                elif len(hard_alternates[j]) >= (num_reserved[j] + num_additions):
                     if i in possible_cadets[j]:
                         possible_cadets[j].remove(i)
 
@@ -1513,6 +1543,19 @@ def augment_rated_algorithm_results(p, soc='rotc', printing=False):
         # Loop through each cadet in order of the AFSC's preference
         for i in p['afsc_preferences'][j]:
 
+            # Where this cadet ranked this AFSC
+            cadet_rank_afsc = np.where(p['cadet_preferences'][i] == j)[0][0]
+
+            # Set of more preferred AFSCs (including this AFSC too) for this cadet
+            p['J^Preferred [' + soc + ']'][j][i] = p['cadet_preferences'][i][:cadet_rank_afsc + 1]
+
+            # Where this AFSC ranked this cadet
+            afsc_rank_cadet = np.where(p['afsc_preferences'][j] == i)[0][0]
+
+            # Set of more preferred cadets (including this cadet too) for this AFSC
+            p['I^Preferred [' + soc + ']'][j][i] = np.intersect1d(
+                p['afsc_preferences'][j][:afsc_rank_cadet + 1], p[soc + '_cadets'])
+
             # Is this cadet an alternate from this SOC?
             if i in p[soc + '_cadets'] and (i in p['J^Alternates (Hard)'] or i in p['J^Alternates (Soft)']):
 
@@ -1529,19 +1572,6 @@ def augment_rated_algorithm_results(p, soc='rotc', printing=False):
 
                 # Add the cadet to the alternate list for this AFSC
                 p['I^Alternate [' + soc + ']'][j].append(i)
-
-                # Where this cadet ranked this AFSC
-                cadet_rank_afsc = np.where(p['cadet_preferences'][i] == j)[0][0]
-
-                # Set of more preferred AFSCs (including this AFSC too) for this cadet
-                p['J^Preferred [' + soc + ']'][j][i] = p['cadet_preferences'][i][:cadet_rank_afsc + 1]
-
-                # Where this AFSC ranked this cadet
-                afsc_rank_cadet = np.where(p['afsc_preferences'][j] == i)[0][0]
-
-                # Set of more preferred cadets (including this cadet too) for this AFSC
-                p['I^Preferred [' + soc + ']'][j][i] = np.intersect1d(
-                    p['afsc_preferences'][j][:afsc_rank_cadet + 1], p[soc + '_cadets'])
 
         # Convert to numpy array
         p['I^Alternate [' + soc + ']'][j] = np.array(p['I^Alternate [' + soc + ']'][j])

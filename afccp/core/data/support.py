@@ -37,9 +37,12 @@ def initialize_instance_functional_parameters(N):
         "initialize_new_heuristics": False, 'gather_all_metrics': True, 're-calculate x': True,
 
         # Matching Algorithm Parameters
-        'ma_printing': False, 'capacity_parameter': 'quota_max', 'rotc_rated_board_afsc_order': None,
-        'collect_solution_iterations': True, 'soc': 'usafa', 'incorporate_rated_results': True,
+        'ma_printing': False, 'capacity_parameter': 'quota_max', 'collect_solution_iterations': True,
         'create_new_rated_solutions': True,
+
+        # Rated Matching Algorithm Parameters
+        'rated_alternate_afscs': None, 'rated_alternates': True, 'rotc_rated_board_afsc_order': None, 'soc': 'usafa',
+        'incorporate_rated_results': True, 'usafa_soc_pilot_cross_in': False,
 
         # Genetic Matching Algorithm Parameters
         "gma_pop_size": 4, 'gma_max_time': 20, 'gma_num_crossover_points': 2, 'gma_mutations': 1,
@@ -57,8 +60,11 @@ def initialize_instance_functional_parameters(N):
 
         # Additional Constraints/Modeling
         "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': False,
-        'ussf_soc_pgl_constraint_bound': 0.01, 'rated_alternates': True, 'USSF OM': False,
-        'USAFA-Constrained AFSCs': None, 'BIG M': 100, 'solve_extra_components': False, 'rated_alternate_afscs': None,
+        'ussf_soc_pgl_constraint_bound': 0.01, 'USSF OM': False,
+        'USAFA-Constrained AFSCs': None,
+
+        # Base/Training Parameters
+        'BIG M': 100, 'solve_extra_components': False,
 
         # VFT Model Parameters
         "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,

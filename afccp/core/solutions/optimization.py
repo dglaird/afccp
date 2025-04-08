@@ -145,6 +145,15 @@ def assignment_model_build(instance, printing=False):
     if printing:
         print("Done. Solving model...")
 
+    if mdl_p['usafa_soc_pilot_cross_in']:
+        j = np.where(p['afscs'] == '11XX_U')[0][0]
+        k = np.where(vp['objectives'] == 'Combined Quota')[0][0]
+        if (vp["objective_min"][j, k] == vp["objective_max"][j, k]) and vp['constraint_type'][j, k] != 0:
+            print("*****************WARNING**********************",
+                  "\nModel designated to allow USAFA Pilot cross-flows but constraints are still activated that"
+                  " would prevent this.\nEnsure you turn off the USAFA/ROTC pilot quota",
+                  f"constraints in '{instance.data_name} VP.csv'")
+
     return m  # Return model
 
 
@@ -1234,15 +1243,6 @@ def common_optimization_handling(m, p, vp, mdl_p):
     for i in vp['I^C']:  # "J^Top_Choice is set of AFSCs at or above designated utility value (typically top 3)
         m.min_cadet_value_constraints.add(expr=np.sum(m.x[i, j] for j in vp['J^Top_Choice'][i]) == 1)
 
-    # Fixing variables if necessary
-    for i in p['J^Fixed']:
-        m.x[i, p['J^Fixed'][i]].fix(1)
-
-    # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
-    m.reserved_afsc_constraints = ConstraintList()
-    for i in p['J^Reserved']:
-        m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
-
     # "AlTERNATE LIST" Rated Addition
     if mdl_p['rated_alternates'] and 'J^Preferred [usafa]' in p:  # If [usafa] version is here, [rotc] will be too
 
@@ -1255,12 +1255,76 @@ def common_optimization_handling(m, p, vp, mdl_p):
             rated_afscs_with_constraints = p['J^Rated']
         else:
             for afsc in mdl_p['rated_alternate_afscs']:
-
                 if afsc not in p['afscs']:
                     raise ValueError("AFSC '" + afsc + "' not valid.")
 
                 # Add the index of the AFSC
                 rated_afscs_with_constraints.append(np.where(p['afscs'] == afsc)[0][0])
+
+        # Do we want to allow ROTC to fill USAFA pilot slots? This is the VERY rare situation like in FY26 where
+        if mdl_p['usafa_soc_pilot_cross_in']:  # USAFA targets were high but people didn't want to fill em
+
+            # Remove pilot AFSC from standard alternate list blocking pair constraints (handle them in special case)
+            j_pilot_u = np.where(p['afscs'] == '11XX_U')[0][0]
+            j_pilot_r = np.where(p['afscs'] == '11XX_R')[0][0]
+            rated_afscs_with_constraints.remove(j_pilot_u)
+            rated_afscs_with_constraints.remove(j_pilot_r)
+
+            # For USAFA, loop through every pilot qualified USAFA cadet and make sure their right to a...
+            for i in p['I^E'][j_pilot_u]:  # ...pilot slot is protected from ROTC (they get something better)
+
+                # Where did this USAFA cadet rank pilot?
+                choice = np.where(p['cadet_preferences'][i] == j_pilot_u)[0][0]
+
+                # Have we already reserved an AFSC for them?
+                if i not in p['J^Reserved']:
+
+                    # If they're already fixed to something, skip them
+                    if i in p['J^Fixed']:
+                        continue
+                    else:  # Reserve a pilot slot for them!
+                        p['J^Reserved'][i] = p['cadet_preferences'][i][:choice + 1]
+
+                else:  # If they're already reserved for something, honor their best interest scenario
+                    num_reserved_already = len(p['J^Reserved'][i])
+                    num_to_reserve = min(choice + 1, num_reserved_already)
+                    p['J^Reserved'][i] = p['cadet_preferences'][i][:num_to_reserve]
+
+            # For ROTC, we introduce blocking pair constraints but include the deficit between USAFA pilot target and..
+            # for i in p['I^Alternate [rotc]'][j_pilot_r]:  # ...USAFA pilot assigned
+            for i in p['I^E'][j_pilot_r]:  # TODO: Figure out why alternate list isn't working
+
+                # Are they already fixed to something?
+                if i in p['J^Fixed']:
+
+                    # If we've already matched them to pilot, skip them
+                    if p['J^Fixed'][i] == j_pilot_r:
+                        continue
+
+                    # If we fixed them to something undesirable, don't do that  TODO: Change this in the algorithm
+                    if p['c_pref_matrix'][i, j_pilot_r] < p['c_pref_matrix'][i, p['J^Fixed'][i]]:
+                        p['J^Fixed'].pop(i)
+
+                # Calculate number of USAFA pilot slots up for grabs
+                num_extra = p['usafa_quota'][j_pilot_u] - np.sum(m.x[i, j_pilot_u] for i in p['I^E'][j_pilot_u])
+
+                # Add the blocking pair constraint for the rated AFSC/cadet pair
+                m.blocking_pairs_alternates.add(  # "j_p"/"i_p" indicate j/i "prime" or (')
+                    expr=p['rotc_quota'][j_pilot_r] *
+                         (1 - np.sum(m.x[i, j_p] for j_p in p['J^Preferred [rotc]'][j_pilot_r][i])) <=
+                         np.sum(m.x[i_p, j_pilot_r] for i_p in p['I^Preferred [rotc]'][j_pilot_r][i]) - num_extra)
+
+            # USAFA-ROTC pilot totals constraint
+            def usafa_rotc_pilot_totals(m):
+                """
+                Make sure we meet the collective pilot quota
+                """
+                usafa_pilot_totals = np.sum(m.x[i, j_pilot_u] for i in p['I^E'][j_pilot_u])
+                rotc_pilot_totals = np.sum(m.x[i, j_pilot_r] for i in p['I^E'][j_pilot_r])
+                return usafa_pilot_totals + rotc_pilot_totals == p['rotc_quota'][j_pilot_r] + \
+                       p['usafa_quota'][j_pilot_u]
+            m.usafa_rotc_pilot_totals_constraint = Constraint(rule=usafa_rotc_pilot_totals)
+
 
         # Loop through each SOC and rated AFSC
         for soc in ['usafa', 'rotc']:
@@ -1274,6 +1338,15 @@ def common_optimization_handling(m, p, vp, mdl_p):
                         expr=p[soc + '_quota'][j] *
                              (1 - np.sum(m.x[i, j_p] for j_p in p['J^Preferred [' + soc + ']'][j][i])) <=
                              np.sum(m.x[i_p, j] for i_p in p['I^Preferred [' + soc + ']'][j][i]))
+
+    # Fixing variables if necessary
+    for i in p['J^Fixed']:
+        m.x[i, p['J^Fixed'][i]].fix(1)
+
+    # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
+    m.reserved_afsc_constraints = ConstraintList()
+    for i in p['J^Reserved']:
+        m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if mdl_p["USAFA-Constrained AFSCs"] is not None:
