@@ -2453,6 +2453,69 @@ class CadetCareerProblem:
             pareto_df.to_excel(writer, sheet_name="Approximate Pareto Results", index=False)
             solutions_df.to_excel(writer, sheet_name="Initial Solutions", index=False)
 
+    def castle_pareto_analysis(self, p_dict={}, printing=None):
+        """
+        Takes the current set of value parameters and solves the GUO-Castle model with different weights on CASTLE
+        and GUO.
+        :param p_dict: more model parameters
+        :param printing: whether to print something
+        """
+        self.error_checking("Pyomo Model")
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        p_dict['solve_castle_guo'] = True  # Just in case we didn't put that in ;)
+        self.reset_functional_parameters(p_dict)
+
+        if printing:
+            print("Conducting CASTLE-MARKET pareto analysis on problem...")
+
+        # Initialize arrays
+        num_points = int(100 / self.mdl_p["pareto_step"] + 1)
+        castle_values = np.zeros(num_points)
+        guo_values = np.zeros(num_points)
+        castle_weights = np.arange(1, 0, -(self.mdl_p["pareto_step"] / 100))
+        castle_weights = np.append(castle_weights, 0)
+        solutions = {}
+
+        # Iterate over the number of points needed for the Pareto Chart
+        for point in range(num_points):
+            self.mdl_p['w^G'] = 1 - castle_weights[point]
+
+            if printing:
+                print("Calculating point " + str(point + 1) + " out of " + str(num_points) + "...")
+
+            # Build the model and then solve it
+            model = afccp.core.solutions.optimization.assignment_model_build(self, printing=printing)
+            solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "GUO", printing=printing)
+            solution = afccp.core.solutions.handling.evaluate_solution(solution, self.parameters, self.value_parameters)
+            solution_name = str(round(cadet_overall_weights[point], 4))
+
+            # Extract solution information
+            solutions[solution_name] = solution['afsc_array']
+            castle_values[point] = solution['z^CASTLE (Values)']
+            guo_values[point] = solution['z^gu']
+
+            if printing:
+                print('For an overall weight on CASTLE of ' + str(castle_weights[point]) +
+                      ', calculated value on CASTLE: ' + str(round(castle_values[point], 2)) +
+                      ', value on GUO: ' + str(round(guo_values[point], 2)) +
+                      ', and a Z^CASTLE-MARKET of ' + str(round(solution['z^CASTLE'], 2)) + '.')
+
+        # Obtain Dataframes
+        pareto_df = pd.DataFrame(
+            {'Weight on CASTLE': castle_weights, 'Value on CASTLE': castle_values,
+             'Value on GUO': guo_values})
+        solutions_df = pd.DataFrame(solutions)
+
+        # File we import and export to
+        filepath = self.export_paths['Analysis & Results'] + self.data_name + " " + self.vp_name + " (" + \
+                   self.data_version + ") Pareto Analysis (CASTLE).xlsx"
+        with pd.ExcelWriter(filepath) as writer:  # Export to excel
+            pareto_df.to_excel(writer, sheet_name="CASTLE Results", index=False)
+            solutions_df.to_excel(writer, sheet_name="Initial Solutions", index=False)
+
     def genetic_overall_weights_pareto_analysis(self, p_dict={}, printing=None):
         """
         Takes the current set of value parameters and loads in a dataframe of solutions found using the VFT Approximate

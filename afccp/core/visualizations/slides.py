@@ -119,14 +119,14 @@ def generate_results_slides(instance):
                 break
 
 
-    # # Loop through each image file path to add the image to the presentation
-    # for file in chart_paths:
-    #
-    #     # Add an empty slide
-    #     slide = prs.slides.add_slide(blank_slide_layout)
-    #
-    #     # Add the picture to the slide
-    #     slide.shapes.add_picture(chart_paths[file], left, top, height=height, width=width)
+    # Loop through each image file path to add the image to the presentation
+    for file in chart_paths:
+
+        # Add an empty slide
+        slide = prs.slides.add_slide(blank_slide_layout)
+
+        # Add the picture to the slide
+        slide.shapes.add_picture(chart_paths[file], left, top, height=height, width=width)
 
     # Add closing slide
     prs.slides.add_slide(closing_slide_layout)

@@ -483,16 +483,31 @@ class BubbleChart:
                 self.b['afsc_fontsize'][j] = get_fontsize_for_text_in_box(self.ax, self.p['afscs'][j], (x, y), w, h,
                                                                        va='center')
                 va = 'center'
+                ha = 'center'
             else:
 
                 # AFSC fontsize is given and put AFSC name above box
                 x = self.b['x'][j] + (self.b['n'][j] / 2) * self.b['s']
                 y = self.b['y'][j] + self.b['n'][j] * self.b['s'] + 0.02
                 va = 'bottom'
+                ha = 'center'
+
+                self.b['x'] = {key: round(val, 4) for key, val in self.b['x'].items()}
+                self.b['y'] = {key: round(val, 4) for key, val in self.b['y'].items()}
+
+                # Are we on a bottom edge?
+                row = np.array([j_p for j_p, val in self.b['y'].items() if val == self.b['y'][j]])
+                x_coords = np.array([self.b['x'][j_p] for j_p in row])
+                if self.b['x'][j] == np.max(x_coords) and self.b['y'][j] <= 0.03:  # We're at the right edge
+                    x = self.b['x'][j] + (self.b['n'][j]) * self.b['s']
+                    ha = 'right'
+                elif self.b['x'][j] == np.min(x_coords) and self.b['y'][j] <= 0.03:  # We're at the left edge
+                    x = self.b['x'][j]
+                    ha = 'left'
 
             # AFSC text
             self.b['afsc_name_text'][j] = self.ax.text(x, y, self.p['afscs'][j], fontsize=self.b['afsc_fontsize'][j],
-                                                       horizontalalignment='center', verticalalignment=va,
+                                                       horizontalalignment=ha, verticalalignment=va,
                                                        color=self.b['text_color'])
 
             # Cadet box text size

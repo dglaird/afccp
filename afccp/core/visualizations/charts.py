@@ -256,7 +256,11 @@ class AFSCsChart:
         This method calculates the correct y_max and y_ticks for this chart in place
         """
         # Y max
-        self.c['y_max'] = self.ip['y_max'] * max(self.c['total_count'])
+        if 'y_exact_max' is None:
+            self.c['y_max'] = self.ip['y_max'] * max(self.c['total_count'])
+        else:
+            self.c['y_max'] = self.ip['y_max'] * self.ip['y_exact_max']
+
         if 100 <= self.c['y_max'] < 150:
             self.c['y_ticks'] = [50, 100, 150]
         elif 150 <= self.c['y_max'] < 200:
@@ -265,8 +269,10 @@ class AFSCsChart:
             self.c['y_ticks'] = [50, 100, 150, 200, 250]
         elif 250 <= self.c['y_max'] < 300:
             self.c['y_ticks'] = [50, 100, 150, 200, 250, 300]
-        elif self.c['y_max'] >= 300:
+        elif 250 <= self.c['y_max'] < 300:
             self.c['y_ticks'] = [50, 100, 150, 200, 250, 300, 350]
+        elif self.c['y_max'] >= 500:
+            self.c['y_ticks'] = [100, 200, 300, 400, 500, 600]
         else:
             self.c['y_ticks'] = [50]
 

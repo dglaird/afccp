@@ -787,11 +787,12 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                         qual[d][i, j] = 'P3'
 
                 # Force Support
-                elif afsc in ['38F', '38P']:
-                    d_list4 = ['4404', '4405', '4506', '5202', '5203', '5206', '5208', '5210']
-                    if cip[:2] == '27' or cip[:4] == '5213' or cip in ['143701', '143501']:
+                elif afsc in ['38F', '38P']:  # Updated Oct '24
+                    d_list4 = ['4404', '5202', '5210', '5214']
+                    if cip[:4] == ['4506', '3017'] or cip in ['143701', '520213']:
                         qual[d][i, j] = 'M1'
-                    elif cip[:4] in d_list4 or cip in ['301601', '301701', '422804']:
+                    elif cip[:2] == ['13', '27', '42'] or cip[:4] in d_list4 or cip in ['301701', '450901',
+                                                                                        '520304', '520901']:
                         qual[d][i, j] = 'D2'
                     else:
                         qual[d][i, j] = 'P3'
@@ -838,11 +839,13 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                         qual[d][i, j] = 'I2'
 
                 # Developmental Engineering: Computer Systems Engineer
-                elif afsc in ['62EXC', '62E1C1S']:
-                    if cip[:4] in ['1409', '1447']:
+                elif afsc in ['62EXC', '62E1C1S']:  # Updated Oct '24
+                    if cip[:4] == '1409':
                         qual[d][i, j] = 'M1'
+                    elif cip[:4] == '1101' or cip == '110701':
+                        qual[d][i, j] = 'D2'
                     else:
-                        qual[d][i, j] = 'I2'
+                        qual[d][i, j] = 'I3'
 
                 # Developmental Engineering: Electrical/Electronic Engineer
                 elif afsc in ['62EXE', '62E1E1S']:
@@ -859,15 +862,16 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                         qual[d][i, j] = 'I2'
 
                 # Developmental Engineering: Project/General Engineer
-                elif afsc in ['62EXG', '62E1G1S']:
-                    if cip[:2] == '14' and cip != '140102' and cip[:4] != "1437":
+                elif afsc in ['62EXG', '62E1G1S']:  # Updated Oct '24
+                    if cip[:2] == '14' and cip not in ['140102', '141001', '144701'] and cip[:4] not in ["1437",
+                                                                                                         "1408"]:
                         qual[d][i, j] = 'M1'
                     else:
                         qual[d][i, j] = 'I2'
 
                 # Developmental Engineering: Mechanical Engineer
-                elif afsc in ['62EXH', '62E1H1S']:
-                    if cip[:4] == '1419':
+                elif afsc in ['62EXH', '62E1H1S']:  # Updated Oct '24
+                    if cip[:4] == '1419' and cip != '141901':
                         qual[d][i, j] = 'M1'
                     else:
                         qual[d][i, j] = 'I2'
