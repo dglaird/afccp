@@ -1398,6 +1398,14 @@ def export_solution_results_excel(instance, filepath):
         # Convert the dataframe to an XlsxWriter Excel object.
         df.to_excel(writer, sheet_name='Objective Measures', index=False)
 
+        # Add Castle Data if it exists
+        if 'castle_q' in p:
+            castle_afscs = [afsc for afsc, _ in p['J^CASTLE'].items()]
+            castle_counts = [solution['castle_counts'][afsc] for afsc in castle_afscs]
+            castle_values = [solution['castle_v'][afsc] for afsc in castle_afscs]
+            df = pd.DataFrame({'AFSC': castle_afscs, 'Count': castle_counts, 'Value': castle_values})
+            df.to_excel(writer, sheet_name='Castle Metrics', index=False)
+
         # AFSC Constraint Fail dataframe
         df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
         for k, objective in enumerate(vp['objectives']):

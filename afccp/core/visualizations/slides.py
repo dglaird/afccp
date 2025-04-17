@@ -53,13 +53,13 @@ def generate_results_slides(instance):
     content = slide.placeholders[1]
     content.text = "Here's where the overview goes"
 
-    # # Size of the chart
+    # Size of the chart
     # top, left = Inches(instance.mdl_p['ch_top']), Inches(instance.mdl_p['ch_left'])
     # height, width = Inches(instance.mdl_p['ch_height']), Inches(instance.mdl_p['ch_width'])
 
-    # Size of the chart
-    top, left = Inches(0), Inches(0)
-    height, width = Inches(mdl_p['figsize'][1]), Inches(mdl_p['figsize'][0])
+    # # Size of the chart
+    # top, left = Inches(0), Inches(0)
+    # height, width = Inches(mdl_p['figsize'][1]), Inches(mdl_p['figsize'][0])
 
     # Get the file paths to all the relevant images
     folder_path = instance.export_paths['Analysis & Results'] + instance.solution_name + "/"
@@ -79,7 +79,9 @@ def generate_results_slides(instance):
                         "Gender by AFSC": ["Extra Measure", "Gender Chart_proportion"],
                         "Race by AFSC": ["Extra Measure", "Race Chart_proportion"],
                         "Ethnicity by AFSC": ["Extra Measure", "Ethnicity Chart_proportion"],
-                        "Cadet Preference by AFSC": ["Utility", "quantity_bar_choice"]}
+                        "Cadet Preference by AFSC": ["Utility", "quantity_bar_choice"],
+                        "AFSC Preference": ["Norm Score", "quantity_bar_choice"],
+                        "62EXE BUBBLE CHART": ["62EXE Specific Choice.png"],}
     for title_text in chart_text_order:
 
         # Loop through each potential image
@@ -96,7 +98,7 @@ def generate_results_slides(instance):
             if found:
 
                 # Determine the layout of the chart needed
-                if title_text == "BUBBLE CHART":
+                if "BUBBLE CHART" in title_text:
 
                     # Create the bubble chart slide
                     slide = prs.slides.add_slide(bubble_slide_layout)
@@ -112,21 +114,17 @@ def generate_results_slides(instance):
                     title = slide.shapes.title
                     title.text = title_text
 
-                    # Add the picture to the slide
-                    slide.shapes.add_picture(chart_paths[file], left, top, height=height, width=width)
+                    # # Add the picture to the slide
+                    # slide.shapes.add_picture(chart_paths[file], left, top, height=height, width=width)
+
+                    # Add the image to the slide
+                    for shape in slide.placeholders:
+                        if "Picture" in shape.name:
+                            shape.insert_picture(chart_paths[file])
 
                 # Break out of this loop since we found the image we want
                 break
 
-
-    # Loop through each image file path to add the image to the presentation
-    for file in chart_paths:
-
-        # Add an empty slide
-        slide = prs.slides.add_slide(blank_slide_layout)
-
-        # Add the picture to the slide
-        slide.shapes.add_picture(chart_paths[file], left, top, height=height, width=width)
 
     # Add closing slide
     prs.slides.add_slide(closing_slide_layout)

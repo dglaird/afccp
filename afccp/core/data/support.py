@@ -84,14 +84,14 @@ def initialize_instance_functional_parameters(N):
         "get_reward": False, "con_term": None, "get_new_rewards_penalties": False, "use_gp_df": True,
 
         # CASTLE Integration Parameters
-        "w^G": 0.5,  # Weight on GUO solution relative to CASTLE
+        "w^G": 0.8,  # Weight on GUO solution relative to CASTLE
         "solve_castle_guo": False,  # Whether we should solve the castle version of GUO or not
 
         # Value Parameter Generation
         "new_vp_weight": 100, "num_breakpoints": 24,
 
         # BubbleChart Parameters
-        'b_figsize': (19, 10), 's': 1, 'fw': 100, 'circle_radius_percent': 0.8,
+        'b_figsize': (13.33, 7.5), 's': 1, 'fw': 100, 'circle_radius_percent': 0.8,
         'fh_ratio': 0.5, 'bw^t_ratio': 0.05, 'bw^l_ratio': 0, 'bw^r_ratio': 0, 'b_title': None,
         'bw^b_ratio': 0, 'bw^u_ratio': 0.02, 'abw^lr_ratio': 0.01, 'abw^ud_ratio': 0.02, 'b_title_size': 30,
         'lh_ratio': 0.1, 'lw_ratio': 0.1, 'dpi': 200, 'pgl_linestyle': '-', 'pgl_color': 'gray',
@@ -116,7 +116,7 @@ def initialize_instance_functional_parameters(N):
         "afsc_rotation": None, "bar_color": "#3287cd", "alpha": 1, "legend_size": 25, "title_size": 25,
         "text_size": 15, 'text_bar_threshold': 400, 'dot_size': 35, 'legend_dot_size': 15, 'ncol': 1,
         "color_afsc_text_by_grp": True, "proportion_legend_size": 15, 'proportion_text_bar_threshold': 10,
-        "square_figsize": (11, 10),
+        "square_figsize": (11, 10), 'legend_fontsize': 15,
 
         # AFSC Chart Elements
         "eligibility": True, "eligibility_limit": None, "skip_afscs": None, "all_afscs": True, "y_max": 1.1,
@@ -160,19 +160,27 @@ def initialize_instance_functional_parameters(N):
                            ("Norm Score", "bar"),
                            ("Utility", "quantity_bar_proportion"), ("Utility", "quantity_bar_choice"),
                            ("Merit", "bar"), ("USAFA Proportion", "quantity_bar_proportion"),
-                           ("USAFA Proportion", "preference_chart"), ("Male", "preference_chart"),
-                           ('Extra', 'Race Chart'),
-                           ('Extra', 'Race Chart_proportion'), ('Extra', 'Ethnicity Chart'),
-                           ('Extra', 'Ethnicity Chart_proportion'), ('Extra', 'Gender Chart'),
-                           ('Extra', 'Gender Chart_proportion'), ('Extra', 'SOC Chart'),
+                           ("USAFA Proportion", "preference_chart"),
+                           # ("Male", "preference_chart"),
+                           # ('Extra', 'Race Chart'),
+                           # ('Extra', 'Race Chart_proportion'), ('Extra', 'Ethnicity Chart'),
+                           # ('Extra', 'Ethnicity Chart_proportion'), ('Extra', 'Gender Chart'),
+                           # ('Extra', 'Gender Chart_proportion'),
+                           ('Extra', 'SOC Chart'),
                            ('Extra', 'SOC Chart_proportion')],
 
         "desired_comparison_charts": [('Utility', 'median_preference'), ('Combined Quota', 'dot'), ('Utility', 'dot'),
-                                      ('Norm Score', 'dot'), ('Merit', 'dot'), ('Tier 1', 'dot'), ('Extra', 'Race Chart'),
-                                      ('USAFA Proportion', 'dot'), ('Male', 'dot'), ('Utility', 'mean_preference')],
+                                      ('Norm Score', 'dot'), ('Merit', 'dot'), ('Tier 1', 'dot'),
+                                      # ('Extra', 'Race Chart'),
+                                      ('USAFA Proportion', 'dot'),
+                                      # ('Male', 'dot'),
+                                      ('Utility', 'mean_preference')],
 
-        'desired_other_charts': [("Accessions Group", "Race Chart"), ("Accessions Group", "Gender Chart"),
-                                 ("Accessions Group", "SOC Chart"), ("Accessions Group", "Ethnicity Chart")]
+        'desired_other_charts': [
+                                # ("Accessions Group", "Race Chart"), ("Accessions Group", "Gender Chart"),
+                                #  ("Accessions Group", "Ethnicity Chart"),
+                                 ("Accessions Group", "SOC Chart"),
+            ]
 
     }
 
@@ -185,7 +193,7 @@ def initialize_instance_functional_parameters(N):
                            "Utility": ["bar", "quantity_bar_gradient", "quantity_bar_proportion", "quantity_bar_choice"],
                            "Mandatory": ["dot"], "Desired": ["dot"], "Permitted": ["dot"],
                            "Tier 1": ["dot"], "Tier 2": ["dot"], "Tier 3": ["dot"], "Tier 4": ["dot"],
-                           "Norm Score": ["dot", "quantity_bar_proportion", "bar"],
+                           "Norm Score": ["dot", "quantity_bar_proportion", "bar", 'quantity_bar_choice'],
                            'Extra': ['Race Chart', 'Race Chart_proportion', 'Gender Chart', 'SOC Chart',
                                      'Ethnicity Chart', 'Gender Chart_proportion', 'SOC Chart_proportion',
                                      'Ethnicity Chart_proportion']}

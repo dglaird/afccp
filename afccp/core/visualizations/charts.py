@@ -42,7 +42,8 @@ class AFSCsChart:
 
         # This is going to be a dictionary of all the various chart-specific components we need
         self.c = {"J": self.ip['J'], 'afscs': self.ip['afscs'], 'M': self.ip['M'], 'k': 0,  # Default k
-                  'y_max': self.ip['y_max'], 'legend_elements': None, 'use_calculated_y_max': False}
+                  'y_max': self.ip['y_max'], 'legend_elements': None, 'use_calculated_y_max': False,
+                  'legend_title': None}
 
         # If we skip AFSCs
         if self.ip["skip_afscs"]:
@@ -60,6 +61,13 @@ class AFSCsChart:
         """
         Builds the specific chart based on what the user passes within the "instance plot parameters" (ip)
         """
+
+        # If we don't have that data, just fill this in so this chart still works
+        if 'race_categories' not in self.parameters.keys():
+            self.parameters['race_categories'] = ['Blank']
+        if 'ethnicity_categories' not in self.parameters.keys():
+            self.parameters['ethnicity_categories'] = ['Blank']
+
         # Determine which chart to build
         if chart_type == "Data":
             if self.ip['data_graph'] in ['Average Merit', 'USAFA Proportion', 'Average Utility']:
@@ -162,8 +170,8 @@ class AFSCsChart:
                                               'Race Chart_proportion', 'Gender Chart_proportion',
                                               'Ethnicity Chart_proportion', 'SOC Chart_proportion']:
 
-                        if 'race_categories' not in self.parameters:
-                            return None  # We're not doing this
+                        # if 'race_categories' not in self.parameters:
+                        #     return None  # We're not doing this
 
                         self.results_demographic_proportion_chart()
 
@@ -214,9 +222,16 @@ class AFSCsChart:
 
         # Legend
         if self.ip["add_legend_afsc_chart"] and self.c['legend_elements'] is not None:
-            self.ax.legend(handles=self.c["legend_elements"], edgecolor='black', loc=self.ip['legend_loc'],
-                           fontsize=self.ip['legend_size'], ncol=self.ip['ncol'], labelspacing=1, handlelength=0.8,
-                           handletextpad=0.2, borderpad=0.2, handleheight=2)
+
+            if self.c['legend_title']:
+                self.ax.legend(handles=self.c["legend_elements"], edgecolor='black', loc=self.ip['legend_loc'],
+                               fontsize=self.ip['legend_size'], ncol=self.ip['ncol'], labelspacing=1, handlelength=0.8,
+                               handletextpad=0.2, borderpad=0.2, handleheight=2, title=self.c['legend_title'],
+                               title_fontsize=self.ip['legend_fontsize'])
+            else:
+                self.ax.legend(handles=self.c["legend_elements"], edgecolor='black', loc=self.ip['legend_loc'],
+                               fontsize=self.ip['legend_size'], ncol=self.ip['ncol'], labelspacing=1, handlelength=0.8,
+                               handletextpad=0.2, borderpad=0.2, handleheight=2)
 
         # Save the chart
         if self.ip['save']:
@@ -256,7 +271,7 @@ class AFSCsChart:
         This method calculates the correct y_max and y_ticks for this chart in place
         """
         # Y max
-        if 'y_exact_max' is None:
+        if self.ip['y_exact_max'] is None:
             self.c['y_max'] = self.ip['y_max'] * max(self.c['total_count'])
         else:
             self.c['y_max'] = self.ip['y_max'] * self.ip['y_exact_max']
@@ -1295,7 +1310,7 @@ class AFSCsChart:
             self.c['y_label'] = "Proportion of Cadets"
             self.c['y_max'] *= 1.03  # expand it a little
             self.ip['legend_size'] = self.ip['proportion_legend_size']  # Change the size of the legend
-            self.ip['ncol'] = len(p['race_categories'])  # Adjust number of columns for legend
+            self.ip['ncol'] = 20  # Adjust number of columns for legend (Arbitrarily large number for horizontal legend)
             self.ip['text_bar_threshold'] = self.ip['proportion_text_bar_threshold']  # Adjust this threshold
 
             # Baseline
@@ -1620,6 +1635,9 @@ class AFSCsChart:
                     self.c['legend_elements'].append(Patch(facecolor=colors['All Others'],
                                                            label='All Others', edgecolor='black'))
 
+                    # Add the title of the legend
+                    self.c['legend_title'] = 'Cadet Choice'
+
                     # Counts
                     counts = {"All Others": np.zeros(self.c['M'])}
                     for choice in range(p['P'])[:10][::-1]:
@@ -1649,30 +1667,61 @@ class AFSCsChart:
                         counts['bottom_choices'][index] = solution['choice_counts']['TOTAL']['All Others'][j]
 
 
-
             else:
 
                 # Get the title
                 self.ip["title"] = "AFSC Preference Breakdown"
 
-                # Legend
-                self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["top_choices"], label='Top Third',
-                                                   edgecolor='black'),
-                                             Patch(facecolor=self.ip['bar_colors']["mid_choices"], label='Middle Third',
-                                                   edgecolor='black'),
-                                             Patch(facecolor=self.ip['bar_colors']["bottom_choices"],
-                                                   label='Bottom Third', edgecolor='black')]
+                if self.ip["version"] == 'quantity_bar_choice':
 
-                # AFSC Choice Counts
-                for i, j in enumerate(self.solution['j_array']):
-                    if j in self.c['J']:
-                        index = np.where(self.c['J'] == j)[0][0]
-                        if p["afsc_utility"][i, j] < 1 / 3:
-                            counts["bottom_choices"][index] += 1
-                        elif p["afsc_utility"][i, j] < 2 / 3:
-                            counts["mid_choices"][index] += 1
-                        else:
-                            counts["top_choices"][index] += 1
+                    # Legend (and colors)
+                    self.c['legend_elements'] = []
+                    self.ip['legend_size'] = int(self.ip['legend_size'] * 0.7)
+                    colors = {}
+                    cat_choice_dict = {'90-100%': 1, '80-89%': 2, '70-79%': 3, '60-69%': 4, '50-59%': 5,
+                                       '40-49%': 6, '30-39%': 7, '20-29%': 8, '10-19%': 9, '0-10%': 10}
+                    for cat, choice in cat_choice_dict.items():
+                        colors[cat] = self.ip['choice_colors'][choice]
+                        self.c['legend_elements'].append(Patch(facecolor=colors[cat],
+                                                               label=cat, edgecolor='black'))
+
+                    # Add the title of the legend
+                    self.c['legend_title'] = 'AFSC Rank\nPercentile'
+
+                    # Counts
+                    counts = {}
+                    cat_dem_dict = {'90-100%': 0.9, '80-89%': 0.8, '70-79%': 0.7, '60-69%': 0.6, '50-59%': 0.5,
+                                    '40-49%': 0.4, '30-39%': 0.3, '20-29%': 0.2, '10-19%': 0.1, '0-10%': 0}
+                    categories = list(cat_dem_dict.keys())
+                    for cat in categories[::-1]:
+                        counts[cat] = np.zeros(self.c['M'])
+                    for index, j in enumerate(self.c['J']):
+                        afsc = p['afscs'][j]
+                        total = 0
+                        for cat, dem in cat_dem_dict.items():
+                            counts[cat][index] = solution["afsc_choice_counts"][afsc][cat]
+                            total += counts[cat][index]
+
+                else:
+
+                    # Legend
+                    self.c['legend_elements'] = [Patch(facecolor=self.ip['bar_colors']["top_choices"], label='Top Third',
+                                                       edgecolor='black'),
+                                                 Patch(facecolor=self.ip['bar_colors']["mid_choices"], label='Middle Third',
+                                                       edgecolor='black'),
+                                                 Patch(facecolor=self.ip['bar_colors']["bottom_choices"],
+                                                       label='Bottom Third', edgecolor='black')]
+
+                    # AFSC Choice Counts
+                    for i, j in enumerate(self.solution['j_array']):
+                        if j in self.c['J']:
+                            index = np.where(self.c['J'] == j)[0][0]
+                            if p["afsc_utility"][i, j] < 1 / 3:
+                                counts["bottom_choices"][index] += 1
+                            elif p["afsc_utility"][i, j] < 2 / 3:
+                                counts["mid_choices"][index] += 1
+                            else:
+                                counts["top_choices"][index] += 1
 
             # Set label
             self.c['y_label'] = "Number of Cadets"

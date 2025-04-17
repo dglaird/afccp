@@ -1725,6 +1725,9 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
+        # Copy weight on GUO solution (relative to CASTLE) from "mdl_p" to "parameters"
+        self.parameters['w^G'] = self.mdl_p['w^G']
+
         # Calculate solution metrics
         self.solution = afccp.core.solutions.handling.evaluate_solution(
             self.solution, self.parameters, self.value_parameters, approximate=approximate, printing=printing,
@@ -2130,6 +2133,8 @@ class CadetCareerProblem:
         # Determine which chart to create
         if self.mdl_p["macro_chart_kind"] == "AFSC Chart":
 
+            print('wow')
+
             # Initialize the AFSC Chart object
             afsc_chart = afccp.core.visualizations.charts.AFSCsChart(self)
 
@@ -2277,8 +2282,8 @@ class CadetCareerProblem:
             print('Creating Bubbles Chart...')
 
         # Call the figure object
-        cadet_board = afccp.core.visualizations.bubbles.BubbleChart(self, printing=printing)
-        cadet_board.main()
+        bubble_chart = afccp.core.visualizations.bubbles.BubbleChart(self, printing=printing)
+        bubble_chart.main()
 
         # Only build the animation slides if we're saving iteration frames
         if self.mdl_p['save_iteration_frames']:

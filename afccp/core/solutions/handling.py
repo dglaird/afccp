@@ -791,6 +791,12 @@ def calculate_additional_useful_metrics(solution, p, vp):
         for afsc in p["afscs"]:
             solution["choice_counts"][dem][afsc] = np.zeros(p["P"]).astype(int)
 
+    # AFSC choice
+    solution['afsc_choice_counts'] = {}
+
+    cat_bound_dict = {'90-100%': 0.9, '80-89%': 0.8, '70-79%': 0.7, '60-69%': 0.6, '50-59%': 0.5,
+                      '40-49%': 0.4, '30-39%': 0.3, '20-29%': 0.2, '10-19%': 0.1, '0-10%': 0}
+
     # Loop through each AFSC
     for j, afsc in enumerate(p["afscs"][:p['M']]):  # Skip unmatched AFSC
 
@@ -802,6 +808,17 @@ def calculate_additional_useful_metrics(solution, p, vp):
             dem_1, dem_2 = demographic_dict[cat][0], demographic_dict[cat][1]
             dem_cadets[dem_1] = np.intersect1d(np.where(p[cat] == 1)[0], dem_cadets["TOTAL"])
             dem_cadets[dem_2] = np.intersect1d(np.where(p[cat] == 0)[0], dem_cadets["TOTAL"])
+
+        afsc_utilities = p['afsc_utility'][dem_cadets['TOTAL'], j]
+        solution['afsc_choice_counts'][afsc] = {}
+        for cat, bound in cat_bound_dict.items():
+
+            if cat == 0.9:
+                condition = (afsc_utilities >= bound) & (afsc_utilities <= bound + 0.1)
+            else:
+                condition = (afsc_utilities >= bound) & (afsc_utilities < bound + 0.1)
+            cadets = np.where(condition)[0]
+            solution['afsc_choice_counts'][afsc][cat] = len(cadets)
 
         # Loop through each choice and calculate the metric
         for choice in range(p["P"]):

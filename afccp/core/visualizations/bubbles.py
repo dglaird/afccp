@@ -650,7 +650,7 @@ class BubbleChart:
                 # Add "Unqualified" legend element if we have enough people ineligible for this AFSC
                 if len(self.p['I^E'][j_focus]) <= (self.p['N'] - 20):  # Might be handful of cadets on PRP or something
                     legend_elements.append(
-                        Line2D([0], [0], marker='o', label=self.mdl_p['afsc'] + " Unqualified",
+                        Line2D([0], [0], marker='o', label=self.mdl_p['afsc'] + "\nUnqualified",
                                markerfacecolor=self.mdl_p['unfocused_color'],
                                markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
 
