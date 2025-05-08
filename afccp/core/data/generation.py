@@ -565,8 +565,237 @@ if afccp.core.globals.use_sdv:
     from sdv.single_table import CTGANSynthesizer
     from sdv.metadata import SingleTableMetadata
     from sdv.sampling import Condition
+    from sdv.constraints import create_custom_constraint_class
 
-    def train_ctgan(epochs=1000, printing=True, name='CTGAN_2024'):
+
+    def load_data_to_process_for_ctgan(data_to_use: list = ['2024', '2025']):
+        a26 = pd.read_csv('instances/2026/4. Model Input/2026 AFSCs.csv')
+        afscs = np.array(a26['AFSC'])
+
+        # Load in the data
+        dfs = {}
+        arrs = {}
+        for year in data_to_use:
+            yr = year[2:]
+
+            # Load in cadets/AFSC data
+            dfs[f'a{yr}'] = pd.read_csv(f'instances/{year}/4. Model Input/{year} AFSCs.csv')
+            dfs[f'c{yr}'] = pd.read_csv(f'instances/{year}/4. Model Input/{year} Cadets.csv')
+            dfs[f'cu{yr}'] = pd.read_csv(f'instances/{year}/4. Model Input/{year} Cadets Utility.csv')
+            dfs[f'cuf{yr}'] = pd.read_csv(f'instances/{year}/4. Model Input/{year} Cadets Utility (Final).csv')
+            dfs[f'au{yr}'] = pd.read_csv(f'instances/{year}/4. Model Input/{year} AFSCs Utility.csv')
+
+            # Load in cadets selected data if we have it
+            if year in ['2025', '2026']:
+                dfs[f'cs{yr}'] = pd.read_csv(f'instances/{year}/4. Model Input/{year} Cadets Selected.csv')
+
+        # Modify the data for 2024
+        for d_name, _ in dfs.items():
+            if 'u' in d_name or 's' in d_name:
+                if '24' in d_name:
+                    dfs[d_name]['18X'] = dfs[d_name]['11U']
+                    dfs[d_name]['USSF_R'] = 0
+                    dfs[d_name]['USSF_U'] = 0
+                    dfs[d_name].loc[dfs['c24']['USAFA'] == 0, 'USSF_R'] = \
+                        dfs[d_name]['13S1S'].loc[dfs['c24']['USAFA'] == 0]
+                    dfs[d_name].loc[dfs['c24']['USAFA'] == 1, 'USSF_U'] = \
+                        dfs[d_name]['13S1S'].loc[dfs['c24']['USAFA'] == 1]
+                dfs[d_name] = dfs[d_name][afscs]
+                arrs[d_name] = np.array(dfs[d_name])
+
+        return dfs, arrs, afscs
+
+
+    def prepare_2024_data(dfs: dict, arrs: dict, afscs: np.ndarray):
+        # Initialize CTGAN data for 2024
+        df = pd.DataFrame()
+        utility_matrix = np.ones(arrs['cu24'].shape) * 0.1
+        df['YEAR'] = [2024 for _ in range(len(dfs['c24']))]
+        df['CIP1'] = 'c' + dfs['c24']['CIP1'].fillna('').astype(str)
+        df['CIP2'] = dfs['c24']['CIP2'].fillna('').astype(str)
+        df.loc[df["CIP2"] != 'None', 'CIP2'] = 'c' + df.loc[df["CIP2"] != 'None', 'CIP2']
+        df['Merit'] = dfs['c24']['Merit']
+
+        # Loop through each cadet (I know, very manual process...)
+        for i in range(len(dfs['c24'])):
+
+            # Get SOC info
+            soc = 'USAFA' if dfs['c24'].loc[i, 'USAFA'] else "ROTC"
+            df.loc[i, 'SOC'] = soc
+
+            columns = [col for col in dfs['c24'] if 'pref' in col.lower()]
+            pref_count = (dfs['c24'].iloc[i][columns].str.strip() != '').sum()
+
+            # Force everything to string and ensure numpy dtype is string (not object)
+            prefs = np.array(dfs['c24'].iloc[i][columns][:pref_count].astype(str).values, dtype=str)
+
+            # Replace specific AFSCs
+            ussf = 'USSF_' + soc[0]
+            prefs[prefs == '13S1S'] = ussf
+            prefs[prefs == '11U'] = '18X'
+
+            # Now safely use np.char.find on a proper string array
+            mask_s = np.char.find(prefs, 'S') != -1
+            prefs[mask_s & (prefs != ussf)] = ''
+            prefs = prefs[prefs != '']
+            if 'nan' in prefs:
+                prefs = np.array([afsc for afsc in prefs if afsc != 'nan'])
+            pref_count = len(prefs)  # New number of preferences
+
+            # Update utilities arrays
+            # print(len(prefs), prefs)
+            indices = np.array([np.where(afscs == afsc)[0][0] for afsc in prefs])
+            utilities = arrs['cu24'][i, indices]
+            num_selected = len(np.where(utilities > 0)[0])
+            indiff = min(num_selected, pref_count - 1)
+            utilities[indiff:] = 0.1
+            utilities[0:indiff] = utilities[0:indiff] * 0.9 + 0.1
+
+            # Update bottom choices
+            for x in np.arange(1, 4):
+                afsc = prefs[pref_count - x]
+                if afsc[0] == '6':
+                    break
+
+                if x == 1:
+                    df.loc[i, 'Last Choice'] = afsc
+                    utilities[pref_count - x] = 0
+                elif x == 2:
+                    df.loc[i, '2nd-Last Choice'] = afsc
+                    utilities[pref_count - x] = 0.05
+                else:
+                    df.loc[i, '3rd-Last Choice'] = afsc
+                    utilities[pref_count - x] = 0.05
+
+            # FIll in utilities
+            utility_matrix[i, indices] = utilities
+
+        # Add in cadet data
+        for j, afsc in enumerate(afscs):
+            df[f'{afsc}_Cadet'] = utility_matrix[:, j]
+
+        # Add in AFSC data
+        for j, afsc in enumerate(afscs):
+            df[f'{afsc}_AFSC'] = dfs['au24'][afsc]
+
+        # Convert to integer
+        df['YEAR'] = df['YEAR'].astype(int)
+
+        # Add volunteer columns
+        rated_afscs = ['11XX_R', '11XX_U', '12XX', '13B', '18X']
+        df['Rated Vol'] = df[[f'{afsc}_Cadet' for afsc in rated_afscs]].sum(axis=1) != 0.5
+        df['USSF Vol'] = df[[f'{afsc}_Cadet' for afsc in ['USSF_R', 'USSF_U']]].sum(axis=1) != 0.2
+
+        # Combine AFSCs segmented by SOC (11XX/USSF)
+        df = fix_soc_afscs_to_generic(df=df, afscs=afscs)
+        return df
+
+
+    def prepare_year_data(year: str, dfs: dict, afscs: np.ndarray):
+        yr = year[2:]
+
+        # Initialize CTGAN data for the given year
+        df = pd.DataFrame()
+        df['YEAR'] = [year for _ in range(len(dfs[f'c{yr}']))]
+        df['CIP1'] = 'c' + dfs[f'c{yr}']['CIP1'].fillna('').astype(str)
+        df['CIP2'] = dfs[f'c{yr}']['CIP2'].fillna('None').astype(str)
+        df.loc[df["CIP2"] != 'None', 'CIP2'] = 'c' + df.loc[df["CIP2"] != 'None', 'CIP2']
+        df['Merit'] = dfs[f'c{yr}']['Merit']
+        df['SOC'] = 'USAFA'
+        df.loc[dfs[f'c{yr}']['USAFA'] == 0, 'SOC'] = 'ROTC'
+
+        # Assume your original column is named 'AFSCs' in DataFrame `df`
+        # Adjust the column name as needed
+        df['Last Choice'] = dfs[f'c{yr}']['Least Desired AFSC']
+        df[['2nd-Last Choice', '3rd-Last Choice']] = dfs[f'c{yr}']['Second Least Desired AFSCs'].str.split(',', expand=True)
+
+        # Optionally strip whitespace around values
+        df['3rd-Last Choice'] = df['3rd-Last Choice'].str.strip()
+        df['2nd-Last Choice'] = df['2nd-Last Choice'].str.strip()
+
+        # Add in cadet data
+        for afsc in afscs:
+            df[f'{afsc}_Cadet'] = dfs[f'cuf{yr}'][afsc]
+
+        # Add in AFSC data
+        for afsc in afscs:
+            df[f'{afsc}_AFSC'] = dfs[f'au{yr}'][afsc]
+
+        # Add volunteer columns
+        rated_afscs = ['11XX_R', '11XX_U', '12XX', '13B', '18X']
+        df['Rated Vol'] = df[[f'{afsc}_Cadet' for afsc in rated_afscs]].sum(axis=1) != 0.5
+        df['USSF Vol'] = df[[f'{afsc}_Cadet' for afsc in ['USSF_R', 'USSF_U']]].sum(axis=1) != 0.2
+
+        # Combine AFSCs segmented by SOC (11XX/USSF)
+        df = fix_soc_afscs_to_generic(df=df, afscs=afscs)
+        return df
+
+
+    def fix_soc_afscs_to_generic(df: pd.DataFrame, afscs: np.ndarray):
+
+        # Make a generic AFSC merging in ROTC/USAFA segmented AFSCs
+        for afsc in ['11XX', 'USSF']:
+            for col in ["Cadet", "AFSC"]:
+                df[f'{afsc}_{col}'] = df[f'{afsc}_R_{col}']
+                df.loc[df['SOC'] == 'USAFA', f'{afsc}_{col}'] = df.loc[df['SOC'] == 'USAFA', f'{afsc}_U_{col}']
+            for col in ['Last Choice', '2nd-Last Choice', '3rd-Last Choice']:
+                df[col] = df[col].replace(f'{afsc}_U', afsc)
+                df[col] = df[col].replace(f'{afsc}_R', afsc)
+
+        # Strip out the columns we don't need anymore
+        afscs_new = np.hstack((['USSF', '11XX'], afscs[4:]))
+        back_cols = [f'{afsc}_Cadet' for afsc in afscs_new] + [f'{afsc}_AFSC' for afsc in afscs_new]
+        front_cols = [col for col in df.columns if '_Cadet' not in col and '_AFSC' not in col]
+        cols = front_cols + back_cols
+        return df[cols]
+
+
+    def process_instances_into_ctgan_data(data_to_use: list = ['2024', '2025']):
+
+        print(f'Loading data to process for CTGAN: {data_to_use}.')
+        dfs, arrs, afscs = load_data_to_process_for_ctgan(data_to_use=data_to_use)
+
+        # Process data together
+        df = pd.DataFrame()
+        for year in data_to_use:
+            print(f'Preparing data for {year}.')
+            if year == '2024':
+                new_df = prepare_2024_data(dfs=dfs, arrs=arrs, afscs=afscs)
+            else:
+                new_df = prepare_year_data(year=year, dfs=dfs, afscs=afscs)
+            df = pd.concat((df, new_df))
+
+        # Export data
+        df.to_csv(afccp.core.globals.paths['support'] + 'data/ctgan_data.csv', index=False)
+
+
+    def process_instances_into_afscs_data(data_to_use: list = ['2025', '2026']):
+
+        # Load in dataframes
+        dfs = {f'a{year[2:]}': pd.read_csv(f'instances/{year}/4. Model Input/{year} AFSCs.csv') for year in
+               data_to_use}
+
+        # Determine which AFSCs everyone qualifies for
+        eligible = dfs['a25']['USAFA Eligible'] + dfs['a25']['ROTC Eligible']
+        max_eligible = max(eligible)
+
+        # Build out AFSCs proportions data for generating random PGL policies
+        a_df = pd.DataFrame({'AFSC': dfs['a26']['AFSC'], 'All Eligible': eligible == max_eligible,
+                             'Accessions Group': dfs['a26']['Accessions Group']})
+        u_targets = dfs['a25']['USAFA Target'] + dfs['a26']['USAFA Target']
+        pgl_targets = dfs['a25']['PGL Target'] + dfs['a26']['PGL Target']
+        a_df['USAFA Proportion'] = u_targets / pgl_targets
+        a_df['ROTC Proportion'] = 1 - a_df['USAFA Proportion']
+        a_df['PGL Proportion'] = pgl_targets / sum(pgl_targets)
+        for i in range(4):
+            a_df[f'Deg Tier {i + 1}'] = dfs['a26'][f'Deg Tier {i + 1}']
+
+        # Export AFSCs data
+        filepath = afccp.core.globals.paths["support"] + 'data/afscs_data.csv'
+        a_df.to_csv(filepath, index=False)
+
+
+    def train_ctgan(epochs=1000, printing=True, name='CTGAN_24_25'):
         """
         Train CTGAN to produce realistic data based on the current "ctgan_data" file in the support sub-folder. This
         function then saves the ".pkl" file back to the support sub-folder
@@ -574,6 +803,7 @@ if afccp.core.globals.use_sdv:
 
         # Import data
         data = afccp.core.globals.import_csv_data(afccp.core.globals.paths['support'] + 'data/ctgan_data.csv')
+        data = data[[col for col in data.columns if col not in ['YEAR']]]
         metadata = SingleTableMetadata()  # SDV requires this now
         metadata.detect_from_dataframe(data=data)  # get the metadata from dataframe
 
@@ -600,30 +830,6 @@ if afccp.core.globals.use_sdv:
                                       }}
             constraints.append(zero_to_one_constraint)
 
-        # load the constraints from the file
-        model.load_custom_constraint_classes(
-            filepath='afccp/core/data/custom_ctgan_constraints.py',
-            class_names=['IfROTCNo11XX_U', 'IfUSAFANo11XX_R']
-        )
-
-        # create ROTC constraint using the class
-        rotc_no_11XX_U = {
-            'constraint_class': 'IfROTCNo11XX_U',
-            'constraint_parameters': {
-                'column_names': ['SOC', '11XX_U_Cadet'],
-            }
-        }
-        constraints.append(rotc_no_11XX_U)
-
-        # create USAFA constraint using the class
-        usafa_no_11XX_R = {
-            'constraint_class': 'IfUSAFANo11XX_R',
-            'constraint_parameters': {
-                'column_names': ['SOC', '11XX_R_Cadet'],
-            }
-        }
-        constraints.append(usafa_no_11XX_R)
-
         # Add the constraints to the model
         model.add_constraints(constraints)
 
@@ -638,7 +844,8 @@ if afccp.core.globals.use_sdv:
         if printing:
             print("Model saved to", filepath)
 
-    def generate_ctgan_instance(N=1600, name='CTGAN_2024', pilot_condition=False):
+
+    def generate_ctgan_instance(N=1600, name='CTGAN_24_25', pilot_condition=False, degree_qual_type='Consistent'):
         """
         This procedure takes in the specified number of cadets and then generates a representative problem
         instance using CTGAN that has been trained from a real class year of cadets
@@ -664,9 +871,9 @@ if afccp.core.globals.use_sdv:
         N_rotc_generic = N_rotc - N_rotc_pilots
 
         # Condition the data generated to produce the right composition of pilot first choice preferences
-        usafa_pilot_first_choice = Condition(num_rows = N_usafa_pilots, column_values={'SOC': 'USAFA', '11XX_U_Cadet': 1})
+        usafa_pilot_first_choice = Condition(num_rows = N_usafa_pilots, column_values={'SOC': 'USAFA', '11XX_Cadet': 1})
         usafa_generic_cadets = Condition(num_rows=N_usafa_generic, column_values={'SOC': 'USAFA'})
-        rotc_pilot_first_choice = Condition(num_rows=N_rotc_pilots, column_values={'SOC': 'ROTC', '11XX_R_Cadet': 1})
+        rotc_pilot_first_choice = Condition(num_rows=N_rotc_pilots, column_values={'SOC': 'ROTC', '11XX_Cadet': 1})
         rotc_generic_cadets = Condition(num_rows=N_rotc_generic, column_values={'SOC': 'ROTC'})
 
         # Sample data  (Sampling from conditions may take too long!)
@@ -676,16 +883,16 @@ if afccp.core.globals.use_sdv:
         else:
             data = model.sample(N)
 
-        # Extract information from the generated data
-        cadet_utility_cols = [col for col in data.columns if '_Cadet' in col]
+        # Load in AFSCs data
+        filepath = afccp.core.globals.paths["support"] + 'data/afscs_data.csv'
+        afscs_data = afccp.core.globals.import_csv_data(filepath)
 
         # Get list of AFSCs
-        afscs = np.array([col[:-6] for col in cadet_utility_cols])
+        afscs = np.array(afscs_data['AFSC'])
 
         # Initialize parameter dictionary
-        p = {'afscs': afscs, 'N': N, 'P': len(afscs), 'M': len(afscs), 'race': np.array(data['Race']),
-             'ethnicity': np.array(data['Ethnicity']), 'merit': np.array(data['Merit']), 'cadets': np.arange(N),
-             'usafa': np.array(data['SOC'] == 'USAFA') * 1, 'male': np.array(data['Gender'] == 'Male') * 1,
+        p = {'afscs': afscs, 'N': N, 'P': len(afscs), 'M': len(afscs), 'merit': np.array(data['Merit']),
+             'cadets': np.arange(N), 'usafa': np.array(data['SOC'] == 'USAFA') * 1,
              'cip1': np.array(data['CIP1']), 'cip2': np.array(data['CIP2']), 'num_util': 10,  # 10 utilities taken
              'rotc': np.array(data['SOC'] == 'ROTC'), 'I': np.arange(N), 'J': np.arange(len(afscs))}
 
@@ -711,14 +918,10 @@ if afccp.core.globals.use_sdv:
         # Replace merit
         p['merit'] = re_scaled_om
 
-        # Load in AFSCs data
-        filepath = afccp.core.globals.paths["support"] + 'data/afscs_data.csv'
-        afscs_data = afccp.core.globals.import_csv_data(filepath)
-
         # Add AFSC features to parameters
         p['acc_grp'] = np.array(afscs_data['Accessions Group'])
-        p['afscs_stem'] = np.array(afscs_data['STEM'])
         p['Deg Tiers'] = np.array(afscs_data.loc[:, 'Deg Tier 1': 'Deg Tier 4'])
+        p['Deg Tiers'][pd.isnull(p["Deg Tiers"])] = ''  # TODO
 
         # Determine AFSCs by Accessions Group
         p['afscs_acc_grp'] = {}
@@ -763,90 +966,140 @@ if afccp.core.globals.use_sdv:
         for param in ['quota_e', 'quota_d', 'quota_min', 'quota_max']:
             p[param] = p['pgl']
 
-        # Cadet/AFSC initial utility matrices
-        cadet_utility = np.array(data.loc[:, afscs[0] + '_Cadet':afscs[p['M'] - 1] + '_Cadet'])
-        afsc_utility = np.array(data.loc[:, afscs[0] + '_AFSC':afscs[p['M'] - 1] + '_AFSC'])
+        # Break up USSF and 11XX AFSC by SOC
+        for afsc in ['USSF', '11XX']:
+            for col in ['Cadet', 'AFSC']:
+                for soc in ['USAFA', 'ROTC']:
+                    data[f'{afsc}_{soc[0]}_{col}'] = 0
+                    data.loc[data['SOC'] == soc, f'{afsc}_{soc[0]}_{col}'] = data.loc[data['SOC'] == soc, f'{afsc}_{col}']
 
-        # Rated eligibility needs to match from both sources
-        for i in p['I']:
-            for j in p['J^Rated']:
-                if cadet_utility[i, j] == 0:
-                    afsc_utility[i, j] = 0
-                if afsc_utility[i, j] == 0:
-                    cadet_utility[i, j] = 0
+        c_pref_cols = [f'{afsc}_Cadet' for afsc in afscs]
+        util_original = np.around(np.array(data[c_pref_cols]), 2)
+
+        # Initialize cadet preference information
+        p['c_utilities'] = np.zeros((p['N'], 10))
+        p['c_preferences'] = np.array([[' ' * 6 for _ in range(p['M'])] for _ in range(p['N'])])
+        p['cadet_preferences'] = {}
+        p['c_pref_matrix'] = np.zeros((p['N'], p['M'])).astype(int)
+        p['utility'] = np.zeros((p['N'], p['M']))
+
+        # Loop through each cadet to tweak their preferences
+        for i in p['cadets']:
+
+            # Manually fix 62EXE preferencing from eligible cadets
+            ee_j = np.where(afscs == '62EXE')[0][0]
+            if '1410' in data.loc[i, 'CIP1'] or '1447' in data.loc[i, 'CIP1']:
+                if np.random.rand() > 0.6:
+                    util_original[i, ee_j] = np.around(max(util_original[i, ee_j], min(1, np.random.normal(0.8, 0.18))),
+                                                       2)
+
+            # Fix rated/USSF volunteer situation
+            for acc_grp in ['Rated', 'USSF']:
+                if data.loc[i, f'{acc_grp} Vol']:
+                    if np.max(util_original[i, p[f'J^{acc_grp}']]) < 0.6:
+                        util_original[i, p[f'J^{acc_grp}']] = 0
+                        data.loc[i, f'{acc_grp} Vol'] = False
+                else:  # Not a volunteer
+
+                    # We have a higher preference for these kinds of AFSCs
+                    if np.max(util_original[i, p[f'J^{acc_grp}']]) >= 0.6:
+                        data.loc[i, f'{acc_grp} Vol'] = True  # Make them a volunteer now
+
+            # Was this the last choice AFSC? Remove from our lists
+            ordered_list = np.argsort(util_original[i])[::-1]
+            last_choice = data.loc[i, 'Last Choice']
+            if last_choice in afscs:
+                j = np.where(afscs == last_choice)[0][0]
+                ordered_list = ordered_list[ordered_list != j]
+
+            # Add the "2nd least desired AFSC" to list
+            second_last_choice = data.loc[i, '2nd-Last Choice']
+            bottom = []
+            if second_last_choice in afscs and afsc != last_choice:  # Check if valid and not in bottom choices
+                j = np.where(afscs == second_last_choice)[0][0]  # Get index of AFSC
+                ordered_list = ordered_list[ordered_list != j]  # Remove index from preferences
+                bottom.append(second_last_choice)  # Add it to the list of bottom choices
+
+            # If it's a valid AFSC that isn't already in the bottom choices
+            third_last_choice = data.loc[i, '3rd-Last Choice']  # Add the "3rd least desired AFSC" to list
+            if third_last_choice in afscs and afsc not in [last_choice, second_last_choice]:
+                j = np.where(afscs == third_last_choice)[0][0]  # Get index of AFSC
+                ordered_list = ordered_list[
+                    ordered_list != j]  # Reordered_list = np.argsort(util_original[i])[::-1]move index from preferences
+                bottom.append(third_last_choice)  # Add it to the list of bottom choices
+
+            # If we have an AFSC in the bottom choices, but NOT the LAST choice, move one to the last choice
+            if len(bottom) > 0 and pd.isnull(last_choice):
+                afsc = bottom.pop(0)
+                data.loc[i, 'Last Choice'] = afsc
+            data.loc[i, 'Second Least Desired AFSCs'] = ', '.join(bottom)  # Put it in the dataframe
+
+            # Save cadet preference information
+            num_pref = 10 if np.random.rand() > 0.1 else int(np.random.triangular(11, 15, 26))
+            p['c_utilities'][i] = util_original[i, ordered_list[:10]]
+            p['cadet_preferences'][i] = ordered_list[:num_pref]
+            p['c_preferences'][i, :num_pref] = afscs[p['cadet_preferences'][i]]
+            p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
+            p['utility'][i, p['cadet_preferences'][i][:10]] = p['c_utilities'][i]
+
+        # Get qual matrix information
+        p['Qual Type'] = degree_qual_type
+        p = afccp.core.data.adjustments.gather_degree_tier_qual_matrix(cadets_df=None, parameters=p)
 
         # Get the qual matrix to know what people are eligible for
-        qual = afccp.core.data.support.cip_to_qual_tiers(p['afscs'], p['cip1'], p['cip2'])
-        ineligible = (np.core.defchararray.find(qual, "I") != -1) * 1
+        ineligible = (np.core.defchararray.find(p['qual'], "I") != -1) * 1
         eligible = (ineligible == 0) * 1
-        J_E = [np.where(eligible[i, :])[0] for i in p['I']]  # set of AFSCs that cadet i is eligible for
         I_E = [np.where(eligible[:, j])[0] for j in p['J']]  # set of cadets that are eligible for AFSC j
 
-        # Create a default eligibility matrix including everyone
-        p['eligible'] = np.ones((p['N'], p['M']))
+        # Modify AFSC utilities based on eligibility
+        a_pref_cols = [f'{afsc}_AFSC' for afsc in afscs]
+        p['afsc_utility'] = np.around(np.array(data[a_pref_cols]), 2)
+        for acc_grp in ['Rated', 'USSF']:
+            for j in p['J^' + acc_grp]:
+                volunteer_col = np.array(data['Rated Vol'])
+                volunteers = np.where(volunteer_col)[0]
+                not_volunteers = np.where(volunteer_col == False)[0]
+                ranked = np.where(p['afsc_utility'][:, j] > 0)[0]
+                unranked = np.where(p['afsc_utility'][:, j] == 0)[0]
 
-        # Create the cadet preferences by sorting the utilities
-        p['cadet_preferences'] = {}
-        p['c_pref_matrix'] = np.zeros([p['N'], p['M']]).astype(int)  # Cadet preference matrix
-        for i in p['I']:
+                # Fill in utility values with OM for rated folks who don't have an AFSC score
+                volunteer_unranked = np.intersect1d(volunteers, unranked)
+                p['afsc_utility'][volunteer_unranked, j] = p['merit'][volunteer_unranked]
 
-            # Remove AFSC preferences if the cadet isn't eligible for them
-            for j in np.where(cadet_utility[i, :] > 0)[0]:
-                if j not in J_E[i]:
-                    cadet_utility[i, j] = 0
+                # If the cadet didn't actually volunteer, they should have utility of 0
+                non_volunteer_ranked = np.intersect1d(not_volunteers, ranked)
+                p['afsc_utility'][non_volunteer_ranked, j] = 0
 
-            # Get cadet preferences (list of AFSC indices in order)
-            ineligibles = np.where(cadet_utility[i, :] == 0)[0]
-            num_ineligible = len(ineligibles)  # Ineligibles are going to be at the bottom of the list
-            p['cadet_preferences'][i] = np.argsort(cadet_utility[i, :])[::-1][:p['M'] - num_ineligible]
+        # Remove cadets from this AFSC's preferences if the cadet is not eligible
+        for j in p['J^NRL']:
 
-            # Add AFSCs that this cadet is eligible for if they're not in this cadet's preference list
-            for j in J_E[i]:
-                if j in p['J^NRL']:  # USSF/Rated AFSCs require volunteers
-                    if j not in p['cadet_preferences'][i]:
-                        p['cadet_preferences'][i] = np.hstack((p['cadet_preferences'][i], j))
+            # Get appropriate sets of cadets
+            eligible_cadets = I_E[j]
+            ineligible_cadets = np.where(ineligible[:, j])[0]
+            ranked_cadets = np.where(p['afsc_utility'][:, j] > 0)[0]
+            unranked_cadets = np.where(p['afsc_utility'][:, j] == 0)[0]
 
-            # Create cadet preference matrix
-            p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
+            # Fill in utility values with OM for eligible folks who don't have an AFSC score
+            eligible_unranked = np.intersect1d(eligible_cadets, unranked_cadets)
+            p['afsc_utility'][eligible_unranked, j] = p['merit'][eligible_unranked]
 
-        # Create the AFSC preferences by sorting the utilities
+            # If the cadet isn't actually eligible, they should have utility of 0
+            ineligible_ranked = np.intersect1d(ineligible_cadets, ranked_cadets)
+            p['afsc_utility'][ineligible_ranked, j] = 0
+
+        # Collect AFSC preference information
         p['afsc_preferences'] = {}
-        p['a_pref_matrix'] = np.zeros([p['N'], p['M']]).astype(int)  # AFSC preference matrix
+        p['a_pref_matrix'] = np.zeros((p['N'], p['M'])).astype(int)
         for j in p['J']:
 
-            # Remove cadets from this AFSC's preferences if the cadet is not eligible
-            for i in np.where(afsc_utility[:, j] > 0)[0]:
-                if i not in I_E[j]:
-                    afsc_utility[i, j] = 0
+            # Sort the utilities to get the preference list
+            utilities = p["afsc_utility"][:, j]
+            ineligible_indices = np.where(utilities == 0)[0]
+            sorted_indices = np.argsort(utilities)[::-1][:p['N'] - len(ineligible_indices)]
+            p['afsc_preferences'][j] = sorted_indices
 
-            # Get AFSC preferences (list of cadet indices in order)
-            ineligibles = np.where(afsc_utility[:, j] == 0)[0]
-            num_ineligible = len(ineligibles)  # Ineligibles are going to be at the bottom of the list
-            p['afsc_preferences'][j] = np.argsort(afsc_utility[:, j])[::-1][:p['N'] - num_ineligible]
-
-            # Add cadets that are eligible for this AFSC if they're not on the AFSC's preference list
-            if j in p['J^NRL']:  # USSF/Rated AFSCs require volunteers
-                for i in I_E[j]:
-                    if i not in p['afsc_preferences'][j]:
-                        p['afsc_preferences'][j] = np.hstack((p['afsc_preferences'][j], i))
-
-            # Create AFSC preference matrix
+            # Since 'afsc_preferences' is an array of AFSC indices, we can do this
             p['a_pref_matrix'][p['afsc_preferences'][j], j] = np.arange(1, len(p['afsc_preferences'][j]) + 1)
-
-        # Create "initial" cadet utility matrix from generated utility matrix
-        p['utility'] = np.zeros((p['N'], p['M']))
-        for i in p['I']:
-
-            # Gather top 10 utilities from generated matrix
-            p['utility'][i, p['cadet_preferences'][i][:10]] = np.around(
-                cadet_utility[i, p['cadet_preferences'][i][:10]], 2)
-
-            # First choice is a value of 1
-            p['utility'][i, p['cadet_preferences'][i][0]] = 1
-
-        # Create cadet preference and utility columns for Cadets.csv
-        p['c_preferences'], p['c_utilities'] = \
-            afccp.core.data.preferences.get_utility_preferences_from_preference_array(p)
 
         # Needed information for rated OM matrices
         dataset_dict = {'rotc': 'rr_om_matrix', 'usafa': 'ur_om_matrix'}

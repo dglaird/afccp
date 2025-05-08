@@ -1788,6 +1788,88 @@ def cadet_board_preprocess_model(b):
     return m
 
 
+def cadet_board_preprocess_model_simple(b):
+    """
+    Builds a Pyomo optimization model to determine the x and y coordinates of AFSC squares on a chart.
+
+    Parameters:
+    -----------
+    b : dict
+        A dictionary containing configuration parameters for the model.
+        The dictionary should include the following key-value pairs:
+        - 'n^sorted' : numpy array
+            Sorted values of the AFSC sizes (cadet box sizes).
+        - 'M' : int
+            The number of AFSCs (cadet boxes).
+        - 'add_legend' : bool
+            Whether to include a legend box in the chart.
+        - 'simplified_model' : bool
+            Whether to use a simplified model without positional constraints.
+        - 'row_constraint' : bool
+            Whether to incorporate a row constraint for AFSCs.
+        - Additional bounds and constants used in the model.
+
+    Returns:
+    --------
+    m : ConcreteModel
+        The constructed Pyomo ConcreteModel instance representing the optimization model.
+
+    Notes:
+    ------
+    This function creates an optimization model to determine the x and y coordinates of AFSC squares (cadet boxes)
+    on a chart. The objective is to maximize the size of the cadet boxes, which are represented by the variable 'm.s'.
+    The model seeks to find an optimal placement of the AFSC squares while satisfying various constraints.
+    The specific constraints and objective function formulation depend on the configuration parameters provided in the 'b' dictionary.
+
+    The function defines decision variables for the AFSC sizes ('m.s') and the x and y coordinates of each AFSC square ('m.x' and 'm.y').
+    Depending on the configuration parameters, additional variables for the legend box and positional relationships between AFSCs may be included.
+
+    Constraints are added to ensure that the AFSC squares stay within the chart borders, avoid overlapping with the legend box (if present),
+    and meet any specified row constraints. The constraints vary based on whether the simplified model or the full model with positional
+    relationships between AFSCs is used.
+
+    The objective function aims to maximize the size of the cadet boxes ('m.s'), representing the objective of maximizing the visual prominence
+    of each AFSC on the chart.
+    """
+
+    # Initialize Model
+    m = ConcreteModel()  # Concrete model allows native numpy/python objects
+    n = b['n^sorted']  # Number of squares on edge of AFSC box (use sorted AFSCs)
+    J = np.arange(b['M'])  # Use sorted AFSCs!
+    M = len(J)
+
+    # ______________________________VARIABLE DEFINITIONS________________________________________________________
+    m.s = Var(within=NonNegativeReals)  # Size of the cadet boxes (AFSC objective value)
+    m.x = Var((j for j in J), within=NonNegativeReals)  # X coordinate of bottom left corner of AFSC j box
+    m.y = Var((j for j in J), within=NonNegativeReals)  # Y coordinate of bottom left corner of AFSC j box
+    m.q = Var((j for j in np.arange(1, M)), within=Binary)  # 1 if AFSC j is below AFSC j - 1, 0 otherwise
+
+    # ______________________________OBJECTIVE FUNCTION__________________________________________________________
+    def objective_function(m):
+        return m.s  # Objective is to maximize the size of the cadet boxes!
+    m.objective = Objective(rule=objective_function, sense=maximize)
+
+    # ____________________________________CONSTRAINTS___________________________________________________________
+    # Loop through each AFSC to add the border constraints
+    m.border_constraints = ConstraintList()  # List of constraints that enforce AFSCs to stay within the borders
+    m.border_constraints.add(expr=m.x[0] <= b['bw^l'])  # Pin the first AFSC to the left
+    for j in J:
+        m.border_constraints.add(expr=m.x[j] >= b['bw^l'])  # Left Border
+        m.border_constraints.add(expr=m.x[j] + m.s * n[j] <= b['fw'] - b['bw^r'])  # Right Border
+        m.border_constraints.add(expr=m.y[j] >= b['bw^b'])  # Bottom Border
+        m.border_constraints.add(expr=m.y[j] + m.s * n[j] <= b['fh'] - b['bw^t'])  # Top Border
+
+    # Loop through each AFSC (after the first one) to add the grid constraints
+    m.grid_constraints = ConstraintList()  # List of constraints that line up AFSCs in a nice grid
+    for j in np.arange(1, M):
+        m.grid_constraints.add(expr=m.y[j] <= m.y[j - 1] - (m.s * n[j] + b['abw^ud']) * m.q[j])
+        m.grid_constraints.add(expr=m.y[j] >= m.y[j - 1] * (1 - m.q[j]))
+        m.grid_constraints.add(expr=m.x[j] >= (m.x[j - 1] + m.s * n[j - 1] + b['abw^lr']) * (1 - m.q[j]))
+        m.grid_constraints.add(expr=m.x[j] <= b['bw^l'] * m.q[j] +
+                                    (m.x[j - 1] + m.s * n[j - 1] + b['abw^lr']) * (1 - m.q[j]))
+    return m
+
+
 def solve_cadet_board_model_direct_from_board_parameters(instance, filepath):
     """
     Solve the cadet board animation model using the provided instance parameters and save the results to a CSV file.

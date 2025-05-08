@@ -1018,11 +1018,11 @@ class BubbleChart:
                     color = self.mdl_p['unfocused_color']
                 self.b['c_circles'][j][i].set_facecolor(color)
 
-                # # Edgecolor (Don't worry about exception anymore)
-                # if 'E' in self.p['qual'][cadet, j_focus]:# and j == j_focus:
-                #     self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['exception_edge'])
-                # else:
-                #     self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['base_edge'])
+                # Edgecolor (Don't worry about exception anymore)
+                if 'E' in self.p['qual'][cadet, j_focus]:# and j == j_focus:
+                    self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['exception_edge'])
+                else:
+                    self.b['c_circles'][j][i].set_edgecolor(self.mdl_p['base_edge'])
 
                 # Show the circle
                 self.b['c_circles'][j][i].set_visible(True)

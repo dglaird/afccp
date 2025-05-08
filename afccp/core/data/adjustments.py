@@ -25,18 +25,19 @@ def gather_degree_tier_qual_matrix(cadets_df, parameters):
     # Determine if there is already a qualification matrix in the Cadets dataframe, and what "type" it is
     afsc_1, afsc_M = p["afscs"][0], p["afscs"][p["M"] - 1]
     current_qual_type = "None"  # If there is no qualification matrix, we'll have to generate it
-    if "qual_" + afsc_1 in cadets_df:
-        qual = np.array(cadets_df.loc[:, "qual_" + afsc_1: "qual_" + afsc_M]).astype(str)
-        test_qual = str(qual[0, 0])  # Variable to determine if we need to alter the qualification matrix
+    if cadets_df is not None:
+        if "qual_" + afsc_1 in cadets_df:
+            qual = np.array(cadets_df.loc[:, "qual_" + afsc_1: "qual_" + afsc_M]).astype(str)
+            test_qual = str(qual[0, 0])  # Variable to determine if we need to alter the qualification matrix
 
-        # Determine the type of qual matrix we *currently* have
-        if len(test_qual) == 1:
-            if test_qual in ["1", "0"]:
-                current_qual_type = "Binary"
+            # Determine the type of qual matrix we *currently* have
+            if len(test_qual) == 1:
+                if test_qual in ["1", "0"]:
+                    current_qual_type = "Binary"
+                else:
+                    current_qual_type = "Relaxed"
             else:
-                current_qual_type = "Relaxed"
-        else:
-            current_qual_type = "Tiers"
+                current_qual_type = "Tiers"
 
     # If the current qualification matrix matches the one we want, then we don't need to do anything
     generate_qual_matrix = False
@@ -108,6 +109,10 @@ def gather_degree_tier_qual_matrix(cadets_df, parameters):
     else:  # 'Binary'
         p['ineligible'] = (qual == 0) * 1
         p['eligible'] = qual
+
+    # Force string type!
+    p['Deg Tiers'][pd.isnull(p["Deg Tiers"])] = ''
+    p['Deg Tiers'] = p['Deg Tiers'].astype(str)
 
     # Load in Degree Tier information for each AFSC
     if p["Qual Type"] == "Tiers":

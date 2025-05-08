@@ -35,7 +35,7 @@ if afccp.core.globals.use_pptx:
 class CadetCareerProblem:
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
                  num_value_function_breakpoints=None, N=1600, M=32, P=6, S=10, generate_extra_components=False,
-                 generate_only_nrl=False, ctgan_model_name='CTGAN_2024', ctgan_pilot_sampling=False, printing=True):
+                 generate_only_nrl=False, ctgan_model_name='CTGAN_Full', ctgan_pilot_sampling=False, printing=True):
         """
         Represents the AFSC/Cadet matching problem object.
 
