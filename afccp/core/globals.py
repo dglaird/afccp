@@ -82,7 +82,8 @@ else:
 global obj_label_dict
 obj_label_dict = {"Merit": "Average Merit", "USAFA Proportion": "USAFA Proportion",
                   "Combined Quota": "Number of Cadets", "USAFA Quota": "Number of USAFA Cadets",
-                   "ROTC Quota": "Number of ROTC Cadets", "Mandatory": "Mandatory Degree Tier Proportion",
+                   "ROTC Quota": "Number of ROTC Cadets", "OTS Quota": "Number of OTS Cadets",
+                  "Mandatory": "Mandatory Degree Tier Proportion",
                    "Desired": "Desired Degree Tier Proportion", "Permitted":
                    "Permitted Degree Tier Proportion", "Male": "Proportion of Male Cadets",
                    "Minority": "Proportion of Non-Caucasian Cadets", "Utility": "Average Cadet Utility",

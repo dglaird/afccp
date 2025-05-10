@@ -97,6 +97,7 @@ def initialize_instance_functional_parameters(N):
         'lh_ratio': 0.1, 'lw_ratio': 0.1, 'dpi': 200, 'pgl_linestyle': '-', 'pgl_color': 'gray',
         'pgl_alpha': 0.5, 'surplus_linestyle': '--', 'surplus_color': 'white', 'surplus_alpha': 1,
         'usafa_pgl_color': 'blue', 'rotc_pgl_color': 'red', 'usafa_bubble': 'blue', 'rotc_bubble': 'red',
+        'ots_pgl_color': 'yellow', 'ots_bubble': 'yellow',
         'cb_edgecolor': 'black', 'save_board_default': True, 'circle_color': 'black', 'focus': 'Cadet Choice',
         'save_iteration_frames': True, 'afsc_title_size': 20, 'afsc_names_sized_box': False,
         'b_solver_name': 'couenne', 'b_pyomo_max_time': None, 'row_constraint': False, 'n^rows': 3,
@@ -212,7 +213,8 @@ def initialize_instance_functional_parameters(N):
         "Mandatory": "#311cd4", "Desired": "#085206", "Permitted": "#bda522", "Ineligible": "#f25d50",
 
         # Cadet Demographics
-        "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "minority": "#eb8436",
+        "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "ots": "green",  # TODO: change
+        "minority": "#eb8436",
         "non-minority": "#b6eb6c",
 
         # Misc. AFSC Criteria  #cdddf7
@@ -234,7 +236,7 @@ def initialize_instance_functional_parameters(N):
         "Two or more races": "#ff0026", "Unknown": "#27dbe8", "White": "#a3a3a2",
 
         # Gender/SOC written differently (need to fix this later)
-        "Male": "#6531d6", "Female": "#73d631", "USAFA": "#5ea0bf", "ROTC": "#cc9460",
+        "Male": "#6531d6", "Female": "#73d631", "USAFA": "#5ea0bf", "ROTC": "#cc9460", "OTS": "green",  # TODO: Change
 
         # Accessions group colors
         "All Cadets": "#000000", "Rated": "#ff0011", "USSF": "#0015ff", "NRL": "#000000",
@@ -581,7 +583,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
 
                 # Rated Career Fields
                 if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0", "92T1", "92T2", "92T3",
-                            "11XX_R", "11XX_U", "USSF", "USSF_U", "USSF_R"]:
+                            "11XX_R", "11XX_U", "11XX_O", "USSF", "USSF_U", "USSF_R"]:
                     qual[d][i, j] = "P1"
 
                 # Aerospace Physiologist

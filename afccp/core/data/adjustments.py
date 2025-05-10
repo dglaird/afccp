@@ -241,13 +241,19 @@ def parameter_sets_additions(parameters):
     if 'merit' in p:
         p['sum_merit'] = p['merit'].sum()  # should be close to N/2
 
-    # USAFA/ROTC cadets
-    if 'usafa' in p:
+    # USAFA/ROTC/OTS cadets
+    if 'SOCs' not in p:  # If it's just a "USAFA" column, we assume it's only USAFA/ROTC
         p['rotc'] = (p['usafa'] == 0) * 1
         p['usafa_cadets'] = np.where(p['usafa'])[0]
         p['rotc_cadets'] = np.where(p['rotc'])[0]
         p['usafa_eligible_count'] = np.array([len(np.intersect1d(p['I^E'][j], p['usafa_cadets'])) for j in p['J']])
         p['rotc_eligible_count'] = np.array([len(np.intersect1d(p['I^E'][j], p['rotc_cadets'])) for j in p['J']])
+        p['SOCs'] = ['usafa', 'rotc']
+    else:
+        for soc in p['SOCs']:
+            p[soc] = (p['soc'] == soc.upper()) * 1
+            p[f'{soc}_cadets'] = np.where(p[soc])[0]
+            p[f'{soc}_eligible_count'] = np.array([len(np.intersect1d(p['I^E'][j], p[f'{soc}_cadets'])) for j in p['J']])
 
     # Initialize empty dictionaries of matched/reserved cadets
     p["J^Fixed"] = {}
@@ -270,7 +276,6 @@ def parameter_sets_additions(parameters):
                                      afsc + "' but is not eligible for it. Adjust the qualification matrix!")
                 else:
                     p["J^Fixed"][i] = j
-
 
     # Cadet preference/rated cadet set additions
     p = more_parameter_additions(p)
@@ -385,7 +390,7 @@ def more_parameter_additions(parameters):
         p['J^USAF'] = np.array([j for j in p['J'] if j not in p['J^USSF']])
 
     # Determine eligible Rated cadets for both SOCs (cadets that are considered by the board)
-    cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
+    cadets_dict = {soc: f'{soc[0]}r_om_cadets' for soc in p['SOCs']}
     p["Rated Cadets"] = {}
     p["Rated Cadet Index Dict"] = {}
     p['Rated Choices'] = {}  # Dictionary of Rated cadet choices (only Rated AFSCs) by SOC
@@ -424,7 +429,6 @@ def more_parameter_additions(parameters):
                         p['Num Rated Choices'][soc][i] += 1
                 p['Rated Choices'][soc][i] = np.array(rated_order)
 
-
     # If we haven't already created the "cadet_utility" matrix, we do that here (only one time)
     if 'cadet_utility' not in p:
 
@@ -461,9 +465,9 @@ def more_parameter_additions(parameters):
                                                         p['ethnicity_categories']]), 2)
 
     # SOC and Gender cadets standardized like above
-    if 'usafa' in p:
-        p['I^USAFA'] = np.where(p['usafa'])[0]
-        p['I^ROTC'] = np.where(p['usafa'] == 0)[0]
+    if 'SOCs' in p:
+        for soc in p['SOCs']:
+            p[f'I^{soc.upper()}'] = np.where(p[soc])[0]
     if 'male' in p:
         p['I^Male'] = np.where(p['male'])[0]
         p['I^Female'] = np.where(p['male'] == 0)[0]
@@ -1240,7 +1244,7 @@ def parameter_sanity_check(instance):
                      " AFSCS found in the instance.")
 
     # At least one rated preference for rated eligible
-    for soc in ['usafa', 'rotc']:
+    for soc in p['SOCs']:
         if soc in p['Rated Cadets']:
             for i in p['Rated Cadets'][soc]:
                 if len(p['Rated Choices'][soc][i]) == 0:
@@ -1251,7 +1255,7 @@ def parameter_sanity_check(instance):
                                                             "You need to remove their row from the csv.")
 
     # Make sure all cadets eligible for at least one rated AFSC are in their SOC's rated OM list
-    for soc in ['usafa', 'rotc']:
+    for soc in p['SOCs']:
         if 'J^Rated' in p:  # Make sure we have rated AFSCs
 
             # Loop through each cadet from this SOC

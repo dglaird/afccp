@@ -225,7 +225,7 @@ def generate_rated_data(parameters):
               p['afscs_acc_grp']['Rated']] for _ in range(len(p['Rated Cadets']['rotc']))])
 
     # Loop through each SOC to generate OM data (based on AFSC preferences) if we don't already have it
-    dataset_dict = {'rotc': 'rr_om_matrix', 'usafa': 'ur_om_matrix'}
+    dataset_dict = {soc: f'{soc[0]}r_om_matrix' for soc in p['SOCs']}
     for soc in dataset_dict:
         dataset = dataset_dict[soc]  # SOC specific dataset name for Rated OM data
 
@@ -254,6 +254,23 @@ def generate_rated_data(parameters):
     return p
 
 
+def determine_soc_rated_afscs(soc, all_rated_afscs):
+
+    # Rated AFSCs for this SOC
+    other_letters = [l for l in ['_U', '_R', '_O'] if l != f'_{soc[0].upper()}']
+    rated_afscs = []
+    for afsc in all_rated_afscs:
+        include = True
+        for l in other_letters:
+            if l in afsc:
+                include = False
+                break
+        if include:
+            rated_afscs.append(afsc)
+
+    return rated_afscs
+
+
 def construct_rated_preferences_from_om_by_soc(parameters):
     """
     This method takes the two OM Rated matrices (from both SOCs) and then zippers them together to
@@ -273,19 +290,16 @@ def construct_rated_preferences_from_om_by_soc(parameters):
 
     # Need to construct a "combined Rated OM" matrix with ALL cadets which also contains 0 if the cadet is ineligible
     all_rated_afscs = p['afscs_acc_grp']["Rated"]
-    dataset_dict = {'rotc': 'rr_om_matrix', 'usafa': 'ur_om_matrix'}
-    cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
+    dataset_dict = {soc: f'{soc[0]}r_om_matrix' for soc in p['SOCs']}
+    cadets_dict = {soc: f'{soc[0]}r_om_cadets' for soc in p['SOCs']}
     combined_rated_om = {afsc: np.zeros(p['N']) for afsc in all_rated_afscs}
 
-    # Loop through both sources of commissioning
+    # Loop through all sources of commissioning
     rated_cadets, rated_cadet_index_dict = {}, {}
-    for soc in ['rotc', 'usafa']:
+    for soc in p['SOCs']:
 
         # Rated AFSCs for this SOC
-        if soc == 'rotc':
-            rated_afscs = [afsc for afsc in all_rated_afscs if '_U' not in afsc]
-        else:
-            rated_afscs = [afsc for afsc in all_rated_afscs if '_R' not in afsc]
+        rated_afscs = determine_soc_rated_afscs(soc, all_rated_afscs)
 
         # Rated cadets for this SOC
         rated_cadets[soc] = p[cadets_dict[soc]]
@@ -593,9 +607,12 @@ def fill_remaining_preferences(parameters):
     # Loop through all cadets
     for i in p['I']:
 
-        pref_num = len(p['cadet_preferences'][i]) + 1
+        # We don't fill in remaining preferences for OTS!
+        if i in p['I^OTS']:
+            continue  # They are ineligible for anything they didn't select
 
         # Loop through all "indifferent" AFSCs that they are eligible for
+        pref_num = len(p['cadet_preferences'][i]) + 1
         for j in p['J']:
 
             # The AFSC is not in the cadet's preferences and it's not in the bottom choices

@@ -1072,7 +1072,7 @@ def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
 
     try:
         # "Number of Cadets" objectives handled separately
-        if vp['objectives'][k] in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+        if vp['objectives'][k] in ['Combined Quota', 'USAFA Quota', 'ROTC Quota', 'OTS Quota']:
             m.measure_constraints.add(expr=measure >= vp["objective_min"][j, k])
             m.measure_constraints.add(expr=measure <= vp["objective_max"][j, k])
 
@@ -1327,7 +1327,7 @@ def common_optimization_handling(m, p, vp, mdl_p):
 
 
         # Loop through each SOC and rated AFSC
-        for soc in ['usafa', 'rotc']:
+        for soc in p['SOCs']:
             for j in rated_afscs_with_constraints:
 
                 # Loop through each cadet on this rated AFSC's alternate list for this SOC

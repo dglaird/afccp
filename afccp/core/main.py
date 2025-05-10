@@ -1897,6 +1897,8 @@ class CadetCareerProblem:
                     self.solution['cadets_solved_for'] = 'USAFA Rated'
                 elif "ROTC" in self.solution_name:
                     self.solution['cadets_solved_for'] = 'ROTC Rated'
+                elif "OTS" in self.solution_name:
+                    self.solution['cadets_solved_for'] = 'OTS Rated'
 
             # Determine name of this BubbleChart sequence
             self.solution['iterations']['sequence'] = \

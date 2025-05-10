@@ -4,6 +4,7 @@ import pandas as pd
 import string
 import copy
 import datetime
+import os
 
 # afccp modules
 import afccp.core.globals
@@ -257,6 +258,7 @@ def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, ge
 
     return p  # Return updated parameters
 
+
 def generate_random_value_parameters(parameters, num_breakpoints=24):
     """
     Generates value parameters for a given problem instance from scratch
@@ -392,6 +394,7 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
         vp['K^A'][j] = np.where(vp['objective_weight'][j] != 0)[0]
 
     return vp
+
 
 def generate_extra_components(parameters):
     """
@@ -558,6 +561,7 @@ def generate_extra_components(parameters):
 
     # Return updated parameters
     return p
+
 
 # SDV functions (we may not have the SDV library!)
 if afccp.core.globals.use_sdv:
@@ -1141,4 +1145,370 @@ if afccp.core.globals.use_sdv:
 
         # Return parameters
         return p
+
+
+    def re_calculate_ots_om_and_afsc_rankings(data: pd.DataFrame):
+
+        # Re-scale OM!
+        N = len(data)
+        percentiles = np.array(data['Merit'])
+        sorted_indices = np.argsort(percentiles)[::-1]  # Sort these percentiles (descending)
+        new_percentiles = (np.arange(N)) / (N - 1)  # New percentiles we want to replace these with
+        magic_indices = np.argsort(sorted_indices)  # Indices that let us put the new percentiles in right place
+        new_percentiles = new_percentiles[::-1][magic_indices]  # Put the new percentiles back in the right place
+        data['Merit'] = new_percentiles  # Load back into data
+
+        # Re-bake in OM to AFSC rankings
+        for col in [col for col in data.columns if '_AFSC' in col]:
+            data[col] = 0.5 * data[col] + 0.5 * data['Merit']
+
+        # Re-bake in Cadet Utilty to AFSC rankings
+        for col in [col for col in data.columns if '_AFSC' in col]:
+            afsc = col.split('_')[0]
+            data[col] = 0.75 * data[col] + 0.25 * data[f'{afsc}_Cadet']
+
+        return data
+
+
+    def align_ots_preferences_and_degrees_somewhat(data: pd.DataFrame, afscs_acc_grp):
+
+        # Clean up degree columns (remove the leading "c" I put there if it's there)
+        for i in data.index:
+            if data.loc[i, 'CIP1'][0] == 'c':
+                data.loc[i, 'CIP1'] = str(int(data.loc[i, 'CIP1'][1:].replace('.0', '')))
+            if data.loc[i, 'CIP2'][0] == 'c':
+                data.loc[i, 'CIP2'] = str(int(data.loc[i, 'CIP2'][1:].replace('.0', '')))
+
+        # OTS candidates won't be asked these questions
+        data = data[[col for col in data.columns if col not in ['Last Choice', '2nd-Last Choice', '3rd-Last Choice']]]
+
+        # Convert info to numpy arrays
+        cadet_cols = np.array([col for col in data.columns if '_Cadet' in col])
+        util_original = np.array(data[cadet_cols])
+
+        # Loop through each cadet to tweak their preferences
+        for i in data.index:
+
+            # Manually fix 62EXE preferencing from eligible cadets
+            if '1410' in data.loc[i, 'CIP1'] or '1447' in data.loc[i, 'CIP1']:
+                if np.random.rand() > 0.6:
+                    data.loc[i, '62EXE_Cadet'] = np.around(max(data.loc[i, '62EXE_Cadet'],
+                                                               min(1, np.random.normal(0.8, 0.18))), 2)
+
+            # Fix rated/USSF volunteer situation
+            for acc_grp in ['Rated', 'USSF']:
+                if data.loc[i, f'{acc_grp} Vol']:
+                    if np.max(util_original[i, afscs_acc_grp[acc_grp]]) < 0.6:
+                        util_original[i, afscs_acc_grp[acc_grp]] = 0
+                        data.loc[i, f'{acc_grp} Vol'] = False
+                else:  # Not a volunteer
+
+                    # We have a higher preference for these kinds of AFSCs
+                    if np.max(util_original[i, afscs_acc_grp[acc_grp]]) >= 0.6:
+                        data.loc[i, f'{acc_grp} Vol'] = True  # Make them a volunteer now
+
+        # Save utility information back to data
+        data[cadet_cols] = util_original
+        return data
+
+
+    def construct_parameter_dictionary_and_augment_data(data: pd.DataFrame, afscs: np.ndarray, afscs_df: pd.DataFrame,
+                                                        afscs_acc_grp: dict, nrl_indices: np.ndarray):
+
+        # Construct parameter dictionary for OTS cadets
+        N = len(data)
+        p = {'cip1': np.array(data['CIP1']), 'cip2': np.array(data['CIP2']), 'afscs': afscs, 'M': len(afscs),
+             'Qual Type': 'Consistent', 'N': N, 'P': len(afscs), 'I': np.arange(len(data)), 'J': np.arange(len(afscs)),
+             'merit': np.array(data['Merit']), 'Deg Tiers': np.array(afscs_df.loc[3:, 'Deg Tier 1': 'Deg Tier 4'])}
+
+        p['Deg Tiers'][pd.isnull(p["Deg Tiers"])] = ''  # TODO
+        p = afccp.core.data.adjustments.gather_degree_tier_qual_matrix(cadets_df=None, parameters=p)
+
+        # Get the qual matrix to know what people are eligible for
+        ineligible = (np.core.defchararray.find(p['qual'], "I") != -1) * 1
+        eligible = (ineligible == 0) * 1
+        I_E = [np.where(eligible[:, j])[0] for j in p['J']]  # set of cadets that are eligible for AFSC j
+
+        # Modify AFSC utilities based on eligibility
+        a_pref_cols = [f'{afsc}_AFSC' for afsc in afscs]
+        p['afsc_utility'] = np.around(np.array(data[a_pref_cols]), 2)
+        for acc_grp in ['Rated', 'USSF']:
+            for j in afscs_acc_grp[acc_grp]:
+                volunteer_col = np.array(data['Rated Vol'])
+                volunteers = np.where(volunteer_col)[0]
+                not_volunteers = np.where(volunteer_col == False)[0]
+                ranked = np.where(p['afsc_utility'][:, j] > 0)[0]
+                unranked = np.where(p['afsc_utility'][:, j] == 0)[0]
+
+                # Fill in utility values with OM for rated folks who don't have an AFSC score
+                volunteer_unranked = np.intersect1d(volunteers, unranked)
+                p['afsc_utility'][volunteer_unranked, j] = p['merit'][volunteer_unranked]
+
+                # If the cadet didn't actually volunteer, they should have utility of 0
+                non_volunteer_ranked = np.intersect1d(not_volunteers, ranked)
+                p['afsc_utility'][non_volunteer_ranked, j] = 0
+
+        # Remove cadets from this AFSC's preferences if the cadet is not eligible
+        for j in nrl_indices:
+            # Get appropriate sets of cadets
+            eligible_cadets = I_E[j]
+            ineligible_cadets = np.where(ineligible[:, j])[0]
+            ranked_cadets = np.where(p['afsc_utility'][:, j] > 0)[0]
+            unranked_cadets = np.where(p['afsc_utility'][:, j] == 0)[0]
+
+            # Fill in utility values with OM for eligible folks who don't have an AFSC score
+            eligible_unranked = np.intersect1d(eligible_cadets, unranked_cadets)
+            p['afsc_utility'][eligible_unranked, j] = p['merit'][eligible_unranked]
+
+            # If the cadet isn't actually eligible, they should have utility of 0
+            ineligible_ranked = np.intersect1d(ineligible_cadets, ranked_cadets)
+            p['afsc_utility'][ineligible_ranked, j] = 0
+
+        # Put new calculated utilities back into dataframe
+        data[a_pref_cols] = p['afsc_utility']
+        return data, p
+
+
+    def construct_full_afsc_preferences_data(p, a_pref_df, afscs, nrl_indices):
+
+        # Load in data and extra non-rated AFSC preferences/rankings
+        nrl_rankings_current = np.array(a_pref_df[afscs[nrl_indices]])
+
+        # Create full utility matrix for NRL AFSCs
+        shape = (nrl_rankings_current.shape[0] + len(p['afsc_utility']), nrl_rankings_current.shape[1])
+        nrl_afsc_utility_full = np.zeros(shape)
+
+        # Loop through each AFSC to calculate utility from preferences (Current 2026 info)
+        afsc_utility_curr = np.zeros(nrl_rankings_current.shape)
+        for j, afsc in enumerate(afscs[nrl_indices]):
+
+            # Indices of eligible folks for this AFSC
+            indices = np.where(nrl_rankings_current[:, j])[0]
+            num_nonzero = len(indices)  # How many are eligible?
+            sorted_indices = np.argsort(nrl_rankings_current[:, j])  # Sort them!
+
+            # Turn the 1, 2, 3, ... 10 list to 1, 0.9, 0.8, ..., 0.1
+            utils = 1 - (np.arange(1, num_nonzero + 1) / num_nonzero) + 1 / num_nonzero
+
+            # Place the utilities into the matrix in the correct spots
+            afsc_utility_curr[sorted_indices[-num_nonzero:], j] = utils
+
+            # Combine OTS utilities into full utility matrix for NRL AFSCs
+            if afsc in afscs:
+                j_o = np.where(afscs == afsc)[0][0]
+                nrl_afsc_utility_full[:len(afsc_utility_curr), j] = afsc_utility_curr[:, j]
+                nrl_afsc_utility_full[len(afsc_utility_curr):, j] = p['afsc_utility'][:, j_o]
+            else:
+                print(afsc, 'not in AFSCs')
+
+        # Convert utilities to preferences combining USAFA, ROTC, OTS cadets for NRL
+        nrl_a_pref_matrix_full = np.zeros(shape).astype(int)
+        nrl_afsc_preferences = {}
+        full_N = len(nrl_a_pref_matrix_full)
+        for j, afsc in enumerate(afscs[nrl_indices]):
+            # Sort the utilities to get the preference list
+            utilities = nrl_afsc_utility_full[:, j]
+            ineligible_indices = np.where(utilities == 0)[0]
+            sorted_indices = np.argsort(utilities)[::-1][:full_N - len(ineligible_indices)]
+            nrl_afsc_preferences[j] = sorted_indices
+
+            # Since 'afsc_preferences' is an array of AFSC indices, we can do this
+            nrl_a_pref_matrix_full[nrl_afsc_preferences[j], j] = np.arange(1, len(nrl_afsc_preferences[j]) + 1)
+
+        # Get list of columns used in the cadet-AFSC matrices
+        standard_afsc_df_columns = np.array(a_pref_df.columns)
+        i = np.where(standard_afsc_df_columns == '11XX_U')[0][0]  # Add OTS pilot AFSC
+        standard_afsc_df_columns = np.insert(standard_afsc_df_columns, i + 1, '11XX_O')
+
+        full_a_pref_df = pd.DataFrame({'Cadet': np.arange(len(nrl_a_pref_matrix_full))})
+        for col in standard_afsc_df_columns[1:]:
+            if col in afscs[nrl_indices]:
+                j = np.where(afscs[nrl_indices] == col)[0][0]
+                full_a_pref_df[col] = nrl_a_pref_matrix_full[:, j]
+            elif 'USSF' in col:
+                full_a_pref_df.loc[:len(a_pref_df), col] = a_pref_df[col]
+            else:
+                full_a_pref_df[col] = 1
+        full_a_pref_df = full_a_pref_df.fillna(0).astype(int)
+        return full_a_pref_df
+
+
+    def construct_full_cadets_data(p: dict, cadets_df: pd.DataFrame, data: pd.DataFrame, afscs: np.ndarray):
+
+        # Get new OTS cadet indices
+        N = len(data)
+        ots_cadets = np.arange(len(cadets_df), len(cadets_df) + N)
+        cadet_cols = np.array([col for col in data.columns if '_Cadet' in col])
+
+        # Initialize cadet preference information
+        p['c_utilities'] = np.zeros((p['N'], 10))
+        p['c_preferences'] = np.array([[' ' * 6 for _ in range(p['M'])] for _ in range(p['N'])])
+        p['cadet_preferences'] = {}
+        p['c_pref_matrix'] = np.zeros((p['N'], p['M'])).astype(int)
+        p['utility'] = np.zeros((p['N'], p['M']))
+        util_original = np.around(np.array(data[cadet_cols]), 2)
+
+        # Loop through each cadet to fix the preference information
+        for i in p['I']:
+            # Save cadet preference information
+            ordered_list = np.argsort(util_original[i])[::-1]
+            num_pref = int(np.random.triangular(3, 9, 18))
+            p['c_utilities'][i, :min(10, num_pref)] = util_original[i, ordered_list[:min(10, num_pref)]]
+            p['cadet_preferences'][i] = ordered_list[:num_pref]
+            p['c_preferences'][i, :num_pref] = afscs[p['cadet_preferences'][i]]
+            p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
+            p['utility'][i, p['cadet_preferences'][i][:min(10, num_pref)]] = p['c_utilities'][i, :min(10, num_pref)]
+        p['selected'] = (p['c_pref_matrix'] > 0) * 1  # Create "selected" array
+
+        # Create the OTS cadet dataframe
+        ots_cadets_df = pd.DataFrame({'Cadet': ots_cadets, 'SOC': 'OTS', 'USAFA': 0,
+                                      'CIP1': data['CIP1'], 'CIP2': data['CIP2'],
+                                      'Merit': data['Merit'], 'Real Merit': data['Merit']})
+
+        # Add in preferences and utilities
+        for i in np.arange(10):
+            ots_cadets_df[f'Util_{i + 1}'] = p['c_utilities'][:, i]
+        for i in np.arange(20):
+            ots_cadets_df[f'Pref_{i + 1}'] = p['c_preferences'][:, i]
+        ots_cadets_df = ots_cadets_df.replace('11XX', '11XX_O')  # Add OTS pilot
+
+        # Add in qual matrix
+        for j, afsc in enumerate(afscs):
+            if afsc == 'USSF':
+                continue
+            if afsc == '11XX':
+                afsc = '11XX_O'
+            ots_cadets_df[f'qual_{afsc}'] = p['qual'][:, j]
+
+        # Add OTS cadets information to current cadets info
+        new_cadets_df = pd.concat((cadets_df, ots_cadets_df))
+
+        # Rearrange columns
+        col = new_cadets_df.pop('CIP2')
+        new_cadets_df.insert(5, 'CIP2', col)
+        col = new_cadets_df.pop('CIP1')
+        new_cadets_df.insert(5, 'CIP1', col)
+        idx = np.where(new_cadets_df.columns == 'qual_11XX_U')[0][0]
+        col = new_cadets_df.pop('qual_11XX_O')
+        new_cadets_df.insert(int(idx + 1), 'qual_11XX_O', col)
+
+        return new_cadets_df
+
+
+    def compile_new_dataframes(new_dfs, p, cadets_df, afscs, rated, data, import_name):
+
+        N = len(data)
+        ots_cadets = np.arange(len(cadets_df), len(cadets_df) + N)
+
+        # Create dummy buckets for OTS (I don't care about this stuff rn)
+        p['afsc_buckets'] = np.ones(p['c_pref_matrix'].shape)
+
+        # Add additional cadets data for OTS
+        df_arr_dict = {"Cadets Preferences": "c_pref_matrix", "Cadets Utility": "utility",
+                       "Cadets Selected": "selected", "AFSCs Buckets": 'afsc_buckets',
+                       'ROTC Rated OM': '', 'USAFA Rated OM': ''}
+        for df_name, arr_name in df_arr_dict.items():
+
+            # Import current dataframe
+            filepath = f'instances/{import_name}/4. Model Input/{import_name} {df_name}.csv'
+            df_i = afccp.core.globals.import_csv_data(filepath)
+
+            # USAFA/ROTC Rated data get pulled over directly
+            if 'USAFA' in df_name or 'ROTC' in df_name:
+                new_dfs[df_name] = df_i
+                continue
+
+            # Initialize OTS' dataframe
+            o_df = pd.DataFrame({'Cadet': ots_cadets})
+
+            # Add in array information
+            for j, afsc in enumerate(afscs):
+                if afsc == 'USSF':
+                    continue
+                if afsc == '11XX':
+                    afsc = '11XX_O'
+                o_df[afsc] = p[arr_name][:, j]
+
+            # Add OTS cadets information to current cadets info
+            new_df = pd.concat((df_i, o_df))
+            col = new_df.pop('11XX_O')
+            new_df.insert(5, '11XX_O', col)
+            new_dfs[df_name] = new_df.fillna(0)
+
+        # Create OTS Rated OM dataframe
+        rated_cadets = np.where(p['afsc_utility'][:, rated[2]])[0]
+        om_arr = p['afsc_utility'][rated_cadets][:, rated]
+        rated_om_df = pd.DataFrame({'Cadet': rated_cadets + len(cadets_df)})
+        for idx, afsc in enumerate(afscs[rated]):
+            if afsc == '11XX':
+                afsc = '11XX_O'
+            rated_om_df[afsc] = om_arr[:, idx]
+        new_dfs['OTS Rated OM'] = rated_om_df
+        return new_dfs
+
+
+    def augment_2026_data_with_ots(N: int=3000, import_name: str = '2026_0', export_name: str = '2026O'):
+
+        # Load in the model
+        print('Loading in model and sampling data...')
+        filepath = afccp.core.globals.paths["support"] + 'CTGAN_Full.pkl'
+        model = CTGANSynthesizer.load(filepath)
+        data = model.sample(N)
+
+        # These are all OTS candidates now!
+        data['SOC'] = 'OTS'
+
+        # Determine AFSCs by accessions group
+        cadet_cols = np.array([col for col in data.columns if '_Cadet' in col])
+        rated = np.array([np.where(cadet_cols == f'{afsc}_Cadet')[0][0] for afsc in ['11XX', '12XX', '13B', '18X']])
+        afscs_acc_grp = {'Rated': rated, 'USSF': np.array([0])}
+
+        # Re-calculate OM/AFSC Rankings for OTS
+        print('Modifying data...')
+        data = re_calculate_ots_om_and_afsc_rankings(data)
+
+        # OTS isn't going to USSF
+        data['USSF Vol'], data['USSF_Cadet'], data['USSF_AFSC'] = False, 0, 0
+        data = align_ots_preferences_and_degrees_somewhat(data, afscs_acc_grp)
+
+        # Import 'AFSCs' data
+        filepath = f'instances/{import_name}/4. Model Input/{import_name} AFSCs.csv'
+        afscs_df = afccp.core.globals.import_csv_data(filepath)
+        afscs = np.array([col.split('_')[0] for col in cadet_cols])
+
+        # Non-rated AFSC indices
+        nrl_indices = np.array(
+            [np.where(afscs == afsc)[0][0] for afsc in afscs if afsc not in ['USSF', '11XX', '12XX', '13B', '18X']])
+
+        # Construct the parameter dictionary and adjust AFSC utilities
+        data, p = construct_parameter_dictionary_and_augment_data(
+            data, afscs, afscs_df, afscs_acc_grp, nrl_indices=nrl_indices)
+
+        # Import AFSCs Preferences data
+        filepath = f'instances/{import_name}/4. Model Input/{import_name} AFSCs Preferences.csv'
+        a_pref_df = afccp.core.globals.import_csv_data(filepath)
+
+        # Construct the full AFSC preference data
+        full_a_pref_df = construct_full_afsc_preferences_data(p, a_pref_df, afscs, nrl_indices)
+
+        # Import 'Cadets' dataframe
+        filepath = f'instances/{import_name}/4. Model Input/{import_name} Cadets.csv'
+        cadets_df = afccp.core.globals.import_csv_data(filepath)
+
+        # Construct the cadets data
+        full_cadets_df = construct_full_cadets_data(p, cadets_df, data, afscs)
+
+        # Dictionary of dataframes to export with new OTS 2026 instance
+        print('Compiling current 2026 data...')
+        new_dfs = {'Cadets': full_cadets_df, 'AFSCs Preferences': full_a_pref_df, 'AFSCs': afscs_df, 'Raw Data': data}
+        new_dfs = compile_new_dataframes(new_dfs, p, cadets_df, afscs, rated, data, import_name)
+
+        # Export new dataframes for new instance
+        print('Export new data instance...')
+        folder_path = f'instances/{export_name}/4. Model Input/'
+        os.makedirs(folder_path, exist_ok=True)
+        for df_name, df in new_dfs.items():
+            print(f'Data: "{df_name}", Shape: {np.shape(df)}')
+            filepath = f'{folder_path}{export_name} {df_name}.csv'
+            df.to_csv(filepath, index=False)
 

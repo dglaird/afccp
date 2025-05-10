@@ -316,6 +316,7 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     # Objective to parameters lookup dictionary (if the parameter is in "p", we include the objective)
     objective_lookups = {'Norm Score': 'a_pref_matrix', 'Merit': 'merit', 'USAFA Proportion': 'usafa',
                          'Combined Quota': 'quota_d', 'USAFA Quota': 'usafa_quota', 'ROTC Quota': 'rotc_quota',
+                         'OTS Quota': 'ots_quota',
                          'Mandatory': 'mandatory', 'Desired': 'desired', 'Permitted': 'permitted',
                          'Utility': 'utility', 'Male': 'male', 'Minority': 'minority'}
     for t in ["1", "2", "3", "4"]:  # Add in AFOCD Degree tiers
@@ -427,8 +428,12 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
                                                                     str(int(p['quota_max'][j]))
 
                 elif objective == 'ROTC Quota':
-                    vp['objective_target'][j, k] = p['pgl'][j] - p['usafa_quota'][j]
+                    vp['objective_target'][j, k] = p['rotc_quota'][j]
                     vp['objective_value_min'][j, k] = str(int(p['rotc_quota'][j])) + ", " + \
+                                                                    str(int(p['quota_max'][j]))
+                elif objective == 'OTS Quota':
+                    vp['objective_target'][j, k] = p['ots_quota'][j]
+                    vp['objective_value_min'][j, k] = str(int(p['ots_quota'][j])) + ", " + \
                                                                     str(int(p['quota_max'][j]))
 
                 elif objective == 'Male':
@@ -504,13 +509,13 @@ def update_value_and_weight_functions(instance, num_breakpoints=None):
                 actual = np.mean(p['merit'][p['I^E'][j]])
             if objective in ['USAFA Proportion', 'Male', 'Minority']:
                 actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
-            if objective in ['Combined Quota', 'ROTC Quota', 'USAFA Quota']:
+            if objective in ['Combined Quota', 'ROTC Quota', 'USAFA Quota', 'OTS Quota']:
 
                 # Dictionaries for getting the right value for the specific quota objective
                 min_dict = {"Combined Quota": 'quota_min', 'ROTC Quota': 'rotc_quota',
-                            'USAFA Quota': 'usafa_quota'}
+                            'USAFA Quota': 'usafa_quota', 'OTS Quota': 'ots_quota'}
                 target_dict = {"Combined Quota": 'quota_d', 'ROTC Quota': 'rotc_quota',
-                               'USAFA Quota': 'usafa_quota'}
+                               'USAFA Quota': 'usafa_quota', 'OTS Quota': 'ots_quota'}
                 minimum, maximum = int(p[min_dict[objective]][j]), int(p['quota_max'][j])
 
                 # Update minimum values for combined quota objective

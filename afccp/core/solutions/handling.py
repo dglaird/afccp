@@ -122,7 +122,7 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         solution['num_successful_alternates'] = 0  # Number of cadets on alternate lists that don't form blocking pairs
 
         # Loop through each SOC and rated AFSC
-        for soc in ['usafa', 'rotc']:
+        for soc in p['SOCs']:
             for j in p['J^Rated']:
 
                 # Loop through each cadet on this SOC's rated AFSC's list
@@ -580,8 +580,8 @@ def calculate_additional_useful_metrics(solution, p, vp):
         solution['afsc_utility_overall'] = round(np.mean(solution['afsc_utility_achieved']), 4)
 
         # Calculate cadet utility based on SOC
-        solution['usafa_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p['usafa_cadets']]), 4)
-        solution['rotc_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p['rotc_cadets']]), 4)
+        for soc in p['SOCs']:
+            solution[f'{soc}_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p[f'{soc}_cadets']]), 4)
 
     # Cadet Choice Counts (For exporting solution file to excel)
     solution['cadet_choice_counts'] = {}
@@ -760,7 +760,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
         pass
 
     # Initialize dictionaries for cadet choice based on demographics
-    dd = {"usafa": ["USAFA", "ROTC"], "male": ["Male", "Female"]}  # Demographic Dictionary
+    dd = {"usafa": [soc.upper() for soc in p['SOCs']], "male": ["Male", "Female"]}  # Demographic Dictionary
     demographic_dict = {cat: [dd[cat][0], dd[cat][1]] for cat in dd if cat in p}  # Demographic Dictionary (For this instance)
     solution["choice_counts"] = {"TOTAL": {}}  # Everyone
     for cat in demographic_dict:
@@ -779,7 +779,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
             # Calculate actual top 3 count
             arr = np.array([i for i in solution['I^' + cat] if solution['j_array'][i] in p['cadet_preferences'][i][:3]])
             solution['top_3_' + cat.lower() + '_count'] = round(len(arr) / len(solution['I^' + cat]), 4)
-    for cat in ['USAFA', 'ROTC']:
+    for cat in dd['usafa']:
         arr = np.array([i for i in p['I^' + cat] if solution['j_array'][i] in p['cadet_preferences'][i][:3]])
         solution['top_3_' + cat.lower() + '_count'] = round(len(arr) / len(p['I^' + cat]), 4)
 
@@ -965,9 +965,11 @@ def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
     elif objective == 'Combined Quota':
         return count
     elif objective == 'USAFA Quota':
-        return len(np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets))
+        return len(np.intersect1d(p['usafa_cadets'], cadets))
     elif objective == 'ROTC Quota':
-        return count - len(np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets))
+        return len(np.intersect1d(p['rotc_cadets'], cadets))
+    elif objective == 'OTS Quota':
+        return len(np.intersect1d(p['ots_cadets'], cadets))
 
     # Maximize cadet utility
     elif objective == 'Utility':
@@ -1026,9 +1028,11 @@ def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True)
     elif objective == "Combined Quota":
         return count, None # Measure, Numerator
     elif objective == "USAFA Quota":
-        return np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j]), None # Measure, Numerator
+        return np.sum(x[i, j] for i in np.intersect1d(p['usafa_cadets'], p['I^E'][j])), None # Measure, Numerator
     elif objective == "ROTC Quota":
-        return count - np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j]), None # Measure, Numerator
+        return np.sum(x[i, j] for i in np.intersect1d(p['rotc_cadets'], p['I^E'][j])), None  # Measure, Numerator
+    elif objective == "OTS Quota":
+        return np.sum(x[i, j] for i in np.intersect1d(p['ots_cadets'], p['I^E'][j])), None  # Measure, Numerator
 
     # Maximize cadet utility
     elif objective == "Utility":
@@ -1287,16 +1291,17 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
     # Shorthand
     p, vp, solutions = instance.parameters, instance.value_parameters, instance.solutions
     mdl_p = instance.mdl_p
+    upper_socs = [soc.upper() for soc in p['SOCs']]
 
     # Make sure we have the solutions from both SOCs with matches and reserves
-    for soc in ['USAFA', 'ROTC']:
+    for soc in upper_socs:
         for kind in ['Reserves', 'Matches']:
             solution_name = "Rated " + soc.upper() + " HR (" + kind + ")"
             if solution_name not in solutions:
                 return p  # We don't have the required solutions!
 
     # Matched cadets get fixed in the solution!
-    for soc in ['USAFA', 'ROTC']:
+    for soc in upper_socs:
         solution = solutions["Rated " + soc.upper() + " HR (Matches)"]
         matched_cadets = np.where(solution['j_array'] != p['M'])[0]
         for i in matched_cadets:
@@ -1304,7 +1309,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
 
     # Reserved cadets AFSC selection is constrained to be AT LEAST their reserved Rated slot
     p['J^Reserved'] = {}
-    for soc in ['USAFA', 'ROTC']:
+    for soc in upper_socs:
         solution = solutions["Rated " + soc.upper() + " HR (Reserves)"]
         reserved_cadets = np.where(solution['j_array'] != p['M'])[0]
         for i in reserved_cadets:
@@ -1313,7 +1318,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
             p['J^Reserved'][i] = p['cadet_preferences'][i][:choice + 1]
 
     # Calculate additional rated algorithm result information for both SOCs
-    for soc in ['usafa', 'rotc']:
+    for soc in p['SOCs']:
 
         # Do we want to potentially allow ROTC to fill USAFA pilot slots?
         if mdl_p['usafa_soc_pilot_cross_in'] and soc == 'rotc':
@@ -1344,7 +1349,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
 
         # Matched/Reserved Lists
         print_str = "Rated SOC Algorithm Results:\n"
-        for soc in ['USAFA', 'ROTC']:
+        for soc in upper_socs:
             for kind in ["Fixed", "Reserved"]:
                 count = str(len([i for i in p[soc.lower() + "_cadets"] if i in p['J^' + kind]]))
                 print_str += soc + ' ' + kind + ' Cadets: ' + count + ', '
@@ -1353,7 +1358,11 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
         # Alternate Lists
         count_u = str(int(sum([len(p['I^Alternate [usafa]'][j]) for j in p['J^Rated']])))
         count_r = str(int(sum([len(p['I^Alternate [rotc]'][j]) for j in p['J^Rated']])))
-        print("USAFA Rated Alternates: " + count_u + ", ROTC Rated Alternates: " + count_r)
+        print_str = "USAFA Rated Alternates: " + count_u + ", ROTC Rated Alternates: " + count_r
+        if 'ots' in p['SOCs']:
+            count_o = str(int(sum([len(p['I^Alternate [ots]'][j]) for j in p['J^Rated']])))
+            print_str += ", OTS Rated Alternates: " + count_o
+        print(print_str)
 
     return p  # Return the parameters!
 

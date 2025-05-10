@@ -6,6 +6,7 @@ import copy
 # afccp modules
 import afccp.core.globals
 import afccp.core.solutions.handling
+from afccp.core.data.preferences import determine_soc_rated_afscs
 
 # Matching algorithms
 def classic_hr(instance, capacities=None, printing=True):
@@ -319,10 +320,8 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     p, mdl_p = instance.parameters, instance.mdl_p
 
     # Slight change to Rated AFSCs (Remove SOC specific slots)
-    if soc == 'usafa':
-        rated_J = np.array([j for j in p['J^Rated'] if '_R' not in p['afscs'][j]])
-    else:
-        rated_J = np.array([j for j in p['J^Rated'] if '_U' not in p['afscs'][j]])
+    rated_afscs = determine_soc_rated_afscs(soc, all_rated_afscs=p['afscs_acc_grp']["Rated"])
+    rated_J = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in rated_afscs])
 
     # Algorithm initialization
     total_slots = {j: p[soc + "_quota"][j] for j in rated_J}
