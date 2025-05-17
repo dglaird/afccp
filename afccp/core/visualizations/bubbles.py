@@ -16,7 +16,7 @@ mpl.rc('font', family='Times New Roman')
 # afccp modules
 import afccp.core.globals
 import afccp.core.solutions.handling
-
+from afccp.core.data.preferences import determine_soc_rated_afscs
 # Import pyomo models if library is installed
 if afccp.core.globals.use_pyomo:
     import afccp.core.solutions.optimization
@@ -105,19 +105,18 @@ class BubbleChart:
         if self.b['cadets_solved_for'] is None:
             self.b['cadets_solved_for'] = self.solution['cadets_solved_for']
 
-        # Cadets in the "denominator" basically
-        if self.b['cadets_solved_for'] == 'ROTC Rated':
-            self.b['cadets'] = self.p['Rated Cadets']['rotc']
-            self.b['max_afsc'] = self.p['rotc_quota']
-            self.b['min_afsc'] = self.p['rotc_quota']
-            self.b['afscs'] = np.array([afsc for afsc in self.b['afscs'] if "_U" not in afsc])
-            self.soc = "rotc"
-        elif self.b['cadets_solved_for'] == 'USAFA Rated':
-            self.b['cadets'] = self.p['Rated Cadets']['usafa']
-            self.b['max_afsc'] = self.p['usafa_quota']
-            self.b['min_afsc'] = self.p['usafa_quota']
-            self.b['afscs'] = np.array([afsc for afsc in self.b['afscs'] if "_R" not in afsc])
-            self.soc = 'usafa'
+        # Rated cadets only
+        if 'Rated' in self.b['cadets_solved_for']:
+            for soc in p['SOCs']:
+                if soc.upper() in self.b['cadets_solved_for']:
+                    self.b['cadets'] = self.p['Rated Cadets'][soc]
+                    self.b['max_afsc'] = self.p[f'{soc}_quota']
+                    self.b['min_afsc'] = self.p[f'{soc}_quota']
+                    self.b['afscs'] = determine_soc_rated_afscs(soc, all_rated_afscs=p['afscs_acc_grp']["Rated"])
+                    self.soc = soc
+                    break
+
+        # All the cadets!
         else:
             self.b['cadets'] = self.p['I']
             self.b['max_afsc'] = self.p['quota_max']
@@ -388,7 +387,7 @@ class BubbleChart:
             raise ValueError("Pyomo not installed.")
 
         # Build the model
-        model = afccp.core.solutions.optimization.cadet_board_preprocess_model(self.b)
+        model = afccp.core.solutions.optimization.cadet_board_preprocess_model_simple(self.b)
 
         # Get coordinates and size of boxes by solving the model
         self.b['s'], self.b['x'], self.b['y'] = afccp.core.solutions.optimization.solve_pyomo_model(
