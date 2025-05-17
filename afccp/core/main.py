@@ -31,6 +31,7 @@ if afccp.core.globals.use_pyomo:
 if afccp.core.globals.use_pptx:
     import afccp.core.visualizations.slides
 
+
 # Main Problem Class
 class CadetCareerProblem:
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
@@ -80,7 +81,7 @@ class CadetCareerProblem:
         # The data variant helps inform how the charts should be constructed
         if len(data_name) == 1:  # "A", "B", "C", ...
             self.data_variant = "Scrubbed"
-        elif len(data_name) == 4:  # "2016", "2017", "2018", ...
+        elif data_name[:4].isdigit():  # "2016", "2017", "2018", ...
             self.data_variant = "Year"
         else:  # "Random_1", "Random_2", ...
             self.data_variant = "Generated"
@@ -205,9 +206,7 @@ class CadetCareerProblem:
         # Initialize more "functional" parameters
         self.mdl_p = afccp.core.data.support.initialize_instance_functional_parameters(
             self.parameters["N"])
-
-        # Copy weight on GUO solution (relative to CASTLE) from "mdl_p" to "parameters"
-        self.parameters['w^G'] = self.mdl_p['w^G']
+        self.reset_functional_parameters()
 
         if self.printing:
             print("Instance '" + self.data_name + "' initialized.")
@@ -245,6 +244,23 @@ class CadetCareerProblem:
                 self.mdl_p[key] = p_dict[key]
             else:
                 print("WARNING. Specified parameter '" + str(key) + "' does not exist.")
+
+        # Copy weight on GUO solution (relative to CASTLE) from "mdl_p" to "parameters"
+        self.parameters['w^G'] = self.mdl_p['w^G']
+
+        # Add in parameters based on total numbers of OTS accessions and overall accessions
+        if 'ots' in self.parameters['SOCs']:
+
+            # OTS accessions cap
+            if self.mdl_p['ots_accessions'] is None:
+                self.mdl_p['ots_accessions'] = np.sum(self.parameters['ots_quota'])
+
+            # Total numbers of cadets/candidates that we are matching
+            self.parameters['N^Match'] = self.parameters['N'] - \
+                                         (len(self.parameters['I^OTS']) - self.mdl_p['ots_accessions'])  # OTS Unmatched
+            self.parameters['ots_accessions'] = self.mdl_p['ots_accessions']
+        else:
+            self.parameters['N^Match'] = self.parameters['N']
 
     def solution_handling(self, solution, printing=None):
         """
@@ -513,6 +529,46 @@ class CadetCareerProblem:
         # Sanity check the parameters to make sure it all looks good! (No issues found.)
         self.parameter_sanity_check()
 
+    def make_all_initial_real_instance_modifications(self, printing=None, vp_defaults_filename=None):
+
+        # Should we print updates?
+        if printing is None:
+            printing = self.printing
+
+        # Import default value parameters
+        self.import_default_value_parameters(printing=printing, vp_defaults_filename=vp_defaults_filename)
+
+        # Takes the two Rated OM datasets and re-calculates the AFSC rankings for Rated AFSCs for both SOCs
+        self.construct_rated_preferences_from_om_by_soc(printing=printing)
+
+        # Update qualification matrix from AFSC preferences (treating CFM lists as "gospel" except for Rated/USSF)
+        self.update_qualification_matrix_from_afsc_preferences(printing=printing)
+
+        # Fill in remaining choices
+        self.fill_remaining_afsc_choices(printing=printing)
+
+        # Removes ineligible cadets from all 3 matrices: degree qualifications, cadet preferences, AFSC preferences
+        self.remove_ineligible_choices(printing=printing)
+
+        # Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)
+        self.update_preference_matrices(printing=printing)  # 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preferences omit gaps)
+
+        # Force first choice utility values to be 100%
+        self.update_first_choice_cadet_utility_to_one(printing=printing)
+
+        # Convert AFSC preferences to percentiles (0 to 1)
+        self.convert_afsc_preferences_to_percentiles(printing=printing)  # 1, 2, 3, 4, 5 -> 1, 0.8, 0.6, 0.4, 0.2
+
+        # The "cadet columns" are located in Cadets.csv and contain the utilities/preferences in order of preference
+        self.update_cadet_columns_from_matrices(
+            printing=printing)  # We haven't touched "c_preferences" and "c_utilities" until now
+
+        # Update utility matrix from columns (and create final cadet utility matrix)
+        self.update_cadet_utility_matrices_from_cadets_data(printing=printing)
+
+        # Modify rated eligibility by SOC, removing cadets that are on "Rated Cadets" list...
+        self.modify_rated_cadet_lists_based_on_eligibility(printing=printing)  # ...but not eligible for any rated AFSC
+
     # Castle adjustments
     def generate_example_castle_value_curves(self, num_breakpoints: int=10):
 
@@ -685,7 +741,7 @@ class CadetCareerProblem:
             self.parameters, self.value_parameters, fix_cadet_eligibility=fix_cadet_eligibility)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def convert_afsc_preferences_to_percentiles(self):
+    def convert_afsc_preferences_to_percentiles(self, printing=None):
         """
         Convert AFSC Preference Lists to Normalized Percentiles.
 
@@ -695,8 +751,10 @@ class CadetCareerProblem:
         The percentiles are stored in the 'afsc_utility' on AFSCs Utility.csv. This conversion can be helpful for analyzing cadet
         preferences and running assignment algorithms.
         """
+        if printing is None:
+            printing = self.printing
 
-        if self.printing:
+        if printing:
             print("Converting AFSC preferences (a_pref_matrix) into percentiles (afsc_utility on AFSCs Utility.csv)...")
         self.parameters = afccp.core.data.preferences.convert_afsc_preferences_to_percentiles(self.parameters)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
@@ -723,15 +781,42 @@ class CadetCareerProblem:
         self.parameters = afccp.core.data.preferences.remove_ineligible_cadet_choices(self.parameters, printing=printing)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def update_cadet_columns_from_matrices(self):
+    def update_first_choice_cadet_utility_to_one(self, printing=None):
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print('Updating cadet first choice utility value to 100%...')
+
+        # Update "utility" matrix
+        self.parameters['utility'] = afccp.core.data.preferences.update_first_choice_cadet_utility_to_one(
+            self.parameters, printing=printing)
+
+    def modify_rated_cadet_lists_based_on_eligibility(self, printing=None):
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print('Modifying rated eligibiity lists/matrices by SOC... \n'
+                  '(Removing cadets that are on the lists but not eligible for any rated AFSC)')
+
+        # Update rated eligibility lists
+        self.parameters = afccp.core.data.preferences.modify_rated_cadet_lists_based_on_eligibility(
+            self.parameters, printing=printing)
+
+    def update_cadet_columns_from_matrices(self, printing=None):
         """
         Update Cadet Columns from Preference Matrix.
 
         This method updates the preference and utility columns for cadets based on the preference matrix (c_pref_matrix).
         The preferences are converted to preference columns, and the utility values are extracted and stored in their respective columns.
         """
+        if printing is None:
+            printing = self.printing
 
-        if self.printing:
+        if printing:
             print('Updating cadet columns (Cadets.csv...c_utilities, c_preferences) from the preference matrix '
                   '(c_pref_matrix)...')
 
@@ -739,53 +824,62 @@ class CadetCareerProblem:
         self.parameters['c_preferences'], self.parameters['c_utilities'] = \
             afccp.core.data.preferences.get_utility_preferences_from_preference_array(self.parameters)
 
-    def update_preference_matrices(self):
+    def update_preference_matrices(self, printing=None):
         """
         Update Preference Matrices from Preference Arrays.
 
         This method reconstructs the cadet preference matrices from the preference arrays by renumbering preferences to eliminate gaps.
         In preference lists, gaps may exist due to unranked choices, and this method ensures preferences are sequentially numbered.
         """
+        if printing is None:
+            printing = self.printing
 
-        if self.printing:
+        if printing:
             print("Updating cadet preference matrices from the preference dictionaries. "
                   "ie. 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preference lists need to omit gaps)")
 
         # Update parameters
         self.parameters = afccp.core.data.preferences.update_preference_matrices(self.parameters)
 
-    def update_cadet_utility_matrices_from_cadets_data(self):
+    def update_cadet_utility_matrices_from_cadets_data(self, printing=None):
         """
         Update Cadet Utility Matrices from Cadets Data.
 
         This method updates the utility matrices ('utility' and 'cadet_utility') by extracting data from the "Util_1 -> Util_P" columns in Cadets.csv.
         """
+        if printing is None:
+            printing = self.printing
 
-        if self.printing:
+        if printing:
             print("Updating cadet utility matrices ('utility' and 'cadet_utility') from the 'c_utilities' matrix")
 
         # Update parameters
         self.parameters = afccp.core.data.preferences.update_cadet_utility_matrices(self.parameters)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def fill_remaining_afsc_choices(self):
+    def fill_remaining_afsc_choices(self, printing=None):
         """
 
         :return:
         """
 
-        if self.printing:
+        if printing is None:
+            printing = self.printing
+
+        if printing:
             print("Filling remaining cadet preferences arbitrarily with the exception of the bottom choices")
 
         # Update parameters
         self.parameters = afccp.core.data.preferences.fill_remaining_preferences(self.parameters)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def create_final_utility_matrix_from_new_formula(self):
+    def create_final_utility_matrix_from_new_formula(self, printing=None):
         """
         """
+        if printing is None:
+            printing = self.printing
 
-        if self.printing:
+        if printing:
             print("Creating 'Final' cadet utility matrix from the new formula with different conditions...")
 
         # Update parameters
@@ -803,14 +897,17 @@ class CadetCareerProblem:
         self.parameters = afccp.core.data.preferences.generate_rated_data(self.parameters)
         self.parameters = afccp.core.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def construct_rated_preferences_from_om_by_soc(self):
+    def construct_rated_preferences_from_om_by_soc(self, printing=None):
         """
         This method takes the two OM Rated matrices (from both SOCs) and then zippers them together to
         create a combined "1-N" list for the Rated AFSCs. The AFSC preference matrix is updated as well as the
         AFSC preference lists
         """
 
-        if self.printing:
+        if printing is None:
+            printing = self.printing
+
+        if printing:
             print("Integrating rated preferences from OM matrices for each SOC...")
 
         # Generate Rated Preferences
@@ -979,7 +1076,8 @@ class CadetCareerProblem:
         return value_parameters
 
     def import_default_value_parameters(self, no_constraints=False, num_breakpoints=24,
-                                        generate_afsc_weights=True, vp_weight=100, printing=None):
+                                        generate_afsc_weights=True, vp_weight=100, printing=None,
+                                        vp_defaults_filename=None):
         """
         Import default value parameter settings and generate value parameters for this instance.
         """
@@ -990,7 +1088,9 @@ class CadetCareerProblem:
         # Folder/Files information
         folder_path = afccp.core.globals.paths["support"] + "value parameters defaults/"
         vp_defaults_folder = os.listdir(folder_path)
-        vp_defaults_filename = "Value_Parameters_Defaults_" + self.data_name + ".xlsx"
+
+        if vp_defaults_filename is None:
+            vp_defaults_filename = "Value_Parameters_Defaults_" + self.data_name + ".xlsx"
 
         # Determine the path to the default value parameters we need to import
         if vp_defaults_filename in vp_defaults_folder:
@@ -1248,6 +1348,21 @@ class CadetCareerProblem:
 
         return solution
 
+    def allocate_ots_candidates_original_method(self, p_dict={}, printing=None):
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self.reset_functional_parameters(p_dict)
+
+        # Get the solution we need
+        solution = afccp.core.solutions.algorithms.allocate_ots_candidates_original_method(self, printing=printing)
+
+        # Determine what to do with the solution
+        self.solution_handling(solution)
+
+        return solution
+
     def soc_rated_matching_algorithm(self, p_dict={}, printing=None):
         """
         This is the Hospitals/Residents algorithm that matches or reserves cadets to their Rated AFSCs depending on the
@@ -1369,9 +1484,15 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
+        # Determine solution method
+        if self.mdl_p['solution_method'] is None:
+            solution_method = 'GUO'
+        else:
+            solution_method = self.mdl_p['solution_method']
+
         # Build the model and then solve it
         model = afccp.core.solutions.optimization.assignment_model_build(self, printing=printing)
-        solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, "GUO", printing=printing)
+        solution = afccp.core.solutions.optimization.solve_pyomo_model(self, model, solution_method, printing=printing)
 
         # Determine what to do with the solution
         self.solution_handling(solution)
@@ -1661,14 +1782,23 @@ class CadetCareerProblem:
             if self.value_parameters is not None:
                 self.measure_solution(printing=printing)
 
-    def add_solution(self, afsc_solution):
+    def add_solution(self, j_array: np.ndarray = None, afsc_array: np.ndarray = None, method: str = None):
         """
         Takes a numpy array of AFSCs and adds this new solution into the solution dictionary
         """
 
+        # Determine AFSC solution information
+        if j_array is not None:
+            afsc_array = np.array([self.parameters['afscs'][j] for j in j_array])
+        elif afsc_array is not None:
+            j_array = np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_array])
+        else:
+            raise ValueError(f'Error. No AFSC solution array specified')
+        if method is None:
+            method = 'Added'
+
         # Create solution dictionary
-        solution = {'j_array': np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution]),
-                    'method': "Added", 'afsc_array': afsc_solution}
+        solution = {'j_array': j_array, 'method': method, 'afsc_array': afsc_array}
 
         # Determine what to do with the solution
         self.solution_handling(solution)
@@ -1897,6 +2027,8 @@ class CadetCareerProblem:
                     self.solution['cadets_solved_for'] = 'USAFA Rated'
                 elif "ROTC" in self.solution_name:
                     self.solution['cadets_solved_for'] = 'ROTC Rated'
+                elif "OTS" in self.solution_name:
+                    self.solution['cadets_solved_for'] = 'OTS Rated'
 
             # Determine name of this BubbleChart sequence
             self.solution['iterations']['sequence'] = \

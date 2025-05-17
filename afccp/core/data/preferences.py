@@ -77,6 +77,31 @@ def get_utility_preferences_from_preference_array(parameters):
     return preferences, utilities_array
 
 
+def update_first_choice_cadet_utility_to_one(parameters, printing=True):
+
+    # Shorthand
+    p = parameters
+
+    # Loop through each cadet and make their first choice AFSC have a utility of 1
+    fixed_cadets = []
+    for i in p['I']:
+
+        # If this cadet does not have any preferences, we skip them (must be an OTS candidate)
+        if len(p['cadet_preferences'][i]) == 0:
+            continue
+
+        # Fix the first choice
+        if p['utility'][i, p['cadet_preferences'][i][0]] != 1:
+            p['utility'][i, p['cadet_preferences'][i][0]] = 1
+            fixed_cadets.append(i)
+
+    if printing:
+        print_str = f'Fixed {len(fixed_cadets)} first choice cadet utility values to 100%.\nCadets: {fixed_cadets}'
+        print(print_str)
+
+    return p['utility']
+
+
 def convert_utility_matrices_preferences(parameters, cadets_as_well=False):
     """
     This function converts the cadet and AFSC utility matrices into the preference dataframes
@@ -225,7 +250,7 @@ def generate_rated_data(parameters):
               p['afscs_acc_grp']['Rated']] for _ in range(len(p['Rated Cadets']['rotc']))])
 
     # Loop through each SOC to generate OM data (based on AFSC preferences) if we don't already have it
-    dataset_dict = {'rotc': 'rr_om_matrix', 'usafa': 'ur_om_matrix'}
+    dataset_dict = {soc: f'{soc[0]}r_om_matrix' for soc in p['SOCs']}
     for soc in dataset_dict:
         dataset = dataset_dict[soc]  # SOC specific dataset name for Rated OM data
 
@@ -254,6 +279,23 @@ def generate_rated_data(parameters):
     return p
 
 
+def determine_soc_rated_afscs(soc, all_rated_afscs):
+
+    # Rated AFSCs for this SOC
+    other_letters = [l for l in ['_U', '_R', '_O'] if l != f'_{soc[0].upper()}']
+    rated_afscs = []
+    for afsc in all_rated_afscs:
+        include = True
+        for l in other_letters:
+            if l in afsc:
+                include = False
+                break
+        if include:
+            rated_afscs.append(afsc)
+
+    return rated_afscs
+
+
 def construct_rated_preferences_from_om_by_soc(parameters):
     """
     This method takes the two OM Rated matrices (from both SOCs) and then zippers them together to
@@ -273,19 +315,16 @@ def construct_rated_preferences_from_om_by_soc(parameters):
 
     # Need to construct a "combined Rated OM" matrix with ALL cadets which also contains 0 if the cadet is ineligible
     all_rated_afscs = p['afscs_acc_grp']["Rated"]
-    dataset_dict = {'rotc': 'rr_om_matrix', 'usafa': 'ur_om_matrix'}
-    cadets_dict = {'rotc': 'rr_om_cadets', 'usafa': 'ur_om_cadets'}
+    dataset_dict = {soc: f'{soc[0]}r_om_matrix' for soc in p['SOCs']}
+    cadets_dict = {soc: f'{soc[0]}r_om_cadets' for soc in p['SOCs']}
     combined_rated_om = {afsc: np.zeros(p['N']) for afsc in all_rated_afscs}
 
-    # Loop through both sources of commissioning
+    # Loop through all sources of commissioning
     rated_cadets, rated_cadet_index_dict = {}, {}
-    for soc in ['rotc', 'usafa']:
+    for soc in p['SOCs']:
 
         # Rated AFSCs for this SOC
-        if soc == 'rotc':
-            rated_afscs = [afsc for afsc in all_rated_afscs if '_U' not in afsc]
-        else:
-            rated_afscs = [afsc for afsc in all_rated_afscs if '_R' not in afsc]
+        rated_afscs = determine_soc_rated_afscs(soc, all_rated_afscs)
 
         # Rated cadets for this SOC
         rated_cadets[soc] = p[cadets_dict[soc]]
@@ -436,6 +475,10 @@ def update_preference_matrices(parameters):
         # Since 'cadet_preferences' is an array of AFSC indices, we can do this
         p['c_pref_matrix'] = np.zeros([p['N'], p['M']]).astype(int)
         for i in p['I']:
+
+            # If this cadet does not have any preferences, we skip them (must be an OTS candidate)
+            if len(p['cadet_preferences'][i]) == 0:
+                continue
             p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
 
     # Update the AFSC preference matrix (a_pref_matrix)
@@ -469,6 +512,10 @@ def update_cadet_utility_matrices(parameters):
 
     # Loop through each cadet
     for i in p['I']:
+
+        # If this cadet does not have any preferences, we skip them (must be an OTS candidate)
+        if len(p['cadet_preferences'][i]) == 0:
+            continue
 
         # List of ordered AFSC indices (by cadet preference) up to the number of utilities
         afsc_indices = p['cadet_preferences'][i][:p['num_util']]
@@ -593,9 +640,13 @@ def fill_remaining_preferences(parameters):
     # Loop through all cadets
     for i in p['I']:
 
-        pref_num = len(p['cadet_preferences'][i]) + 1
+        # We don't fill in remaining preferences for OTS!
+        if 'I^OTS' in p:
+            if i in p['I^OTS']:
+                continue  # They are ineligible for anything they didn't select
 
         # Loop through all "indifferent" AFSCs that they are eligible for
+        pref_num = len(p['cadet_preferences'][i]) + 1
         for j in p['J']:
 
             # The AFSC is not in the cadet's preferences and it's not in the bottom choices
@@ -613,6 +664,41 @@ def fill_remaining_preferences(parameters):
         if p['J^Last Choice'][i] != p['M']:
             p['c_pref_matrix'][i, p['J^Last Choice'][i]] = pref_num
 
+    return p
+
+
+def modify_rated_cadet_lists_based_on_eligibility(parameters, printing=True):
+
+    # Shorthand
+    p = parameters
+
+    # At least one rated preference for rated eligible
+    for soc in p['SOCs']:
+        cadets_to_remove = []
+        cadet_indices_in_matrix = []
+        if soc in p['Rated Cadets']:
+            for idx, i in enumerate(p['Rated Cadets'][soc]):
+                if len(p['Rated Choices'][soc][i]) == 0:
+                    cadets_to_remove.append(i)
+                    cadet_indices_in_matrix.append(idx)
+
+        # Remove cadets from set of rated cadets for this SOC
+        cadets_to_remove = np.array(cadets_to_remove)
+        p['Rated Cadets'][soc] = p['Rated Cadets'][soc][~np.isin(p['Rated Cadets'][soc], cadets_to_remove)]
+
+        # Remove the cadet rows by position in the matrix
+        cadet_indices_in_matrix = np.array(cadet_indices_in_matrix)
+        if len(cadet_indices_in_matrix) > 0:
+            parameter = f'{soc[0]}r_om_matrix'
+            p[parameter] = np.delete(p[parameter], cadet_indices_in_matrix, axis=0)
+
+            # Print results
+            if printing:
+                print_str = f"We removed {len(cadets_to_remove)} cadets from {soc.upper()}'s rated cadet list.\n" \
+                            f"These were cadets {cadets_to_remove}.\nWe removed them from {parameter} as well."
+                print(print_str)
+
+    # Return modified parameters
     return p
 
 

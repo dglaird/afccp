@@ -9,6 +9,7 @@ import string
 import afccp.core.globals
 import afccp.core.data.values
 import afccp.core.data.adjustments
+import afccp.core.data.preferences
 
 # File Handling
 def initialize_file_information(data_name: str, data_version: str):
@@ -49,7 +50,8 @@ def initialize_file_information(data_name: str, data_version: str):
     sub_folder_files = {"Model Input": ["Cadets", "Cadets Preferences", "Cadets Utility", "Cadets Utility Constraints",
                                         "Cadets Utility (Final)", "AFSCs", "AFSCs Preferences", "AFSCs Utility",
                                         "Value Parameters", "Goal Programming", "ROTC Rated Interest",
-                                        "ROTC Rated OM", "USAFA Rated OM", "Bases", "Bases Preferences",
+                                        "ROTC Rated OM", "USAFA Rated OM", "OTS Rated OM",
+                                        "Bases", "Bases Preferences",
                                         "Bases Utility", "Courses", "Cadets Selected", "AFSCs Buckets",
                                         'Castle Input'],
                         "Analysis & Results": ["Solutions", "Base Solutions", "Course Solutions"]}
@@ -161,7 +163,9 @@ def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
     # Initialize dictionary translating 'AFSCs' df columns to their parameter counterparts
     afsc_columns_to_parameters = {"AFSC": "afscs", "Accessions Group": "acc_grp", "STEM": 'afscs_stem',
                                   "USAFA Target": "usafa_quota",
-                                  "ROTC Target": "rotc_quota", "PGL Target": "pgl", "Estimated": "quota_e",
+                                  "ROTC Target": "rotc_quota",
+                                  "OTS Target": "ots_quota",
+                                  "PGL Target": "pgl", "Estimated": "quota_e",
                                   "Desired": "quota_d", "Min": "quota_min", "Max": "quota_max",
                                   "Assign Base": 'afsc_assign_base', 'Num Courses': 'T'}
 
@@ -207,7 +211,8 @@ def import_cadets_data(import_filepaths, parameters):
 
     # Initialize dictionary translating 'AFSCs' df columns to their parameter counterparts
     cadet_columns_to_parameters = {"Cadet": "cadets", 'Male': 'male', 'Minority': 'minority', 'Race': 'race',
-                                   "Ethnicity": "ethnicity", 'USAFA': 'usafa', 'ASC1': 'asc1', 'ASC2': 'asc2',
+                                   "Ethnicity": "ethnicity", 'USAFA': 'usafa', 'SOC': 'soc',
+                                   'ASC1': 'asc1', 'ASC2': 'asc2',
                                    'CIP1': 'cip1', 'CIP2': 'cip2', 'Merit': 'merit', 'Real Merit': 'merit_all',
                                    "Assigned": "assigned", "STEM": "stem", "Accessions Group": "acc_grp_constraint",
                                    "SF OM": "sf_om", 'Start Date': 'training_start', 'Start Pref': 'training_preferences',
@@ -245,6 +250,18 @@ def import_cadets_data(import_filepaths, parameters):
         p["c_preferences"] = np.array(cadets_df.loc[:, "Pref_1": "Pref_" + str(p['P'])])
         p["c_utilities"] = np.array(cadets_df.loc[:, "Util_1": "Util_" + str(p["num_util"])])
 
+    # Determine which SOCs are in this instance
+    if 'soc' in p:
+        unique_socs = np.unique(p['soc'])  # Get unique list of SOCs
+
+        # This just gets the SOCs in the right order
+        soc_options = ['USAFA', 'ROTC', 'OTS']
+        p['SOCs'] = np.array([soc.lower() for soc in soc_options if soc in unique_socs])
+
+        for soc in unique_socs:
+            if soc not in soc_options:
+                raise ValueError(f'SOC {soc} not recognized as valid SOC option! At least one cadet has it.')
+
     # Return parameters dictionary
     return p
 
@@ -276,7 +293,7 @@ def import_afsc_cadet_matrices_data(import_filepaths, parameters):
     # Loop through the potential additional dataframes and import them if we have them
     datasets = {}
     for dataset in ["Cadets Utility", "Cadets Preferences", "AFSCs Utility", "AFSCs Preferences",
-                    "ROTC Rated Interest", "ROTC Rated OM", "USAFA Rated OM", 'Cadets Utility (Final)',
+                    "ROTC Rated Interest", "ROTC Rated OM", "USAFA Rated OM", "OTS Rated OM", 'Cadets Utility (Final)',
                     "Cadets Selected", "AFSCs Buckets"]:
 
         # If we have the dataset, import it
@@ -344,6 +361,10 @@ def import_afsc_cadet_matrices_data(import_filepaths, parameters):
         r_afscs = list(datasets['USAFA Rated OM'].columns[1:])
         p['ur_om_matrix'] = np.array(datasets['USAFA Rated OM'].loc[:, r_afscs[0]:r_afscs[len(r_afscs) - 1]])
         p['ur_om_cadets'] = np.array(datasets['USAFA Rated OM']['Cadet'])
+    if "OTS Rated OM" in datasets:
+        r_afscs = list(datasets['OTS Rated OM'].columns[1:])
+        p['or_om_matrix'] = np.array(datasets['OTS Rated OM'].loc[:, r_afscs[0]:r_afscs[len(r_afscs) - 1]])
+        p['or_om_cadets'] = np.array(datasets['OTS Rated OM']['Cadet'])
 
     # Return dictionary of parameters
     return p
@@ -746,11 +767,12 @@ def export_afscs_data(instance):
 
     # Initialize dictionary translating AFSC parameters to their "AFSCs" df column counterparts
     afsc_parameters_to_columns = {"afscs": "AFSC", "acc_grp": "Accessions Group", "afscs_stem": "STEM",
-                                  "usafa_quota": "USAFA Target",
-                                  "rotc_quota": "ROTC Target", "pgl": "PGL Target", "quota_e": "Estimated",
+                                  "usafa_quota": "USAFA Target", "rotc_quota": "ROTC Target", 'ots_quota': 'OTS Target',
+                                  "pgl": "PGL Target", "quota_e": "Estimated",
                                   "quota_d": "Desired", "quota_min": "Min", "quota_max": "Max",
                                   "afsc_assign_base": 'Assign Base', 'T': 'Num Courses',
-                                  'usafa_eligible_count': 'USAFA Eligible', 'rotc_eligible_count': 'ROTC Eligible'}
+                                  'usafa_eligible_count': 'USAFA Eligible', 'rotc_eligible_count': 'ROTC Eligible',
+                                  'ots_eligible_count': "OTS Eligible"}
 
     # Loop through each parameter in the translation dictionary to create dictionary of "AFSCs" columns
     afscs_columns = {}
@@ -806,7 +828,8 @@ def export_cadets_data(instance):
                                    'base_threshold': 'Base Threshold', 'training_threshold': 'Course Threshold',
                                    'weight_afsc': 'AFSC Weight', 'weight_base': 'Base Weight',
                                    'weight_course': 'Course Weight',
-                                   "sf_om": "SF OM", 'usafa': 'USAFA', 'male': 'Male', 'minority': 'Minority',
+                                   "sf_om": "SF OM", 'usafa': 'USAFA', 'soc': 'SOC',
+                                   'male': 'Male', 'minority': 'Minority',
                                    'race': 'Race', "ethnicity": "Ethnicity", 'asc1': 'ASC1', 'asc2': 'ASC2',
                                    'stem': 'STEM', 'cip1': 'CIP1', 'cip2': 'CIP2', 'merit': 'Merit',
                                    'merit_all': 'Real Merit', 'last_afsc': 'Least Desired AFSC',
@@ -873,9 +896,13 @@ def export_afsc_cadet_matrices_data(instance):
     parameter_trans_dict = {"utility": "Cadets Utility", "c_pref_matrix": "Cadets Preferences",
                             "afsc_utility": "AFSCs Utility", "a_pref_matrix": "AFSCs Preferences",
                             "rr_interest_matrix": "ROTC Rated Interest", "rr_om_matrix": "ROTC Rated OM",
-                            'ur_om_matrix': 'USAFA Rated OM', 'cadet_utility': 'Cadets Utility (Final)',
+                            'ur_om_matrix': 'USAFA Rated OM', 'or_om_matrix': 'OTS Rated OM',
+                           'cadet_utility': 'Cadets Utility (Final)',
                             'c_selected_matrix': 'Cadets Selected', 'a_bucket_matrix': 'AFSCs Buckets'
                             }
+
+    # Get all rated AFSCs
+    all_rated_afscs = p['afscs'][p['J^Rated']]
 
     # Loop through each potential dataset to export
     for parameter in parameter_trans_dict:
@@ -888,11 +915,18 @@ def export_afsc_cadet_matrices_data(instance):
             if 'ROTC' in dataset:
                 cadet_indices = p["Rated Cadets"]['rotc']
                 pref_df = pd.DataFrame({"Cadet": p['cadets'][cadet_indices]})
-                afscs = [afsc for afsc in p['afscs_acc_grp']['Rated'] if '_U' not in afsc]
+                afscs = afccp.core.data.preferences.determine_soc_rated_afscs(
+                    soc='rotc', all_rated_afscs=all_rated_afscs)
             elif 'USAFA' in dataset:
                 cadet_indices = p["Rated Cadets"]['usafa']
                 pref_df = pd.DataFrame({"Cadet": p['cadets'][cadet_indices]})
-                afscs = [afsc for afsc in p['afscs_acc_grp']['Rated'] if '_R' not in afsc]
+                afscs = afccp.core.data.preferences.determine_soc_rated_afscs(
+                    soc='usafa', all_rated_afscs=all_rated_afscs)
+            elif 'OTS' in dataset:
+                cadet_indices = p["Rated Cadets"]['ots']
+                pref_df = pd.DataFrame({"Cadet": p['cadets'][cadet_indices]})
+                afscs = afccp.core.data.preferences.determine_soc_rated_afscs(
+                    soc='ots', all_rated_afscs=all_rated_afscs)
             else:
                 pref_df = pd.DataFrame({"Cadet": p["cadets"]})
                 afscs = p["afscs"][:p["M"]]
@@ -1319,10 +1353,12 @@ def export_solution_results_excel(instance, filepath):
     for choice in choice_dict:
         worksheet.write("J" + str(2 + choice), int(solution['cadet_choice_counts'][choice]), cell_format)
         worksheet.write("I" + str(2 + choice), choice_dict[choice], cell_format)
-        worksheet.write("K" + str(2 + choice), round(solution['cadet_choice_counts'][choice] / p['N'], 3), cell_format)
+        worksheet.write("K" + str(2 + choice), round(solution['cadet_choice_counts'][choice] / p['N^Match'], 3),
+                        cell_format)
     worksheet.write("I" + str(3 + choice), "All Others", cell_format)
     worksheet.write("J" + str(3 + choice), int(solution['cadet_choice_counts']['All Others']), cell_format)
-    worksheet.write("K" + str(3 + choice), round(solution['cadet_choice_counts']["All Others"] / p['N'], 3), cell_format)
+    worksheet.write("K" + str(3 + choice), round(solution['cadet_choice_counts']["All Others"] / p['N^Match'], 3),
+                    cell_format)
 
     # Additional solution metrics
     name_metric_dict = {'Blocking Pairs': 'num_blocking_pairs', 'Ineligible Cadets': 'num_ineligible',
@@ -1331,13 +1367,16 @@ def export_solution_results_excel(instance, filepath):
                         'Top 3 Choices (Proportion) for USAF': 'top_3_usaf_count',
                         'Top 3 Choices (Proportion) for USAFA': 'top_3_usafa_count',
                         'Top 3 Choices (Proportion) for ROTC': 'top_3_rotc_count',
+                        'Top 3 Choices (Proportion) for OTS': 'top_3_ots_count',
                         'Average Cadet Choice': 'average_cadet_choice',
                         'Average Normalized AFSC Score': 'weighted_average_afsc_score',
+                        'Average NRL Normalized AFSC Score': 'weighted_average_nrl_afsc_score',
                         'Failed Constraints': 'total_failed_constraints', 'USSF OM': 'ussf_om',
                         'Global Utility': 'z^gu', 'Cadet Utility': 'cadet_utility_overall',
                         'z^CASTLE': 'z^CASTLE', 'z^CASTLE (Values)': 'z^CASTLE (Values)',
                         'AFSC Utility': 'afsc_utility_overall', 'USAFA Cadet Utility': 'usafa_cadet_utility',
-                        'ROTC Cadet Utility': 'rotc_cadet_utility', 'USSF Cadet Utility': 'ussf_cadet_utility',
+                        'ROTC Cadet Utility': 'rotc_cadet_utility', 'OTS Cadet Utility': 'ots_cadet_utility',
+                        'USSF Cadet Utility': 'ussf_cadet_utility',
                         'USAF Cadet Utility': 'usaf_cadet_utility', 'USSF AFSC Utility': 'ussf_afsc_utility',
                         'USAF AFSC Utility': 'usaf_afsc_utility',
                         'Average Normalized AFSC Score (USSF)': 'weighted_average_ussf_afsc_score',

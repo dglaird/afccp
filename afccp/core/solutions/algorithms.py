@@ -6,6 +6,8 @@ import copy
 # afccp modules
 import afccp.core.globals
 import afccp.core.solutions.handling
+from afccp.core.data.preferences import determine_soc_rated_afscs
+
 
 # Matching algorithms
 def classic_hr(instance, capacities=None, printing=True):
@@ -319,10 +321,8 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     p, mdl_p = instance.parameters, instance.mdl_p
 
     # Slight change to Rated AFSCs (Remove SOC specific slots)
-    if soc == 'usafa':
-        rated_J = np.array([j for j in p['J^Rated'] if '_R' not in p['afscs'][j]])
-    else:
-        rated_J = np.array([j for j in p['J^Rated'] if '_U' not in p['afscs'][j]])
+    rated_afscs = determine_soc_rated_afscs(soc, all_rated_afscs=p['afscs_acc_grp']["Rated"])
+    rated_J = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in rated_afscs])
 
     # Algorithm initialization
     total_slots = {j: p[soc + "_quota"][j] for j in rated_J}
@@ -466,6 +466,48 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
 
     # Return solution, reserved array, and solution iterations
     return solution, solution_reserves, solution_matches
+
+
+def allocate_ots_candidates_original_method(instance, printing=False):
+
+    if printing:
+        print("Running status quo OTS matching/selection algorithm...")
+
+    # Shorthand
+    p = instance.parameters
+
+    # Make sure we're dealing with the original ROTC/USAFA solution with unmatched OTS candidates!
+    if 'One Market ROTC_USAFA' not in instance.solutions.keys():
+        raise ValueError('Error. Solution "One Market ROTC_USAFA" not present in solutions dictionary.\n'
+                         'We need this solution which contains matched ROTC/USAFA cadets and unmatched OTS candidates.')
+    solution = instance.solutions['One Market ROTC_USAFA']
+
+    # Initialize new solution to add OTS into the mix
+    new_solution = copy.deepcopy(solution)
+    new_solution['method'] = 'One Market OTS Addition-Status Quo'
+
+    # Sort OTS candidates in order of merit
+    ordered_ots = np.argsort(p['merit'])[::-1]
+    mask = np.isin(ordered_ots, p['I^OTS'])
+    ordered_ots = ordered_ots[mask]
+
+    # Loop through each OTS candidate (in order of merit) to assign an AFSC
+    counts = copy.deepcopy(p['ots_quota'])
+    for i in ordered_ots:
+
+        # Loop through each AFSC in order of the candidate's preferences
+        for j in p['cadet_preferences'][i]:
+
+            # If there are still slots to give out, give them one
+            if counts[j] > 0:
+                new_solution['j_array'][i] = j
+
+                # Decrement the remaining slots by 1... on to the next candidate
+                counts[j] -= 1
+                break
+
+    # Return the new solution with OTS included!
+    return new_solution
 
 
 # Meta-heuristics

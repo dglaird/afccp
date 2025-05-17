@@ -34,7 +34,7 @@ def initialize_instance_functional_parameters(N):
 
         # Generic Solution Handling (for multiple algorithms/models)
         "initial_solutions": None, "solution_names": None, "add_to_dict": True, "set_to_instance": True,
-        "initialize_new_heuristics": False, 'gather_all_metrics': True, 're-calculate x': True,
+        "initialize_new_heuristics": False, 'gather_all_metrics': True, 're-calculate x': True, 'solution_method': None,
 
         # Matching Algorithm Parameters
         'ma_printing': False, 'capacity_parameter': 'quota_max', 'collect_solution_iterations': True,
@@ -42,7 +42,7 @@ def initialize_instance_functional_parameters(N):
 
         # Rated Matching Algorithm Parameters
         'rated_alternate_afscs': None, 'rated_alternates': True, 'rotc_rated_board_afsc_order': None, 'soc': 'usafa',
-        'incorporate_rated_results': True, 'usafa_soc_pilot_cross_in': False,
+        'incorporate_rated_results': True, 'usafa_soc_pilot_cross_in': False, 'socs_to_use': None,
 
         # Genetic Matching Algorithm Parameters
         "gma_pop_size": 4, 'gma_max_time': 20, 'gma_num_crossover_points': 2, 'gma_mutations': 1,
@@ -57,6 +57,7 @@ def initialize_instance_functional_parameters(N):
         # Pyomo General Parameters
         "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": None, "provide_executable": False,
         "executable": None, "exe_extension": False, 'alternate_list_iterations_printing': False,
+        'ots_accessions': None,
 
         # Additional Constraints/Modeling
         "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': False,
@@ -97,6 +98,7 @@ def initialize_instance_functional_parameters(N):
         'lh_ratio': 0.1, 'lw_ratio': 0.1, 'dpi': 200, 'pgl_linestyle': '-', 'pgl_color': 'gray',
         'pgl_alpha': 0.5, 'surplus_linestyle': '--', 'surplus_color': 'white', 'surplus_alpha': 1,
         'usafa_pgl_color': 'blue', 'rotc_pgl_color': 'red', 'usafa_bubble': 'blue', 'rotc_bubble': 'red',
+        'ots_pgl_color': 'yellow', 'ots_bubble': 'yellow',
         'cb_edgecolor': 'black', 'save_board_default': True, 'circle_color': 'black', 'focus': 'Cadet Choice',
         'save_iteration_frames': True, 'afsc_title_size': 20, 'afsc_names_sized_box': False,
         'b_solver_name': 'couenne', 'b_pyomo_max_time': None, 'row_constraint': False, 'n^rows': 3,
@@ -212,7 +214,8 @@ def initialize_instance_functional_parameters(N):
         "Mandatory": "#311cd4", "Desired": "#085206", "Permitted": "#bda522", "Ineligible": "#f25d50",
 
         # Cadet Demographics
-        "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "minority": "#eb8436",
+        "male": "#6531d6", "female": "#73d631", "usafa": "#5ea0bf", "rotc": "#cc9460", "ots": "green",  # TODO: change
+        "minority": "#eb8436",
         "non-minority": "#b6eb6c",
 
         # Misc. AFSC Criteria  #cdddf7
@@ -234,7 +237,7 @@ def initialize_instance_functional_parameters(N):
         "Two or more races": "#ff0026", "Unknown": "#27dbe8", "White": "#a3a3a2",
 
         # Gender/SOC written differently (need to fix this later)
-        "Male": "#6531d6", "Female": "#73d631", "USAFA": "#5ea0bf", "ROTC": "#cc9460",
+        "Male": "#6531d6", "Female": "#73d631", "USAFA": "#5ea0bf", "ROTC": "#cc9460", "OTS": "green",  # TODO: Change
 
         # Accessions group colors
         "All Cadets": "#000000", "Rated": "#ff0011", "USSF": "#0015ff", "NRL": "#000000",
@@ -581,7 +584,7 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
 
                 # Rated Career Fields
                 if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0", "92T1", "92T2", "92T3",
-                            "11XX_R", "11XX_U", "USSF", "USSF_U", "USSF_R"]:
+                            "11XX_R", "11XX_U", "11XX_O", "USSF", "USSF_U", "USSF_R"]:
                     qual[d][i, j] = "P1"
 
                 # Aerospace Physiologist
@@ -879,8 +882,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
 
                 # Developmental Engineering: Mechanical Engineer
                 elif afsc in ['62EXH', '62E1H1S']:  # Updated Oct '24
-                    if cip[:4] == '1419' and cip != '141901':
-                        qual[d][i, j] = 'M1'
+                    if cip[:4] == '1419':  # and cip != '141901': (Is this a mistake? 141901 seems to be popular among
+                        qual[d][i, j] = 'M1'  # cadets that want this AFSC)
                     else:
                         qual[d][i, j] = 'I2'
 

@@ -10,6 +10,7 @@ import afccp.core.globals
 if afccp.core.globals.use_manifold:
     from sklearn import manifold
 
+
 # Primary Solution Evaluation Functions
 def evaluate_solution(solution, parameters, value_parameters, approximate=False, re_calculate_x=True, printing=False):
     """
@@ -82,6 +83,10 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             solution['total_failed_constraints'] += 1
             solution["failed_constraints"].append(afsc + " Value")
 
+    # Set of cadets that have been matched to AFSCs
+    solution['I^Match'] = np.where(solution['j_array'] != p['M'])[0]
+    solution['Num Matched'] = len(solution['I^Match'])
+
     # Loop through all cadets to assign their values
     for i in p['I']:
         solution['cadet_value'][i] = np.sum(x[i, j] * p['cadet_utility'][i, j] for j in p['J^E'][i])
@@ -122,7 +127,13 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         solution['num_successful_alternates'] = 0  # Number of cadets on alternate lists that don't form blocking pairs
 
         # Loop through each SOC and rated AFSC
-        for soc in ['usafa', 'rotc']:
+        for soc in p['SOCs']:
+
+            # Did we not run the algorithm for this specific SOC?
+            if f'J^Preferred [{soc}]' not in p:
+                continue
+
+            # Loop through each rated AFSC
             for j in p['J^Rated']:
 
                 # Loop through each cadet on this SOC's rated AFSC's list
@@ -149,11 +160,12 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
     solution['cadets_reserved_correctly'] = str(num_reserved_correctly) + ' / ' + str(num_reserved_needed)
 
     # Define overall metrics
-    solution['cadets_overall_value'] = np.dot(vp['cadet_weight'], solution['cadet_value'])
+    solution['cadets_overall_value'] = np.dot(vp['cadet_weight'][solution['I^Match']],
+                                              solution['cadet_value'][solution['I^Match']])
     solution['afscs_overall_value'] = np.dot(vp['afsc_weight'], solution['afsc_value'])
     solution['z'] = vp['cadets_overall_weight'] * solution['cadets_overall_value'] + \
                    vp['afscs_overall_weight'] * solution['afscs_overall_value']
-    solution['num_ineligible'] = np.sum(x[i, j] * p['ineligible'][i, j] for j in p['J'] for i in p['I'])
+    solution['num_ineligible'] = np.sum(x[i, j] * p['ineligible'][i, j] for j in p['J'] for i in solution['I^Match'])
 
     # Add additional metrics components (Non-VFT stuff)
     solution = calculate_additional_useful_metrics(solution, p, vp)
@@ -193,11 +205,13 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         if 'num_blocking_pairs' in solution:
             print_str += ".\nBlocking pairs: " + str(solution['num_blocking_pairs'])
         print_str += ". Unmatched cadets: " + str(solution["num_unmatched"])
+        print_str += f".\nMatched cadets: {solution['Num Matched']}/{p['N']}. N^Match: {p['N^Match']}"
         print_str += ". Ineligible cadets: " + str(solution['num_ineligible']) + "."
         print(print_str)
 
     # Return the solution/metrics
     return solution
+
 
 def fitness_function(chromosome, p, vp, mp, con_fail_dict=None):
     """
@@ -289,6 +303,7 @@ def fitness_function(chromosome, p, vp, mp, con_fail_dict=None):
     # Return fitness value
     return vp['cadets_overall_weight'] * np.dot(vp['cadet_weight'], cadet_value) + \
            vp['afscs_overall_weight'] * np.dot(vp['afsc_weight'], afsc_value)
+
 
 def calculate_blocking_pairs(parameters, solution, only_return_count=False):
     """
@@ -384,6 +399,7 @@ def calculate_blocking_pairs(parameters, solution, only_return_count=False):
     else:
         return blocking_pairs
 
+
 # Secondary Solution Evaluation Functions
 def value_function(a, f_a, r, x):
     """
@@ -417,6 +433,7 @@ def value_function(a, f_a, r, x):
     # Return value
     return val
 
+
 def value_function_points(a, fhat):
     """
     Takes the linear function parameters and returns the approximately non-linear coordinates
@@ -427,6 +444,7 @@ def value_function_points(a, fhat):
     x = (np.arange(1001) / 1000) * a[len(a) - 1]
     y = np.array([value_function(a, fhat, len(a), i) for i in x])
     return x, y
+
 
 def calculate_afsc_norm_score(cadets, j, p, count=None):
     """
@@ -479,6 +497,7 @@ def calculate_afsc_norm_score(cadets, j, p, count=None):
     # Normalize this score and return it
     return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
 
+
 def calculate_afsc_norm_score_general(ranks, achieved_ranks):
     """
     Calculate the Normalized Score for an AFSC assignment using custom ranks.
@@ -526,6 +545,7 @@ def calculate_afsc_norm_score_general(ranks, achieved_ranks):
     # Normalize this score and return it
     return 1 - (achieved_sum - best_sum) / (worst_sum - best_sum)
 
+
 def calculate_additional_useful_metrics(solution, p, vp):
     """
     Add additional components to the "metrics" dictionary based on the parameters and value parameters.
@@ -566,7 +586,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
                 solution['global_utility_achieved'][i] = vp['global_utility'][i, j]
             else:
                 solution['cadet_choice'][i] = np.max(p['c_pref_matrix'][i, :]) + 1  # Unassigned cadet choice
-        solution['average_cadet_choice'] = round(np.mean(solution['cadet_choice']), 2)
+        solution['average_cadet_choice'] = round(np.mean(solution['cadet_choice'][solution['I^Match']]), 2)
 
         # Calculate average cadet choice for each AFSC individually
         solution['afsc_average_cadet_choice'] = np.zeros(p['M'])
@@ -575,19 +595,20 @@ def calculate_additional_useful_metrics(solution, p, vp):
             solution['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
 
         # Calculate overall utility scores
-        solution['z^gu'] = round(np.mean(solution['global_utility_achieved']), 4)
-        solution['cadet_utility_overall'] = round(np.mean(solution['cadet_utility_achieved']), 4)
-        solution['afsc_utility_overall'] = round(np.mean(solution['afsc_utility_achieved']), 4)
+        solution['z^gu'] = round(np.mean(solution['global_utility_achieved'][solution['I^Match']]), 4)
+        solution['cadet_utility_overall'] = round(np.mean(solution['cadet_utility_achieved'][solution['I^Match']]), 4)
+        solution['afsc_utility_overall'] = round(np.mean(solution['afsc_utility_achieved'][solution['I^Match']]), 4)
 
         # Calculate cadet utility based on SOC
-        solution['usafa_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p['usafa_cadets']]), 4)
-        solution['rotc_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p['rotc_cadets']]), 4)
+        for soc in p['SOCs']:
+            solution[f'{soc}_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p[f'{soc}_cadets']]), 4)
 
     # Cadet Choice Counts (For exporting solution file to excel)
     solution['cadet_choice_counts'] = {}
     for choice in np.arange(1, 11):  # Just looking at top 10
-        solution['cadet_choice_counts'][choice] = len(np.where(solution['cadet_choice'] == choice)[0])
-    solution['cadet_choice_counts']['All Others'] = int(p['N'] - sum(
+        choice_cadets = np.where(solution['cadet_choice'] == choice)[0]
+        solution['cadet_choice_counts'][choice] = len(np.intersect1d(choice_cadets, solution['I^Match']))
+    solution['cadet_choice_counts']['All Others'] = int(p['N^Match'] - sum(
         [solution['cadet_choice_counts'][choice] for choice in np.arange(1, 11)]))
 
     # Save the counts for each AFSC separately from the objective_measure matrix
@@ -663,6 +684,8 @@ def calculate_additional_useful_metrics(solution, p, vp):
         # Weighted average AFSC choice
         weights = solution['count'] / np.sum(solution['count'])
         solution['weighted_average_afsc_score'] = np.dot(weights, solution['afsc_norm_score'])
+        solution['weighted_average_nrl_afsc_score'] = np.dot(weights[p['J^NRL']] / np.sum(weights[p['J^NRL']]),
+                                                             solution['afsc_norm_score'][p['J^NRL']])
 
         # Space Force and Air Force differences
         if 'USSF' in p['afscs_acc_grp']:
@@ -760,7 +783,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
         pass
 
     # Initialize dictionaries for cadet choice based on demographics
-    dd = {"usafa": ["USAFA", "ROTC"], "male": ["Male", "Female"]}  # Demographic Dictionary
+    dd = {"usafa": [soc.upper() for soc in p['SOCs']], "male": ["Male", "Female"]}  # Demographic Dictionary
     demographic_dict = {cat: [dd[cat][0], dd[cat][1]] for cat in dd if cat in p}  # Demographic Dictionary (For this instance)
     solution["choice_counts"] = {"TOTAL": {}}  # Everyone
     for cat in demographic_dict:
@@ -779,7 +802,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
             # Calculate actual top 3 count
             arr = np.array([i for i in solution['I^' + cat] if solution['j_array'][i] in p['cadet_preferences'][i][:3]])
             solution['top_3_' + cat.lower() + '_count'] = round(len(arr) / len(solution['I^' + cat]), 4)
-    for cat in ['USAFA', 'ROTC']:
+    for cat in dd['usafa']:
         arr = np.array([i for i in p['I^' + cat] if solution['j_array'][i] in p['cadet_preferences'][i][:3]])
         solution['top_3_' + cat.lower() + '_count'] = round(len(arr) / len(p['I^' + cat]), 4)
 
@@ -826,7 +849,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
             # The cadets that were assigned to this AFSC and placed it in their Pth choice
             assigned_choice_cadets = np.intersect1d(p["I^Choice"][choice][j], dem_cadets["TOTAL"])
 
-            # The cadets that were assigned to this AFSC, placed it in their Pth choice, and had the specific demographic
+            # The cadets that were assigned to this AFSC, placed it in their Pth choice, and had the demographic
             for dem in solution["choice_counts"]:
                 solution["choice_counts"][dem][afsc][choice] = len(
                     np.intersect1d(assigned_choice_cadets, dem_cadets[dem]))
@@ -841,8 +864,9 @@ def calculate_additional_useful_metrics(solution, p, vp):
 
     # Top 3 Choice Percentage
     solution['top_3_choice_percent'] = np.around(
-        np.sum([1 <= solution['cadet_choice'][i] <= 3 for i in p['I']]) / p['N'], 3)
+        np.sum([1 <= solution['cadet_choice'][i] <= 3 for i in solution['I^Match']]) / p['N^Match'], 3)
     return solution
+
 
 def calculate_base_training_metrics(solution, p, vp):
     """
@@ -904,6 +928,7 @@ def calculate_base_training_metrics(solution, p, vp):
 
     return solution
 
+
 def calculate_castle_solution_metrics(solution, p):
     """
     Add CASTLE-specific solution metrics
@@ -919,7 +944,12 @@ def calculate_castle_solution_metrics(solution, p):
 
         # Get the number of people assigned to each AFSC under this "CASTLE" AFSC umbrella
         measure = np.sum(np.sum(x[i, j] for i in p['I^E'][j]) for j in j_indices)
-        measure += p['ots_counts'][afsc]  # (+ ADD OTS!!)
+
+        # (+ ADD OTS if they're not being matched!!)
+        if 'ots' not in p['SOCs']:
+            measure += p['ots_counts'][afsc]
+
+        # Save the measure
         solution['castle_counts'][afsc] = measure
 
         # Get the value from this AFSC's curve
@@ -930,6 +960,7 @@ def calculate_castle_solution_metrics(solution, p):
     solution['z^CASTLE (Values)'] = round(np.sum(solution['castle_v'][afsc] for afsc in afscs), 4)
     solution['z^CASTLE'] = round(p['w^G'] * solution['z^gu'] + (1 - p['w^G']) * solution['z^CASTLE (Values)'], 4)
     return solution
+
 
 # AFSC Objective Measure Calculation Functions
 def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
@@ -965,9 +996,11 @@ def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
     elif objective == 'Combined Quota':
         return count
     elif objective == 'USAFA Quota':
-        return len(np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets))
+        return len(np.intersect1d(p['usafa_cadets'], cadets))
     elif objective == 'ROTC Quota':
-        return count - len(np.intersect1d(p['I^D']['USAFA Proportion'][j], cadets))
+        return len(np.intersect1d(p['rotc_cadets'], cadets))
+    elif objective == 'OTS Quota':
+        return len(np.intersect1d(p['ots_cadets'], cadets))
 
     # Maximize cadet utility
     elif objective == 'Utility':
@@ -976,6 +1009,7 @@ def calculate_objective_measure_chromosome(cadets, j, objective, p, vp, count):
     # New objective to evaluate CFM preference lists
     elif objective == "Norm Score":
         return calculate_afsc_norm_score(cadets, j, p, count=count)
+
 
 def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True):
     """
@@ -1026,9 +1060,11 @@ def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True)
     elif objective == "Combined Quota":
         return count, None # Measure, Numerator
     elif objective == "USAFA Quota":
-        return np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j]), None # Measure, Numerator
+        return np.sum(x[i, j] for i in np.intersect1d(p['usafa_cadets'], p['I^E'][j])), None # Measure, Numerator
     elif objective == "ROTC Quota":
-        return count - np.sum(x[i, j] for i in p['I^D']['USAFA Proportion'][j]), None # Measure, Numerator
+        return np.sum(x[i, j] for i in np.intersect1d(p['rotc_cadets'], p['I^E'][j])), None  # Measure, Numerator
+    elif objective == "OTS Quota":
+        return np.sum(x[i, j] for i in np.intersect1d(p['ots_cadets'], p['I^E'][j])), None  # Measure, Numerator
 
     # Maximize cadet utility
     elif objective == "Utility":
@@ -1057,6 +1093,7 @@ def calculate_objective_measure_matrix(x, j, objective, p, vp, approximate=True)
     else:
         raise ValueError("Error. Objective '" + objective + "' does not have a means of calculation in the"
                                                             " VFT model. Please adjust.")
+
 
 # AFSC Objective Measure Constraint Functions
 def calculate_failed_constraint_metrics(j, k, solution, p, vp):
@@ -1111,6 +1148,7 @@ def calculate_failed_constraint_metrics(j, k, solution, p, vp):
         solution["con_fail_dict"][(j, k)] = '< ' + str(round(constrained_measure, 4))
 
     return solution  # Return *updated* solution/metrics
+
 
 def check_failed_constraint_chromosome(j, k, measure, count, p, vp, con_fail_dict):
     """
@@ -1173,6 +1211,7 @@ def check_failed_constraint_chromosome(j, k, measure, count, p, vp, con_fail_dic
     else:
         return True  # Measure is outside the range, we DID fail the constraint (failed = True)
 
+
 # Solution Comparison Functions
 def compare_solutions(baseline, compared, printing=False):
     """
@@ -1203,6 +1242,7 @@ def compare_solutions(baseline, compared, printing=False):
     if printing:
         print("The two solutions are " + str(percent_similar) + "% the same.")
     return percent_similar
+
 
 def similarity_coordinates(similarity_matrix):
     """
@@ -1244,6 +1284,7 @@ def similarity_coordinates(similarity_matrix):
         print('Sklearn manifold not available')
 
     return coordinates
+
 
 # Solution Preparation Functions
 def incorporate_rated_results_in_parameters(instance, printing=True):
@@ -1287,16 +1328,21 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
     # Shorthand
     p, vp, solutions = instance.parameters, instance.value_parameters, instance.solutions
     mdl_p = instance.mdl_p
+    if mdl_p['socs_to_use'] is None:
+        socs_to_use = p['SOCs']
+    else:
+        socs_to_use = mdl_p['socs_to_use']
+    upper_socs = [soc.upper() for soc in socs_to_use]
 
     # Make sure we have the solutions from both SOCs with matches and reserves
-    for soc in ['USAFA', 'ROTC']:
+    for soc in upper_socs:
         for kind in ['Reserves', 'Matches']:
             solution_name = "Rated " + soc.upper() + " HR (" + kind + ")"
             if solution_name not in solutions:
                 return p  # We don't have the required solutions!
 
     # Matched cadets get fixed in the solution!
-    for soc in ['USAFA', 'ROTC']:
+    for soc in upper_socs:
         solution = solutions["Rated " + soc.upper() + " HR (Matches)"]
         matched_cadets = np.where(solution['j_array'] != p['M'])[0]
         for i in matched_cadets:
@@ -1304,7 +1350,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
 
     # Reserved cadets AFSC selection is constrained to be AT LEAST their reserved Rated slot
     p['J^Reserved'] = {}
-    for soc in ['USAFA', 'ROTC']:
+    for soc in upper_socs:
         solution = solutions["Rated " + soc.upper() + " HR (Reserves)"]
         reserved_cadets = np.where(solution['j_array'] != p['M'])[0]
         for i in reserved_cadets:
@@ -1313,7 +1359,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
             p['J^Reserved'][i] = p['cadet_preferences'][i][:choice + 1]
 
     # Calculate additional rated algorithm result information for both SOCs
-    for soc in ['usafa', 'rotc']:
+    for soc in socs_to_use:
 
         # Do we want to potentially allow ROTC to fill USAFA pilot slots?
         if mdl_p['usafa_soc_pilot_cross_in'] and soc == 'rotc':
@@ -1344,7 +1390,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
 
         # Matched/Reserved Lists
         print_str = "Rated SOC Algorithm Results:\n"
-        for soc in ['USAFA', 'ROTC']:
+        for soc in upper_socs:
             for kind in ["Fixed", "Reserved"]:
                 count = str(len([i for i in p[soc.lower() + "_cadets"] if i in p['J^' + kind]]))
                 print_str += soc + ' ' + kind + ' Cadets: ' + count + ', '
@@ -1353,9 +1399,14 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
         # Alternate Lists
         count_u = str(int(sum([len(p['I^Alternate [usafa]'][j]) for j in p['J^Rated']])))
         count_r = str(int(sum([len(p['I^Alternate [rotc]'][j]) for j in p['J^Rated']])))
-        print("USAFA Rated Alternates: " + count_u + ", ROTC Rated Alternates: " + count_r)
+        print_str = "USAFA Rated Alternates: " + count_u + ", ROTC Rated Alternates: " + count_r
+        if 'ots' in socs_to_use:
+            count_o = str(int(sum([len(p['I^Alternate [ots]'][j]) for j in p['J^Rated']])))
+            print_str += ", OTS Rated Alternates: " + count_o
+        print(print_str)
 
     return p  # Return the parameters!
+
 
 def augment_rated_algorithm_results(p, soc='rotc', printing=False, num_additions_rotc_pilot: int = 0):
     """

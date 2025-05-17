@@ -14,6 +14,7 @@ import afccp.core.solutions.handling
 logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 warnings.filterwarnings('ignore')
 
+
 # Main Model Building
 def assignment_model_build(instance, printing=False):
     """
@@ -61,7 +62,7 @@ def assignment_model_build(instance, printing=False):
 
     # *New* Utility/"Cost" Matrix based on CFM preferences and cadet preferences (GUO model)
     if mdl_p['assignment_model_obj'] == 'Global Utility':
-        c = vp['global_utility'] / p['N']
+        c = vp['global_utility']
 
         if printing:
             print("Building assignment problem (GUO) model...")
@@ -124,7 +125,11 @@ def assignment_model_build(instance, printing=False):
         for castle_afsc, j_indices in p['J^CASTLE'].items():
 
             # Get the number of people assigned to each AFSC under this "CASTLE" AFSC umbrella (+ ADD OTS!!)
-            measure = np.sum(np.sum(m.x[i, j] for i in p['I^E'][j]) for j in j_indices) + p['ots_counts'][castle_afsc]
+            if 'ots' in p['SOCs']:  # If OTS is in the model, we don't have to account for them
+                measure = np.sum(np.sum(m.x[i, j] for i in p['I^E'][j]) for j in j_indices)
+            else:  # If we are not matching OTS, we have to account for them
+                measure = np.sum(np.sum(m.x[i, j] for i in p['I^E'][j]) for j in j_indices) + p['ots_counts'][
+                    castle_afsc]
 
             # Add the value curve constraints for this "CASTLE" AFSC
             m = add_castle_value_curve_function_constraints(m, measure, afsc=castle_afsc, q=p['castle_q'])
@@ -134,7 +139,6 @@ def assignment_model_build(instance, printing=False):
 
         # Loop through all constrained AFSC objectives
         for k in vp['K^C'][j]:
-
             # Calculate AFSC objective measure components
             measure, numerator = afccp.core.solutions.handling.calculate_objective_measure_matrix(
                 m.x, j, vp['objectives'][k], p, vp, approximate=True)
@@ -248,7 +252,8 @@ def vft_model_build(instance, printing=False):
         q = {"r": r,  # Number of breakpoints (bps) for objective k's function for AFSC j
              "L": [[list(range(r[j][k])) for k in vp['K']] for j in p['J']],  # Set of breakpoints
              "a": [[[vp['a'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']],  # Measures of bps
-             "f^hat": [[[vp['f^hat'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in p['J']]}  # Values of bps
+             "f^hat": [[[vp['f^hat'][j][k][l] for l in vp['L'][j][k]] for k in vp['K']] for j in
+                       p['J']]}  # Values of bps
 
         # Loop through each AFSC
         for j in p['J']:
@@ -258,7 +263,6 @@ def vft_model_build(instance, printing=False):
 
                 # We need to add an extra breakpoint to effectively extend the domain
                 if instance.mdl_p["add_breakpoints"]:
-
                     # We add an extra breakpoint far along the x-axis with the same y value as the previous one
                     last_a = q["a"][j][k][q['r'][j][k] - 1]
                     last_f = q["f^hat"][j][k][q['r'][j][k] - 1]
@@ -294,7 +298,6 @@ def vft_model_build(instance, printing=False):
             # For each cadet, for each AFSC that the cadet is eligible
             for i in p['I']:
                 for j in p['J^E'][i]:
-
                     # x: 1 if we assign cadet i to AFSC j; 0 otherwise
                     m.x[i, j] = round(instance.mdl_p["warm_start"]['x'][i, j])
 
@@ -313,7 +316,6 @@ def vft_model_build(instance, printing=False):
 
                         # There is one less "y" variable than lambda because this is for the line segments between bps
                         if l < q['r'][j, k] - 1:
-
                             # 1 if AFSC j objective measure k is on line segment between breakpoints l and l + 1; 0 o/w
                             m.y[j, k, l] = instance.mdl_p["warm_start"]['y'][j, k, l]
 
@@ -546,7 +548,6 @@ def gp_model_build(instance, printing=False):
 
     # If we have AFSCs that have specified a limit on the number of USAFA cadets
     if len(gp['A^']['U_lim']) > 0:
-
         # Number of USAFA cadets assigned to AFSCs that have an upper limit on USAFA cadets
         usafa_cadet_lim_afsc_count = np.sum(np.sum(m.x[c, a] for c in gp['C^']['U'][a]) for a in gp['A^']['U_lim'])
 
@@ -641,13 +642,12 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
 
         print('Solving ' + specific_model_name + ' instance with solver ' + mdl_p["solver_name"] + '...')
 
-
     # Solve Model
     start_time = time.perf_counter()
     if mdl_p["pyomo_max_time"] is not None:
         if mdl_p["solver_name"] == 'mindtpy':
             solver.solve(model, time_limit=mdl_p["pyomo_max_time"]),
-                         #mip_solver='cplex_persistent', nlp_solver='ipopt')
+            # mip_solver='cplex_persistent', nlp_solver='ipopt')
         elif mdl_p["solver_name"] == 'gurobi':
             solver.solve(model, options={'TimeLimit': mdl_p["pyomo_max_time"], 'IntFeasTol': 0.05})
         elif mdl_p["solver_name"] == 'ipopt':
@@ -665,7 +665,7 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             model.pprint()
             solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
         else:
-            solver.solve(model) #, tee=True)
+            solver.solve(model)  # , tee=True)
 
     # Get solve time
     solve_time = round(time.perf_counter() - start_time, 2)
@@ -735,6 +735,12 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                 # For some reason we may not have assigned a cadet to an AFSC in which case we just give them to one
                 # they're eligible for and want (happens usually to only 1-3 people through VFT model)
                 if not found:
+
+                    # OTS candidates may go unmatched
+                    if 'I^OTS' in p:
+                        if i in p['I^OTS']:
+                            solution['j_array'][i] = p['M']  # Cadet assigned to "unmatched" AFSC!
+                            continue
 
                     # Try to give the cadet their top choice AFSC for which they're eligible
                     if len(p["J^P"][i]) != 0:
@@ -874,7 +880,8 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                 solution[key] = warm_start[key]
 
         if printing:
-            print("Model solved in", solve_time, "seconds. Pyomo reported objective value:", solution['pyomo_obj_value'])
+            print("Model solved in", solve_time, "seconds. Pyomo reported objective value:",
+                  solution['pyomo_obj_value'])
 
         # Return solution dictionary
         return solution
@@ -1024,7 +1031,6 @@ def initialize_value_function_constraint_lists(m):
 
 
 def initialize_castle_value_curve_function_variables(m, p, q):
-
     # Castle AFSCs
     afscs = [afsc for afsc, _ in p['castle_afscs'].items()]
     m.f_value = Var((afsc for afsc in afscs), within=NonNegativeReals)  # AFSC objective value
@@ -1072,7 +1078,7 @@ def add_objective_measure_constraint(m, j, k, measure, numerator, p, vp):
 
     try:
         # "Number of Cadets" objectives handled separately
-        if vp['objectives'][k] in ['Combined Quota', 'USAFA Quota', 'ROTC Quota']:
+        if vp['objectives'][k] in ['Combined Quota', 'USAFA Quota', 'ROTC Quota', 'OTS Quota']:
             m.measure_constraints.add(expr=measure >= vp["objective_min"][j, k])
             m.measure_constraints.add(expr=measure <= vp["objective_max"][j, k])
 
@@ -1161,7 +1167,6 @@ def add_objective_value_function_constraints(m, j, k, measure, q):
 
 
 def add_castle_value_curve_function_constraints(m, measure, afsc, q):
-
     # Add Linear Value Function Constraints
     m.measure_vf_constraints.add(expr=measure == np.sum(  # Measure Constraint for Value Function (20a)
         q['a'][afsc][l] * m.lam[afsc, l] for l in q['L'][afsc]))
@@ -1226,8 +1231,21 @@ def common_optimization_handling(m, p, vp, mdl_p):
     m.x = Var(((i, j) for i in p['I'] for j in p['J^E'][i]), within=Binary)
 
     # Cadets receive one and only one AFSC (Ineligibility constraint is always met as a result of the indexed sets)
-    m.one_afsc_constraints = ConstraintList()
+    m.one_afsc_constraints = ConstraintList()  # ...except for OTS candidates!
     for i in p['I']:
+
+        # OTS candidates can go unmatched
+        if 'I^OTS' in p:
+            if i in p['I^OTS']:
+
+                # If this candidate does not have any preferences, they will go unmatched
+                if len(p['cadet_preferences'][i]) == 0:
+                    continue  # No need to assign a variable constraint (doesn't exist)
+                else:  # The candidate DOES have preferences, but they still COULD go unmatched
+                    m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) <= 1)
+                continue  # Next!
+
+        # This cadet must receive one and only one AFSC
         m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
 
     # Cadets may sometimes be constrained to be part of one "Accessions Group" (probably just USSF)
@@ -1323,16 +1341,15 @@ def common_optimization_handling(m, p, vp, mdl_p):
                 rotc_pilot_totals = np.sum(m.x[i, j_pilot_r] for i in p['I^E'][j_pilot_r])
                 return usafa_pilot_totals + rotc_pilot_totals == p['rotc_quota'][j_pilot_r] + \
                        p['usafa_quota'][j_pilot_u]
+
             m.usafa_rotc_pilot_totals_constraint = Constraint(rule=usafa_rotc_pilot_totals)
 
-
         # Loop through each SOC and rated AFSC
-        for soc in ['usafa', 'rotc']:
+        for soc in p['SOCs']:
             for j in rated_afscs_with_constraints:
 
                 # Loop through each cadet on this rated AFSC's alternate list for this SOC
                 for i in p['I^Alternate [' + soc + ']'][j]:
-
                     # Add the blocking pair constraint for the rated AFSC/cadet pair
                     m.blocking_pairs_alternates.add(  # "j_p"/"i_p" indicate j/i "prime" or (')
                         expr=p[soc + '_quota'][j] *
@@ -1368,7 +1385,6 @@ def common_optimization_handling(m, p, vp, mdl_p):
 
     # Space Force PGL Constraint (Honor USSF SOC split)
     if mdl_p['ussf_soc_pgl_constraint'] and "USSF" in p['afscs_acc_grp']:
-
         # Necessary variables to calculate
         ussf_usafa_sum = np.sum(np.sum(m.x[i, j] for i in p['usafa_cadets'] if i in p['I^E'][j]) for j in p['J^USSF'])
         ussf_rotc_sum = np.sum(np.sum(m.x[i, j] for i in p['rotc_cadets'] if i in p['I^E'][j]) for j in p['J^USSF'])
@@ -1386,7 +1402,6 @@ def common_optimization_handling(m, p, vp, mdl_p):
 
     # Space Force OM Constraint
     if mdl_p['USSF OM'] and "USSF" in p['afscs_acc_grp']:
-
         # Necessary variables to calculate
         ussf_merit_sum = np.sum(np.sum(p['merit'][i] * m.x[i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
         ussf_sum = np.sum(np.sum(m.x[i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
@@ -1398,6 +1413,7 @@ def common_optimization_handling(m, p, vp, mdl_p):
             """
 
             return ussf_merit_sum <= ussf_sum * (0.5 + mdl_p['ussf_merit_bound'])
+
         def ussf_om_lower_rule(m):
             """
             This is the 50% OM split constraint between the USAF and USSF (lower bound)
@@ -1408,6 +1424,20 @@ def common_optimization_handling(m, p, vp, mdl_p):
         # Apply constraints
         m.ussf_om_constraint_upper = Constraint(rule=ussf_om_upper_rule)
         m.ussf_om_constraint_lower = Constraint(rule=ussf_om_lower_rule)
+
+    # OTS accessions cap
+    if 'ots' in p['SOCs']:
+        # Determine the cap on OTS accessions
+        print(f"OTS accessions capacity constraint: {p['ots_accessions']}")
+
+        # Define and apply the constraint
+        def ots_accessions_constraint_rule(m):
+            """
+            Constraint to ensure we stay under OTS accessions cap
+            """
+            return np.sum(np.sum(m.x[i, j] for j in p['J^E'][i]) for i in p['I^OTS']) <= p['ots_accessions']
+
+        m.ots_accessions_constraint = Constraint(rule=ots_accessions_constraint_rule)
 
     # Return updated model
     return m
@@ -1559,7 +1589,7 @@ def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
     else:  # If not, we solve the "AFSC-only" assignment problem model
 
         # AFSC-only objective function (GUO) i.e. (not base/training component considerations)
-        z_guo = np.sum(np.sum(c[i, j] * m.x[i, j] for j in p["J^E"][i]) for i in p["I"])
+        z_guo = np.sum(np.sum(c[i, j] * m.x[i, j] for j in p["J^E"][i]) for i in p["I"]) / p['N^Match']
         def objective_function(m):  # Standard "GUO" function value "z^GUO"
             return z_guo
 
@@ -1657,7 +1687,6 @@ def cadet_board_preprocess_model(b):
     pass  # Here so pycharm doesn't yell at me for the constraint line above
 
     if b['add_legend']:
-
         # 1 if AFSC j is to the right of the left edge of the legend box, 0 otherwise
         m.lga_r = Var((j for j in J), within=Binary)
 
@@ -1685,7 +1714,6 @@ def cadet_board_preprocess_model(b):
 
         # Toggle for if we want to incorporate the "row constraint"
         if b['row_constraint']:
-
             # 1 if AFSC j is on row k, 0 otherwise
             m.lam = Var(((j, k) for j in J for k in range(b['n^rows'])), within=Binary)
             m.y_row = Var((k for k in range(b['n^rows'])), within=NonNegativeReals)
@@ -1716,7 +1744,6 @@ def cadet_board_preprocess_model(b):
         m.afsc_constraints = ConstraintList()
 
         if b['row_constraint']:
-
             # List of constraints that enforce the y row constraints
             m.y_row_constraints = ConstraintList()
             m.lam_constraints = ConstraintList()
@@ -1732,7 +1759,6 @@ def cadet_board_preprocess_model(b):
 
         # Legend Dummy Definitions
         if b['add_legend']:
-
             m.legend_constraints.add(expr=m.x[j] + m.s * n[j] >= (b['fw'] - b['bw^r'] - b['lw']) * m.lga_r[j])
             m.legend_constraints.add(expr=m.x[j] + m.s * n[j] <= (b['fw'] - b['bw^r'] - b['lw']) * (1 - m.lga_r[j]))
             m.legend_constraints.add(expr=m.y[j] + m.s * n[j] >= (b['fh'] - b['bw^t'] - b['lh']) * m.lga_u[j])
@@ -1744,7 +1770,6 @@ def cadet_board_preprocess_model(b):
 
         # Toggle for if we want to incorporate the "row constraint"
         if b['row_constraint'] and not b['simplified_model']:
-
             # y row constraints
             m.y_row_constraints.add(
                 expr=m.y[j] == np.sum(m.lam[j, k] * (m.y_row[k] - n[j] * m.s) for k in range(b['n^rows'])))
@@ -1757,7 +1782,6 @@ def cadet_board_preprocess_model(b):
 
         # Loop through each AFSC (after the first one)
         for j in np.arange(1, M):
-
             # Add the constraints to enforce the grid
             m.grid_constraints.add(expr=m.y[j] <= m.y[j - 1] - (m.s * n[j] + b['abw^ud']) * m.q[j])
             m.grid_constraints.add(expr=m.y[j] >= m.y[j - 1] * (1 - m.q[j]))
@@ -1769,7 +1793,6 @@ def cadet_board_preprocess_model(b):
 
         # Loop through all AFSC "tuples"
         for i, j in tuples:
-
             # AFSC i is to the left of AFSC j (1) or not (0)
             m.afsc_constraints.add(expr=m.x[j] >= (m.x[i] + m.s * n[i] + b['abw^lr']) * m.a_l[i, j])
 
@@ -1847,6 +1870,7 @@ def cadet_board_preprocess_model_simple(b):
     # ______________________________OBJECTIVE FUNCTION__________________________________________________________
     def objective_function(m):
         return m.s  # Objective is to maximize the size of the cadet boxes!
+
     m.objective = Objective(rule=objective_function, sense=maximize)
 
     # ____________________________________CONSTRAINTS___________________________________________________________
@@ -1963,7 +1987,3 @@ def solve_cadet_board_model_direct_from_board_parameters(instance, filepath):
 
     # Export to csv
     b_df.to_csv(filepath, index=False)
-
-
-
-
