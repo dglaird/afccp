@@ -217,7 +217,7 @@ solvers/
 support/
 cfms/
 executables/
-test.py
+executables/test.py
 cfm_rule_generation.py
 afccp/core/problem_class_05012023.py
 
@@ -258,6 +258,7 @@ afccp/core/problem_class_05012023.py
 # Gradle
 .idea/**/gradle.xml
 .idea/**/libraries
+.DS_Store
 
 # Gradle and Maven with auto-import
 # When using Gradle or Maven with auto-import, you should exclude module files,

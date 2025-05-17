@@ -15,8 +15,7 @@
       <excludeFolder url="file://$MODULE_DIR$/executables/.ipynb_checkpoints" />
       <excludeFolder url="file://$MODULE_DIR$/executables" />
     </content>
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="Python 3.8 (afccp)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module" module-name="dorado" />
   </component>
 </module>
