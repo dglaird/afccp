@@ -21,6 +21,7 @@ from afccp.core.data.preferences import determine_soc_rated_afscs
 if afccp.core.globals.use_pyomo:
     import afccp.core.solutions.optimization
 
+
 class BubbleChart:
     def __init__(self, instance, printing=None):
         """
@@ -107,12 +108,12 @@ class BubbleChart:
 
         # Rated cadets only
         if 'Rated' in self.b['cadets_solved_for']:
-            for soc in p['SOCs']:
+            for soc in self.p['SOCs']:
                 if soc.upper() in self.b['cadets_solved_for']:
                     self.b['cadets'] = self.p['Rated Cadets'][soc]
                     self.b['max_afsc'] = self.p[f'{soc}_quota']
                     self.b['min_afsc'] = self.p[f'{soc}_quota']
-                    self.b['afscs'] = determine_soc_rated_afscs(soc, all_rated_afscs=p['afscs_acc_grp']["Rated"])
+                    self.b['afscs'] = determine_soc_rated_afscs(soc, all_rated_afscs=self.p['afscs_acc_grp']["Rated"])
                     self.soc = soc
                     break
 
