@@ -3,7 +3,7 @@
 
 # Air Force Cadet Career Problem
 
-![alt text](assets/images/af_logo.png)
+![alt text](docs/images/logos/afccp_logo_and_text.png)
 
 </div>
 

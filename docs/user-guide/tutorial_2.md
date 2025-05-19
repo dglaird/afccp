@@ -75,4 +75,4 @@ In this quickstart:
 - We ran the assignment model and viewed the results.
 - We generated a plot to visualize the match.
 
-To run more realistic examples, refer to [Model Overview](model/overview.md) or the [API Reference](api_reference.md).
+To run more realistic examples...

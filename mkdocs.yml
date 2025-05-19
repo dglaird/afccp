@@ -30,12 +30,16 @@ nav:
   - 🏠 Home: index.md
 
   - 🚀 Getting Started:
-      - 📄 Overview: getting-started.md
+      - 📄 Overview: getting-started/getting-started.md
       - 🛠️ Install Guide:
-          - Installation Instructions: installation.md
-          - Developer Checklist: developer-checklist.md
+          - Installation Instructions: getting-started/installation.md
+          - Developer Checklist: getting-started/developer-checklist.md
 
-  - User Guide: user-guide.md
+  - 📘 User Guide:
+      - Overview: user-guide/overview.md
+      - Tutorial 1 (Intro): user-guide/tutorial_1.md
+      - Tutorial 2 (The Parameters): user-guide/tutorial_2.md
+      - Tutorial 3 (Values): user-guide/tutorial_3.md
 
   - 🧠 Developer Guide: developer-guide.md
 
