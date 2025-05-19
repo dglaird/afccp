@@ -3,9 +3,8 @@ import numpy as np
 import pandas as pd
 import os
 
-from afccp.core.data.generation import augment_2026_data_with_ots
-import afccp.core.globals
-from afccp.core.main import CadetCareerProblem
+from afccp.data.generation import augment_2026_data_with_ots
+from afccp.main import CadetCareerProblem
 
 
 def conduct_ots_ctgan_instance_analysis(num_instances=1, N=3000, gen_data=True, correct_data=True, solve_model=True,

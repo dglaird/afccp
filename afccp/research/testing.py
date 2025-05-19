@@ -1,14 +1,8 @@
 # Import Libraries
-from afccp.core.main import CadetCareerProblem
-from typing import Any
-import os
+from afccp.main import CadetCareerProblem
 import pandas as pd
-import numpy as np
-import math
 import datetime
-import glob
-import copy
-import time
+
 
 def test_solve_times():
     """

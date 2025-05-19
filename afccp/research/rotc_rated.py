@@ -1,14 +1,6 @@
 # Import Libraries
-import afccp.core.globals
-from typing import Any
-import os
-import pandas as pd
+import afccp.globals
 import numpy as np
-import math
-import datetime
-import glob
-import copy
-import time
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -375,7 +367,7 @@ def rotc_rated_match(filename, afsc_quotas, afscs, auto_fix_eligibility=False, p
     """
 
     # Load in data
-    df = afccp.core.globals.import_csv_data(filename)
+    df = afccp.globals.import_csv_data(filename)
 
     # Process data twice, first to remove Rated ineligible cadets and then once more to finish
     for iteration in [1, 2]:
