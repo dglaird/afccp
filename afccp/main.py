@@ -186,6 +186,11 @@ class CadetCareerProblem:
                             invalid = True  # Guilty!
                             break
 
+                    # Too few positions or too many positions to fill
+                    if (np.sum(self.parameters['quota_max']) < self.parameters['N']) or \
+                        (np.sum(self.parameters['quota_min']) > self.parameters['N']):
+                        invalid = True  # Guilty!
+
                 # Generate a "CTGAN" problem instance
                 elif data_name == "CTGAN":
                     self.parameters = afccp.data.generation.generate_ctgan_instance(
@@ -513,11 +518,20 @@ class CadetCareerProblem:
         # Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)
         self.update_preference_matrices()  # 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preference lists need to omit gaps)
 
+        # Force first choice utility values to be 100%
+        self.update_first_choice_cadet_utility_to_one(printing=printing)
+
         # Convert AFSC preferences to percentiles (0 to 1)
         self.convert_afsc_preferences_to_percentiles()  # 1, 2, 3, 4, 5 -> 1, 0.8, 0.6, 0.4, 0.2
 
         # The "cadet columns" are located in Cadets.csv and contain the utilities/preferences in order of preference
         self.update_cadet_columns_from_matrices()  # We haven't touched "c_preferences" and "c_utilities" until now
+
+        # Update utility matrix from columns (and create final cadet utility matrix)
+        self.update_cadet_utility_matrices_from_cadets_data(printing=printing)
+
+        # Modify rated eligibility by SOC, removing cadets that are on "Rated Cadets" list...
+        self.modify_rated_cadet_lists_based_on_eligibility(printing=printing)  # ...but not eligible for any rated AFSC
 
         # Generate fake (random) set of value parameters
         self.generate_random_value_parameters()

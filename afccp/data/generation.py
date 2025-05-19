@@ -19,6 +19,7 @@ warnings.filterwarnings('ignore')  # prevent red warnings from printing
 if afccp.globals.use_sdv:
     pass
 
+
 def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, generate_extra=False):
     """
     This procedure takes in the specified parameters (defined below) and then simulates new random "fixed" cadet/AFSC
@@ -35,13 +36,13 @@ def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, ge
     # Initialize parameter dictionary
     # noinspection PyDictCreation
     p = {'N': N, 'P': P, 'M': M, 'num_util': P, 'cadets': np.arange(N),
-         'minority': np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3]),
-         'male': np.random.choice([0, 1], size=N, p=[1 / 3, 2 / 3]),
          'usafa': np.random.choice([0, 1], size=N, p=[2 / 3, 1 / 3]), 'merit': np.random.rand(N)}
 
     # Generate various features of the cadets
     p['merit_all'] = p['merit']
     p['assigned'] = np.array(['' for _ in range(N)])
+    p['soc'] = np.array(['USAFA' for _ in range(p['N'])])
+    p['soc'][np.where(p['usafa'] == 0)[0]] = 'ROTC'
 
     # Calculate quotas for each AFSC
     p['pgl'], p['usafa_quota'], p['rotc_quota'] = np.zeros(M), np.zeros(M), np.zeros(M)
@@ -83,7 +84,14 @@ def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, ge
         if M >= 3:
             invalid = True
             while invalid:
-                p['acc_grp'] = np.array([np.random.choice(['NRL', 'Rated', 'USSF']) for _ in range(M)])
+
+                # If we have 6 or fewer, limit USSF to just one AFSC
+                if M <= 6:
+                    p['acc_grp'] = ['USSF']
+                    for _ in range(M - 1):
+                        p['acc_grp'].append(np.random.choice(['NRL', 'Rated']))
+                else:
+                    p['acc_grp'] = [np.random.choice(['NRL', 'Rated', 'USSF']) for _ in range(M)]
 
                 # Make sure we have at least one AFSC from each accession's group
                 invalid = False  # "Innocent until proven guilty"
@@ -91,6 +99,12 @@ def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, ge
                     if grp not in p['acc_grp']:
                         invalid = True
                         break
+
+                # If we have 4 or more AFSCs, make sure we have at least two Rated
+                if M >= 4:
+                    if p['acc_grp'].count('Rated') < 2:
+                        invalid = True
+            p['acc_grp'] = np.array(p['acc_grp'])  # Convert to numpy array
 
         # If we only have one or two AFSCs, they'll all be NRL
         else:
@@ -270,7 +284,7 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
     # Objective to parameters lookup dictionary (if the parameter is in "p", we include the objective)
     objective_lookups = {'Norm Score': 'a_pref_matrix', 'Merit': 'merit', 'USAFA Proportion': 'usafa',
                          'Combined Quota': 'quota_d', 'USAFA Quota': 'usafa_quota', 'ROTC Quota': 'rotc_quota',
-                         'Utility': 'utility', 'Male': 'male', 'Minority': 'minority', 'Mandatory': 'mandatory',
+                         'Utility': 'utility', 'Mandatory': 'mandatory',
                          'Desired': 'desired', 'Permitted': 'permitted'}
     for t in ["1", "2", "3", "4"]:  # Add in AFOCD Degree tiers
         objective_lookups["Tier " + t] = "tier " + t
@@ -364,18 +378,6 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
                 # Bounds on this constraint (but leave it off)
                 vp['objective_value_min'][j, k] = str(int(p['rotc_quota'][j])) + ", " + \
                                                   str(int(p['quota_max'][j]))
-
-            elif objective == 'Male':
-                vp['objective_weight'][j, k] = (np.random.rand() * 0.25) * 100
-                vp['value_functions'][j, k] = 'Balance|0.15, 0.15, 0.1, 0.08, 0.08, 0.1, 0.6'
-                vp['objective_target'][j, k] = p['male_proportion']
-                actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
-
-            elif objective == 'Minority':
-                vp['objective_weight'][j, k] = (np.random.rand() * 0.25) * 100
-                vp['value_functions'][j, k] = 'Balance|0.15, 0.15, 0.1, 0.08, 0.08, 0.1, 0.6'
-                vp['objective_target'][j, k] = p['minority_proportion']
-                actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
 
             # If we care about this objective, we load in its value function breakpoints
             if vp['objective_weight'][j, k] != 0:
