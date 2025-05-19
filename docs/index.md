@@ -16,7 +16,6 @@ users in effectively using the afccp module.
 * **[Data](user-guide/overview.md)** - All necessary information in understanding the data and data structure used by afccp.
 * **[Solutions](user-guide/overview.md)** - Critical details pertaining to the models and algorithms represented by afccp to solve the CadetCareerProblem instance.
 * **[Visualizations](user-guide/overview.md)** - Insight into the various kinds of data visualizations used to communicate information about a CadetCareerProblem instance.
-* **[References](references.md)** - Linked journal articles and external resources that provide foundational research and methodological support for the afccp models.
 * **[FAQs](faq.md)** - Answers to frequently asked questions about afccp, addressing common issues, clarifying functionalities, and providing quick solutions.
 * **[Help](help.md)** - Contact information and resources to assist users with troubleshooting, technical support, and additional guidance on using Castle Suite effectively.
 

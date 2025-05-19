@@ -7,6 +7,6 @@ or require assistance with the afccp module, this guide provides essential suppo
 
 ## Frequently Asked Questions (FAQs)
 
-Before reaching out for support, check the **[FAQs section](faqs.md)** for answers to common issues.
+Before reaching out for support, check the **[FAQs section](faq.md)** for answers to common issues.
 
 ---

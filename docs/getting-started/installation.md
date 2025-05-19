@@ -378,8 +378,6 @@ pytest tests/
 
 ## 🧠 More Info
 
-- Full model explanation: [Model Overview](model/overview.md)
-- API reference: [API Reference](api_reference.md)
 - Author: [Griffen Laird](https://github.com/dglaird)
 
 ---
