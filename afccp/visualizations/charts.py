@@ -2970,15 +2970,14 @@ def afsc_objective_weights_graph(parameters, value_parameters_dict, afsc, colors
 
 def solution_parameter_comparison_graph(z_dict, colors=None, save=False, figsize=(19, 7), facecolor="white"):
     """
-        This chart compares the solutions' objective values under different value parameters
-        :param z_dict: dictionary of solution objective values for each set of value parameters
-        :param value_parameters_dict: dictionary of value parameters
-        :param colors: colors for the kinds of weights
-        :param save: Whether we should save the graph
-        :param facecolor: color of the background of the graph
-        :param figsize: size of the figure
-        :return: figure
-        """
+    This chart compares the solutions' objective values under different value parameters
+    :param z_dict: dictionary of solution objective values for each set of value parameters
+    :param colors: colors for the kinds of weights
+    :param save: Whether we should save the graph
+    :param facecolor: color of the background of the graph
+    :param figsize: size of the figure
+    :return: figure
+    """
     fig, ax = plt.subplots(figsize=figsize, facecolor=facecolor, tight_layout=True)
 
     # Get chart specs

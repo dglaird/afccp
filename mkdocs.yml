@@ -56,13 +56,15 @@ nav:
 
 # Markdown Extensions (For better formatting and readability)
 markdown_extensions:
-  - toc  # Automatically generates a table of contents
+  - toc:  # Automatically generates a table of contents
+      permalink: true
+      toc_depth: 1-3  # Include levels from # to ###
   - pymdownx.highlight  # Syntax highlighting for code blocks
   - pymdownx.superfences  # Allows nested code blocks
   - admonition  # Enables "Note", "Tip", and "Warning" blocks
   - attr_list  # Allows adding custom attributes in markdown
   - md_in_html  # Allows support for inline HTML in markdown
-  - pymdownx.arithmatex: # Renders equations and formulas 
+  - pymdownx.arithmatex: # Renders equations and formulas
       generic: true
 
 plugins:
