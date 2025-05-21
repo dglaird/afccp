@@ -57,7 +57,7 @@ def initialize_instance_functional_parameters(N):
         # Pyomo General Parameters
         "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": None, "provide_executable": False,
         "executable": None, "exe_extension": False, 'alternate_list_iterations_printing': False,
-        'ots_accessions': None,
+        'ots_accessions': None, 'ots_selected_preferences_only': True, 'ots_constrain_must_match': False,
 
         # Additional Constraints/Modeling
         "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': False,

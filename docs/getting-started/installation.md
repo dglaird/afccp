@@ -268,10 +268,10 @@ If CBC is correctly configured, you should see output similar to:
 ```
 Welcome to the CBC MILP Solver
 ...
-Result - Optimal solution found
-x = 0.00
-y = 4.00
-Objective = 16.00
+
+x = 8.00
+y = 0.00
+Objective = 24.00
 ```
 
 ---

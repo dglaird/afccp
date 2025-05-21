@@ -4,11 +4,11 @@ import pandas as pd
 import os
 
 from afccp.data.generation import augment_2026_data_with_ots
-from afccp.main import CadetCareerProblem
+from afccp import CadetCareerProblem
 
 
 def conduct_ots_ctgan_instance_analysis(num_instances=1, N=3000, gen_data=True, correct_data=True, solve_model=True,
-                                        import_name: str = '2026_0'):
+                                        import_name: str = '2026_0', solve_ots_guo_addition=False):
 
     # Loop through each data instance and generate the data
     instances = [f'2026O{i}' for i in np.arange(num_instances)]
@@ -45,11 +45,12 @@ def conduct_ots_ctgan_instance_analysis(num_instances=1, N=3000, gen_data=True, 
     # Loop through each data instance and solve the different models!
     if solve_model:
         for instance_name in instances:
-            solve_on_top_of_original_one_market_solution(instance_name, import_name)
+            solve_on_top_of_original_one_market_solution(instance_name, import_name, solve_ots_guo_addition)
             solve_full_one_market_potential(instance_name, import_name)
+            solve_one_market_classification_only(instance_name)
 
 
-def solve_on_top_of_original_one_market_solution(instance_name, import_name):
+def solve_on_top_of_original_one_market_solution(instance_name, import_name, solve_ots_guo_addition):
 
     instance = CadetCareerProblem(instance_name, printing=False)
     instance.set_value_parameters()
@@ -93,14 +94,16 @@ def solve_on_top_of_original_one_market_solution(instance_name, import_name):
         instance.soc_rated_matching_algorithm({'soc': 'ots', 'rated_alternates': True})
     instance.incorporate_rated_algorithm_results()
 
-    # Constrain ROTC/USAFA cadets to their One Market matches
-    j_array = instance.solutions['One Market ROTC_USAFA']['j_array']
-    for i, j in enumerate(j_array):
-        if i not in instance.parameters['I^OTS']:
-            instance.parameters['J^Fixed'][i] = j
-
     # Solve the GUO model with the rated algorithm results! (If we haven't already)
-    if 'One Market OTS Addition-GUO' not in instance.solutions.keys():
+    if 'One Market OTS Addition-GUO' not in instance.solutions.keys() and solve_ots_guo_addition:
+
+        # Constrain ROTC/USAFA cadets to their One Market matches
+        j_array = instance.solutions['One Market ROTC_USAFA']['j_array']
+        for i, j in enumerate(j_array):
+            if i not in instance.parameters['I^OTS']:
+                instance.parameters['J^Fixed'][i] = j
+
+        # Solve the model
         instance.solve_guo_pyomo_model(
             {'rated_alternates': True, 'pyomo_max_time': None, 'solve_castle_guo': False,
              'rated_alternate_afscs': ['11XX_R', '11XX_U', '11XX_O', '12XX', '13B', '18X'],
@@ -137,14 +140,62 @@ def solve_full_one_market_potential(instance_name, import_name):
     # Incorporate rated algorithm results
     instance.incorporate_rated_algorithm_results({'rated_alternates': True, 'usafa_soc_pilot_cross_in': True})
 
-    # Solve the GUO model with the rated algorithm results! (If we haven't already)
-    if 'Castle Market All SOCs-Pilot Flow' not in instance.solutions.keys():
-        instance.solve_guo_pyomo_model(
-            {'rated_alternates': True, 'pyomo_max_time': 600, 'solve_castle_guo': True,
-             'rated_alternate_afscs': ['11XX_R', '11XX_U', '11XX_O', '12XX', '13B', '18X'],
-             'w^G': 0.8, 'usafa_soc_pilot_cross_in': True, 'solution_method': 'Castle Market All SOCs-Pilot Flow'})
+    # Solve the GUO model with the rated algorithm results!
+    instance.solve_guo_pyomo_model(
+        {'rated_alternates': True, 'pyomo_max_time': 600, 'solve_castle_guo': True,
+         'rated_alternate_afscs': ['11XX_R', '11XX_U', '11XX_O', '12XX', '13B', '18X'],
+         'ots_selected_preferences_only': True, 'ots_constrain_must_match': False,
+         'w^G': 0.8, 'usafa_soc_pilot_cross_in': True, 'solution_method': 'Castle Market All SOCs-Pilot Flow'})
 
-        # Export instance data
-        instance.export_data()
+    # Export instance data
+    instance.export_data()
+
+
+def update_must_match_information(instance):
+
+    # Shorthand
+    p = instance.parameters
+
+    # Update the "Must Match" information for OTS candidates from the status quo algorithm
+    j_array = instance.solutions['One Market OTS Addition-Status Quo']['j_array']
+    must_match_ots = (j_array != p['M']) * (p['soc'] == 'OTS') * 1  # OTS candidates that were assigned in status quo
+    p['I^Must_Match'] = np.where(must_match_ots == 1)[0]
+    p['must_match'] = np.array([np.nan for _ in p['I']])
+    p['must_match'][p['I^Must_Match']] = 1
+    return p  # Return updated parameters!
+
+
+def solve_one_market_classification_only(instance_name):
+
+    # Load in instance and determine if we need to solve the model
+    instance = CadetCareerProblem(instance_name, printing=False)
+    if 'One Market All SOCs-Classification Only' in instance.solutions.keys():
+        print(f'Data already solved (C) for {instance_name}.')
+        return
+
+    # Print statements! We will solve the models
+    print(f'Solving for One Market model (Classification Only) {instance_name}...')
+    instance.printing = True
+
+    # Set Full One Market value parameters
+    instance.set_value_parameters('VP2')
+    instance.update_value_parameters()
+    instance.parameter_sanity_check()
+
+    # Incorporate rated algorithm results
+    instance.incorporate_rated_algorithm_results({'rated_alternates': True, 'usafa_soc_pilot_cross_in': True})
+
+    # Update the "Must Match" information from status quo OTS algorithm
+    instance.parameters = update_must_match_information(instance=instance)
+
+    # Solve the GUO model with the rated algorithm results! (
+    instance.solve_guo_pyomo_model(
+        {'rated_alternates': True, 'pyomo_max_time': 600, 'solve_castle_guo': True,
+         'rated_alternate_afscs': ['11XX_R', '11XX_U', '11XX_O', '12XX', '13B', '18X'],
+         'ots_selected_preferences_only': False, 'ots_constrain_must_match': True,
+         'w^G': 0.8, 'usafa_soc_pilot_cross_in': True, 'solution_method': 'One Market All SOCs-Classification Only'})
+
+    # Export instance data
+    instance.export_data()
 
 

@@ -10,6 +10,7 @@ import afccp.data.values
 import afccp.data.adjustments
 import afccp.data.preferences
 
+
 # File Handling
 def initialize_file_information(data_name: str, data_version: str):
     """
@@ -211,6 +212,7 @@ def import_cadets_data(import_filepaths, parameters):
     # Initialize dictionary translating 'AFSCs' df columns to their parameter counterparts
     cadet_columns_to_parameters = {"Cadet": "cadets", 'Male': 'male', 'Minority': 'minority', 'Race': 'race',
                                    "Ethnicity": "ethnicity", 'USAFA': 'usafa', 'SOC': 'soc',
+                                   "Must Match": "must_match",
                                    'ASC1': 'asc1', 'ASC2': 'asc2',
                                    'CIP1': 'cip1', 'CIP2': 'cip2', 'Merit': 'merit', 'Real Merit': 'merit_all',
                                    "Assigned": "assigned", "STEM": "stem", "Accessions Group": "acc_grp_constraint",
@@ -822,7 +824,8 @@ def export_cadets_data(instance):
     p = instance.parameters
 
     # Initialize dictionary translating 'AFSCs' df columns to their parameter counterparts
-    cadet_parameters_to_columns = {"cadets": "Cadet", "assigned": "Assigned", "acc_grp_constraint": "Accessions Group",
+    cadet_parameters_to_columns = {"cadets": "Cadet", "must_match": "Must Match",
+                                   "assigned": "Assigned", "acc_grp_constraint": "Accessions Group",
                                    'training_start': 'Start Date', 'training_preferences': 'Start Pref',
                                    'base_threshold': 'Base Threshold', 'training_threshold': 'Course Threshold',
                                    'weight_afsc': 'AFSC Weight', 'weight_base': 'Base Weight',
@@ -1373,11 +1376,16 @@ def export_solution_results_excel(instance, filepath):
                         'Failed Constraints': 'total_failed_constraints', 'USSF OM': 'ussf_om',
                         'Global Utility': 'z^gu', 'Cadet Utility': 'cadet_utility_overall',
                         'z^CASTLE': 'z^CASTLE', 'z^CASTLE (Values)': 'z^CASTLE (Values)',
-                        'AFSC Utility': 'afsc_utility_overall', 'USAFA Cadet Utility': 'usafa_cadet_utility',
-                        'ROTC Cadet Utility': 'rotc_cadet_utility', 'OTS Cadet Utility': 'ots_cadet_utility',
+                        'AFSC Utility': 'afsc_utility_overall',
+                        'USAFA Cadet Utility': 'usafa_cadet_utility',
+                        'ROTC Cadet Utility': 'rotc_cadet_utility',
+                        'OTS Cadet Utility': 'ots_cadet_utility',
                         'USSF Cadet Utility': 'ussf_cadet_utility',
-                        'USAF Cadet Utility': 'usaf_cadet_utility', 'USSF AFSC Utility': 'ussf_afsc_utility',
+                        'USAF Cadet Utility': 'usaf_cadet_utility',
+                        'USSF AFSC Utility': 'ussf_afsc_utility',
                         'USAF AFSC Utility': 'usaf_afsc_utility',
+                        'OTS Average Cadet Utility': 'OTS Average Cadet Utility',
+                        'OTS Average AFSC Utility': 'OTS Average AFSC Utility',
                         'Average Normalized AFSC Score (USSF)': 'weighted_average_ussf_afsc_score',
                         'Average Normalized AFSC Score (USAF)': 'weighted_average_usaf_afsc_score',
                         'USAFA USSF Cadets / USAFA USSF PGL': 'ussf_usafa_pgl_target',
@@ -1389,7 +1397,9 @@ def export_solution_results_excel(instance, filepath):
                         "Cadets Successfully Reserved to AFSC / Total Reserved AFSC Slots":
                             'cadets_reserved_correctly',
                         "Successful Alternate List Scenarios / Total Possible Alternate List Scenarios":
-                            'alternate_list_metric'}
+                            'alternate_list_metric',
+                        'OTS "Must Match" Candidates / Total Matched OTS Candidates': 'matched_out_of_must_match',
+                        'OTS Candidates receiving an AFSC they selected ': 'OTS Selected Pref Count'}
     for acc_grp in p['afscs_acc_grp']:
         name_metric_dict[acc_grp + " Racial Simpson Index"] = 'simpson_index_' + acc_grp
 

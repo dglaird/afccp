@@ -1,3 +1,7 @@
+"""
+This is the main module of afccp containing the `CadetCareerProblem` class. For detailed information on its structure,
+see below.
+"""
 # Import libraries
 import os
 import pandas as pd
@@ -30,40 +34,102 @@ if afccp.globals.use_pptx:
 
 # Main Problem Class
 class CadetCareerProblem:
+    """
+    💼 Core Class: CadetCareerProblem
+
+    The `CadetCareerProblem` class is the central engine behind the Air Force Cadet Career Problem (AFCCP).
+    It enables you to **load**, **generate**, **solve**, and **export** cadet-to-AFSC matching problems with full
+    flexibility for synthetic and historical data scenarios.
+
+    ⚙️ **Use Cases**:
+
+    - Load existing instances from the `/instances` folder (e.g. `"2022b"`).
+    - Generate new problem instances using `"Random"` or `"CTGAN"` data.
+    - Solve matching problems using classical or advanced optimization methods (e.g. VFT, GUO, GP).
+    - Visualize and export solution results for further analysis.
+
+    ---
+
+    :param data_name: Name of the instance. Can be:
+                      - Existing instance name (e.g., `"2022b"`)
+                      - `"Random"` or `"CTGAN"` for synthetic generation
+    :type data_name: str
+    :param data_version: Sub-version of the instance (optional).
+    :type data_version: str
+    :param degree_qual_type: Qualification structure; one of `"Binary"`, `"Tiers"`, `"Relaxed"`, `"Consistent"`.
+    :type degree_qual_type: str
+    :param num_value_function_breakpoints: Optional number of breakpoints to override existing value function definitions.
+    :type num_value_function_breakpoints: int or None
+    :param N: Number of cadets to generate (synthetic only).
+    :param M: Number of AFSCs to generate.
+    :param P: Number of preferences per cadet.
+    :param S: Number of bases to generate.
+    :type N: int
+    :type M: int
+    :type P: int
+    :type S: int
+    :param generate_extra_components: Whether to include bases and extra data.
+    :type generate_extra_components: bool
+    :param generate_only_nrl: Restrict AFSCs to NRLs only.
+    :type generate_only_nrl: bool
+    :param ctgan_model_name: Model to use for CTGAN generation.
+    :param ctgan_pilot_sampling: Condition sampling on pilot preferences in CTGAN.
+    :type ctgan_model_name: str
+    :type ctgan_pilot_sampling: bool
+    :param printing: Whether to print status updates.
+    :type printing: bool
+
+    ---
+    """
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
                  num_value_function_breakpoints=None, N=1600, M=32, P=6, S=10, generate_extra_components=False,
                  generate_only_nrl=False, ctgan_model_name='CTGAN_Full', ctgan_pilot_sampling=False, printing=True):
         """
-        Represents the AFSC/Cadet matching problem object.
+        ___
+        ### 📦 Attributes
 
-        Parameters:
-            data_name (str): The name of the data set. It can be an existing instance folder name or one of the following:
-                             "Random", "Perfect", or "Realistic". Defaults to "Random".
-            data_version (str): The version of the data set. It is used to manage different versions of cadets/AFSCs
-                                and handle NRL vs All cadet scenarios. Defaults to "Default".
-            degree_qual_type (str): The type of degree tier qualifications. It can be "Binary", "Relaxed", or "Tiers".
-                                    Defaults to "Consistent".
-            num_value_function_breakpoints (int, optional): The number of breakpoints to use in the value functions.
-                                                           If None, the value functions will be loaded with the existing
-                                                           breakpoints. If an integer is provided, new value functions
-                                                           will be created. Defaults to None.
-            N (int): Number of cadets to generate. Defaults to 1600.
-            M (int): Number of AFSCs to generate. Defaults to 32.
-            P (int): Number of AFSC preferences to generate for each cadet. Defaults to 6.
-            S (int): Number of Bases to generate. Defaults to 10.
-            generate_only_nrl (bool): Whether to generate only NRL AFSCs. Defaults to False.
-            generate_extra_components (bool): Whether to generate extra components (bases/IST). Defaults to False.
-            ctgan_model_name (str): Name of the CTGAN model to import
-            ctgan_pilot_sampling (bool): Whether we should sample cadets in CTGAN based on the pilot preference condition
-            printing (bool): Whether to print status updates or not. Defaults to True.
+        - `parameters (dict)`: Core cadet, AFSC, and preference data
+        - `value_parameters (dict)`: Active value function weights and breakpoints
+        - `solutions (dict)`: Stored solutions by name
+        - `solution (dict)`: Currently active solution
+        - `mdl_p (dict)`: Modeling parameters (for optimization)
+        - `gp_df (pd.DataFrame)`: Goal Programming dataframe (if applicable)
 
-        This class represents the AFSC/Cadet problem object. It can import existing data or generate new instances.
-        The data set can be specified by providing the name of the instance folder or using the predefined data types
-        ("Random", "CTGAN"). The problem instance includes information about cadets, AFSCs, value parameters,
-        and solutions.
+        ---
 
-        Example usage:
-            instance = CadetCareerProblem(data_name="Random", N=200, M=5, P=5)
+        ### 💡 Example
+
+        ```python
+        >>> # Generate a synthetic problem instance
+        >>> instance = CadetCareerProblem(data_name="Random", N=300, M=12, P=5)
+
+        >>> # Fix generated data by adding & correcting parameters, value parameters
+        >>> instance.fix_generated_data()
+
+        >>> # Solve using VFT optimization
+        >>> instance.solve_vft_pyomo_model()
+
+        >>> # Export results to Excel
+        >>> instance.export_solution_results()
+        ```
+
+        ---
+
+        !!! note "Automatic Import Behavior"
+            If `data_name` matches a folder in `/instances`, the problem will auto-load that instance's data.
+            Otherwise, it will generate a synthetic instance.
+
+        !!! tip "Need Quick Test Data?"
+            Use `data_name="Random"` and `N=50` to generate a fast demo instance for rapid prototyping.
+
+        ---
+
+        For a tailored guide on the use of this object, please refer to [Tutorial 1](../user-guide/tutorial_1.md).
+
+        ### 🛠 See Also
+        - `solve_vft_pyomo_model`, `solve_guo_pyomo_model`, `solve_gp_pyomo_model`
+        - `reset_functional_parameters`, `export_data`, `measure_solution`
+        - Module: `afccp.data.processing` for import/export logic
         """
 
         # Shorten the module name so everything fits better
@@ -207,13 +273,13 @@ class CadetCareerProblem:
         # Initialize more "functional" parameters
         self.mdl_p = afccp.data.support.initialize_instance_functional_parameters(
             self.parameters["N"])
-        self.reset_functional_parameters()
+        self._reset_functional_parameters()
 
         if self.printing:
             print("Instance '" + self.data_name + "' initialized.")
 
     # Method helper functions
-    def reset_functional_parameters(self, p_dict={}):
+    def _reset_functional_parameters(self, p_dict={}):
         """
         Resets the instance functional parameters and updates them with the new values from p_dict.
 
@@ -232,7 +298,7 @@ class CadetCareerProblem:
 
         Example usage:
             instance = CadetCareerProblem()
-            instance.reset_functional_parameters({'bar_color': 'blue', 'title_size': 18})
+            instance._reset_functional_parameters({'bar_color': 'blue', 'title_size': 18})
         """
 
         # Reset plot parameters and model parameters
@@ -263,7 +329,7 @@ class CadetCareerProblem:
         else:
             self.parameters['N^Match'] = self.parameters['N']
 
-    def solution_handling(self, solution, printing=None):
+    def _solution_handling(self, solution, printing=None):
         """
         Determines what to do with the generated solution. This is a "helper method" and not intended to be called
         directly by the user.
@@ -336,7 +402,7 @@ class CadetCareerProblem:
             self.solution_name = solution_name
             self.solution['name'] = solution_name
 
-    def error_checking(self, test="None"):
+    def _error_checking(self, test="None"):
         """
         This method is here to test different conditions and raise errors where conditions are not met.
         """
@@ -383,7 +449,7 @@ class CadetCareerProblem:
             else:
                 check_value_parameters()
 
-    def manage_solution_folder(self):
+    def _manage_solution_folder(self):
         """
         This method creates a solution folder in the Analysis & Results directory if it doesn't already exist and
         returns a list of files in that folder.
@@ -402,7 +468,7 @@ class CadetCareerProblem:
         # Return list of files in the solution folder
         return os.listdir(folder_path)
 
-    def evaluate_all_solutions(self, solution_names=None):
+    def _evaluate_all_solutions(self, solution_names=None):
         """
         Evaluates all the solutions in the dictionary to acquire necessary metrics
         """
@@ -991,7 +1057,7 @@ class CadetCareerProblem:
                     vp_name = "VP" + str(v)
 
                 # Check if this new set is unique or not to get the name of the set
-                unique = self.check_unique_value_parameters()
+                unique = self._check_unique_value_parameters()
                 if unique is True: # If it's unique, we save this new set of value parameters to the dictionary
                     self.vp_dict[vp_name], self.vp_name = copy.deepcopy(value_parameters), vp_name
                 else:  # If it's not unique, then "unique" is the name of the matching set of value parameters
@@ -1020,7 +1086,7 @@ class CadetCareerProblem:
         else:
             raise ValueError('No instance value parameters detected')
 
-    def check_unique_value_parameters(self, value_parameters=None, vp_name1=None, vp_name2=None, printing=False):
+    def _check_unique_value_parameters(self, value_parameters=None, vp_name1=None, vp_name2=None, printing=False):
         """
         Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the
         the set of parameters is unique, or return the name of the matching set otherwise
@@ -1240,7 +1306,7 @@ class CadetCareerProblem:
         the class instance's attributes and data.
 
         Note: The specific details of the sanity checks are defined in an external function
-        or module called 'afccp.core.data.adjustments.parameter_sanity_check.'
+        or module called 'afccp.data.adjustments.parameter_sanity_check.'
         """
 
         # Call the function
@@ -1284,7 +1350,7 @@ class CadetCareerProblem:
             print('Translating VFT model parameters to Goal Programming Model parameters...')
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Get basic parameters (May or may not include penalty/reward parameters
         self.gp_parameters = afccp.data.values.translate_vft_to_gp_parameters(self)
@@ -1331,14 +1397,14 @@ class CadetCareerProblem:
             print('Generating random solution...')
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Generate solution
         solution = {'method': 'Random',
             'j_array': np.array([np.random.choice(self.parameters['J^E'][i]) for i in self.parameters['I']])}
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         return solution
 
@@ -1348,13 +1414,13 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Get the solution we need
         solution = afccp.solutions.algorithms.rotc_rated_board_original(self, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         return solution
 
@@ -1363,13 +1429,13 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Get the solution we need
         solution = afccp.solutions.algorithms.allocate_ots_candidates_original_method(self, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         return solution
 
@@ -1382,7 +1448,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Get the solution and solution iterations we need
         combined, reserves, matches = afccp.solutions.algorithms.soc_rated_matching_algorithm(
@@ -1390,7 +1456,7 @@ class CadetCareerProblem:
 
         # Determine what to do with the solution(s)
         for solution in [reserves, matches, combined]:
-            self.solution_handling(solution, printing=False)  # Don't want print updates for this
+            self._solution_handling(solution, printing=False)  # Don't want print updates for this
 
         return solution
 
@@ -1402,13 +1468,13 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Get the solution we need
         solution = afccp.solutions.algorithms.classic_hr(self, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         return solution
 
@@ -1435,21 +1501,21 @@ class CadetCareerProblem:
         Notes:
         - Before using this method, it's important to ensure that the class instance contains valid and appropriate data.
         - This method uses external functions for building and solving the Pyomo model, and the specifics of those functions
-          are located in the 'afccp.core.solutions.optimization' module.
+          are located in the 'afccp.solutions.optimization' module.
         """
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Build the model and then solve it
         model, q = afccp.solutions.optimization.vft_model_build(self, printing=printing)
         solution = afccp.solutions.optimization.solve_pyomo_model(self, model, "VFT", q=q, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         # Return the solution
         return solution
@@ -1458,7 +1524,7 @@ class CadetCareerProblem:
         """
         Solve the original AFPC model using pyomo
         """
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
@@ -1466,14 +1532,14 @@ class CadetCareerProblem:
         p_dict['assignment_model_obj'] = "Original Utility"
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Build the model and then solve it
         model = afccp.solutions.optimization.assignment_model_build(self, printing=printing)
         solution = afccp.solutions.optimization.solve_pyomo_model(self, model, "Original", printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         # Return the solution
         return solution
@@ -1487,10 +1553,10 @@ class CadetCareerProblem:
         p_dict['assignment_model_obj'] = "Global Utility"
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Error handling
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
@@ -1505,7 +1571,7 @@ class CadetCareerProblem:
         solution = afccp.solutions.optimization.solve_pyomo_model(self, model, solution_method, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         # Return the solution
         return solution
@@ -1514,12 +1580,12 @@ class CadetCareerProblem:
         """
         Solve the Goal Programming Model (Created by Lt. Reynolds)
         """
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Convert VFT parameters to Goal Programming ("gp") parameters
         if self.gp_parameters is None:
@@ -1530,7 +1596,7 @@ class CadetCareerProblem:
         solution = afccp.solutions.optimization.solve_pyomo_model(self, model, "GP", printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         # Return the solution
         return solution
@@ -1540,12 +1606,12 @@ class CadetCareerProblem:
         This is the main method to solve the problem instance. We first determine an initial population of solutions.
         We then evolve the solutions further using the GA.
         """
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Determine population for the genetic algorithm
         if self.mdl_p['population_generation_model'] == 'Assignment':
@@ -1587,12 +1653,12 @@ class CadetCareerProblem:
         solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve
         from there
         """
-        self.error_checking("Value Parameters")
+        self._error_checking("Value Parameters")
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Dictionary of failed constraints across all solutions (phased out since we're using APM as initial population)
         con_fail_dict = None
@@ -1645,7 +1711,7 @@ class CadetCareerProblem:
             self, initial_solutions, con_fail_dict, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         # Return the final solution and maybe the time evaluation dataframe if needed
         if self.mdl_p["time_eval"]:
@@ -1661,7 +1727,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Force solution iteration collection to be turned off
         self.mdl_p['collect_solution_iterations'] = False
@@ -1676,7 +1742,7 @@ class CadetCareerProblem:
         solution = afccp.solutions.algorithms.classic_hr(self, printing=printing)
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         return solution
 
@@ -1689,7 +1755,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         self.parameters = afccp.solutions.handling.incorporate_rated_results_in_parameters(
             self, printing=printing)
@@ -1720,7 +1786,7 @@ class CadetCareerProblem:
                         new_solutions[s_name]['afsc_array'][i] = p['afscs'][j]
 
                 # Integrate this solution
-                self.solution_handling(new_solutions[s_name], printing=False)
+                self._solution_handling(new_solutions[s_name], printing=False)
 
     def find_ineligible_cadets(self, solution_name=None, fix_it=True):
         """
@@ -1811,7 +1877,7 @@ class CadetCareerProblem:
         solution = {'j_array': j_array, 'method': method, 'afsc_array': afsc_array}
 
         # Determine what to do with the solution
-        self.solution_handling(solution)
+        self._solution_handling(solution)
 
         # Return the solution
         return solution
@@ -1914,7 +1980,7 @@ class CadetCareerProblem:
 
         # Update the solution iterations dictionary
         if 'sequence' not in self.solution['iterations']:
-            self.manage_bubbles_parameters()
+            self._manage_bubbles_parameters()
 
         # 'Sequence' Folder
         folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
@@ -2006,16 +2072,16 @@ class CadetCareerProblem:
             if printing:
                 print('Solution iterations imported from', filepath)
 
-    def manage_bubbles_parameters(self, p_dict={}):
+    def _manage_bubbles_parameters(self, p_dict={}):
         """
         Handles the solution iterations that we should already have as an attribute of the problem instance
         """
 
         # Error Checking
-        self.error_checking("Solution")
+        self._error_checking("Solution")
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Cadets/AFSCs solved for is by default "All"
         if "cadets_solved_for" not in self.solution:
@@ -2053,7 +2119,7 @@ class CadetCareerProblem:
         else:
 
             # Create solution folder if necessary
-            self.manage_solution_folder()
+            self._manage_solution_folder()
 
     # Data Visualizations
     def display_data_graph(self, p_dict={}, printing=None):
@@ -2066,7 +2132,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self)
 
         # Initialize the AFSC Chart object
@@ -2113,7 +2179,7 @@ class CadetCareerProblem:
         p, vp = self.parameters, self.value_parameters
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self)
         ip = self.mdl_p  # More shorthand
 
@@ -2157,7 +2223,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self)
 
         # Make the folder
@@ -2188,7 +2254,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Create solution folder if necessary
-        self.manage_solution_folder()
+        self._manage_solution_folder()
 
         # Determine what kind of results charts we're creating
         if 'solution_names' not in p_dict:  # Regular Solution Charts
@@ -2203,7 +2269,7 @@ class CadetCareerProblem:
                 print("Saving all solution comparison charts to the corresponding folder...")
 
             # Evaluate the solutions to get metrics
-            self.evaluate_all_solutions(p_dict['solution_names'])
+            self._evaluate_all_solutions(p_dict['solution_names'])
 
         # Loop through the subset of AFSC charts that I actually care about
         charts = []
@@ -2246,7 +2312,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # Build the chart
         afccp.visualizations.charts.CadetUtilityGraph(self)
@@ -2261,15 +2327,15 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Error handling
         if self.mdl_p['results_graph'] == 'Solution Comparison':
-            self.error_checking('Solutions')
+            self._error_checking('Solutions')
             chart_type = 'Comparison'
         else:
-            self.error_checking('Solution')
+            self._error_checking('Solution')
             chart_type = 'Solution'
 
         # Determine which chart to create
@@ -2303,8 +2369,8 @@ class CadetCareerProblem:
             print("Generating results slides...")
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
-        self.error_checking('Solution')
+        self._reset_functional_parameters(p_dict)
+        self._error_checking('Solution')
 
         # Call the function to generate the slides
         if afccp.globals.use_pptx:
@@ -2331,8 +2397,8 @@ class CadetCareerProblem:
                              " put all charts you'd like to compile into a slide-deck in this folder.")
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
-        self.error_checking('Solutions')
+        self._reset_functional_parameters(p_dict)
+        self._error_checking('Solutions')
 
         # Call the function to generate the slides
         if afccp.globals.use_pptx:
@@ -2355,7 +2421,7 @@ class CadetCareerProblem:
             print("Generating animation slides...")
 
         # Manage the solution iterations
-        self.manage_bubbles_parameters(p_dict)
+        self._manage_bubbles_parameters(p_dict)
 
         # Call the function to generate the slides
         if afccp.globals.use_pptx:
@@ -2386,8 +2452,8 @@ class CadetCareerProblem:
             os.mkdir(self.export_paths['Analysis & Results'] + 'Comparison Charts')
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
-        self.error_checking('Solutions')
+        self._reset_functional_parameters(p_dict)
+        self._error_checking('Solutions')
 
         # Save all solution comparison charts to the "Comparison Charts" folder
         self.display_all_results_graphs(p_dict, printing)
@@ -2417,7 +2483,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Manage the solution iterations
-        self.manage_bubbles_parameters(p_dict)
+        self._manage_bubbles_parameters(p_dict)
 
         # Print updates
         if printing:
@@ -2445,12 +2511,12 @@ class CadetCareerProblem:
             print("Creating cadet utility histogram...")
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Evaluate the solutions to get metrics
         if self.mdl_p['solution_names'] is not None:
-            self.evaluate_all_solutions(self.mdl_p['solution_names'])
+            self._evaluate_all_solutions(self.mdl_p['solution_names'])
 
         # Filepath for plot
         filepath = self.export_paths['Analysis & Results'] + folder + "/"
@@ -2478,7 +2544,7 @@ class CadetCareerProblem:
             print("Creating solution similarity plot...")
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Import similarity matrix
@@ -2509,10 +2575,10 @@ class CadetCareerProblem:
         This method iteratively adds constraints to the model to find which ones should be included based on
         feasibility and in order of importance
         """
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         # If no constraints are turned on right now...
         if np.sum(self.value_parameters["constraint_type"]) == 0:
@@ -2544,12 +2610,12 @@ class CadetCareerProblem:
         :param p_dict: more model parameters
         :param printing: whether to print something
         """
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         if printing:
             print("Conducting pareto analysis on problem...")
@@ -2607,13 +2673,13 @@ class CadetCareerProblem:
         :param p_dict: more model parameters
         :param printing: whether to print something
         """
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
         p_dict['solve_castle_guo'] = True  # Just in case we didn't put that in ;)
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         if printing:
             print("Conducting CASTLE-MARKET pareto analysis on problem...")
@@ -2676,12 +2742,12 @@ class CadetCareerProblem:
         filepath = self.export_paths['Analysis & Results'] + self.data_name + " " + self.vp_name + " (" + \
                    self.data_version + ") Pareto Analysis.xlsx"
 
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         if printing:
             print("Conducting 'final' pareto analysis on problem...")
@@ -2755,12 +2821,12 @@ class CadetCareerProblem:
         Conduct pareto analysis on the "global utility" function using the assignment problem model
         """
 
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
         if printing is None:
             printing = self.printing
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         if printing:
             print("Conducting 'utility' pareto analysis on problem...")
@@ -2866,10 +2932,10 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
 
         # Reset instance model parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
 
         if "What If List.csv" not in os.listdir(self.export_paths['Analysis & Results']):
             raise ValueError("Error. File 'What If List.csv' required for this analysis. It needs to be located"
@@ -2889,10 +2955,10 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        self.error_checking("Pyomo Model")
+        self._error_checking("Pyomo Model")
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Run the function
@@ -2907,7 +2973,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Adjust instance plot parameters
-        self.reset_functional_parameters(p_dict)
+        self._reset_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Run the function
@@ -2929,7 +2995,7 @@ class CadetCareerProblem:
         None
 
         This method exports the specified datasets using the `export_<dataset_name>_data` functions from the
-        `afccp.core.data.processing` module. The exported csvs are saved in the paths specified in the
+        `afccp.data.processing` module. The exported csvs are saved in the paths specified in the
         `self.export_paths` dictionary.
 
         If the `self.import_paths` and `self.export_paths` attributes are not set, this method will call the
@@ -2985,10 +3051,10 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Make sure we have a solution
-        self.error_checking('Solution')
+        self._error_checking('Solution')
 
         # Create solution folder if necessary
-        self.manage_solution_folder()
+        self._manage_solution_folder()
 
         # Filepath to export to
         filename = self.data_name + " " + self.solution_name + " (" + self.vp_name + ").xlsx"

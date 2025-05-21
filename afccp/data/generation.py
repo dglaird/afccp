@@ -1222,15 +1222,13 @@ if afccp.globals.use_sdv:
         new_percentiles = new_percentiles[::-1][magic_indices]  # Put the new percentiles back in the right place
         data['Merit'] = new_percentiles  # Load back into data
 
-        # Re-bake in OM to AFSC rankings
-        for col in [col for col in data.columns if '_AFSC' in col]:
-            data[col] = 0.5 * data[col] + 0.5 * data['Merit']
-
-        # Re-bake in Cadet Utilty to AFSC rankings
+        # Re-bake in OM and Cadet Utility to AFSC rankings
         for col in [col for col in data.columns if '_AFSC' in col]:
             afsc = col.split('_')[0]
-            data[col] = 0.75 * data[col] + 0.25 * data[f'{afsc}_Cadet']
-
+            scalar = np.random.triangular(0.1, 0.5, 0.9, len(data))
+            data[col] = scalar * data[col] + (1 - scalar) * data['Merit']
+            scalar = np.random.triangular(0.3, 0.7, 0.9, len(data))
+            data[col] = scalar * data[col] + (1 - scalar) * data[f'{afsc}_Cadet']
         return data
 
 
@@ -1326,8 +1324,8 @@ if afccp.globals.use_sdv:
             if data.loc[i, 'CIP2'][0] == 'c':
                 data.loc[i, 'CIP2'] = str(int(data.loc[i, 'CIP2'][1:].replace('.0', '')))
 
-        # OTS candidates won't be asked these questions
-        data = data[[col for col in data.columns if col not in ['Last Choice', '2nd-Last Choice', '3rd-Last Choice']]]
+        # # OTS candidates won't be asked these questions
+        # data = data[[col for col in data.columns if col not in ['Last Choice', '2nd-Last Choice', '3rd-Last Choice']]]
 
         # Convert info to numpy arrays
         cadet_cols = np.array([col for col in data.columns if '_Cadet' in col])
@@ -1335,12 +1333,6 @@ if afccp.globals.use_sdv:
 
         # Loop through each cadet to tweak their preferences
         for i in data.index:
-
-            # # Manually fix 62EXE preferencing from eligible cadets
-            # if '1410' in data.loc[i, 'CIP1'] or '1447' in data.loc[i, 'CIP1']:
-            #     if np.random.rand() > 0.6:
-            #         data.loc[i, '62EXE_Cadet'] = np.around(max(data.loc[i, '62EXE_Cadet'],
-            #                                                    min(1, np.random.normal(0.8, 0.18))), 2)
 
             # Fix rated/USSF volunteer situation
             for acc_grp in ['Rated', 'USSF']:
@@ -1497,6 +1489,7 @@ if afccp.globals.use_sdv:
 
         # Loop through each cadet to fix the preference information
         for i in p['I']:
+
             # Save cadet preference information
             ordered_list = np.argsort(util_original[i])[::-1]
             num_pref = int(np.random.triangular(3, 9, 18))
@@ -1505,12 +1498,29 @@ if afccp.globals.use_sdv:
             p['c_preferences'][i, :num_pref] = afscs[p['cadet_preferences'][i]]
             p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
             p['utility'][i, p['cadet_preferences'][i][:min(10, num_pref)]] = p['c_utilities'][i, :min(10, num_pref)]
+
+            # Determine bottom choice AFSCs
+            bottom_choices = []
+            for col in ['Last Choice', '2nd-Last Choice', '3rd-Last Choice']:
+                condition = data.loc[i, col] not in afscs[p['cadet_preferences'][i]]  # can't be a preference
+                condition *= data.loc[i, col] in afscs  # has to be real AFSC (not NaN)
+                condition *= (data.loc[i, col] not in bottom_choices)  # can't already be a bottom choice
+                if condition:
+                    bottom_choices.append(data.loc[i, col])
+
+            # Add in bottom choices data
+            if len(bottom_choices) == 1:
+                data.loc[i, 'Least Desired AFSC'] = bottom_choices[0]
+            elif len(bottom_choices) >= 2:
+                data.loc[i, 'Second Least Desired AFSCs'] = ', '.join(bottom_choices[1:])
         p['selected'] = (p['c_pref_matrix'] > 0) * 1  # Create "selected" array
 
         # Create the OTS cadet dataframe
         ots_cadets_df = pd.DataFrame({'Cadet': ots_cadets, 'SOC': 'OTS', 'USAFA': 0,
                                       'CIP1': data['CIP1'], 'CIP2': data['CIP2'],
-                                      'Merit': data['Merit'], 'Real Merit': data['Merit']})
+                                      'Merit': data['Merit'], 'Real Merit': data['Merit'],
+                                      'Least Desired AFSC': data['Least Desired AFSC'],
+                                      'Second Least Desired AFSCs': data['Second Least Desired AFSCs']})
 
         # Add in preferences and utilities
         for i in np.arange(10):
@@ -1582,9 +1592,10 @@ if afccp.globals.use_sdv:
             new_df.insert(5, '11XX_O', col)
             new_dfs[df_name] = new_df.fillna(0)
 
-        # Create OTS Rated OM dataframe
+        # Create OTS Rated OM dataframe (Use OM as rated rankings for OTS)
         rated_cadets = np.where(p['afsc_utility'][:, rated[2]])[0]
-        om_arr = p['afsc_utility'][rated_cadets][:, rated]
+        eligible_rated = (p['afsc_utility'][rated_cadets][:, rated] > 0) * 1
+        om_arr = np.around(np.array([p['merit'][rated_cadets] for _ in rated]).T, 3) * eligible_rated
         rated_om_df = pd.DataFrame({'Cadet': rated_cadets + len(cadets_df)})
         for idx, afsc in enumerate(afscs[rated]):
             if afsc == '11XX':

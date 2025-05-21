@@ -386,11 +386,11 @@ class BubbleChart:
             raise ValueError("Pyomo not installed.")
 
         # Build the model
-        model = afccp.solutions.optimization.cadet_board_preprocess_model_simple(self.b)
+        model = afccp.solutions.optimization.bubble_chart_configuration_model(self.b)
 
         # Get coordinates and size of boxes by solving the model
         self.b['s'], self.b['x'], self.b['y'] = afccp.solutions.optimization.solve_pyomo_model(
-            self, model, "CadetBoard", q=None, printing=self.printing)
+            self, model, "Bubbles", q=None, printing=self.printing)
 
         if self.printing:
             print("Board parameters 'x' and 'y' determined through pyomo model.")
@@ -1159,6 +1159,8 @@ class BubbleChart:
             percent_text = str(np.around(self.solution['top_3_choice_percent'] * 100, 3)) + "%"
             title_text += ' Results: Cadet Top3: ' + percent_text
             title_text += ', AFSC Score: ' + str(np.around(self.average_afsc_choice, 2))
+            if 'z^CASTLE (Values)' in self.solution:
+                title_text += f', CASTLE: {round(self.solution["z^CASTLE (Values)"], 2)}'
 
         # Update the title
         if self.b['b_title'] is not None:  # We specified a title directly

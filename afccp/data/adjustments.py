@@ -483,9 +483,15 @@ def more_parameter_additions(parameters):
 
     # Selected AFSCs
     if 'c_selected_matrix' in p:
-        p['J^Selected'] = {}
+        p['J^Selected'] = {}  # The cadet selected the AFSC as a preference
+        p['J^Selected-E'] = {}  # The cadet selected the AFSC as a preference and is eligible for it
         for i in p['I']:
             p['J^Selected'][i] = np.where(p['c_selected_matrix'][i])[0]
+            p['J^Selected-E'][i] = np.intersect1d(p['J^E'][i], p['J^Selected'][i])
+
+    # Incorporate "Must Match" information for OTS
+    if 'must_match' in p:
+        p['I^Must_Match'] = np.where(p['must_match'] == 1)[0]
 
     # Last/Second to Last AFSCs
     if 'last_afsc' in p and 'second_to_last_afscs' in p:

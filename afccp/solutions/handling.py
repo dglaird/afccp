@@ -176,6 +176,9 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
     if 'castle_q' in p:
         solution = calculate_castle_solution_metrics(solution, p)
 
+    if 'ots' in p['SOCs']:
+        solution = calculate_ots_specific_metrics(solution, p)
+
     # Calculate blocking pairs
     if 'a_pref_matrix' in p:
         solution['blocking_pairs'] = calculate_blocking_pairs(p, solution)
@@ -204,7 +207,13 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             print_str += ".\nBlocking pairs: " + str(solution['num_blocking_pairs'])
         print_str += ". Unmatched cadets: " + str(solution["num_unmatched"])
         print_str += f".\nMatched cadets: {solution['Num Matched']}/{p['N']}. N^Match: {p['N^Match']}"
-        print_str += ". Ineligible cadets: " + str(solution['num_ineligible']) + "."
+        print_str += ". Ineligible cadets: " + str(solution['num_ineligible']) + ".\n"
+        if 'matched_out_of_must_match' in solution:
+            print_str += f'{solution["matched_out_of_must_match"]} OTS "must-matches" accessed.\n'
+        if 'ots' in p['SOCs']:
+            print_str += f'OTS Average Merit: {solution["OTS Average Merit"]}. ' \
+                         f'{solution["OTS Selected Pref Count"]} / {len(solution["I^Match-OTS"])} ' \
+                         f'OTS candidates received AFSC they selected.'
         print(print_str)
 
     # Return the solution/metrics
@@ -957,6 +966,33 @@ def calculate_castle_solution_metrics(solution, p):
     # Calculate "z^CASTLE"
     solution['z^CASTLE (Values)'] = round(np.sum(solution['castle_v'][afsc] for afsc in afscs), 4)
     solution['z^CASTLE'] = round(p['w^G'] * solution['z^gu'] + (1 - p['w^G']) * solution['z^CASTLE (Values)'], 4)
+    return solution
+
+
+def calculate_ots_specific_metrics(solution, p):
+
+    # Must Match summary
+    if 'I^Must_Match' in p:
+        solution['matched_out_of_must_match'] = \
+            f"{len(np.intersect1d(p['I^Must_Match'], solution['I^Match']))} / {len(p['I^Must_Match'])}"
+
+    # OTS Quality
+    solution['I^Match-OTS'] = np.intersect1d(solution['I^Match'], p['I^OTS'])
+    solution['OTS Average Merit'] = np.around(np.mean(p['merit'][solution['I^Match-OTS']]), 3)
+
+    # Number of OTS candidates that received an AFSC they selected as a preference
+    num_desired = 0
+    for i in solution['I^Match-OTS']:
+        if solution['j_array'][i] in p['J^Selected'][i]:
+            num_desired += 1
+    solution['OTS Selected Pref Count'] = num_desired
+
+    # Average cadet/AFSC utility of matched OTS candidates
+    solution['OTS Average AFSC Utility'] = \
+        np.around(np.mean(solution['afsc_utility_achieved'][solution['I^Match-OTS']]), 3)
+    solution['OTS Average Cadet Utility'] = \
+        np.around(np.mean(solution['cadet_utility_achieved'][solution['I^Match-OTS']]), 3)
+
     return solution
 
 

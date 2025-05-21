@@ -2,6 +2,7 @@ import time
 import numpy as np
 import random
 import copy
+import pandas as pd
 
 # afccp modules
 import afccp.globals
@@ -497,6 +498,8 @@ def allocate_ots_candidates_original_method(instance, printing=False):
 
         # Loop through each AFSC in order of the candidate's preferences
         for j in p['cadet_preferences'][i]:
+            if j not in p['J^Selected'][i]:  # This AFSC has to be one that the cadet selected
+                continue
 
             # If there are still slots to give out, give them one
             if counts[j] > 0:
