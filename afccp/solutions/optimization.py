@@ -3,6 +3,12 @@ import numpy as np
 import logging
 import warnings
 from pyomo.environ import *
+from pyomo.core.expr.current import identify_variables
+import os
+import datetime
+import sys
+import re
+import threading
 
 # afccp modules
 import afccp.globals
@@ -538,6 +544,268 @@ def add_rated_alternates_constraints(m, p, mdl_p):
     return m
 
 
+# _________________________________CONSTRAINT LOGGING________________________________________
+def log_constraint_violations_to_file(model, filepath, tolerance=1e-4, max_violations=100):
+    """
+    Logs violated constraints to a text file, suppressing uninitialized variable warnings.
+
+    Args:
+        model (ConcreteModel): The Pyomo model to inspect.
+        filepath (str): Path to the log file.
+        tolerance (float): Numerical tolerance for feasibility.
+        max_violations (int): Max number of violations to report.
+    """
+    def all_vars_initialized(expr):
+        """Helper to check if all variables in an expression are initialized."""
+        try:
+            for var in identify_variables(expr, include_fixed=False):
+                if var.value is None:
+                    return False
+            return True
+        except:
+            return False
+
+    with open(filepath, 'w') as f:
+        f.write("Constraint Violations Log\n\n")
+        count = 0
+        for constr in model.component_objects(Constraint, active=True):
+            cdata = getattr(model, constr.name)
+            for index in cdata:
+                con = cdata[index]
+                try:
+                    if not all_vars_initialized(con.body):
+                        continue  # Skip uninitialized expressions
+
+                    lhs = value(con.body)
+                    lb = value(con.lower) if con.lower is not None else -np.inf
+                    ub = value(con.upper) if con.upper is not None else np.inf
+
+                    if not (lb - tolerance <= lhs <= ub + tolerance):
+                        f.write(f"❌ {constr.name}[{index}]\n")
+                        f.write(f"    LHS = {lhs:.6f}\n")
+                        f.write(f"    Bounds = [{lb:.6f}, {ub:.6f}]\n\n")
+                        count += 1
+                        if count >= max_violations:
+                            f.write("⚠️ Max violations reached.\n")
+                            return
+                except Exception as e:
+                    f.write(f"⚠️ Could not evaluate {constr.name}[{index}]: {e}\n\n")
+        if count == 0:
+            f.write("✅ No constraint violations detected.\n")
+
+
+def handle_infeasible_model(model, results, output_dir="infeasibility_logs"):
+    """
+    Handles an infeasible model: prints message, logs diagnostics, and raises error.
+
+    Args:
+        model (ConcreteModel): The Pyomo model.
+        results (SolverResults): The results from solver.solve().
+        output_dir (str): Directory to write the LP file and violation log.
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    infeasible_lp_path = os.path.join(output_dir, "infeasible_model.lp")
+    violations_path = os.path.join(output_dir, "constraint_violations.txt")
+
+    print("\n🚫 Model is infeasible. Writing diagnostics...")
+
+    # Write model to LP file for further inspection
+    model.write(infeasible_lp_path, io_options={"symbolic_solver_labels": True})
+    print(f"📄 Model written to: {infeasible_lp_path}")
+
+    # Log constraint violations
+    log_constraint_violations_to_file(model, violations_path)
+    print(f"📄 Constraint violations written to: {violations_path}")
+
+    # Log LP analysis
+    lp_analysis_path = os.path.join(output_dir, "lp_analysis.txt")
+    parse_lp_file(infeasible_lp_path, output_log=lp_analysis_path)
+    lp_analysis_debug_path = os.path.join(output_dir, "lp_analysis_debug.txt")
+    parse_lp_file_debug(infeasible_lp_path, output_log=lp_analysis_debug_path)
+
+    # Raise the error
+    raise ValueError("Model is infeasible. Diagnostics have been saved.")
+
+
+def parse_lp_file_debug(lp_path, output_log="lp_analysis_debug.txt"):
+    """
+    Parses and analyzes a .lp file to flag common infeasibility patterns.
+
+    Args:
+        lp_path (str): Path to the .lp file.
+        output_log (str): Output file for diagnostic results.
+    """
+    with open(lp_path, 'r') as f:
+        lines = f.readlines()
+
+    in_constraints = False
+    in_bounds = False
+    in_general = False
+
+    constraints = []
+    bounds = []
+    binary_vars = set()
+    constraint_vars = set()
+    variable_bounds = {}
+
+    for line in lines:
+        line = line.strip()
+
+        # Section headers
+        if line.startswith("Subject To"):
+            in_constraints = True
+            continue
+        if line.startswith("Bounds"):
+            in_constraints = False
+            in_bounds = True
+            continue
+        if line.startswith("General") or line.startswith("Binary"):
+            in_bounds = False
+            in_general = True
+            continue
+        if line.startswith("End"):
+            in_general = False
+
+        # Constraints
+        if in_constraints:
+            constraints.append(line)
+            constraint_vars.update(re.findall(r'\b\w+\b', line))
+
+        # Bounds
+        elif in_bounds:
+            bounds.append(line)
+            # Examples:
+            # 0 <= x1 <= 1
+            # x3 free
+            parts = re.findall(r'[\w\.-]+', line)
+            if "free" in line:
+                variable_bounds[parts[0]] = ("-inf", "inf", "free")
+            elif len(parts) == 5:
+                variable_bounds[parts[2]] = (parts[0], parts[4], "bounded")
+
+        # Binary/General
+        elif in_general:
+            binary_vars.update(re.findall(r'\b\w+\b', line))
+
+    flagged_issues = []
+
+    # Analyze bounds
+    for var, (lb, ub, status) in variable_bounds.items():
+        if status == "free":
+            flagged_issues.append(f"⚠️ Variable {var} is free — may lead to unboundedness.")
+        else:
+            try:
+                if float(lb) > float(ub):
+                    flagged_issues.append(f"❌ Variable {var} has inconsistent bounds: {lb} > {ub}")
+            except ValueError:
+                flagged_issues.append(f"⚠️ Variable {var} has non-numeric bounds: {lb}, {ub}")
+
+    # Analyze constraints
+    eq_constraints = [c for c in constraints if re.search(r"= [\d\.-]+", c)]
+    for c in eq_constraints:
+        flagged_issues.append(f"⚠️ Hard equality constraint: {c.strip()}")
+
+    # Check for undeclared variables
+    for var in constraint_vars:
+        if var not in variable_bounds and var not in binary_vars and not var.startswith("c"):
+            flagged_issues.append(f"⚠️ Variable {var} used in constraints but not declared.")
+
+    # Check for large coefficients
+    for c in constraints:
+        coeffs = re.findall(r'[\+\-]?\s*\d+\.\d+', c)
+        for coeff in coeffs:
+            val = float(coeff.replace(" ", ""))
+            if abs(val) > 1e6 or abs(val) < 1e-6:
+                flagged_issues.append(f"⚠️ Extreme coefficient ({val}) in: {c.strip()}")
+
+    # Write log
+    with open(output_log, 'w') as out:
+        out.write("=== LP Debug Analysis ===\n\n")
+        out.write("✅ Basic stats:\n")
+        out.write(f"  - Constraints: {len(constraints)}\n")
+        out.write(f"  - Bounds: {len(bounds)}\n")
+        out.write(f"  - Binary/General vars: {len(binary_vars)}\n\n")
+
+        if flagged_issues:
+            out.write("❗ Potential Issues Found:\n")
+            for issue in flagged_issues:
+                out.write("  " + issue + "\n")
+        else:
+            out.write("✅ No obvious issues found.\n")
+
+        out.write("\n=== Sample Constraints ===\n")
+        for c in constraints[:10]:
+            out.write("  " + c + "\n")
+
+        out.write("\n=== Sample Bounds ===\n")
+        for b in bounds[:10]:
+            out.write("  " + b + "\n")
+
+    print(f"📄 LP analysis written to: {output_log}")
+
+
+def parse_lp_file(lp_path, output_log="lp_analysis.txt"):
+    """
+    Parses a .lp file and logs constraints and bounds for debugging.
+
+    Args:
+        lp_path (str): Path to the .lp file.
+        output_log (str): File to write analysis log to.
+    """
+    with open(lp_path, 'r') as f:
+        lines = f.readlines()
+
+    in_constraints = False
+    in_bounds = False
+    in_general = False
+    constraints = []
+    bounds = []
+    binary_vars = []
+
+    for line in lines:
+        line = line.strip()
+
+        if line.startswith("Subject To"):
+            in_constraints = True
+            continue
+        if line.startswith("Bounds"):
+            in_constraints = False
+            in_bounds = True
+            continue
+        if line.startswith("General") or line.startswith("Binary"):
+            in_bounds = False
+            in_general = True
+            continue
+        if line.startswith("End"):
+            in_general = False
+
+        if in_constraints:
+            constraints.append(line)
+        elif in_bounds:
+            bounds.append(line)
+        elif in_general:
+            binary_vars.append(line)
+
+    with open(output_log, 'w') as out:
+        out.write("=== Constraint Section ===\n")
+        for c in constraints[:50]:  # show only first 50 for brevity
+            out.write(c + '\n')
+
+        out.write("\n=== Bounds Section ===\n")
+        for b in bounds[:50]:
+            out.write(b + '\n')
+
+        out.write("\n=== Binary/General Variables ===\n")
+        for v in binary_vars:
+            out.write(v + '\n')
+
+        out.write("\n✅ Finished parsing LP file.\n")
+
+    print(f"✔️ LP file parsed and analyzed. Results written to: {output_log}")
+
+
 # ____________________________SOLVE THE MODEL WITH A SOLVER__________________________________
 def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
     """
@@ -564,7 +832,7 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
     """
 
     # Different parameters are needed based on the model
-    if model_name == 'CadetBoard':
+    if model_name == 'Bubbles':
         b, mdl_p = instance.b, instance.b  # It's weird, I know, but this works
         mdl_p["solver_name"] = b['b_solver_name']  # Change the solver
         mdl_p["pyomo_max_time"] = b['b_pyomo_max_time']  # Set the max time
@@ -577,71 +845,19 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                 mdl_p["solver_name"] = 'ipopt'
 
     # Determine how the solver is called here
-    if mdl_p["executable"] is None:
-        if mdl_p["provide_executable"]:
-            if mdl_p["exe_extension"]:
-                mdl_p["executable"] = afccp.globals.paths['solvers'] + mdl_p["solver_name"] + '.exe'
-            else:
-                mdl_p["executable"] = afccp.globals.paths['solvers'] + mdl_p["solver_name"]
-    else:
-        mdl_p["provide_executable"] = True
-
-    # Get correct solver
-    if mdl_p["provide_executable"]:
-        if mdl_p["solver_name"] == 'gurobi':
-            solver = SolverFactory(mdl_p["solver_name"], solver_io='python', executable=mdl_p["executable"])
-        else:
-            solver = SolverFactory(mdl_p["solver_name"], executable=mdl_p["executable"])
-    else:
-        if mdl_p["solver_name"] == 'gurobi':
-            solver = SolverFactory(mdl_p["solver_name"], solver_io='python')
-        else:
-            solver = SolverFactory(mdl_p["solver_name"])
-
-    # Print Statement
-    if printing:
-        if model_name == "VFT":
-            if mdl_p["approximate"]:
-                specific_model_name = "Approximate VFT Model"
-            else:
-                specific_model_name = "Exact VFT Model"
-        else:
-            specific_model_name = model_name + " Model"
-
-        if mdl_p['solve_extra_components']:
-            specific_model_name += " (w/base & training components)"
-        if mdl_p['solve_castle_guo']:
-            specific_model_name += " (w/CASTLE value curve modifications)"
-
-        print('Solving ' + specific_model_name + ' instance with solver ' + mdl_p["solver_name"] + '...')
+    solver = build_solver(model_name, mdl_p, printing)
 
     # Solve Model
     start_time = time.perf_counter()
-    if mdl_p["pyomo_max_time"] is not None:
-        if mdl_p["solver_name"] == 'mindtpy':
-            solver.solve(model, time_limit=mdl_p["pyomo_max_time"]),
-            # mip_solver='cplex_persistent', nlp_solver='ipopt')
-        elif mdl_p["solver_name"] == 'gurobi':
-            solver.solve(model, options={'TimeLimit': mdl_p["pyomo_max_time"], 'IntFeasTol': 0.05})
-        elif mdl_p["solver_name"] == 'ipopt':
-            solver.options['max_cpu_time'] = mdl_p["pyomo_max_time"]
-            solver.solve(model)
-        elif mdl_p["solver_name"] == 'cbc':
-            solver.options['seconds'] = mdl_p["pyomo_max_time"]
-            solver.solve(model)
-        elif mdl_p["solver_name"] == 'baron':
-            solver.solve(model, options={'MaxTime': mdl_p["pyomo_max_time"]})
-        else:
-            solver.solve(model)
-    else:
-        if mdl_p["solver_name"] == 'mindtpy':
-            model.pprint()
-            solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt')
-        else:
-            solver.solve(model)  # , tee=True)
-
-    # Get solve time
+    model = execute_solver(model, solver, mdl_p)
     solve_time = round(time.perf_counter() - start_time, 2)
+
+    # # Log infeasibility
+    # if (results.solver.status != SolverStatus.ok) or (
+    #         results.solver.termination_condition == TerminationCondition.infeasible):
+    #     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    #     folder_path = f"{instance.export_paths['Analysis & Results']}infeasibility_logs {timestamp}"
+    #     handle_infeasible_model(model, results, output_dir=folder_path)
 
     # Goal Programming Model specific actions
     if model_name == "GP":
@@ -853,11 +1069,125 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
                 solution[key] = warm_start[key]
 
         if printing:
-            print("Model solved in", solve_time, "seconds. Pyomo reported objective value:",
+            timestamp = datetime.datetime.now().strftime('%B %d %Y %r')
+            print(f"Model solved in {solve_time} seconds at {timestamp}. Pyomo reported objective value:",
                   solution['pyomo_obj_value'])
 
         # Return solution dictionary
         return solution
+
+
+def build_solver(model_name, mdl_p, printing):
+
+    # Determine how the solver is called here
+    if mdl_p["executable"] is None:
+        if mdl_p["provide_executable"]:
+            if mdl_p["exe_extension"]:
+                mdl_p["executable"] = afccp.globals.paths['solvers'] + mdl_p["solver_name"] + '.exe'
+            else:
+                mdl_p["executable"] = afccp.globals.paths['solvers'] + mdl_p["solver_name"]
+    else:
+        mdl_p["provide_executable"] = True
+
+    # Get correct solver
+    if mdl_p["provide_executable"]:
+        if mdl_p["solver_name"] == 'gurobi':
+            solver = SolverFactory(mdl_p["solver_name"], solver_io='python', executable=mdl_p["executable"])
+        else:
+            solver = SolverFactory(mdl_p["solver_name"], executable=mdl_p["executable"])
+    else:
+        if mdl_p["solver_name"] == 'gurobi':
+            solver = SolverFactory(mdl_p["solver_name"], solver_io='python')
+        else:
+            solver = SolverFactory(mdl_p["solver_name"])
+
+    # Print Statement
+    if printing:
+        if model_name == "VFT":
+            if mdl_p["approximate"]:
+                specific_model_name = "Approximate VFT Model"
+            else:
+                specific_model_name = "Exact VFT Model"
+        else:
+            specific_model_name = model_name + " Model"
+
+        if mdl_p['solve_extra_components']:
+            specific_model_name += " (w/base & training components)"
+        if mdl_p['solve_castle_guo']:
+            specific_model_name += " (w/CASTLE value curve modifications)"
+
+        timestamp = datetime.datetime.now().strftime('%B %d %Y %r')
+        print(f'Solving {specific_model_name} instance with solver {mdl_p["solver_name"]}...'
+              f'\nStart Time: {timestamp}.')
+    return solver
+
+
+def execute_solver(model, solver, mdl_p):
+    """
+    Solves the Pyomo model with a progress bar if a time limit is specified.
+
+    Args:
+        model (ConcreteModel): The Pyomo model to solve.
+        solver (SolverFactory): The solver instance.
+        mdl_p (dict): Dictionary of model parameters including solver config.
+
+    Returns:
+        ConcreteModel: The solved model.
+    """
+    def print_progress_bar(duration, stop_event):
+        start_time = time.time()
+        bar_length = 40
+        while not stop_event.is_set():
+            elapsed = time.time() - start_time
+            percent = min(elapsed / duration, 0.99)
+            filled_len = int(bar_length * percent)
+            bar = '█' * filled_len + '-' * (bar_length - filled_len)
+            eta = int(duration - elapsed) if elapsed < duration else 1
+            sys.stdout.write(f'\r⏳ Solver running: |{bar}| {percent*100:5.1f}% ETA: ~{eta}s ')
+            sys.stdout.flush()
+            time.sleep(1)
+        sys.stdout.write(f'\r✅ Solver complete: |{"█" * bar_length}| 100.0%              \n')
+        sys.stdout.flush()
+
+    # If time limit is set, start the timer bar
+    if mdl_p.get("pyomo_max_time"):
+        stop_event = threading.Event()
+        target_time = int(min(mdl_p["pyomo_max_time"] * 1.05, mdl_p["pyomo_max_time"] + 40))
+        thread = threading.Thread(target=print_progress_bar, args=(target_time, stop_event))
+        thread.start()
+
+    # Solve Model
+    try:
+        if mdl_p["pyomo_max_time"] is not None:
+            if mdl_p["solver_name"] == 'mindtpy':
+                solver.solve(model, time_limit=mdl_p["pyomo_max_time"], tee=mdl_p['pyomo_tee'])
+                # mip_solver='cplex_persistent', nlp_solver='ipopt')
+            elif mdl_p["solver_name"] == 'gurobi':
+                solver.solve(model, options={'TimeLimit': mdl_p["pyomo_max_time"],
+                                             'IntFeasTol': 0.05}, tee=mdl_p['pyomo_tee'])
+            elif mdl_p["solver_name"] == 'ipopt':
+                solver.options['max_cpu_time'] = mdl_p["pyomo_max_time"]
+                solver.solve(model, tee=mdl_p['pyomo_tee'])
+            elif mdl_p["solver_name"] == 'cbc':
+                solver.options['seconds'] = mdl_p["pyomo_max_time"]
+                solver.solve(model, tee=mdl_p['pyomo_tee'])
+            elif mdl_p["solver_name"] == 'baron':
+                solver.solve(model, options={'MaxTime': mdl_p["pyomo_max_time"]}, tee=mdl_p['pyomo_tee'])
+            else:
+                solver.solve(model, tee=mdl_p['pyomo_tee'])
+        else:
+            if mdl_p["solver_name"] == 'mindtpy':
+                model.pprint()
+                solver.solve(model, mip_solver='cplex_persistent', nlp_solver='ipopt', tee=mdl_p['pyomo_tee'])
+            else:
+                solver.solve(model, tee=mdl_p['pyomo_tee'])
+
+    finally:
+        if mdl_p.get("pyomo_max_time"):
+            stop_event.set()
+            thread.join()
+
+    return model
 
 
 # ____________________________CASTLE MARKET MODEL COMPONENTS_________________________________

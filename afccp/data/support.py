@@ -58,6 +58,7 @@ def initialize_instance_functional_parameters(N):
         "real_usafa_n": 960, "solver_name": "cbc", "pyomo_max_time": None, "provide_executable": False,
         "executable": None, "exe_extension": False, 'alternate_list_iterations_printing': False,
         'ots_accessions': None, 'ots_selected_preferences_only': True, 'ots_constrain_must_match': False,
+        'pyomo_tee': False,
 
         # Additional Constraints/Modeling
         "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': False,
@@ -107,7 +108,8 @@ def initialize_instance_functional_parameters(N):
         'use_rainbow_hex': True, 'build_orientation_slides': True, 'b_legend': True, 'b_legend_size': 20,
         'b_legend_marker_size': 20, 'b_legend_title_size': 20, 'x_ext_left': 0, 'x_ext_right': 0, 'y_ext_left': 0,
         'y_ext_right': 0, 'show_rank_text': False, 'rank_text_color': 'white', 'fontsize_single_digit_adj': 0.6,
-        'b_legend_loc': 'upper right', 'redistribute_x': True, 'cadets_solved_for': None,
+        'b_legend_loc': 'upper right', 'redistribute_x': True, 'cadets_solved_for': None, "y_val_to_pin": 0.03,
+        'show_white_surplus_boxes': False,
 
         # These parameters pertain to the AFSCs that will ultimately show up in the visualizations
         'afscs_solved_for': 'All', 'afscs_to_show': 'All',
@@ -423,6 +425,31 @@ def determine_afscs_in_image(p, mdl_p):
     # Now Determine what AFSCs we want to show in this visualization (must be a subset of AFSCs in the solution)
     if mdl_p['afscs_to_show'] == 'All':
         mdl_p['afscs'] = mdl_p['afscs_in_solution']  # All AFSCs that we solved for
+
+    elif 'USAFA' in mdl_p['afscs_to_show'] or 'ROTC' in mdl_p['afscs_to_show'] or 'OTS' in mdl_p['afscs_to_show']:
+
+        # Determine which SOC we're trying to show
+        socs = []
+        for soc in p['SOCs']:
+            if soc.upper() in mdl_p['afscs_to_show']:
+                socs.append(soc)
+
+        # Get list of AFSCs that these SOC(s) can be assigned to
+        mdl_p['afscs'] = []
+        for j in p['J']:
+            if p['acc_grp'][j] == 'NRL':
+                mdl_p['afscs'].append(p['afscs'][j])
+            else:
+
+                # Make sure we have cadets from this SOC represented by this AFSC
+                include = False
+                for soc in socs:
+                    if len(np.intersect1d(p['I^E'][j], p[f'I^{soc.upper()}'])) > 0:
+                        include = True
+                        break
+                if include:
+                    mdl_p['afscs'].append(p['afscs'][j])
+        mdl_p['afscs'] = np.array(mdl_p['afscs'])  # Convert to numpy array
 
     # If the user still supplied a string, we know we're looking for the three accessions groups
     elif type(mdl_p['afscs_to_show']) == str:

@@ -167,6 +167,7 @@ def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
                                   "OTS Target": "ots_quota",
                                   "PGL Target": "pgl", "Estimated": "quota_e",
                                   "Desired": "quota_d", "Min": "quota_min", "Max": "quota_max",
+                                  'Max (Bubbles)': 'max_bubbles',
                                   "Assign Base": 'afsc_assign_base', 'Num Courses': 'T'}
 
     # Loop through each column in the 'AFSCs' dataframe to put it into the p dictionary
@@ -771,6 +772,7 @@ def export_afscs_data(instance):
                                   "usafa_quota": "USAFA Target", "rotc_quota": "ROTC Target", 'ots_quota': 'OTS Target',
                                   "pgl": "PGL Target", "quota_e": "Estimated",
                                   "quota_d": "Desired", "quota_min": "Min", "quota_max": "Max",
+                                  'max_bubbles': 'Max (Bubbles)',
                                   "afsc_assign_base": 'Assign Base', 'T': 'Num Courses',
                                   'usafa_eligible_count': 'USAFA Eligible', 'rotc_eligible_count': 'ROTC Eligible',
                                   'ots_eligible_count': "OTS Eligible"}

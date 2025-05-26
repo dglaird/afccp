@@ -615,7 +615,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
     for choice in np.arange(1, 11):  # Just looking at top 10
         choice_cadets = np.where(solution['cadet_choice'] == choice)[0]
         solution['cadet_choice_counts'][choice] = len(np.intersect1d(choice_cadets, solution['I^Match']))
-    solution['cadet_choice_counts']['All Others'] = int(p['N^Match'] - sum(
+    solution['cadet_choice_counts']['All Others'] = int(solution['Num Matched'] - sum(
         [solution['cadet_choice_counts'][choice] for choice in np.arange(1, 11)]))
 
     # Save the counts for each AFSC separately from the objective_measure matrix
@@ -871,7 +871,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
 
     # Top 3 Choice Percentage
     solution['top_3_choice_percent'] = np.around(
-        np.sum([1 <= solution['cadet_choice'][i] <= 3 for i in solution['I^Match']]) / p['N^Match'], 3)
+        np.sum([1 <= solution['cadet_choice'][i] <= 3 for i in solution['I^Match']]) / solution['Num Matched'], 3)
     return solution
 
 

@@ -1,5 +1,6 @@
 from pptx import Presentation
 from pptx.util import Inches
+from PIL import Image
 import os
 import numpy as np
 
@@ -132,6 +133,7 @@ def generate_results_slides(instance):
                instance.data_name + ' ' + instance.solution_name + '.pptx'
     prs.save(filepath)
 
+
 def generate_comparison_slides(instance):
     """
     Function to generate the results slides for a particular problem instance with solution
@@ -197,6 +199,7 @@ def generate_comparison_slides(instance):
     # Save the PowerPoint
     filepath = instance.export_paths['Analysis & Results'] + instance.data_name + ' ' + 'Comparison.pptx'
     prs.save(filepath)
+
 
 def create_animation_slides(instance):
     """
@@ -275,3 +278,78 @@ def create_animation_slides(instance):
     # Save the PowerPoint
     filepath = sequence_folder_path + mdl_p['focus'] + '.pptx'
     prs.save(filepath)
+
+
+def create_animated_presentation(instance, num_intro_slides=3):
+    """
+    Generates a PowerPoint presentation with:
+    - Orientation slide (if available)
+    - First few still frames
+    - Animated GIF slide with remaining frames
+    - Final solution slide (if available)
+
+    Parameters:
+        instance: Object containing model data and paths
+        num_intro_slides (int): Number of still slides to include before GIF
+    """
+    # Shorthand
+    mdl_p = instance.mdl_p
+    sequence = instance.solution['iterations']['sequence']
+
+    # Build the presentation
+    prs = Presentation()
+    blank_slide_layout = prs.slide_layouts[6]
+    prs.slide_width = Inches(mdl_p['b_figsize'][0])
+    prs.slide_height = Inches(mdl_p['b_figsize'][1])
+    top, left = Inches(0), Inches(0)
+    height, width = Inches(mdl_p['b_figsize'][1]), Inches(mdl_p['b_figsize'][0])
+
+    # Paths
+    base_path = instance.export_paths['Analysis & Results'] + "Cadet Board/"
+    sequence_path = os.path.join(base_path, sequence)
+    focus_path = os.path.join(sequence_path, mdl_p['focus'])
+
+    # Get sorted image files
+    folder = np.array(os.listdir(focus_path))
+    image_files = sorted([f for f in folder if f.endswith('.png')],
+                         key=lambda x: int(''.join(filter(str.isdigit, x.split()[0]))))
+
+    # --- Orientation Slide ---
+    orientation_path = os.path.join(focus_path, 'orientation.png')
+    if os.path.exists(orientation_path):
+        slide = prs.slides.add_slide(blank_slide_layout)
+        slide.shapes.add_picture(orientation_path, left, top, height=height, width=width)
+
+    # --- Still Slides ---
+    for i, file in enumerate(image_files[:num_intro_slides]):
+        slide = prs.slides.add_slide(blank_slide_layout)
+        slide.shapes.add_picture(os.path.join(focus_path, file), left, top, height=height, width=width)
+
+    # --- Create GIF from remaining images ---
+    gif_images = []
+    for file in image_files[num_intro_slides:]:
+        img = Image.open(os.path.join(focus_path, file)).convert("RGB")
+        gif_images.append(img)
+
+    if gif_images:
+        gif_path = os.path.join(focus_path, 'animation.gif')
+        gif_images[0].save(
+            gif_path,
+            save_all=True,
+            append_images=gif_images[1:],
+            duration=500,
+            loop=0
+        )
+
+        # Add GIF slide (note: PowerPoint may require manual replacement depending on viewer support)
+        slide = prs.slides.add_slide(blank_slide_layout)
+        slide.shapes.add_picture(gif_path, left, top, height=height, width=width)
+
+    # --- Final Image (if exists) ---
+    file = image_files[len(image_files) - 1]
+    slide = prs.slides.add_slide(blank_slide_layout)
+    slide.shapes.add_picture(os.path.join(focus_path, file), left, top, height=height, width=width)
+
+    # Save presentation
+    output_path = os.path.join(sequence_path, mdl_p['focus'] + '_animated.pptx')
+    prs.save(output_path)

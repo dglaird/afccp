@@ -104,6 +104,8 @@ The class "CadetCareerProblem" lives in main.py:
 </p>
 
 [CadetCareerProblem](../reference/main.md#cadetcareerproblem) calls all the other various functions across the "afccp" module that handle this problem. 
+I higly encourage you to at least read the `__init__` function code of `CadetCareerProblem` as that is what defines the
+data for a particular instance. The object then runs through several processes depending on what the analyst is trying to do.
 I've broken up these processes into four core categories: "data", "solutions", "visualizations", and "research". 
 The next several tutorials will discuss these four different concepts in much more detail. 
 
@@ -112,8 +114,5 @@ The next several tutorials will discuss these four different concepts in much mo
 ## 📌 Summary
 
 In this quickstart:
-- We initialized a toy dataset of cadets and AFSCs.
-- We ran the assignment model and viewed the results.
-- We generated a plot to visualize the match.
-
-To run more realistic examples...
+- We described the necessary steps to set up the development environment
+- Introduced the `CadetCareerProblem` class and showed where it resides

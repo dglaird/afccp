@@ -475,7 +475,7 @@ def allocate_ots_candidates_original_method(instance, printing=False):
         print("Running status quo OTS matching/selection algorithm...")
 
     # Shorthand
-    p = instance.parameters
+    p, mdl_p = instance.parameters, instance.mdl_p
 
     # Make sure we're dealing with the original ROTC/USAFA solution with unmatched OTS candidates!
     if 'One Market ROTC_USAFA' not in instance.solutions.keys():
@@ -486,6 +486,13 @@ def allocate_ots_candidates_original_method(instance, printing=False):
     # Initialize new solution to add OTS into the mix
     new_solution = copy.deepcopy(solution)
     new_solution['method'] = 'One Market OTS Addition-Status Quo'
+    new_solution['cadets_solved_for'] = 'OTS Cadets'
+    new_solution['afscs_solved_for'] = 'OTS-AFSCs'
+
+    # Dictionary of parameters used for the "BubbleChart" object (animation)
+    new_solution['iterations'] = {'type': 'OTS Status Quo Algorithm'}
+    for key in ['rejections', 'matches', 'names', 'new_match', 'cadets_matched']:
+        new_solution['iterations'][key] = {}
 
     # Sort OTS candidates in order of merit
     ordered_ots = np.argsort(p['merit'])[::-1]
@@ -494,20 +501,78 @@ def allocate_ots_candidates_original_method(instance, printing=False):
 
     # Loop through each OTS candidate (in order of merit) to assign an AFSC
     counts = copy.deepcopy(p['ots_quota'])
+    iteration = 1
+    keep = True
+    stop_iteration = 14
+    sequence = 'Initial'
+    resume_iteration = 1000000
+    resume_interval = 200
     for i in ordered_ots:
 
         # Loop through each AFSC in order of the candidate's preferences
+        choice = 0
         for j in p['cadet_preferences'][i]:
             if j not in p['J^Selected'][i]:  # This AFSC has to be one that the cadet selected
                 continue
+            else:
+                choice += 1
+
+            if iteration >= resume_iteration:
+                keep = True
+                stop_iteration = iteration + 8
+                resume_interval *= 2
+                resume_iteration = iteration + resume_interval
 
             # If there are still slots to give out, give them one
             if counts[j] > 0:
+
+                # Assign this AFSC to this cadet
                 new_solution['j_array'][i] = j
 
                 # Decrement the remaining slots by 1... on to the next candidate
                 counts[j] -= 1
+
+                # Solution iterations handling
+                if iteration >= stop_iteration:
+                    keep = False
+
+                # Keep solution iterations
+                if keep:
+                    new_solution['iterations']['names'][iteration] = f'I: {iteration}. ' \
+                                                                     f'Cadet "{i}" matched to {p["afscs"][j]}.'
+                    new_solution['iterations']['matches'][iteration] = copy.deepcopy(new_solution['j_array'])
+                    new_solution['iterations']['new_match'][iteration] = (i, j)
+                iteration += 1
                 break
+            else:
+
+                # This is the first reject!
+                if sequence == 'Initial':
+                    keep = True
+                    sequence = 'Continue'
+                    stop_iteration = iteration + 8
+                    resume_iteration = iteration + resume_interval
+
+                # Keep solution iterations
+                if keep and iteration <= 1000:
+                    new_solution['iterations']['names'][iteration] = f'I: {iteration}. ' \
+                                                                     f'Cadet "{i}" rejected from {p["afscs"][j]}.'
+                    new_solution['iterations']['matches'][iteration] = copy.deepcopy(new_solution['j_array'])
+                    new_solution['iterations']['matches'][iteration][i] = j
+                    new_solution['iterations']['rejections'][iteration] = (i, j)
+                    new_solution['iterations']['new_match'][iteration] = (i, j)
+                iteration += 1
+
+    # Last iteration!
+    new_solution['iterations']['names'][iteration] = f'I: {iteration}. Final Solution.'
+    new_solution['iterations']['matches'][iteration] = copy.deepcopy(new_solution['j_array'])
+    new_solution['iterations']['matches'][iteration][i] = j
+    new_solution['iterations']['rejections'][iteration] = (i, j)
+    new_solution['iterations']['new_match'][iteration] = (i, j)
+
+    # Save last iteration info
+    iterations = list(new_solution['iterations']['new_match'].keys())
+    new_solution['iterations']['last_s'] = iterations[len(iterations) - 1]
 
     # Return the new solution with OTS included!
     return new_solution

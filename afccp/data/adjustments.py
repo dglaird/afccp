@@ -753,6 +753,28 @@ def base_training_parameter_additions(parameters):
     return p
 
 
+def set_ots_must_matches(parameters):
+
+    # Shorthand
+    p = parameters
+
+    # Clear "must matches"
+    p['must_match'] = np.array([np.nan for _ in p['I']])
+    p['must_match'][p['I^OTS']] = 0
+
+    # No OTS adjustments to be made
+    if 'ots' not in p['SOCs']:
+        print('OTS not included in this instance!! Nothing to do here.')
+        return p
+
+    # Sort OTS candidates by OM and take the top {ots_accessions} people
+    sorted_by_merit = np.argsort(p['merit'])[::-1]
+    ots_sorted = np.array([i for i in sorted_by_merit if i in p['I^OTS']])
+    p['I^Must_Match'] = ots_sorted[:int(p['ots_accessions'] * 0.995)]
+    p['must_match'][p['I^Must_Match']] = 1
+    return p
+
+
 # Instance changes
 def convert_instance_to_from_scrubbed(instance, new_letter=None, translation_dict=None, data_name='Unknown'):
     """

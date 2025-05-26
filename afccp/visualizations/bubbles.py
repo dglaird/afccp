@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.lines import Line2D
 from matplotlib.transforms import Bbox
+from tqdm import tqdm
 import numpy as np
 import os
 import copy
@@ -93,6 +94,9 @@ class BubbleChart:
         if 'iterations' in self.solution:
             self.b['solutions'] = copy.deepcopy(self.solution['iterations']['matches'])
             self.b['last_s'] = self.solution['iterations']['last_s']
+            if 'rejections' in self.solution['iterations']:  # OTS specific alg functionality
+                self.b['rejections'] = copy.deepcopy(self.solution['iterations']['rejections'])
+                self.b['new_match'] = copy.deepcopy(self.solution['iterations']['new_match'])
         else:
             self.b['solutions'] = {0: self.solution['j_array']}
             self.b['last_s'] = 0
@@ -115,10 +119,25 @@ class BubbleChart:
                     self.soc = soc
                     break
 
+        # Specific SOC cadets!
+        elif 'USAFA' in self.b['cadets_solved_for'] or 'ROTC' in self.b['cadets_solved_for'] or \
+                'OTS' in self.b['cadets_solved_for']:
+            for soc in self.p['SOCs']:
+                if soc.upper() in self.b['cadets_solved_for']:
+                    if soc.upper() in self.b['cadets_solved_for']:
+                        self.b['cadets'] = self.p[f'I^{soc.upper()}']
+                        self.b['max_afsc'] = self.p[f'{soc}_quota']
+                        self.b['min_afsc'] = self.p[f'{soc}_quota']
+                        self.soc = soc
+                        break
+
         # All the cadets!
         else:
             self.b['cadets'] = self.p['I']
-            self.b['max_afsc'] = self.p['quota_max']
+            if 'max_bubbles' in self.p:
+                self.b['max_afsc'] = self.p['max_bubbles']
+            else:
+                self.b['max_afsc'] = self.p['quota_max']
             self.b['min_afsc'] = self.p['pgl']
             self.soc = 'both'
 
@@ -134,6 +153,19 @@ class BubbleChart:
         self.average_afsc_choice = None
         self.average_cadet_choice = None
 
+        # Setup OTS algorithm specifics
+        if self.solution.get('iterations', {}).get('type') == 'OTS Status Quo Algorithm':
+            self.b['max_assigned'] = self.p['ots_quota'] + 1
+
+            # Precompute intersection for each solution and AFSC
+            self.b['cadets_matched'] = {
+                s: {
+                    j: np.intersect1d(np.where(self.b['solutions'][s] == j)[0], self.p['I^OTS'])
+                    for j in self.b['J']
+                }
+                for s in self.b['solutions']
+            }
+
         # Initialize Figure
         self.fig, self.ax = plt.subplots(figsize=self.b['b_figsize'], dpi=self.b['dpi'],
                                          facecolor=self.b['figure_color'], tight_layout=True)
@@ -144,6 +176,9 @@ class BubbleChart:
 
         # Remove tick marks
         self.ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+
+        if printing:
+            print('Bubble Chart initialized.')
 
     # Main functions
     def main(self):
@@ -188,7 +223,7 @@ class BubbleChart:
         else:
 
             # Initialize the board!
-            self.initialize_board()
+            self.initialize_board(include_surplus=self.b['show_white_surplus_boxes'])
 
         # Just making one picture
         if 'iterations' not in self.solution:
@@ -240,6 +275,14 @@ class BubbleChart:
                 if self.printing:
                     print('Done.')
 
+            elif self.solution['iterations']['type'] == 'OTS Status Quo Algorithm':
+
+                if self.printing:  # "Plus 2" to account for orientation and final solution frames
+                    print("Creating " + str(len(self.b['solutions'].keys()) + 2) + " animation images...")
+
+                # Save the frames
+                self.build_ots_alg_frames()
+
     def preprocessing(self):
         """
         This method preprocesses the different specs for this particular figure instance
@@ -249,47 +292,56 @@ class BubbleChart:
         self.b['afsc_fontsize'] = {j: self.b['afsc_title_size'] for j in self.b['J']}
         self.b['afsc_title_two_lines'] = {j: False for j in self.b['J']}
 
-        # Maximum number of cadets assigned to each AFSC across solutions
-        self.b['max_assigned'] = {j: 0 for j in self.b["J"]}
-
-        # Subset of cadets assigned to the AFSC in each solution
-        self.b['cadets_matched'], self.b['counts'] = {}, {}
-
         # Proposal iterations
         if 'iterations' in self.solution:
             if 'proposals' in self.solution['iterations']:
                 self.b['cadets_proposing'] = {}
 
-        # Loop through each solution (iteration)
-        for s in self.b['solutions']:
-            self.b['cadets_matched'][s], self.b['counts'][s] = {}, {}
+        # Determine maximum number of assigned cadets to each AFSC
+        if 'max_assigned' not in self.b:
 
-            # Proposal iterations
-            if 'iterations' in self.solution:
-                if 'proposals' in self.solution['iterations']:
-                    self.b['cadets_proposing'][s] = {}
+            # Maximum number of cadets assigned to each AFSC across solutions
+            self.b['max_assigned'] = {j: 0 for j in self.b["J"]}
 
-            # Loop through each AFSC
-            for j in self.b['J']:
-                self.b['cadets_matched'][s][j] = np.where(self.b['solutions'][s] == j)[0]  # cadets assigned to this AFSC
-                self.b['counts'][s][j] = len(self.b['cadets_matched'][s][j])  # number of cadets assigned to this AFSC
-                max_count = self.b['counts'][s][j]
+            # Subset of cadets assigned to the AFSC in each solution
+            self.b['counts'] = {}
+            self.b['cadets_matched'] = {}
+
+            # Loop through each solution (iteration)
+            for s in self.b['solutions']:
+
+                self.b['cadets_matched'][s], self.b['counts'][s] = {}, {}
 
                 # Proposal iterations
                 if 'iterations' in self.solution:
                     if 'proposals' in self.solution['iterations']:
-                        self.b['cadets_proposing'][s][j] = np.where(self.solution['iterations']['proposals'][s] == j)[0]
-                        proposal_counts = len(self.b['cadets_proposing'][s][j])  # number of proposing cadets
-                        max_count = max(self.b['counts'][s][j], proposal_counts)
+                        self.b['cadets_proposing'][s] = {}
 
-                # Update maximum number of cadets assigned if necessary
-                if max_count > self.b['max_assigned'][j]:
-                    self.b['max_assigned'][j] = max_count
+                # Loop through each AFSC
+                for j in self.b['J']:
 
-            # Get number of unassigned cadets at the end of the iterations
-            if s == self.b['last_s']:
-                self.b['unassigned_cadets'] = np.where(self.b['solutions'][s] == self.p['M'])[0]  # cadets left unmatched
-                self.b['N^u'] = len(self.b['unassigned_cadets'])  # number of cadets left unmatched
+                    # The cadets that were matched have to be taken from the cadets we're showing too
+                    all_cadets_matched = np.where(self.b['solutions'][s] == j)[0]  # cadets assigned to this AFSC
+                    self.b['cadets_matched'][s][j] = np.intersect1d(all_cadets_matched, self.b['cadets'])
+                    self.b['counts'][s][j] = len(self.b['cadets_matched'][s][j])  # number of cadets assigned to AFSC
+                    max_count = self.b['counts'][s][j]
+
+                    # Proposal iterations
+                    if 'iterations' in self.solution:
+                        if 'proposals' in self.solution['iterations']:
+                            self.b['cadets_proposing'][s][j] = \
+                                np.where(self.solution['iterations']['proposals'][s] == j)[0]
+                            proposal_counts = len(self.b['cadets_proposing'][s][j])  # number of proposing cadets
+                            max_count = max(self.b['counts'][s][j], proposal_counts)
+
+                    # Update maximum number of cadets assigned if necessary
+                    if max_count > self.b['max_assigned'][j]:
+                        self.b['max_assigned'][j] = max_count
+
+        # Get number of unassigned cadets at the end of the iterations
+        if 'last_s' in self.b:  # cadets left unmatched
+            self.b['unassigned_cadets'] = np.where(self.b['solutions'][self.b['last_s']] == self.p['M'])[0]
+            self.b['N^u'] = len(self.b['unassigned_cadets'])  # number of cadets left unmatched
 
         # Determine number of cadet boxes for AFSCs based on nearest square
         squares_required = [max(self.b['max_assigned'][j], self.b['max_afsc'][j]) for j in self.b['J']]
@@ -312,6 +364,9 @@ class BubbleChart:
         self.b['J^sorted'] = {index: sorted_J[index] for index in range(self.b['M'])}  # Translate 'new j' to 'real j'
         self.b['n^sorted'] = {index: sorted_n[index] for index in range(self.b['M'])}  # Translate 'new n' to 'real n'
         self.b['J^translated'] = {sorted_J[index]: index for index in range(self.b['M'])}  # Translate 'real j' to 'new j'
+
+        if self.printing:
+            print('Bubble Chart preprocessed.')
 
     def orientation_slides(self):
         """
@@ -458,7 +513,7 @@ class BubbleChart:
                     self.b['cb_coords'][j][i] = (x_i, y_i)
                     i += 1
 
-    def initialize_board(self, include_surplus=True):
+    def initialize_board(self, include_surplus=False):
         """
         This method takes all the necessary board parameters and constructs the board to then be manipulated in other
         algorithms based on what the user wants to do.
@@ -496,11 +551,11 @@ class BubbleChart:
                 # Are we on a bottom edge?
                 row = np.array([j_p for j_p, val in self.b['y'].items() if val == self.b['y'][j]])
                 x_coords = np.array([self.b['x'][j_p] for j_p in row])
-                if self.b['x'][j] == np.max(x_coords) and self.b['y'][j] <= 0.03:  # We're at the right edge
-                    x = self.b['x'][j] + (self.b['n'][j]) * self.b['s']
+                if self.b['x'][j] == np.max(x_coords) and self.b['y'][j] <= self.b['y_val_to_pin']:
+                    x = self.b['x'][j] + (self.b['n'][j]) * self.b['s']  # We're at the right edge
                     ha = 'right'
-                elif self.b['x'][j] == np.min(x_coords) and self.b['y'][j] <= 0.03:  # We're at the left edge
-                    x = self.b['x'][j]
+                elif self.b['x'][j] == np.min(x_coords) and self.b['y'][j] <= self.b['y_val_to_pin']:
+                    x = self.b['x'][j]  # We're at the left edge
                     ha = 'left'
 
             # AFSC text
@@ -586,7 +641,6 @@ class BubbleChart:
                                                                    verticalalignment='center',
                                                                    color=self.b['rank_text_color'])
                         self.b['c_rank_text'][j][i].set_visible(False)
-
 
         # Remove tick marks
         self.ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
@@ -765,6 +819,90 @@ class BubbleChart:
         if self.b['save_iteration_frames']:
             self.save_iteration_frame(s, kind=kind)
 
+    def build_ots_alg_frames(self):
+        """
+        This method reconstructs the figure to reflect the cadet/afsc state in this iteration
+        """
+
+        # AFSC Normalized scores
+        self.b['scores'] = {j: 0 for j in self.b['J']}
+
+        # Initialize AFSC text
+        for j in self.b['J']:
+            self.b['afsc_name_text'][j].set_color('white')
+            self.b['afsc_name_text'][j].set_text(self.p['afscs'][j] + ": 0")
+
+        iterations = [s for s in self.b['solutions']]
+        for s in tqdm(iterations, desc="Animation Image"):
+
+            # AFSC Normalized scores
+            self.b['scores'] = {j: 0 for j in self.b['J']}
+
+            # Loop through each AFSC
+            for j in self.b['J']:
+
+                # Sort the cadets based on whatever method we choose
+                unsorted_cadets = self.b['cadets_matched'][s][j]
+                cadets = self.sort_cadets(j, unsorted_cadets)
+
+                # Make sure we have cadets assigned to this AFSC in this frame
+                if len(cadets) > 0:
+
+                    # Change the colors of the circles based on the desired method
+                    self.change_circle_features(s, j, cadets)
+
+                    # Hide the circles/text that aren't in the solution
+                    for i in range(len(cadets), self.b['max_assigned'][j]):
+
+                        # Hide the circle
+                        self.b['c_circles'][j][i].set_visible(False)
+
+                    # Update the text above the AFSC square
+                    self.update_afsc_text(s, j)
+
+                else:  # There aren't any assigned cadets yet!
+                    self.b['afsc_name_text'][j].set_color('white')
+                    self.b['afsc_name_text'][j].set_text(self.p['afscs'][j] + ": 0")
+
+            # Get the location of this new cadet-AFSC pair
+            i, j = self.b['new_match'][s]
+            unsorted_cadets = self.b['cadets_matched'][s][j]
+            cadets = self.sort_cadets(j, unsorted_cadets)
+            idx = np.where(cadets == i)[0][0]
+
+            # Highlight this new cadet-AFSC pair!
+            self.b['c_circles'][j][idx].set_edgecolor('yellow')
+
+            # Update the title of the figure
+            self.update_title_text(s, kind='OTS Algorithm')
+
+            # Save the figure
+            self.save_iteration_frame(s, kind='Matched')
+
+            # Is this a rejected match?
+            if s in self.b['rejections']:
+
+                # Get line coordinates
+                x_values_1 = [self.b['cb_coords'][j][idx][0], self.b['cb_coords'][j][idx][0] + self.b['s']]
+                y_values_1 = [self.b['cb_coords'][j][idx][1], self.b['cb_coords'][j][idx][1] + self.b['s']]
+                x_values_2 = [self.b['cb_coords'][j][idx][0], self.b['cb_coords'][j][idx][0] + self.b['s']]
+                y_values_2 = [self.b['cb_coords'][j][idx][1] + self.b['s'], self.b['cb_coords'][j][idx][1]]
+
+                # Plot the 'Big Red X' lines
+                line_1 = self.ax.plot(x_values_1, y_values_1, linestyle='-', c='red')[0]
+                line_2 = self.ax.plot(x_values_2, y_values_2, linestyle='-', c='red')[0]
+
+                # Save the figure
+                self.save_iteration_frame(s, kind='Rejected')
+
+                # Remove the lines and the cadet
+                line_1.remove()
+                line_2.remove()
+                self.b['c_circles'][j][idx].set_visible(False)  # Hide the circle
+
+            # Remove the outline around this cadet-AFSC pair
+            self.b['c_circles'][j][idx].set_edgecolor('black')
+
     def rejections_iteration_frame(self, s, kind='Rejections'):
         """
         This method reconstructs the figure to reflect the cadet/afsc state in this iteration
@@ -823,6 +961,10 @@ class BubbleChart:
         # Sort the cadets by AFSC preferences
         elif self.mdl_p['sort_cadets_by'] == 'AFSC Preferences':
             indices = np.argsort(self.p['a_pref_matrix'][cadets_unsorted, j])
+
+        # Sort the cadets by order of merit (OM)
+        elif self.mdl_p['sort_cadets_by'] == 'OM':
+            indices = np.argsort(self.p['merit'][cadets_unsorted])[::-1]
 
         # Return the sorted cadets
         return cadets_unsorted[indices]
@@ -1080,7 +1222,6 @@ class BubbleChart:
                 color = self.b[more + '_bubble']
             self.b['afsc_name_text'][j].set_color(color)
 
-
         elif self.b['afsc_text_to_show'] == 'Norm Score':
             color = self.v_hex_dict[self.b['scores'][j]]  # New AFSC color
             afsc_text += str(self.b['scores'][j])
@@ -1129,7 +1270,7 @@ class BubbleChart:
                 else:
                     title_color = self.b['all_other_choice_colors']
             else:
-                title_text = self.b['iteration_names'][s]
+                title_text = self.solution['iterations']['names'][s]
 
         # All unmatched cadets in the solution (even the ones we're not considering)
         unmatched_cadets_all = np.where(self.b['solutions'][s] == self.p['M'])[0]
@@ -1155,7 +1296,7 @@ class BubbleChart:
         # Add title text
         if self.b['focus'] in ['Specific Choice', 'Tier 1']:
             title_text += ' Highlighting Results for ' + self.mdl_p['afsc']
-        else:
+        elif kind not in ['OTS Algorithm']:
             percent_text = str(np.around(self.solution['top_3_choice_percent'] * 100, 3)) + "%"
             title_text += ' Results: Cadet Top3: ' + percent_text
             title_text += ', AFSC Score: ' + str(np.around(self.average_afsc_choice, 2))

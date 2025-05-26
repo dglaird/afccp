@@ -962,6 +962,17 @@ class CadetCareerProblem:
         self.parameters = afccp.data.preferences.create_final_cadet_utility_matrix_from_new_formula(self.parameters)
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
+    def set_ots_must_matches(self, printing=None):
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print(f"Setting OTS 'must-matches' by sorting OM and selecting top {self.parameters['ots_accessions']} OTS")
+
+        # Set OTS must matches  (No need to adjust parameter sets- I adjust "I^Must_Match" in this function too
+        self.parameters = afccp.data.adjustments.set_ots_must_matches(self.parameters)
+
     # Adjust Rated Data
     def generate_rated_data(self):
         """
@@ -2106,6 +2117,11 @@ class CadetCareerProblem:
                 elif "OTS" in self.solution_name:
                     self.solution['cadets_solved_for'] = 'OTS Rated'
 
+            # Adjust sorting method
+            if self.solution['iterations']['type'] == 'OTS Status Quo Algorithm':
+                self.mdl_p['sort_cadets_by'] = 'OM'
+                # self.mdl_p['b_title'] = 'OTS Status Quo Algorithm'
+
             # Determine name of this BubbleChart sequence
             self.solution['iterations']['sequence'] = \
                 self.data_name + ', ' + self.solution['cadets_solved_for'] + ' Cadets, ' + \
@@ -2425,7 +2441,8 @@ class CadetCareerProblem:
 
         # Call the function to generate the slides
         if afccp.globals.use_pptx:
-            afccp.visualizations.slides.create_animation_slides(self)
+            # afccp.visualizations.slides.create_animation_slides(self)
+            afccp.visualizations.slides.create_animated_presentation(self, num_intro_slides=5)
         else:
             print('PPTX library not installed.')
 
