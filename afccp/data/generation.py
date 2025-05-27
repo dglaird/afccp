@@ -275,7 +275,44 @@ def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, ge
 
 def generate_random_value_parameters(parameters, num_breakpoints=24):
     """
-    Generates value parameters for a given problem instance from scratch
+    Generate Random Value Parameters for a Cadet-AFSC Assignment Problem.
+
+    This function constructs a randomized set of value-focused thinking (VFT) parameters for a given cadet-AFSC
+    matching instance. These include AFSC weights, cadet weights, value function definitions, and constraint structures
+    across defined objectives. It supports a mix of manually assigned logic and randomized components and can be
+    used to simulate plausible input conditions for testing the assignment algorithm.
+
+    Parameters
+    ----------
+    parameters : dict
+        The problem instance parameters, including cadet/AFSC info, merit scores, eligibility, quotas, and utilities.
+    num_breakpoints : int, optional
+        Number of breakpoints to use in piecewise linear value functions, by default 24.
+
+    Returns
+    -------
+    dict
+        A dictionary `vp` containing generated value parameters, including objectives, weights, constraints,
+        value functions, and breakpoints.
+
+    Examples
+    --------
+    ```python
+    vp = generate_random_value_parameters(parameters, num_breakpoints=16)
+    ```
+
+    See Also
+    --------
+    - [`generate_afocd_value_parameters`](../../../reference/data/values/#data.values.generate_afocd_value_parameters):
+      Adds tiered AFOCD objectives and fills in default VFT structure for a given instance.
+    - [`create_segment_dict_from_string`](../../../reference/data/values/#data.values.create_segment_dict_from_string):
+      Parses string definitions into nonlinear segment dictionaries for value functions.
+    - [`value_function_builder`](../../../reference/data/values/#data.values.value_function_builder):
+      Linearizes nonlinear value functions using a fixed number of breakpoints.
+    - [`cadet_weight_function`](../../../reference/data/values/#data.values.cadet_weight_function):
+      Creates weights across cadets based on merit scores and function type.
+    - [`afsc_weight_function`](../../../reference/data/values/#data.values.afsc_weight_function):
+      Creates weights across AFSCs based on projected gains/losses and selected function type.
     """
 
     # Shorthand
@@ -614,6 +651,73 @@ def safe_round(data, decimals=0, axis=-1):
         return result
 
     return data_type(result.squeeze(), **constructor)
+
+
+# Castle Integration
+def generate_concave_curve(num_points, max_x):
+    """
+    Generates x and y coordinates for a concave function.
+
+    Args:
+        num_points (int): Number of points to generate.
+        max_x (float): Maximum value along the x-axis.
+
+    Returns:
+        tuple: (x_values, y_values) as numpy arrays.
+    """
+    x_values = np.linspace(0, max_x, num_points)
+    y_values = 1 - np.exp(-x_values / (max_x / 6))  # Adjust curvature
+    return x_values, y_values
+
+
+def generate_realistic_castle_value_curves(parameters, num_breakpoints: int = 10):
+    """
+    Generate Concave Value Curves for CASTLE AFSCs.
+
+    Creates piecewise linear approximations of realistic concave value functions for each CASTLE-level AFSC.
+    These curves are used to evaluate the marginal utility of inventory across AFSCs, enabling smooth
+    optimization and modeling in the CASTLE simulation.
+
+    Parameters:
+        parameters (dict): Problem instance parameters containing CASTLE AFSC groups and PGL values.
+        num_breakpoints (int, optional): Number of breakpoints to use in the piecewise value curve.
+            Defaults to 10.
+
+    Returns:
+        dict: A dictionary `q` containing the following keys for each CASTLE AFSC:
+            - `'a'`: Array of x-values (inventory levels).
+            - `'f^hat'`: Array of corresponding y-values (utility).
+            - `'r'`: Number of breakpoints.
+            - `'L'`: Index array of breakpoints.
+
+    Example:
+        ```python
+        q = generate_realistic_castle_value_curves(parameters, num_breakpoints=12)
+        x_vals = q['a']['21A']       # x-values for AFSC 21A
+        y_vals = q['f^hat']['21A']   # corresponding utility values
+        ```
+
+    See Also:
+        - [`generate_concave_curve`](../../../reference/data/generation/#data.generation.generate_concave_curve):
+          Generates a concave (diminishing returns) curve with specified number of points and max range.
+    """
+    # Shorthand
+    p = parameters
+
+    # Define "q" dictionary for value function components
+    q = {'a': {}, 'f^hat': {}, 'r': {}, 'L': {}}
+    for afsc in p['castle_afscs']:
+        # Sum up the PGL targets for all "AFPC" AFSCs grouped for this "CASTLE" AFSC
+        pgl = np.sum(p['pgl'][p['J^CASTLE'][afsc]])
+
+        # Generate x and y coordinates for concave shape
+        x, y = generate_concave_curve(num_points=num_breakpoints, max_x=pgl * 2)
+
+        # Save breakpoint information to q dictionary
+        q['a'][afsc], q['f^hat'][afsc] = x, y
+        q['r'][afsc], q['L'][afsc] = len(x), np.arange(len(x))
+
+    return q
 
 
 # SDV functions (we may not have the SDV library!)

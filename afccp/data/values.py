@@ -9,12 +9,65 @@ import afccp.globals
 # Value Parameter Procedures
 def value_parameters_sets_additions(parameters, value_parameters, printing=False):
     """
-    Creates subsets for AFSCs and objectives to distinguish which AFSCs care about which objectives so that we don't
-    have to calculate every value only to multiply them by zero.
-    :param parameters: model fixed parameters
-    :param value_parameters: model weight/value parameters
-    :param printing: whether the procedure should print something
-    :return: updated value parameters with sets
+    Enhances the `value_parameters` dictionary by adding derived sets and metadata required
+    for optimization and constraint evaluation in the cadet-AFSC matching problem.
+
+    This function precomputes various subset structures (e.g., AFSCs relevant to specific objectives,
+    cadets with utility constraints, constrained objectives, etc.) to avoid unnecessary computation
+    during model solving and value function evaluations.
+
+    Parameters
+    ----------
+    parameters : dict
+        Dictionary of fixed model parameters (cadets, AFSCs, quotas, preferences, etc.).
+    value_parameters : dict
+        Dictionary of value model parameters including objectives, weights, constraints, and utility functions.
+    printing : bool, optional
+        Whether to print diagnostic output during execution. Default is False.
+
+    Returns
+    -------
+    dict
+        Updated `value_parameters` dictionary with added sets and utility matrices, including:
+
+        - `K` : np.ndarray
+          Indices for all objectives
+
+        - `K^A[j]` : dict[int → np.ndarray]
+          Objectives with non-zero weights for AFSC `j`
+
+        - `K^C[j]` : dict[int → np.ndarray]
+          Constrained objectives (non-zero constraint types) for AFSC `j`
+
+        - `J^A[k]` : dict[int → np.ndarray]
+          AFSCs that include objective `k`
+
+        - `I^C` : np.ndarray
+          Cadets with value constraints (non-zero minimum value)
+
+        - `J^Top_Choice[i]` : dict[int → np.ndarray]
+          Preferred AFSCs for cadet `i` that satisfy the cadet's value constraint
+
+        - `J^C` : np.ndarray
+          AFSCs with value constraints
+
+        - `r[j, k]` : np.ndarray
+          Number of breakpoints in the value function for AFSC `j` and objective `k`
+
+        - `L[j][k]` : np.ndarray
+          Indices for breakpoints in the value function
+
+        - `objective_min`, `objective_max` : np.ndarray
+          Lower and upper bounds on constrained objectives by AFSC
+
+        - `global_utility` : np.ndarray
+          Combined cadet and AFSC utility used for global utility optimization (if available)
+
+    Notes
+    -----
+    - The function corrects legacy constraint types (3 and 4 → 1 and 2 respectively).
+    - It supports objectives tied to cadet demographics such as `USAFA Proportion`, and `Tier` objectives.
+    - The function also scales and rounds weights for numerical stability.
     """
     if printing:
         print('Adding AFSC and objective subsets to value parameters...')
@@ -57,8 +110,7 @@ def value_parameters_sets_additions(parameters, value_parameters, printing=False
             vp["J^USAFA"] = vp["J^USAFA"].astype(int)
 
     # Set of objectives that seek to balance some cadet demographic
-    vp['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Male', 'Minority',
-                 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4']
+    vp['K^D'] = ['USAFA Proportion', 'Mandatory', 'Desired', 'Permitted', 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4']
 
     # Set of AFSCs for each objective:
     vp['J^A'] = {}
@@ -158,11 +210,57 @@ def model_value_parameters_to_defaults(instance, filepath, printing=False):
 
 def default_value_parameters_from_excel(filepath, num_breakpoints=24, printing=False):
     """
-    Imports the "factory defaults" for value parameters
-    :param num_breakpoints: number of breakpoints to use for value functions
-    :param filepath: Filepath to import from
-    :param printing: Whether the function should print something
-    :return: default user parameters
+    Loads the factory default value parameters from an Excel file into a structured dictionary.
+
+    This function is typically used to initialize a consistent baseline for value-focused models
+    (such as VFT and GP), including AFSC weights, objective weights/targets, constraint types,
+    and breakpoint-based value functions.
+
+    It pulls multiple sheets from a specified Excel file and organizes them into a structured dictionary
+    suitable for assignment model optimization.
+
+    !!! note
+        The `filepath` must point to a valid Excel file containing the following sheets:
+
+        - "Overall Weights"
+        - "AFSC Weights"
+        - "AFSC Objective Weights"
+        - "AFSC Objective Targets"
+        - "AFSC Objective Min Value"
+        - "Constraint Type"
+        - "Value Functions"
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the Excel file containing all value parameter sheets.
+    num_breakpoints : int, optional
+        Number of breakpoints to use for piecewise value functions (default is 24).
+    printing : bool, optional
+        Whether to print status messages during execution (default is False).
+
+    Returns
+    -------
+    dict
+        A dictionary containing all default value parameter arrays and scalars:
+
+        - `cadet_weight_function`: str
+        - `afsc_weight_function`: str
+        - `cadets_overall_weight`: float
+        - `afscs_overall_weight`: float
+        - `afsc_weight`: np.ndarray
+        - `objective_weight`: np.ndarray
+        - `objective_target`: np.ndarray
+        - `objective_value_min`: np.ndarray
+        - `constraint_type`: np.ndarray
+        - `value_functions`: np.ndarray
+        - `cadets_overall_value_min`: float
+        - `afscs_overall_value_min`: float
+        - `afsc_value_min`: np.ndarray
+        - `objectives`: np.ndarray of objective names
+        - `complete_afscs`: np.ndarray of AFSC names
+        - `num_breakpoints`: int (copied from input)
+        - `M`: int (number of AFSCs)
     """
     if printing:
         print('Importing default value parameters...')
@@ -264,7 +362,49 @@ def generate_afocd_value_parameters(parameters, default_value_parameters):
 def generate_value_parameters_from_defaults(parameters, default_value_parameters, generate_afsc_weights=True,
                                             num_breakpoints=None, printing=False):
     """
-    Generates value parameters from the defaults for a specified problem
+    Generates structured value parameters for the assignment problem based on the factory defaults.
+
+    This function constructs a complete `vp` dictionary used by value-focused optimization models.
+    It loads and modifies default parameters to match the structure and constraints of the current
+    problem instance, accounting for objective targets, weights, breakpoints, and constraint types.
+
+    !!! note
+        - If `Qual Type` is `"Tiers"`, the function replaces legacy AFOCD objectives with Tiered ones.
+        - If `Qual Type` is `"Relaxed"`, Tier objectives are removed.
+
+    !!! note
+        Use this function when you have:
+
+        - Loaded default value parameters from Excel
+        - A structured cadet-AFSC assignment problem (`parameters`)
+        - Need to prepare a consistent set of inputs for a value-based matching model (e.g., VFT)
+
+    Parameters
+    ----------
+    parameters : dict
+        Dictionary of instance parameters (cadets, AFSCs, quotas, preferences, etc.).
+    default_value_parameters : dict
+        Dictionary of default value parameters imported via `default_value_parameters_from_excel`.
+    generate_afsc_weights : bool, optional
+        If True (default), compute AFSC weights using the specified function in defaults.
+        If False, use static AFSC weights from the defaults (used for "Custom").
+    num_breakpoints : int, optional
+        Number of breakpoints used to discretize value functions. Defaults to what's in defaults.
+    printing : bool, optional
+        Whether to print status updates during generation (default is False).
+
+    Returns
+    -------
+    dict
+        A structured dictionary `vp` containing:
+        - `objectives`: List of active objective names
+        - `objective_weight`: Array of objective weights by AFSC
+        - `objective_target`: Array of target values for each AFSC-objective pair
+        - `objective_value_min`: Text bounds for constrained objectives
+        - `constraint_type`: Type of constraint (e.g., inequality, convex) for each objective
+        - `afsc_weight`, `afsc_value_min`, `cadet_weight`, `cadets_overall_weight`, ...
+        - `a`, `f^hat`: Piecewise value function breakpoints
+        - `K^A`: Dictionary mapping AFSC index to active objective indices
     """
     if printing:
         print('Generating value parameters from defaults...')
@@ -1235,43 +1375,6 @@ def translate_vft_to_gp_parameters(instance):
     gp['lam^']['S'] = reward[len(gp['con'])]  # extra reward for preference in order of merit
 
     return gp
-
-
-# Castle Integration
-def generate_concave_curve(num_points, max_x):
-    """
-    Generates x and y coordinates for a concave function.
-
-    Args:
-        num_points (int): Number of points to generate.
-        max_x (float): Maximum value along the x-axis.
-
-    Returns:
-        tuple: (x_values, y_values) as numpy arrays.
-    """
-    x_values = np.linspace(0, max_x, num_points)
-    y_values = 1 - np.exp(-x_values / (max_x / 6))  # Adjust curvature
-    return x_values, y_values
-
-
-def generate_realistic_castle_value_curves(parameters, num_breakpoints: int = 10):
-    # Shorthand
-    p = parameters
-
-    # Define "q" dictionary for value function components
-    q = {'a': {}, 'f^hat': {}, 'r': {}, 'L': {}}
-    for afsc in p['castle_afscs']:
-        # Sum up the PGL targets for all "AFPC" AFSCs grouped for this "CASTLE" AFSC
-        pgl = np.sum(p['pgl'][p['J^CASTLE'][afsc]])
-
-        # Generate x and y coordinates for concave shape
-        x, y = generate_concave_curve(num_points=num_breakpoints, max_x=pgl * 2)
-
-        # Save breakpoint information to q dictionary
-        q['a'][afsc], q['f^hat'][afsc] = x, y
-        q['r'][afsc], q['L'][afsc] = len(x), np.arange(len(x))
-
-    return q
 
 
 

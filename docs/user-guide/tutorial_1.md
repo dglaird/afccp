@@ -103,7 +103,7 @@ The class "CadetCareerProblem" lives in main.py:
   <img src="/user-guide/images/pic2.png" width="500px">
 </p>
 
-[CadetCareerProblem](../reference/main.md#cadetcareerproblem) calls all the other various functions across the "afccp" module that handle this problem. 
+[CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/) calls all the other various functions across the "afccp" module that handle this problem. 
 I higly encourage you to at least read the `__init__` function code of `CadetCareerProblem` as that is what defines the
 data for a particular instance. The object then runs through several processes depending on what the analyst is trying to do.
 I've broken up these processes into four core categories: "data", "solutions", "visualizations", and "research". 
@@ -114,5 +114,6 @@ The next several tutorials will discuss these four different concepts in much mo
 ## 📌 Summary
 
 In this quickstart:
+
 - We described the necessary steps to set up the development environment
 - Introduced the `CadetCareerProblem` class and showed where it resides

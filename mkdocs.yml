@@ -38,23 +38,44 @@ nav:
 
   - 📘 User Guide:
       - Overview: user-guide/overview.md
-      - Tutorial 1 (Intro): user-guide/tutorial_1.md
-      - Tutorial 2 (The Parameters): user-guide/tutorial_2.md
+      - Tutorial 1 (Introduction): user-guide/tutorial_1.md
+      - Tutorial 2 (Data Overview): user-guide/tutorial_2.md
       - Tutorial 3 (Values): user-guide/tutorial_3.md
 
   - 🧠 Developer Guide: developer-guide.md
 
-  - Modeling:
-      - CadetCareerProblem: reference/main.md
-
+  - CadetCareerProblem:
+      - Overview: reference/main/cadetcareerproblem_overview.md
+      - Generated Data Corrections: reference/main/cadetcareerproblem_generated_data_corrections.md
+      - Main Data Corrections: reference/main/cadetcareerproblem_main_data_corrections.md
+      - Other Adjustments: reference/main/cadetcareerproblem_other_adjustments.md
+      - Value Parameter Specifications: reference/main/cadetcareerproblem_value_parameter_specifications.md
+      - Solution Generation & Algorithms: reference/main/cadetcareerproblem_solution_generation_&_algorithms.md
+      - Optimization Models & Meta-Heuristics: reference/main/cadetcareerproblem_optimization_models_&_meta-heuristics.md
+      - Solution Handling: reference/main/cadetcareerproblem_solution_handling.md
+      - Export Data: reference/main/cadetcareerproblem_export_data.md
+      - Data Visualizations: reference/main/cadetcareerproblem_data_visualizations.md
+      - Results Visualizations: reference/main/cadetcareerproblem_results_visualizations.md
   - 📊 Data:
-      - Overview: reference/data/__init__.md
+      - Overview: reference/data.md
+      - Adjustments: reference/data/adjustments.md
+      - Generation: reference/data/generation.md
+      - Preferences: reference/data/preferences.md
+      - Processing: reference/data/processing.md
+      - Values: reference/data/values.md
 
   - 📈 Solutions:
-      - Overview: reference/data/__init__.md
+      - Overview: reference/solutions.md
+      - Algorithms: reference/solutions/algorithms.md
+      - Handling: reference/solutions/handling.md
+      - Optimization: reference/solutions/optimization.md
+      - Sensitivity: reference/solutions/sensitivity.md
 
   - Visualizations:
-      - Overview: reference/data/__init__.md
+      - Overview: reference/visualizations.md
+      - Bubbles: reference/visualizations/bubbles.md
+      - Charts: reference/visualizations/charts.md
+      - Slides: reference/visualizations/slides.md
 
   - ❓ FAQs: faq.md
 
@@ -68,8 +89,10 @@ markdown_extensions:
   - pymdownx.highlight  # Syntax highlighting for code blocks
   - pymdownx.superfences  # Allows nested code blocks
   - admonition  # Enables "Note", "Tip", and "Warning" blocks
+  - pymdownx.details
   - attr_list  # Allows adding custom attributes in markdown
   - md_in_html  # Allows support for inline HTML in markdown
+  - pymdownx.tabbed  # optional
   - pymdownx.arithmatex: # Renders equations and formulas
       generic: true
 
@@ -85,7 +108,8 @@ plugins:
       default_handler: python
       handlers:
         python:
-          paths: [afccp]  # Ensure 'afccp' is in PYTHONPATH
+          paths: ["."]
+          # paths: ["afccp"]  # Ensure 'afccp' is in PYTHONPATH
           options:
             docstring_style: sphinx  # ✅ Enables Sphinx-style docstrings
             show_source: true  # Optional: Hides source code links

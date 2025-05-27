@@ -154,35 +154,46 @@ def parameter_sets_additions(parameters):
     """
     Add Indexed Sets and Subsets to the Problem Instance Parameters.
 
-    This function enhances the problem instance parameters by creating indexed sets and subsets for both AFSCs and cadets.
-    It helps organize the data for efficient processing and optimization. These indexed sets and subsets include:
+    This function enhances the problem instance by creating indexed sets and subsets for both cadets and AFSCs,
+    demographic filters, eligibility matrices, preference-related metadata, and readiness for optimization.
+    It also validates eligibility constraints and appends additional calculated data fields.
 
-    - Cadet Indexed Sets: `I`, `J`, `J^E`, `I^Choice`, `Choice Count`, and specific demographic subsets.
-    - AFSC Indexed Sets: `I^E` and counts of eligible cadets for each AFSC.
-    - Demographic Sets: Sets related to specific demographics such as USAFA cadets, minority cadets, male cadets, and
-      associated proportions.
+    Parameters
+    ----------
+    parameters : dict
+        The fixed model input parameters for a cadet-AFSC assignment instance, including eligibility matrices,
+        cadet/AFSC attributes, utility matrices, and demographics.
 
-    Additionally, it handles other tasks like adjusting the utility matrix for unmatched cadets, calculating the sum of
-    cadet merits, differentiating USAFA and ROTC cadets, identifying fixed and reserved cadets, and managing cadet preferences
-    and rated cadets.
+    Returns
+    -------
+    Updated parameter dictionary with:
 
-    Args:
-        parameters: The problem instance parameters.
+    - Indexed cadet and AFSC sets: ``I``, ``J``, ``J^E``, ``I^E``
+    - Eligibility and preference counts: ``num_eligible``, ``Choice Count``
+    - Demographic and qualification subsets: ``I^D``, ``I^USAFA``, ``I^Male``, ``I^Minority``, etc.
+    - Assignment constraints: ``J^Fixed``, ``J^Reserved``
+    - Cadet and AFSC preference mappings
+    - Updated utility matrix with unmatched column
 
-    Returns:
-        The updated problem instance parameters with added indexed sets and subsets.
-
-    Example:
+    Examples
+    --------
     ```python
-    import your_module
-
-    # Create a problem instance
-    parameters = your_module.create_instance()
-
-    # Add indexed sets and subsets
-    updated_parameters = your_module.parameter_sets_additions(parameters)
+    from afccp.data.adjustments import parameter_sets_additions
+    params = parameter_sets_additions(params)
     ```
 
+    Notes
+    -----
+    - Automatically detects and processes USAFA/ROTC cadet splits based on `usafa` and `soc` columns.
+    - Adds extra handling for cadets that are fixed to AFSCs via preassignments in `assigned`.
+    - Includes support for rated cadets, STEM AFSCs, race/ethnicity filters, and eligibility-based breakouts.
+
+    See Also
+    --------
+    - [`more_parameter_additions`](../../../reference/data/adjustments/#data.adjustments.more_parameter_additions):
+      Adds enhanced logic for cadet/AFSC matching, preference flattening, and diversity tracking.
+    - [`base_training_parameter_additions`](../../../reference/data/adjustments/#data.adjustments.base_training_parameter_additions):
+      Adds base and training assignment structures to the parameters.
     """
 
     # Shorthand
@@ -289,28 +300,41 @@ def parameter_sets_additions(parameters):
 
 def more_parameter_additions(parameters):
     """
-    Enhance the problem instance parameters by adding additional parameter sets and subsets.
+    Add Additional Subsets and Parameter Structures to the Problem Instance.
 
-    This function extends the 'parameters' dictionary by adding various parameter sets and subsets, improving the organization
-    of data for optimization. These additions include:
+    This function enhances the problem instance by appending numerous structured subsets and derived attributes
+    based on cadet preferences, eligibility, accession groupings, demographics, and more. It enriches the input
+    parameter dictionary in preparation for detailed analysis and optimization.
 
-    - Cadet Preferences: Sets cadet preferences and counts the number of cadet choices.
-    - AFSC Preferences: Sets AFSC preferences.
-    - AFSCs by Accessions Group: Categorizes AFSCs into accessions groups such as Rated, USSF, and NRL.
-    - Constrained Cadets: Identifies cadets constrained to specific accessions groups.
-    - PGL Totals for USSF: Calculates totals for USAFA and ROTC PGL (Projected Gain/Loss) within USSF.
-    - Rated Cadets: Identifies rated cadets, sets their preferences, and counts their choices.
-    - Cadet Utility Matrix: Constructs a utility matrix based on cadet preferences.
-    - Sets for cadets who have preferences and are eligible for specific AFSCs, and vice versa.
-    - Race and Ethnicity Categories: Organizes cadets based on race and ethnicity categories.
-    - SOC and Gender Categories: Organizes cadets into categories like USAFA, ROTC, male, female, etc.
-    - STEM Cadets: Identifies STEM cadets and related AFSCs.
+    Parameters
+    ----------
+    parameters : dict
+        The initial problem instance dictionary, containing data on cadets, AFSCs, eligibility, utility matrices, etc.
 
-    Args:
-        parameters: The problem instance parameters.
+    Returns
+    -------
+    dict
+        The updated problem instance with additional fields, subsets, and derived variables including:
+        - Cadet and AFSC preferences
+        - Accessions group (Rated, USSF, NRL) AFSC indices
+        - Rated-specific cadet groupings and OM mapping
+        - Simpson index for race/ethnicity
+        - Groupings by SOC (e.g., ROTC, USAFA), gender, and STEM designation
+        - Subsets like `I^Must_Match`, `J^Bottom 2 Choices`, etc.
 
-    Returns:
-        The updated problem instance parameters with added parameter sets and subsets.
+    Examples
+    --------
+    >>> parameters = more_parameter_additions(parameters)
+
+    Notes
+    -----
+    The function performs a large number of conditional operations and appends dozens of new keys to `parameters`.
+    These are used downstream in optimization and statistical evaluation of AFSC assignment plans.
+
+    See Also
+    --------
+    - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+      Related utility that adds indexed parameter sets post-preference generation.
     """
 
     # Shorthand
@@ -525,9 +549,50 @@ def more_parameter_additions(parameters):
 
 def base_training_parameter_additions(parameters):
     """
-    This function takes in our set of parameters and adds more components to address the base/training model
-    components as an "expansion" of the afccp functionality. This model performs base assignments and schedules
-    cadets for training courses simultaneously.
+    Add Base and Training Parameters to the Problem Instance.
+
+    This function extends the parameter dictionary with the data structures required to support base assignments and
+    training course scheduling within the CASTLE Base/Training optimization model. Each cadet is categorized into
+    preference-based "states" depending on their AFSC priorities and base/course interest.
+
+    The function also calculates cadet-course availability, utility of wait times, and assignment eligibility across bases
+    and courses. This enables simultaneous modeling of AFSC matches, base assignments, and training timelines.
+
+    Parameters
+    ----------
+    parameters : dict
+        The problem instance parameters, including cadet preferences, AFSC eligibility, utility scores, training
+        thresholds, and configuration flags for base/course logic.
+
+    Returns
+    -------
+    dict
+        Updated parameter dictionary with additional sets and matrices such as:
+        - `D`, `Cadet Objectives`, `J^State`, `w^A`, `w^B`, `w^C`, `u^S`: cadet state structures.
+        - `B^A`, `B^E`, `B^State`: base assignment eligibility mappings.
+        - `C^E`, `I^A`, `course_days_cadet`, `course_utility`: training availability and utility values.
+        - `lo^B`, `hi^B`, `lo^C`, `hi^C`: quantity constraints on base/course assignments.
+
+    Examples
+    --------
+    ```python
+    from afccp.data.adjustments import base_training_parameter_additions
+    parameters = base_training_parameter_additions(parameters)
+    ```
+
+    Notes
+    -----
+    - Cadet states are built using `base_threshold` and `training_threshold`, which split cadet preferences into
+      AFSCs only, AFSC + base, and AFSC + base + course states.
+    - Utility from training courses is based on cadet preferences (`Early`, `Late`, `None`) and normalized start dates.
+    - Course utility is scaled from 0 to 1, with utility decreasing/increasing with wait time as appropriate.
+    - This logic assumes all relevant arrays like `training_start`, `course_start`, `afsc_assign_base`, etc., exist and
+      are preloaded in the parameter dictionary.
+
+    See Also
+    --------
+    - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+      Adds foundational indexed sets and preference structures used prior to base/training expansion.
     """
 
     # Helpful function to extract the datetime object from a specific string containing date information

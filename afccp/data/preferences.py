@@ -104,7 +104,25 @@ def update_first_choice_cadet_utility_to_one(parameters, printing=True):
 
 def convert_utility_matrices_preferences(parameters, cadets_as_well=False):
     """
-    This function converts the cadet and AFSC utility matrices into the preference dataframes
+    Converts utility matrices into ordinal preference matrices.
+
+    This function transforms the continuous utility values provided in the cadet and AFSC utility
+    matrices into discrete preference rankings (ordinal preferences). These rankings are stored in
+    `a_pref_matrix` and optionally `c_pref_matrix` within the `parameters` dictionary.
+
+    Parameters
+    ----------
+    parameters : dict
+        Dictionary of model parameters, including `afsc_utility` and optionally `cadet_utility`.
+
+    cadets_as_well : bool, optional
+        If `True`, the cadet utility matrix (`cadet_utility`) is also converted into a cadet
+        preference matrix (`c_pref_matrix`). Defaults to `False`.
+
+    Returns
+    -------
+    dict
+        Updated `parameters` dictionary with added `a_pref_matrix` and optionally `c_pref_matrix`.
     """
     p = parameters
 
@@ -135,11 +153,40 @@ def convert_utility_matrices_preferences(parameters, cadets_as_well=False):
 
 def generate_fake_afsc_preferences(parameters, value_parameters=None, fix_cadet_eligibility=False):
     """
-    This function generates fake AFSC utilities/preferences using AFOCD, merit, cadet preferences etc.
-    :param fix_cadet_eligibility: if we want to fix the cadet preferences based on eligibility
-    :param value_parameters: set of cadet/AFSC weight and value parameters
-    :param parameters: cadet/AFSC fixed data
-    :return: parameters
+    Generate synthetic AFSC utility and preference matrices.
+
+    This function constructs artificial utility scores and corresponding preference rankings for Air Force Specialty
+    Codes (AFSCs) using merit, AFOCD tiers, and other known cadet attributes. It supports both weighted approaches
+    using a provided set of value parameters or a default fixed weighting strategy. Preferences are automatically
+    adjusted to ensure cadets and AFSCs only rank eligible options.
+
+    Parameters
+    ----------
+    parameters : dict
+        Dictionary containing fixed model parameters (cadet/AFSC eligibility, merit scores, utility matrices, etc.).
+
+    value_parameters : dict, optional
+        Value parameter dictionary containing weights and objectives to guide AFSC utility generation. If None,
+        a default set of weights is used.
+
+    fix_cadet_eligibility : bool, default=False
+        If True, overrides cadet preferences to match eligibility criteria and recomputes rankings.
+
+    Returns
+    -------
+    parameters : dict
+        Updated parameter dictionary containing generated utility matrices and preference rankings:
+
+        - `afsc_utility`: N x M matrix of cadet utility scores for each AFSC.
+        - `a_pref_matrix`: AFSCs' preference rankings of cadets.
+        - `c_pref_matrix`: Cadets' preference rankings of AFSCs.
+        - `afsc_preferences`: Dict mapping each AFSC to its sorted list of cadet indices.
+        - `cadet_preferences`: Dict mapping each cadet to their sorted list of AFSC indices.
+
+    Examples
+    --------
+    >>> p = generate_fake_afsc_preferences(p)
+    >>> p = generate_fake_afsc_preferences(p, value_parameters=vp, fix_cadet_eligibility=True)
     """
     # Shorthand
     p, vp = parameters, value_parameters
@@ -235,7 +282,38 @@ def convert_afsc_preferences_to_percentiles(parameters):
 
 def generate_rated_data(parameters):
     """
-    This function generates a dataset of ROTC Rated "interest" and OM data and also USAFA Rated OM data
+    Generate Simulated Rated Interest and Order of Merit (OM) Data.
+
+    This function generates ROTC-rated interest levels and USAFA/ROTC-rated Order of Merit (OM) scores for cadets
+    eligible for rated AFSCs (e.g., Pilot, CSO, ABM, RPA). These scores are essential for modeling preferences and
+    eligibility in rated board algorithms.
+
+    Parameters
+    ----------
+    parameters : dict
+        The main parameter dictionary for the cadet-AFSC assignment problem. It must contain:
+        - `Rated Cadets`: Dictionary of rated cadets by commissioning source (`usafa`, `rotc`)
+        - `afscs_acc_grp`: AFSCs categorized into assignment groups (must include 'Rated')
+        - `SOCs`: List of commissioning source identifiers (e.g., `('usafa', 'Rated')`)
+        - `afsc_preferences`: AFSCs’ ranked preferences over cadets
+        - `I^E`: Cadet eligibility sets
+        - `afscs`: Full list of AFSCs
+        - `Rated Cadet Index Dict`: Lookup dict to convert cadet ID to matrix row index for each SOC
+
+    Returns
+    -------
+    dict
+        Updated parameter dictionary including:
+        - `rr_interest_matrix`: ROTC cadets' self-assessed interest in rated AFSCs
+        - `xr_om_matrix`, `ur_om_matrix`, etc.: Rated OM matrices for each SOC (generated if missing)
+
+    Examples
+    --------
+    >>> parameters = generate_rated_data(parameters)
+
+    This generates the following additions:
+    - `parameters['rr_interest_matrix']` → random values like ['High', 'Med', 'Low', 'None']
+    - `parameters['ur_om_matrix']` → OM percentiles for USAFA-rated cadets and AFSCs
     """
 
     # Shorthand
@@ -280,6 +358,31 @@ def generate_rated_data(parameters):
 
 
 def determine_soc_rated_afscs(soc, all_rated_afscs):
+    """
+    Filter Rated AFSCs Based on Source of Commissioning (SOC).
+
+    This function selects only the AFSCs relevant to the given SOC (e.g., USAFA, ROTC, OTS)
+    by excluding AFSCs that are tagged for other SOCs using suffixes like `_U`, `_R`, or `_O`.
+
+    Parameters:
+        soc (str): The name of the source of commissioning (e.g., "usafa", "rotc").
+        all_rated_afscs (List[str]): A list of all rated AFSC strings.
+
+    Returns:
+        List[str]: Filtered list of AFSCs associated with the provided SOC.
+
+    Example:
+        ```python
+        determine_soc_rated_afscs("usafa", ["11X_U", "12X_R", "13X_U", "14X_O"])
+        # Returns: ["11X_U", "13X_U"]
+        ```
+
+    Notes:
+        The filtering logic assumes that the AFSC string contains an SOC-specific suffix.
+        - `_U` for USAFA
+        - `_R` for ROTC
+        - `_O` for OTS
+    """
 
     # Rated AFSCs for this SOC
     other_letters = [l for l in ['_U', '_R', '_O'] if l != f'_{soc[0].upper()}']
@@ -298,9 +401,33 @@ def determine_soc_rated_afscs(soc, all_rated_afscs):
 
 def construct_rated_preferences_from_om_by_soc(parameters):
     """
-    This method takes the two OM Rated matrices (from both SOCs) and then zippers them together to
-    create a combined "1-N" list for the Rated AFSCs. The AFSC preference matrix is updated as well as the
-    AFSC preference lists
+    Construct AFSC Preferences for Rated Candidates Using OM Matrices.
+
+    This function consolidates the Ordered Merit (OM) matrices from multiple Sources of Commissioning (SOCs)
+    (e.g., USAFA and ROTC) and creates a unified AFSC preference list for Rated AFSCs. It normalizes OM rankings
+    across SOCs, combines them into a single composite preference score, and updates both the `afsc_preferences`
+    list and the `a_pref_matrix` for use in assignment modeling.
+
+    Parameters:
+        parameters (dict): Dictionary containing the model instance parameters, including:
+            - `rr_om_matrix`, `ur_om_matrix`: Ordered merit matrices from ROTC and USAFA.
+            - `or_om_matrix`: **Potentially** Ordered merit matrices from OTS.
+            - `afsc_preferences`: Dictionary to update with new AFSC → cadet preference lists.
+            - `a_pref_matrix`: Matrix representing cadet rankings from the AFSCs' perspective.
+            - `SOCs`, `afscs_acc_grp`, and cadet lists for each SOC.
+
+    Returns:
+        dict: Updated `parameters` dictionary with modified `afsc_preferences` and `a_pref_matrix` reflecting
+        normalized OM-based preference rankings for Rated AFSCs.
+
+    Example:
+        ```python
+        parameters = construct_rated_preferences_from_om_by_soc(parameters)
+        ```
+
+    See Also:
+        - [`determine_soc_rated_afscs`](../../../reference/data/preferences/#data.preferences.determine_soc_rated_afscs):
+          Identifies which AFSCs are rated within a given SOC.
     """
 
     # Shorthand
@@ -359,7 +486,30 @@ def construct_rated_preferences_from_om_by_soc(parameters):
 
 def remove_ineligible_cadet_choices(parameters, printing=False):
     """
-    This function removes ineligible choices from the cadets and from the AFSCs based on the qualification matrix
+    Clean Ineligible Cadet-AFSC Preference Pairings.
+
+    This function audits and cleans the cadet-AFSC preference matrices by removing any inconsistent or ineligible pairings
+    based on the qualification matrix. It ensures that both `c_pref_matrix` (cadet preferences) and `a_pref_matrix`
+    (AFSC preferences) reflect only valid, eligible pairings. It also updates the qualification matrix to reflect enforced
+    ineligibility for problematic pairs.
+
+    Parameters:
+        parameters (dict): Dictionary of the problem instance parameters.
+        printing (bool, optional): If True, logs every change made. Default is False.
+
+    Returns:
+        dict: Updated parameters dictionary with cleaned preference matrices and enforced eligibility alignment.
+
+    Example:
+        ```python
+        parameters = remove_ineligible_cadet_choices(parameters, printing=True)
+        ```
+
+    See Also:
+        - [`fill_remaining_preferences`](../../../reference/data/preferences/#data.preferences.fill_remaining_preferences):
+          Fills in arbitrary preferences for cadets, excluding bottom-ranked AFSCs.
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Rebuilds indexed sets after modifying eligibility or preference matrices.
     """
 
     # Shorthand
@@ -629,9 +779,27 @@ def create_final_cadet_utility_matrix_from_new_formula(parameters):
 
 def fill_remaining_preferences(parameters):
     """
+    Fill in Remaining Cadet Preferences to Complete the Preference Matrix.
 
-    :param parameters:
-    :return:
+    This function ensures that each cadet has a complete preference list across all AFSCs. It fills in any
+    unranked AFSCs (excluding bottom 2 and last choice) with incrementing ranks, followed by bottom 2 preferences,
+    and finally the explicitly marked last choice if applicable.
+
+    Parameters:
+        parameters (dict): The problem instance parameters, containing:
+            - `cadet_preferences`: Dictionary of AFSC preference orderings per cadet.
+            - `c_pref_matrix`: Matrix of cadet preferences over AFSCs.
+            - `J^Bottom 2 Choices`: Dictionary of each cadet's bottom two AFSCs.
+            - `J^Last Choice`: Dictionary of each cadet's last AFSC choice.
+            - `I`, `J`, `M`: Indexed sets of cadets, AFSCs, and unmatched AFSC index.
+
+    Returns:
+        dict: Updated parameters dictionary with a fully filled `c_pref_matrix`.
+
+    Example:
+        ```python
+        parameters = fill_remaining_preferences(parameters)
+        ```
     """
 
     # Shorthand

@@ -124,7 +124,7 @@ class CadetCareerProblem:
 
         ---
 
-        For a tailored guide on the use of this object, please refer to [Tutorial 1](../user-guide/tutorial_1.md).
+        For a tailored guide on the use of this object, please refer to [Tutorial 1](../../../../../user-guide/tutorial_1).
 
         ### 🛠 See Also
         - `solve_vft_pyomo_model`, `solve_guo_pyomo_model`, `solve_gp_pyomo_model`
@@ -278,7 +278,7 @@ class CadetCareerProblem:
         if self.printing:
             print("Instance '" + self.data_name + "' initialized.")
 
-    # Method helper functions
+    # _____________________________________________PRIVATE METHODS______________________________________________________
     def _reset_functional_parameters(self, p_dict={}):
         """
         Resets the instance functional parameters and updates them with the new values from p_dict.
@@ -483,81 +483,141 @@ class CadetCareerProblem:
                 self.solutions[solution_name], self.parameters, self.value_parameters, printing=False,
                 re_calculate_x=self.mdl_p['re-calculate x'])
 
-    # Adjust Data
-    def calculate_qualification_matrix(self, printing=None):
+    def _save_new_value_parameters_to_dict(self, value_parameters=None):
         """
-        This procedure re-runs the CIP to Qual function to generate or update the qualification matrix.
-        The qualification matrix determines whether cadets are eligible for specific AFSCs.
-
-        Args:
-        printing (bool, optional): If True, print messages about the process. Defaults to the class's `printing` attribute.
-
-        Raises:
-        ValueError: Raised when there are no CIP codes provided.
-
-        This method recalculates the qualification matrix based on CIP (Career Intermission Program) codes and
-        AFSCs. It updates the matrix and related parameters within the class.
+        Adds the set of value parameters to a dictionary as a new set (if it is a unique set)
         """
-        if printing is None:
-            printing = self.printing
+        # Grab the value parameters
+        if value_parameters is None:
+            value_parameters = self.value_parameters
 
-        if printing:
-            print('Adjusting qualification matrix...')
-        parameters = copy.deepcopy(self.parameters)
-
-        # Generate new matrix
-        if "cip1" in parameters:
-            if "cip2" in parameters:
-                qual_matrix = afccp.data.support.cip_to_qual_tiers(
-                    parameters["afscs"][:parameters["M"]], parameters['cip1'], cip2=parameters['cip2'])
+        # Make sure this is a valid dictionary of value parameters
+        if value_parameters is not None:
+            if self.vp_dict is None:
+                self.vp_dict, self.vp_name = {"VP": copy.deepcopy(value_parameters)}, "VP"
             else:
-                qual_matrix = afccp.data.support.cip_to_qual_tiers(
-                    parameters["afscs"][:parameters["M"]], parameters['cip1'])
+
+                # Determine new value parameters name
+                vp_name, v = "VP2", 2
+                while vp_name in self.vp_dict:
+                    v += 1
+                    vp_name = "VP" + str(v)
+
+                # Check if this new set is unique or not to get the name of the set
+                unique = self._check_unique_value_parameters()
+                if unique is True: # If it's unique, we save this new set of value parameters to the dictionary
+                    self.vp_dict[vp_name], self.vp_name = copy.deepcopy(value_parameters), vp_name
+                else:  # If it's not unique, then "unique" is the name of the matching set of value parameters
+                    self.vp_name = unique
+
         else:
-            raise ValueError("Error. Need to update the degree tier qualification matrix to include tiers "
-                             "('M1' instead of 'M' for example) but don't have CIP codes. Please incorporate this.")
+            raise ValueError("Error. No value parameters set. You currently do have a 'vp_dict' and so all you "
+                                     "need to do is run 'instance.set_value_parameters()'. ")
 
-        # Load data back into parameters
-        parameters["qual"] = qual_matrix
-        parameters["qual_type"] = "Tiers"
-        parameters["ineligible"] = (np.core.defchararray.find(qual_matrix, "I") != -1) * 1
-        parameters["eligible"] = (parameters["ineligible"] == 0) * 1
-        parameters["exception"] = (np.core.defchararray.find(qual_matrix, "E") != -1) * 1
-        for t in [1, 2, 3, 4]:
-            parameters["tier " + str(t)] = (np.core.defchararray.find(qual_matrix, str(t)) != -1) * 1
-        parameters = afccp.data.adjustments.parameter_sets_additions(parameters)
-        self.parameters = copy.deepcopy(parameters)
-
-    def convert_to_scrubbed_instance(self, new_letter, printing=None):
+    def _update_value_parameters_in_dict(self, vp_name=None):
         """
-        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
-        :param printing: If we should print status update
-        :param new_letter: New letter to assign to this problem instance
+        Updates a set of value parameters in the dictionary using the current instance value parameters
+        :param vp_name: name of the set of value parameters to update (default current vp_name)
         """
-        if printing is None:
-            printing = self.printing
+        if self.value_parameters is not None:
+            if self.vp_dict is None:
+                raise ValueError('No value parameter dictionary detected')
+            else:
+                if vp_name is None:
+                    vp_name = self.vp_name
 
-        if printing:
-            print("Converting problem instance '" + self.data_name + "' to new instance '" + new_letter + "'...")
+                # Set attributes
+                self.vp_dict[vp_name] = copy.deepcopy(self.value_parameters)
+                self.vp_name = vp_name
 
-        return afccp.data.adjustments.convert_instance_to_from_scrubbed(self, new_letter, translation_dict=None)
+        else:
+            raise ValueError('No instance value parameters detected')
 
-    def convert_back_to_real_instance(self, translation_dict, data_name, printing=None):
+    def _check_unique_value_parameters(self, value_parameters=None, vp_name1=None, vp_name2=None, printing=False):
         """
-        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
-        :param printing: If we should print status update
-        :param translation_dict: Dictionary generated from the scrubbed instance method
-        :param data_name: Data Name of the new instance
+        Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the
+        the set of parameters is unique, or return the name of the matching set otherwise
         """
-        if printing is None:
-            printing = self.printing
 
-        if printing:
-            print("Converting problem instance '" + self.data_name + "' back to instance '" + data_name + "'...")
+        # If we specify this name, we want to compare the value parameters against this one
+        if vp_name2 is not None:
+            value_parameters = self.vp_dict[vp_name2]
+            vp_name1 = vp_name2
 
-        return afccp.data.adjustments.convert_instance_to_from_scrubbed(
-            self, translation_dict=translation_dict, data_name=data_name)
+        # If we don't specify "vp_name2", we check the other conditions
+        else:
+            if value_parameters is None:
+                value_parameters = self.value_parameters
+                vp_name1 = self.vp_name
 
+            if vp_name1 is None:
+                vp_name1 = "VP (Unspecified)"
+
+        # Assume the new set is unique until proven otherwise
+        unique = True
+        for vp_name in self.vp_dict:
+            identical = afccp.data.values.compare_value_parameters(
+                self.parameters, value_parameters, self.vp_dict[vp_name], vp_name1, vp_name, printing=printing)
+            if identical:
+                unique = vp_name
+                break
+        return unique
+
+    def _manage_bubbles_parameters(self, p_dict={}):
+        """
+        Handles the solution iterations that we should already have as an attribute of the problem instance
+        """
+
+        # Error Checking
+        self._error_checking("Solution")
+
+        # Reset instance model parameters
+        self._reset_functional_parameters(p_dict)
+
+        # Cadets/AFSCs solved for is by default "All"
+        if "cadets_solved_for" not in self.solution:
+            self.solution['cadets_solved_for'] = "All"
+        if "afscs_solved_for" not in self.solution:
+            self.solution['afscs_solved_for'] = "All"
+        self.mdl_p['afscs_solved_for'] = self.solution['afscs_solved_for']  # Update AFSCs solved for in mdl_p
+
+        # Determine which AFSCs to show in this visualization
+        self.mdl_p = afccp.data.support.determine_afscs_in_image(self.parameters, self.mdl_p)
+
+        # Determine what kind of cadet/AFSC board figure and/or animation we're building
+        if 'iterations' in self.solution:
+
+            # Adjust certain elements for Rated stuff
+            if 'Rated' in self.solution['iterations']['type']:
+                self.solution['afscs_solved_for'] = 'Rated'
+                if "USAFA" in self.solution_name:
+                    self.solution['cadets_solved_for'] = 'USAFA Rated'
+                elif "ROTC" in self.solution_name:
+                    self.solution['cadets_solved_for'] = 'ROTC Rated'
+                elif "OTS" in self.solution_name:
+                    self.solution['cadets_solved_for'] = 'OTS Rated'
+
+            # Adjust sorting method
+            if self.solution['iterations']['type'] == 'OTS Status Quo Algorithm':
+                self.mdl_p['sort_cadets_by'] = 'OM'
+                # self.mdl_p['b_title'] = 'OTS Status Quo Algorithm'
+
+            # Determine name of this BubbleChart sequence
+            self.solution['iterations']['sequence'] = \
+                self.data_name + ', ' + self.solution['cadets_solved_for'] + ' Cadets, ' + \
+                self.solution['iterations']['type'] + ', ' + self.solution['afscs_solved_for'] + \
+                ' AFSCs' + ', ' + self.solution['name']
+            if self.data_version != 'Default':
+                self.solution['iterations']['sequence'] += ' (' + self.data_version + ')'
+            self.solution['iterations']['sequence'] += ' ' + str(self.mdl_p['M']) + " AFSCs Displayed"
+
+        # Single solution
+        else:
+
+            # Create solution folder if necessary
+            self._manage_solution_folder()
+
+    # ________________________________________GENERATED DATA CORRECTIONS________________________________________________
     def fix_generated_data(self, printing=None):
         """
         NOTE: ONLY DO THIS FOR GENERATED DATA
@@ -605,6 +665,225 @@ class CadetCareerProblem:
         # Sanity check the parameters to make sure it all looks good! (No issues found.)
         self.parameter_sanity_check()
 
+    def convert_utilities_to_preferences(self, cadets_as_well=False):
+        """
+        Converts utility matrices to ordinal preference matrices.
+
+        This method transforms the continuous utility values stored in the model's parameters
+        into discrete ordinal preferences used in assignment algorithms. By default, it converts
+        only the AFSC utility matrix (`afsc_utility`) into the `a_pref_matrix`. If specified, it
+        also converts the cadet utility matrix (`cadet_utility`) into the `c_pref_matrix`.
+
+        Parameters
+        ----------
+        cadets_as_well : bool, optional
+            If `True`, both cadet and AFSC utility matrices are converted to preference matrices.
+            If `False` (default), only AFSC utilities are converted.
+
+        Returns
+        -------
+        None
+            This method updates the instance’s `parameters` attribute in-place.
+
+        !!! note
+            - The resulting `a_pref_matrix` ranks cadets for each AFSC from most to least preferred.
+            - The optional `c_pref_matrix` ranks AFSCs for each cadet, using 1-based indexing.
+
+        Examples
+        --------
+        ```python
+        # Convert only AFSC utility matrix
+        instance.convert_utilities_to_preferences()
+
+        # Convert both AFSC and cadet utility matrices
+        instance.convert_utilities_to_preferences(cadets_as_well=True)
+        ```
+
+        See Also
+        --------
+        - [`convert_utility_matrices_preferences`](../../reference/data/preferences/#data.preferences.convert_utility_matrices_preferences):
+          Underlying function that performs the actual matrix transformation.
+        - [`parameter_sets_additions`](../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Updates parameter subsets after modifying the preference matrices.
+        """
+
+        # Rest of your method code here
+        self.parameters = afccp.data.preferences.convert_utility_matrices_preferences(self.parameters,
+                                                                                      cadets_as_well)
+        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+
+    def generate_fake_afsc_preferences(self, fix_cadet_eligibility=False):
+        """
+        Generate Simulated AFSC Preferences using certain known parameters.
+
+        This method simulates AFSC (Air Force Specialty Code) preferences for cadets using weighted scores
+        derived from merit, tier objectives, and other cadet/AFSC attributes. It supports scenarios where cadet eligibility
+        should be strictly enforced before generating preferences.
+
+        Parameters
+        ----------
+        fix_cadet_eligibility : bool, optional
+            If True, cadet preferences are regenerated to strictly respect eligibility constraints.
+            If False (default), original eligibility is used as-is when computing preferences.
+
+        Returns
+        -------
+        None
+            Updates the `parameters` attribute of the current `CadetCareerProblem` instance with:
+            - `afsc_utility`: N x M utility matrix
+            - `a_pref_matrix`: AFSCs' ranked preferences over cadets
+            - `c_pref_matrix`: Cadets' ranked preferences over AFSCs
+            - `afsc_preferences`, `cadet_preferences`: Index-based ranking dictionaries
+
+        See Also
+        --------
+        - [`generate_fake_afsc_preferences`](../../reference/data/preferences/#data.preferences.generate_fake_afsc_preferences):
+          Underlying utility simulation and preference generation function.
+        - [`parameter_sets_additions`](../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Updates parameter subsets and mappings based on the new preference structure.
+        """
+        self.parameters = afccp.data.preferences.generate_fake_afsc_preferences(
+            self.parameters, self.value_parameters, fix_cadet_eligibility=fix_cadet_eligibility)
+        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+
+    def generate_rated_data(self):
+        """
+        Generate Simulated Rated Board Data for USAFA and ROTC Cadets.
+
+        This method generates Order of Merit (OM) data and interest levels for cadets eligible for Rated AFSCs
+        (e.g., Pilot, CSO, RPA, ABM) for each commissioning source. It only generates data if it does not already exist.
+
+        Rated OM and interest data (legacy ROTC Rated Board Data) is essential (not the interest matrix, though) for
+        modeling the Air Force’s Rated board process, allowing simulation and evaluation of Rated cadet assignments.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+            The method updates the internal `self.parameters` dictionary in-place by adding:
+            - ROTC-rated interest matrix (`rr_interest_matrix`)
+            - OM matrices for each Source of Commission (SOC), e.g., `ur_om_matrix`, `rr_om_matrix`
+
+        Examples
+        --------
+        >>> instance = CadetCareerProblem("Random", N=30, M=6, P=6)
+        >>> instance.generate_rated_data()  # Adds Rated OM and interest matrices
+
+        See Also
+        --------
+        - [`generate_rated_data`](../../reference/data/preferences/#data.preferences.generate_rated_data):
+          Underlying function that constructs the rated OM and interest matrices.
+        - [`parameter_sets_additions`](../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Updates relevant parameter sets derived from new OM data.
+        """
+
+        # Generate Rated Data
+        self.parameters = afccp.data.preferences.generate_rated_data(self.parameters)
+        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+
+    def generate_random_value_parameters(self, num_breakpoints=24, vp_weight=100, printing=None):
+        """
+        Generate Random Value Parameters for Assignment Problem.
+
+        This method initializes a new set of randomly generated value-focused thinking (VFT) parameters
+        for a cadet-AFSC matching problem instance. The generated value parameters include random weights,
+        value functions, and AFSC/cadet preferences, making this method ideal for testing and experimentation.
+
+        Parameters:
+            num_breakpoints (int, optional): Number of breakpoints to use for linearizing value functions.
+                Defaults to 24.
+            vp_weight (int, optional): Scalar weight applied to the overall value parameter set.
+                Defaults to 100.
+            printing (bool, optional): Whether to print progress information. Defaults to the instance attribute.
+
+        Returns:
+            dict: A complete dictionary of randomly generated value parameters for the instance.
+
+        Example:
+            ```python
+            # Generate and assign a new set of value parameters using 30 breakpoints
+            vp = instance.generate_random_value_parameters(num_breakpoints=30, vp_weight=80)
+            ```
+
+        See Also:
+
+            - [`generate_random_value_parameters`](../../../reference/data/generation/#data.generation.generate_random_value_parameters):
+              Initializes a value parameter dictionary from scratch with random objective weights and targets.
+            - [`condense_value_functions`](../../../reference/data/values/#data.values.condense_value_functions):
+              Cleans and optimizes value function definitions by removing unused entries.
+            - [`value_parameters_sets_additions`](../../../reference/data/values/#data.values.value_parameters_sets_additions):
+              Adds structured sets and subsets to the value parameter dictionary for optimization logic.
+        """
+
+        # Print Statement
+        if printing is None:
+            printing = self.printing
+
+        # Generate random set of value parameters
+        value_parameters = afccp.data.generation.generate_random_value_parameters(
+            self.parameters, num_breakpoints=num_breakpoints)
+
+        # Module shorthand
+        afccp_vp = afccp.data.values
+
+        # "Condense" the value functions by removing unnecessary zeros
+        value_parameters = afccp_vp.condense_value_functions(self.parameters, value_parameters)
+
+        # Add indexed sets and subsets of AFSCs and AFSC objectives
+        value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, value_parameters)
+
+        # Weight of the value parameters as a whole
+        value_parameters['vp_weight'] = vp_weight
+
+        # Set value parameters to instance attribute
+        if self.mdl_p["set_to_instance"]:
+            self.value_parameters = value_parameters
+
+        # Save new set of value parameters to dictionary
+        if self.mdl_p["add_to_dict"]:
+            self._save_new_value_parameters_to_dict(value_parameters)
+
+        return value_parameters
+
+    def generate_example_castle_value_curves(self, num_breakpoints: int = 10):
+        """
+        Generate and Store Example CASTLE Value Curves.
+
+        This method creates example concave value curves for each CASTLE-level AFSC and stores the breakpoint
+        information in the instance's `parameters` dictionary under the key `'castle_q'`.
+
+        These curves represent marginal utility of inventory over a range of potential quantities for use in
+        CASTLE sustainment simulations.
+
+        Parameters:
+            num_breakpoints (int, optional): Number of breakpoints to use for the concave curve.
+                Defaults to 10.
+
+        Returns:
+            None
+
+        Example:
+            ```python
+            instance.generate_example_castle_value_curves(num_breakpoints=15)
+            q = instance.parameters['castle_q']
+            ```
+
+        See Also:
+            - [`generate_realistic_castle_value_curves`](../../../reference/data/generation/#data.generation.generate_realistic_castle_value_curves):
+              Generates concave breakpoint utility functions for CASTLE AFSCs.
+        """
+
+        # Create "q" dictionary containing breakpoint information for castle value curves
+        q = afccp.data.generation.generate_realistic_castle_value_curves(
+            self.parameters, num_breakpoints=num_breakpoints)
+
+        # Save "q" dictionary for castle to parameters
+        self.parameters['castle_q'] = q
+
+    # ____________________________________________MAIN DATA CORRECTIONS_________________________________________________
     def make_all_initial_real_instance_modifications(self, printing=None, vp_defaults_filename=None):
 
         # Should we print updates?
@@ -645,22 +924,168 @@ class CadetCareerProblem:
         # Modify rated eligibility by SOC, removing cadets that are on "Rated Cadets" list...
         self.modify_rated_cadet_lists_based_on_eligibility(printing=printing)  # ...but not eligible for any rated AFSC
 
-    # Castle adjustments
-    def generate_example_castle_value_curves(self, num_breakpoints: int=10):
+    def import_default_value_parameters(self, no_constraints=False, num_breakpoints=24,
+                                        generate_afsc_weights=True, vp_weight=100, printing=None,
+                                        vp_defaults_filename=None):
+        """
+        Import default value parameter settings from Excel and generate instance-specific value parameters.
 
-        # Create "q" dictionary containing breakpoint information for castle value curves
-        q = afccp.data.values.generate_realistic_castle_value_curves(self.parameters,
-                                                                     num_breakpoints=num_breakpoints)
+        This method loads predefined "factory defaults" for the value-focused model from Excel and transforms them
+        into a usable set of value parameters for this problem instance. These parameters govern how objectives are
+        weighted, what targets and constraints exist, and how utility functions are shaped.
 
-        # Save "q" dictionary for castle to parameters
-        self.parameters['castle_q'] = q
+        Parameters
+        ----------
+        no_constraints : bool, optional
+            If True, disables all value-based constraints by zeroing out the `constraint_type` matrix.
+        num_breakpoints : int, optional
+            Number of piecewise breakpoints used when linearizing nonlinear value functions. Defaults to 24.
+        generate_afsc_weights : bool, optional
+            Whether to generate AFSC weights using the configured weight function, or use defaults. Defaults to True.
+        vp_weight : float, optional
+            Overall weight assigned to this value parameter configuration (used in ensemble models). Defaults to 100.
+        printing : bool, optional
+            Whether to print status updates during import and evaluation. Uses the instance default if None.
+        vp_defaults_filename : str, optional
+            Optional filename for the Excel workbook to load defaults from. If not specified, uses an intelligent default
+            based on `self.data_name`.
 
-    # Adjust Preferences
+        Returns
+        -------
+        dict
+            A dictionary of `value_parameters` customized for this instance. Keys include:
+            - `objective_weight`, `objective_target`, `constraint_type`
+            - `value_functions`, `afsc_weight`, `cadet_weight`
+            - `a`, `f^hat` (linearized value functions), and other modeling sets like `K^A`, `J^A`, etc.
+
+        Notes
+        -----
+        - The value parameter defaults are imported from one of the following:
+            - `"Value_Parameters_Defaults_<data_name>.xlsx"`
+            - `"Value_Parameters_Defaults_Perfect.xlsx"`
+            - `"Value_Parameters_Defaults_Generated.xlsx"`
+        - If `self.mdl_p["set_to_instance"]` is True, the generated parameters are assigned to `self.value_parameters`.
+        - If a solution already exists, it will be re-evaluated using the new value parameters.
+        - If `self.mdl_p["add_to_dict"]` is True, the parameters are stored in `self.vp_dict`.
+
+        Example
+        -------
+        ```python
+        instance = CadetCareerProblem(data_name="Random")
+        instance.import_default_value_parameters()
+        ```
+
+        See Also
+        --------
+        - [`default_value_parameters_from_excel`](../../reference/data/values/#data.values.default_value_parameters_from_excel)
+        - [`generate_value_parameters_from_defaults`](../../reference/data/values/#data.values.generate_value_parameters_from_defaults)
+        - [`value_parameters_sets_additions`](../../reference/data/values/#data.values.value_parameters_sets_additions)
+        - [`evaluate_solution`](../../reference/solutions/handling/#solutions.handlling.evaluate_solution)
+        """
+
+        if printing is None:
+            printing = self.printing
+
+        # Folder/Files information
+        folder_path = afccp.globals.paths["support"] + "value parameters defaults/"
+        vp_defaults_folder = os.listdir(folder_path)
+
+        if vp_defaults_filename is None:
+            vp_defaults_filename = "Value_Parameters_Defaults_" + self.data_name + ".xlsx"
+
+        # Determine the path to the default value parameters we need to import
+        if vp_defaults_filename in vp_defaults_folder:
+            filename = vp_defaults_filename
+        elif len(self.data_name) == 4:
+            filename = "Value_Parameters_Defaults.xlsx"
+        elif "Perfect" in self.data_name:
+            filename = "Value_Parameters_Defaults_Perfect.xlsx"
+        else:
+            filename = "Value_Parameters_Defaults_Generated.xlsx"
+        filepath = folder_path + filename
+
+        # Module shorthand
+        afccp_vp = afccp.data.values
+
+        # Import "default value parameters" from excel
+        dvp = afccp_vp.default_value_parameters_from_excel(filepath, num_breakpoints=num_breakpoints, printing=printing)
+
+        # Generate this instance's value parameters from the defaults
+        value_parameters = afccp_vp.generate_value_parameters_from_defaults(
+            self.parameters, generate_afsc_weights=generate_afsc_weights, default_value_parameters=dvp)
+
+        # Add some additional components to the value parameters
+        if no_constraints:
+            value_parameters['constraint_type'] = np.zeros([self.parameters['M'], value_parameters['O']])
+
+        # "Condense" the value functions by removing unnecessary zeros
+        value_parameters = afccp_vp.condense_value_functions(self.parameters, value_parameters)
+
+        # Add indexed sets and subsets of AFSCs and AFSC objectives
+        value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, value_parameters)
+
+        # Weight of the value parameters as a whole
+        value_parameters['vp_weight'] = vp_weight
+
+        # Set value parameters to instance attribute
+        if self.mdl_p["set_to_instance"]:
+            self.value_parameters = value_parameters
+            if self.solution is not None:
+                self.solution = afccp.solutions.handling.evaluate_solution(
+                    self.solution, self.parameters, self.value_parameters, printing=printing)
+
+        # Save new set of value parameters to dictionary
+        if self.mdl_p["add_to_dict"]:
+            self._save_new_value_parameters_to_dict(value_parameters)
+
+        if self.printing:
+            print('Imported.')
+
+        return value_parameters
+
+    def construct_rated_preferences_from_om_by_soc(self, printing=None):
+        """
+        Construct Combined Rated AFSC Preferences Using Ordered Merit (OM) Data.
+
+        This method processes and merges the OM matrices from each Source of Commissioning (SOC) (e.g., USAFA, ROTC)
+        to construct a unified "1-N" preference list for all Rated AFSCs. It updates both the AFSC preference lists
+        (`afsc_preferences`) and the AFSC preference matrix (`a_pref_matrix`) in the `parameters` dictionary.
+
+        Parameters:
+            printing (bool, optional): If True, prints a log statement indicating the preference integration process.
+                Defaults to `self.printing`.
+
+        Returns:
+            None
+
+        Example:
+            ```python
+            instance.construct_rated_preferences_from_om_by_soc(printing=True)
+            ```
+
+        See Also:
+            - [`construct_rated_preferences_from_om_by_soc`](../../../reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc):
+              Underlying function that consolidates SOC-specific OM matrices into ranked preferences.
+            - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+              Updates indexed subsets after modifying AFSC preferences.
+        """
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Integrating rated preferences from OM matrices for each SOC...")
+
+        # Generate Rated Preferences
+        self.parameters = afccp.data.preferences.construct_rated_preferences_from_om_by_soc(self.parameters)
+        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+
     def update_qualification_matrix_from_afsc_preferences(self, printing=None):
         """
         This method updates the qualification matrix to reflect cadet eligibility for AFSCs based on their preferences.
 
         It performs the following steps:
+
         1. Checks if there is an AFSC preference matrix ('a_pref_matrix') in the parameters. If not, it raises a ValueError.
         2. Iterates through each AFSC ('afscs') in the parameters.
         3. Determines cadet eligibility and ineligibility for each AFSC based on both AFSC preferences and degree qualifications.
@@ -767,55 +1192,108 @@ class CadetCareerProblem:
         # Update the additional sets and subsets for the parameters
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def convert_utilities_to_preferences(self, cadets_as_well=False):
+    def fill_remaining_afsc_choices(self, printing=None):
         """
-        Convert Utility Matrices to Preference Matrices.
+        Fill Remaining Cadet Preferences to Complete the Preference Matrix.
 
-        This method converts utility matrices into preference matrices for AFSC assignments. It provides the option to
-        convert cadet utility matrices and, if necessary, cadet rankings as well.
+        This method ensures that each cadet has a complete and ordered set of AFSC preferences by arbitrarily filling in
+        any missing AFSC choices. The method preserves explicitly defined bottom choices (second-to-last and last) and
+        appends any remaining eligible AFSCs not yet ranked by each cadet.
 
         Parameters:
-        - cadets_as_well (bool, optional): If True, both cadet and AFSC utility matrices are converted to preferences.
-          If False (default), only AFSC utility matrices are converted.
+            printing (bool, optional): If True, prints a status update. If None, defaults to the instance’s `self.printing`.
 
-        Description:
-        Utility matrices contain numerical values that represent the desirability or quality of a cadet's assignment
-        to a particular AFSC. Converting these utility values into preferences is essential for the assignment process.
-        Preferences are often represented as rankings or ordered lists, with higher values indicating higher preferences.
+        Returns:
+            None: Updates `self.parameters` in-place with a complete preference matrix.
 
-        This method ensures that both cadet and AFSC utility matrices are properly transformed into preferences, making
-        them suitable for use in the assignment algorithm.
+        Example:
+            ```python
+            instance.fill_remaining_afsc_choices()
+            ```
+
+        See Also:
+            - [`fill_remaining_preferences`](../../../reference/data/preferences/#data.preferences.fill_remaining_preferences):
+              Underlying function that assigns missing cadet AFSC preferences.
+            - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+              Updates parameter subsets after modifying the preference matrix.
         """
 
-        # Rest of your method code here
+        if printing is None:
+            printing = self.printing
 
-        self.parameters = afccp.data.preferences.convert_utility_matrices_preferences(self.parameters,
-                                                                                      cadets_as_well)
+        if printing:
+            print("Filling remaining cadet preferences arbitrarily with the exception of the bottom choices")
+
+        # Update parameters
+        self.parameters = afccp.data.preferences.fill_remaining_preferences(self.parameters)
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def generate_fake_afsc_preferences(self, fix_cadet_eligibility=False):
+    def remove_ineligible_choices(self, printing=None):
         """
-        Generate Simulated AFSC Preferences using Value Focussed Thinking (VFT) Parameters.
+        Remove Ineligible Cadet-AFSC Pairings Based on Qualification Criteria.
 
-        This method generates simulated AFSC preferences for cadets based on the VFT parameters.
-        These preferences are useful for testing and analysis purposes and can be used as inputs to the assignment algorithm.
+        This method scans both the cadet and AFSC preference matrices (`c_pref_matrix` and `a_pref_matrix`)
+        and removes pairings that violate the qualification constraints defined in the `qual` matrix. It ensures
+        that cadets are only considered for AFSCs for which they are qualified, and updates all three matrices to sync
+        them all on eligibility (`c_pref_matrix`, `a_pref_matrix`, `qual`).
 
         Parameters:
-        - fix_cadet_eligibility (bool, optional): If True, it fixes cadet eligibility based on VFT parameters before
-        generating preferences. If False (default), preferences are generated without modifying eligibility. Use this
-        option to create preferences for a specific scenario where cadet eligibility should be controlled.
+            printing (bool, optional): If True, prints progress and debug information. If None (default),
+            it uses the instance-level `self.printing` attribute.
 
-        Description:
-        Simulated preferences are created by modeling cadet choices using the VFT parameters.
-        These preferences are essential for conducting experiments and evaluating the performance of the assignment
-        algorithm under various conditions.
+        Returns:
+            None: The method modifies the `parameters` attribute in-place.
 
-        This method allows you to generate preferences for a specific scenario by controlling cadet eligibility or
-        generate preferences without modifying eligibility, providing flexibility for testing and analysis.
+        Examples:
+            ```python
+            instance.remove_ineligible_choices(printing=True)
+            ```
+
+        See Also:
+            - [`remove_ineligible_cadet_choices`](../../../reference/data/preferences/#data.preferences.remove_ineligible_cadet_choices):
+              Underlying function that performs the actual validation and cleanup of preference matrices.
+            - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+              Rebuilds indexed sets and eligibility structures after editing cadet-AFSC pairings.
         """
-        self.parameters = afccp.data.preferences.generate_fake_afsc_preferences(
-            self.parameters, self.value_parameters, fix_cadet_eligibility=fix_cadet_eligibility)
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Removing ineligible cadets based on any of the three eligibility sources "
+                  "(c_pref_matrix, a_pref_matrix, qual)...")
+
+        self.parameters = afccp.data.preferences.remove_ineligible_cadet_choices(self.parameters, printing=printing)
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+
+    def update_preference_matrices(self, printing=None):
+        """
+        Update Preference Matrices from Preference Arrays.
+
+        This method reconstructs the cadet preference matrices from the preference arrays by renumbering preferences to eliminate gaps.
+        In preference lists, gaps may exist due to unranked choices, and this method ensures preferences are sequentially numbered.
+        """
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print("Updating cadet preference matrices from the preference dictionaries. "
+                  "ie. 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preference lists need to omit gaps)")
+
+        # Update parameters
+        self.parameters = afccp.data.preferences.update_preference_matrices(self.parameters)
+
+    def update_first_choice_cadet_utility_to_one(self, printing=None):
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print('Updating cadet first choice utility value to 100%...')
+
+        # Update "utility" matrix
+        self.parameters['utility'] = afccp.data.preferences.update_first_choice_cadet_utility_to_one(
+            self.parameters, printing=printing)
 
     def convert_afsc_preferences_to_percentiles(self, printing=None):
         """
@@ -835,53 +1313,6 @@ class CadetCareerProblem:
         self.parameters = afccp.data.preferences.convert_afsc_preferences_to_percentiles(self.parameters)
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def remove_ineligible_choices(self, printing=None):
-        """
-        Remove Ineligible Choices Based on Qualification.
-
-        This method utilizes the qualification matrix (qual) to remove ineligible choices from both AFSC preferences (a_pref_matrix)
-        and cadet preferences (c_pref_matrix). Ineligible choices are determined based on the qualification requirements, and
-        this process helps ensure that the final assignments meet the qualification criteria.
-
-        Parameters:
-        - printing (bool, optional): If True, print progress and debug information. If None (default), it uses the class-level 'printing' attribute.
-        """
-
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print("Removing ineligible cadets based on any of the three eligibility sources "
-                  "(c_pref_matrix, a_pref_matrix, qual)...")
-
-        self.parameters = afccp.data.preferences.remove_ineligible_cadet_choices(self.parameters, printing=printing)
-        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
-
-    def update_first_choice_cadet_utility_to_one(self, printing=None):
-
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print('Updating cadet first choice utility value to 100%...')
-
-        # Update "utility" matrix
-        self.parameters['utility'] = afccp.data.preferences.update_first_choice_cadet_utility_to_one(
-            self.parameters, printing=printing)
-
-    def modify_rated_cadet_lists_based_on_eligibility(self, printing=None):
-
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print('Modifying rated eligibiity lists/matrices by SOC... \n'
-                  '(Removing cadets that are on the lists but not eligible for any rated AFSC)')
-
-        # Update rated eligibility lists
-        self.parameters = afccp.data.preferences.modify_rated_cadet_lists_based_on_eligibility(
-            self.parameters, printing=printing)
-
     def update_cadet_columns_from_matrices(self, printing=None):
         """
         Update Cadet Columns from Preference Matrix.
@@ -900,23 +1331,6 @@ class CadetCareerProblem:
         self.parameters['c_preferences'], self.parameters['c_utilities'] = \
             afccp.data.preferences.get_utility_preferences_from_preference_array(self.parameters)
 
-    def update_preference_matrices(self, printing=None):
-        """
-        Update Preference Matrices from Preference Arrays.
-
-        This method reconstructs the cadet preference matrices from the preference arrays by renumbering preferences to eliminate gaps.
-        In preference lists, gaps may exist due to unranked choices, and this method ensures preferences are sequentially numbered.
-        """
-        if printing is None:
-            printing = self.printing
-
-        if printing:
-            print("Updating cadet preference matrices from the preference dictionaries. "
-                  "ie. 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preference lists need to omit gaps)")
-
-        # Update parameters
-        self.parameters = afccp.data.preferences.update_preference_matrices(self.parameters)
-
     def update_cadet_utility_matrices_from_cadets_data(self, printing=None):
         """
         Update Cadet Utility Matrices from Cadets Data.
@@ -933,21 +1347,44 @@ class CadetCareerProblem:
         self.parameters = afccp.data.preferences.update_cadet_utility_matrices(self.parameters)
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def fill_remaining_afsc_choices(self, printing=None):
-        """
-
-        :return:
-        """
+    def modify_rated_cadet_lists_based_on_eligibility(self, printing=None):
 
         if printing is None:
             printing = self.printing
 
         if printing:
-            print("Filling remaining cadet preferences arbitrarily with the exception of the bottom choices")
+            print('Modifying rated eligibiity lists/matrices by SOC... \n'
+                  '(Removing cadets that are on the lists but not eligible for any rated AFSC)')
 
-        # Update parameters
-        self.parameters = afccp.data.preferences.fill_remaining_preferences(self.parameters)
-        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+        # Update rated eligibility lists
+        self.parameters = afccp.data.preferences.modify_rated_cadet_lists_based_on_eligibility(
+            self.parameters, printing=printing)
+
+    # _______________________________________________OTHER ADJUSTMENTS__________________________________________________
+    def parameter_sanity_check(self):
+        """
+        This method performs a comprehensive sanity check on the parameters and value parameters
+        to ensure the data is in a valid and correct state before running the model.
+
+        It examines various parameters and their values within the class instance to identify and
+        address any issues or discrepancies. The checks are designed to ensure that the data is consistent,
+        within valid ranges, and suitable for use in the model.
+
+        While the exact details of these checks are implemented in an external function or module,
+        this method serves as the entry point for conducting these checks.
+
+        It is essential to run this method before executing the model to guarantee the integrity
+        of the input data and to prevent potential errors or unexpected behavior during the modeling process.
+
+        This method is part of an object-oriented programming structure and uses 'self' to access
+        the class instance's attributes and data.
+
+        Note: The specific details of the sanity checks are defined in an external function
+        or module called 'afccp.data.adjustments.parameter_sanity_check.'
+        """
+
+        # Call the function
+        afccp.data.adjustments.parameter_sanity_check(self)
 
     def create_final_utility_matrix_from_new_formula(self, printing=None):
         """
@@ -973,35 +1410,51 @@ class CadetCareerProblem:
         # Set OTS must matches  (No need to adjust parameter sets- I adjust "I^Must_Match" in this function too
         self.parameters = afccp.data.adjustments.set_ots_must_matches(self.parameters)
 
-    # Adjust Rated Data
-    def generate_rated_data(self):
+    def calculate_qualification_matrix(self, printing=None):
         """
-        This method generates Rated data for USAFA and ROTC if it doesn't already exist. This data can then also be
-        exported back as a csv for reference.
-        """
+        This procedure re-runs the CIP to Qual function to generate or update the qualification matrix.
+        The qualification matrix determines whether cadets are eligible for specific AFSCs.
 
-        # Generate Rated Data
-        self.parameters = afccp.data.preferences.generate_rated_data(self.parameters)
-        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+        Args:
+        printing (bool, optional): If True, print messages about the process. Defaults to the class's `printing` attribute.
 
-    def construct_rated_preferences_from_om_by_soc(self, printing=None):
-        """
-        This method takes the two OM Rated matrices (from both SOCs) and then zippers them together to
-        create a combined "1-N" list for the Rated AFSCs. The AFSC preference matrix is updated as well as the
-        AFSC preference lists
-        """
+        Raises:
+        ValueError: Raised when there are no CIP codes provided.
 
+        This method recalculates the qualification matrix based on CIP (Career Intermission Program) codes and
+        AFSCs. It updates the matrix and related parameters within the class.
+        """
         if printing is None:
             printing = self.printing
 
         if printing:
-            print("Integrating rated preferences from OM matrices for each SOC...")
+            print('Adjusting qualification matrix...')
+        parameters = copy.deepcopy(self.parameters)
 
-        # Generate Rated Preferences
-        self.parameters = afccp.data.preferences.construct_rated_preferences_from_om_by_soc(self.parameters)
-        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+        # Generate new matrix
+        if "cip1" in parameters:
+            if "cip2" in parameters:
+                qual_matrix = afccp.data.support.cip_to_qual_tiers(
+                    parameters["afscs"][:parameters["M"]], parameters['cip1'], cip2=parameters['cip2'])
+            else:
+                qual_matrix = afccp.data.support.cip_to_qual_tiers(
+                    parameters["afscs"][:parameters["M"]], parameters['cip1'])
+        else:
+            raise ValueError("Error. Need to update the degree tier qualification matrix to include tiers "
+                             "('M1' instead of 'M' for example) but don't have CIP codes. Please incorporate this.")
 
-    # Specify Value Parameters
+        # Load data back into parameters
+        parameters["qual"] = qual_matrix
+        parameters["qual_type"] = "Tiers"
+        parameters["ineligible"] = (np.core.defchararray.find(qual_matrix, "I") != -1) * 1
+        parameters["eligible"] = (parameters["ineligible"] == 0) * 1
+        parameters["exception"] = (np.core.defchararray.find(qual_matrix, "E") != -1) * 1
+        for t in [1, 2, 3, 4]:
+            parameters["tier " + str(t)] = (np.core.defchararray.find(qual_matrix, str(t)) != -1) * 1
+        parameters = afccp.data.adjustments.parameter_sets_additions(parameters)
+        self.parameters = copy.deepcopy(parameters)
+
+    # ___________________________________________VALUE PARAMETER SPECIFICATION__________________________________________
     def set_value_parameters(self, vp_name=None):
         """
         Sets the current instance value parameters to a specified set based on the vp_name. This vp_name must be
@@ -1045,189 +1498,7 @@ class CadetCareerProblem:
         self.value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, self.value_parameters)
 
         # Update the set of value parameters in the dictionary (vp_dict attribute)
-        self.update_value_parameters_in_dict()
-
-    def save_new_value_parameters_to_dict(self, value_parameters=None):
-        """
-        Adds the set of value parameters to a dictionary as a new set (if it is a unique set)
-        """
-        # Grab the value parameters
-        if value_parameters is None:
-            value_parameters = self.value_parameters
-
-        # Make sure this is a valid dictionary of value parameters
-        if value_parameters is not None:
-            if self.vp_dict is None:
-                self.vp_dict, self.vp_name = {"VP": copy.deepcopy(value_parameters)}, "VP"
-            else:
-
-                # Determine new value parameters name
-                vp_name, v = "VP2", 2
-                while vp_name in self.vp_dict:
-                    v += 1
-                    vp_name = "VP" + str(v)
-
-                # Check if this new set is unique or not to get the name of the set
-                unique = self._check_unique_value_parameters()
-                if unique is True: # If it's unique, we save this new set of value parameters to the dictionary
-                    self.vp_dict[vp_name], self.vp_name = copy.deepcopy(value_parameters), vp_name
-                else:  # If it's not unique, then "unique" is the name of the matching set of value parameters
-                    self.vp_name = unique
-
-        else:
-            raise ValueError("Error. No value parameters set. You currently do have a 'vp_dict' and so all you "
-                                     "need to do is run 'instance.set_value_parameters()'. ")
-
-    def update_value_parameters_in_dict(self, vp_name=None):
-        """
-        Updates a set of value parameters in the dictionary using the current instance value parameters
-        :param vp_name: name of the set of value parameters to update (default current vp_name)
-        """
-        if self.value_parameters is not None:
-            if self.vp_dict is None:
-                raise ValueError('No value parameter dictionary detected')
-            else:
-                if vp_name is None:
-                    vp_name = self.vp_name
-
-                # Set attributes
-                self.vp_dict[vp_name] = copy.deepcopy(self.value_parameters)
-                self.vp_name = vp_name
-
-        else:
-            raise ValueError('No instance value parameters detected')
-
-    def _check_unique_value_parameters(self, value_parameters=None, vp_name1=None, vp_name2=None, printing=False):
-        """
-        Take in a new set of value parameters and see if this set is in the dictionary already. Return True if the
-        the set of parameters is unique, or return the name of the matching set otherwise
-        """
-
-        # If we specify this name, we want to compare the value parameters against this one
-        if vp_name2 is not None:
-            value_parameters = self.vp_dict[vp_name2]
-            vp_name1 = vp_name2
-
-        # If we don't specify "vp_name2", we check the other conditions
-        else:
-            if value_parameters is None:
-                value_parameters = self.value_parameters
-                vp_name1 = self.vp_name
-
-            if vp_name1 is None:
-                vp_name1 = "VP (Unspecified)"
-
-        # Assume the new set is unique until proven otherwise
-        unique = True
-        for vp_name in self.vp_dict:
-            identical = afccp.data.values.compare_value_parameters(
-                self.parameters, value_parameters, self.vp_dict[vp_name], vp_name1, vp_name, printing=printing)
-            if identical:
-                unique = vp_name
-                break
-        return unique
-
-    def generate_random_value_parameters(self, num_breakpoints=24, vp_weight=100, printing=None):
-        """
-        Generates value parameters for a given problem instance from scratch
-        """
-
-        # Print Statement
-        if printing is None:
-            printing = self.printing
-
-        # Generate random set of value parameters
-        value_parameters = afccp.data.generation.generate_random_value_parameters(
-            self.parameters, num_breakpoints=num_breakpoints)
-
-        # Module shorthand
-        afccp_vp = afccp.data.values
-
-        # "Condense" the value functions by removing unnecessary zeros
-        value_parameters = afccp_vp.condense_value_functions(self.parameters, value_parameters)
-
-        # Add indexed sets and subsets of AFSCs and AFSC objectives
-        value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, value_parameters)
-
-        # Weight of the value parameters as a whole
-        value_parameters['vp_weight'] = vp_weight
-
-        # Set value parameters to instance attribute
-        if self.mdl_p["set_to_instance"]:
-            self.value_parameters = value_parameters
-
-        # Save new set of value parameters to dictionary
-        if self.mdl_p["add_to_dict"]:
-            self.save_new_value_parameters_to_dict(value_parameters)
-
-        return value_parameters
-
-    def import_default_value_parameters(self, no_constraints=False, num_breakpoints=24,
-                                        generate_afsc_weights=True, vp_weight=100, printing=None,
-                                        vp_defaults_filename=None):
-        """
-        Import default value parameter settings and generate value parameters for this instance.
-        """
-
-        if printing is None:
-            printing = self.printing
-
-        # Folder/Files information
-        folder_path = afccp.globals.paths["support"] + "value parameters defaults/"
-        vp_defaults_folder = os.listdir(folder_path)
-
-        if vp_defaults_filename is None:
-            vp_defaults_filename = "Value_Parameters_Defaults_" + self.data_name + ".xlsx"
-
-        # Determine the path to the default value parameters we need to import
-        if vp_defaults_filename in vp_defaults_folder:
-            filename = vp_defaults_filename
-        elif len(self.data_name) == 4:
-            filename = "Value_Parameters_Defaults.xlsx"
-        elif "Perfect" in self.data_name:
-            filename = "Value_Parameters_Defaults_Perfect.xlsx"
-        else:
-            filename = "Value_Parameters_Defaults_Generated.xlsx"
-        filepath = folder_path + filename
-
-        # Module shorthand
-        afccp_vp = afccp.data.values
-
-        # Import "default value parameters" from excel
-        dvp = afccp_vp.default_value_parameters_from_excel(filepath, num_breakpoints=num_breakpoints, printing=printing)
-
-        # Generate this instance's value parameters from the defaults
-        value_parameters = afccp_vp.generate_value_parameters_from_defaults(
-            self.parameters, generate_afsc_weights=generate_afsc_weights, default_value_parameters=dvp)
-
-        # Add some additional components to the value parameters
-        if no_constraints:
-            value_parameters['constraint_type'] = np.zeros([self.parameters['M'], value_parameters['O']])
-
-        # "Condense" the value functions by removing unnecessary zeros
-        value_parameters = afccp_vp.condense_value_functions(self.parameters, value_parameters)
-
-        # Add indexed sets and subsets of AFSCs and AFSC objectives
-        value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, value_parameters)
-
-        # Weight of the value parameters as a whole
-        value_parameters['vp_weight'] = vp_weight
-
-        # Set value parameters to instance attribute
-        if self.mdl_p["set_to_instance"]:
-            self.value_parameters = value_parameters
-            if self.solution is not None:
-                self.solution = afccp.solutions.handling.evaluate_solution(
-                    self.solution, self.parameters, self.value_parameters, printing=printing)
-
-        # Save new set of value parameters to dictionary
-        if self.mdl_p["add_to_dict"]:
-            self.save_new_value_parameters_to_dict(value_parameters)
-
-        if self.printing:
-            print('Imported.')
-
-        return value_parameters
+        self._update_value_parameters_in_dict()
 
     def calculate_afocd_value_parameters(self):
         """
@@ -1298,32 +1569,6 @@ class CadetCareerProblem:
             self.value_parameters["afsc_weight"] = \
                 afccp.data.values.afsc_weight_function(quota, function)
 
-    def parameter_sanity_check(self):
-        """
-        This method performs a comprehensive sanity check on the parameters and value parameters
-        to ensure the data is in a valid and correct state before running the model.
-
-        It examines various parameters and their values within the class instance to identify and
-        address any issues or discrepancies. The checks are designed to ensure that the data is consistent,
-        within valid ranges, and suitable for use in the model.
-
-        While the exact details of these checks are implemented in an external function or module,
-        this method serves as the entry point for conducting these checks.
-
-        It is essential to run this method before executing the model to guarantee the integrity
-        of the input data and to prevent potential errors or unexpected behavior during the modeling process.
-
-        This method is part of an object-oriented programming structure and uses 'self' to access
-        the class instance's attributes and data.
-
-        Note: The specific details of the sanity checks are defined in an external function
-        or module called 'afccp.data.adjustments.parameter_sanity_check.'
-        """
-
-        # Call the function
-        afccp.data.adjustments.parameter_sanity_check(self)
-
-    # noinspection PyDictCreation  # Rebecca's model stuff!
     def vft_to_gp_parameters(self, p_dict={}, printing=None):
         """
         Translate VFT Model Parameters to *former* Lt Rebecca Reynold's Goal Programming Model Parameters.
@@ -1396,7 +1641,7 @@ class CadetCareerProblem:
         # Update the "mu" and "lam" parameters with our new Reward/Penalty terms
         self.gp_parameters = afccp.data.values.translate_vft_to_gp_parameters(self)
 
-    # Very basic methods to generate solutions
+    # _____________________________________SOLUTION GENERATION & ALGORITHMS_____________________________________________
     def generate_random_solution(self, p_dict={}, printing=None):
         """
         Generate random solution by assigning cadets to AFSCs that they're eligible for
@@ -1419,7 +1664,6 @@ class CadetCareerProblem:
 
         return solution
 
-    # Matching algorithms
     def rotc_rated_board_original(self, p_dict={}, printing=None):
         if printing is None:
             printing = self.printing
@@ -1489,7 +1733,7 @@ class CadetCareerProblem:
 
         return solution
 
-    # Optimization models
+    # _____________________________________________OPTIMIZATION MODELS__________________________________________________
     def solve_vft_pyomo_model(self, p_dict={}, printing=None):
         """
         Solve the VFT model using Pyomo, an optimization modeling library.
@@ -1657,7 +1901,7 @@ class CadetCareerProblem:
         # Return solution
         return self.solution
 
-    # Meta-heuristics
+    # ______________________________________________META-HEURISTICS_____________________________________________________
     def vft_genetic_algorithm(self, p_dict={}, printing=None):
         """
         This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be
@@ -1757,7 +2001,99 @@ class CadetCareerProblem:
 
         return solution
 
-    # Solution Handling
+    # ____________________________________________SOLUTION HANDLING_____________________________________________________
+    def measure_solution(self, approximate=False, printing=None):
+        """
+        Evaluate a solution using the VFT objective hierarchy
+        """
+        # Error checking, solution setting
+        if self.solution is None or self.value_parameters is None:
+            raise ValueError("Error. Solution and value parameters needed to evaluate solution.")
+
+        # Print statement
+        if printing is None:
+            printing = self.printing
+
+        # Copy weight on GUO solution (relative to CASTLE) from "mdl_p" to "parameters"
+        self.parameters['w^G'] = self.mdl_p['w^G']
+
+        # Calculate solution metrics
+        self.solution = afccp.solutions.handling.evaluate_solution(
+            self.solution, self.parameters, self.value_parameters, approximate=approximate, printing=printing,
+            re_calculate_x=self.mdl_p['re-calculate x'])
+
+    def measure_fitness(self, printing=None):
+        """
+        This is the fitness function method (could be slightly different depending on how the constraints are handled)
+        :return: fitness score
+        """
+        # Error checking, solution setting
+        if self.solution is None or self.value_parameters is None:
+            raise ValueError("Error. Solution and value parameters needed to evaluate solution.")
+
+        # Printing statement
+        if printing is None:
+            printing = self.printing
+
+        # Get the solution metrics if necessary
+        if "z" not in self.solution:
+            self.solution = self.measure_solution(printing=False)
+
+        # Calculate fitness value
+        z = afccp.solutions.handling.fitness_function(self.solution['j_array'], self.parameters,
+                                                      self.value_parameters, self.mdl_p,
+                                                      con_fail_dict=self.solution['con_fail_dict'])
+
+        # Print and return fitness value
+        if printing:
+            print("Fitness value calculated to be", round(z, 4))
+        return z
+
+    def set_solution(self, solution_name=None, printing=None):
+        """
+        Set the current instance object's solution to a solution from the dictionary
+        """
+        if printing is None:
+            printing = self.printing
+
+        if self.solutions is None:
+            raise ValueError('No solution dictionary initialized')
+        else:
+            if solution_name is None:
+                solution_name = list(self.solutions.keys())[0]
+            else:
+                if solution_name not in self.solutions:
+                    raise ValueError('Solution ' + solution_name + ' not in solution dictionary')
+
+            self.solution = self.solutions[solution_name]
+            self.solution_name = solution_name
+            if self.value_parameters is not None:
+                self.measure_solution(printing=printing)
+
+    def add_solution(self, j_array: np.ndarray = None, afsc_array: np.ndarray = None, method: str = None):
+        """
+        Takes a numpy array of AFSCs and adds this new solution into the solution dictionary
+        """
+
+        # Determine AFSC solution information
+        if j_array is not None:
+            afsc_array = np.array([self.parameters['afscs'][j] for j in j_array])
+        elif afsc_array is not None:
+            j_array = np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_array])
+        else:
+            raise ValueError(f'Error. No AFSC solution array specified')
+        if method is None:
+            method = 'Added'
+
+        # Create solution dictionary
+        solution = {'j_array': j_array, 'method': method, 'afsc_array': afsc_array}
+
+        # Determine what to do with the solution
+        self._solution_handling(solution)
+
+        # Return the solution
+        return solution
+
     def incorporate_rated_algorithm_results(self, p_dict={}, printing=None):
         """
         Takes the two sets of Rated Matches and Reserves and adds that into the parameters (J^Fixed and J^Reserved)
@@ -1848,296 +2184,98 @@ class CadetCareerProblem:
         if fix_it and total_ineligible > 0:
             self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
-    def set_solution(self, solution_name=None, printing=None):
+    # _____________________________________________EXPORT METHODS_______________________________________________________
+    def export_data(self, datasets=None, printing=None):
         """
-        Set the current instance object's solution to a solution from the dictionary
+        Exports the desired problem instance datasets back to csvs.
+
+        Parameters:
+        datasets (list of str): List of datasets to export. By default, the method exports the "Value Parameters" and
+            "Solutions" datasets, as these are the ones that are likely to change the most. Other possible datasets are
+            "AFSCs", "Cadets", "Preferences", and "Goal Programming".
+        printing (bool): Whether to print status updates or not. If not specified, the value of `self.printing` will
+            be used.
+
+        Returns:
+        None
+
+        This method exports the specified datasets using the `export_<dataset_name>_data` functions from the
+        `afccp.data.processing` module. The exported csvs are saved in the paths specified in the
+        `self.export_paths` dictionary.
+
+        If the `self.import_paths` and `self.export_paths` attributes are not set, this method will call the
+        `afccp_dp.initialize_file_information` function to create the necessary directories and set the paths.
+
+        If the "Goal Programming" dataset is included in the `datasets` parameter and the `gp_df` attribute is not None,
+        the method exports the `gp_df` dataframe to a csv using the file path specified in the `export_paths` dictionary.
         """
+
+        # Parameter initialization
+        if datasets is None:
+            datasets = ["Cadets", "AFSCs", "Preferences", "Goal Programming", "Value Parameters",
+                        "Solutions", "Additional", "Base Solutions", "Course Solutions"]
         if printing is None:
             printing = self.printing
-
-        if self.solutions is None:
-            raise ValueError('No solution dictionary initialized')
-        else:
-            if solution_name is None:
-                solution_name = list(self.solutions.keys())[0]
-            else:
-                if solution_name not in self.solutions:
-                    raise ValueError('Solution ' + solution_name + ' not in solution dictionary')
-
-            self.solution = self.solutions[solution_name]
-            self.solution_name = solution_name
-            if self.value_parameters is not None:
-                self.measure_solution(printing=printing)
-
-    def add_solution(self, j_array: np.ndarray = None, afsc_array: np.ndarray = None, method: str = None):
-        """
-        Takes a numpy array of AFSCs and adds this new solution into the solution dictionary
-        """
-
-        # Determine AFSC solution information
-        if j_array is not None:
-            afsc_array = np.array([self.parameters['afscs'][j] for j in j_array])
-        elif afsc_array is not None:
-            j_array = np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_array])
-        else:
-            raise ValueError(f'Error. No AFSC solution array specified')
-        if method is None:
-            method = 'Added'
-
-        # Create solution dictionary
-        solution = {'j_array': j_array, 'method': method, 'afsc_array': afsc_array}
-
-        # Determine what to do with the solution
-        self._solution_handling(solution)
-
-        # Return the solution
-        return solution
-
-    def compute_similarity_matrix(self, solution_names=None):
-        """
-        Generates the similarity matrix for a given set of solutions
-        """
-
-        if 'Similarity Solutions.csv' in os.listdir(self.export_paths['Analysis & Results']):
-            solution_df = afccp.globals.import_csv_data(
-                self.export_paths['Analysis & Results'] + 'Similarity Solutions.csv')
-        else:
-            raise ValueError("Error. No 'Similarity Solutions.csv' dataframe found in the 'Analysis & Results' folder. "
-                             "Please create it.")
-
-        # "Starting" Solutions: Extract solutions from dataframe and then convert to "j_array"
-        solutions = {solution_name: np.array(solution_df[solution_name]) for solution_name in solution_df}
-        solutions = {solution_name: np.array([np.where(
-            self.parameters['afscs'] == afsc)[0][0] for afsc in solutions[solution_name]]) for solution_name in solutions}
-
-        # If we want to add solutions to highlight in the chart
-        if solution_names is not None:
-            extra_solutions = {
-                solution_name: self.solutions[solution_name]['j_array'] for solution_name in solution_names}
-            for solution_name in extra_solutions:
-                solutions[solution_name] = extra_solutions[solution_name]
-
-        # Create the matrix
-        num_solutions = len(solutions.keys())
-        similarity_matrix = np.zeros((num_solutions, num_solutions))
-        for row, sol_1_name in enumerate(solutions.keys()):
-            for col, sol_2_name in enumerate(solutions.keys()):
-                sol_1 = solutions[sol_1_name]
-                sol_2 = solutions[sol_2_name]
-                similarity_matrix[row, col] = np.sum(sol_1 == sol_2) / self.parameters["N"]  # % similarity!
-
-        # Export similarity_matrix
-        similarity_df = pd.DataFrame({solution: similarity_matrix[:, s] for s, solution in enumerate(solutions.keys())})
-        similarity_df.to_csv(self.export_paths['Analysis & Results'] + 'Similarity Matrix.csv', index=False)
-
-    def measure_solution(self, approximate=False, printing=None):
-        """
-        Evaluate a solution using the VFT objective hierarchy
-        """
-        # Error checking, solution setting
-        if self.solution is None or self.value_parameters is None:
-            raise ValueError("Error. Solution and value parameters needed to evaluate solution.")
 
         # Print statement
-        if printing is None:
-            printing = self.printing
-
-        # Copy weight on GUO solution (relative to CASTLE) from "mdl_p" to "parameters"
-        self.parameters['w^G'] = self.mdl_p['w^G']
-
-        # Calculate solution metrics
-        self.solution = afccp.solutions.handling.evaluate_solution(
-            self.solution, self.parameters, self.value_parameters, approximate=approximate, printing=printing,
-            re_calculate_x=self.mdl_p['re-calculate x'])
-
-    def measure_fitness(self, printing=None):
-        """
-        This is the fitness function method (could be slightly different depending on how the constraints are handled)
-        :return: fitness score
-        """
-        # Error checking, solution setting
-        if self.solution is None or self.value_parameters is None:
-            raise ValueError("Error. Solution and value parameters needed to evaluate solution.")
-
-        # Printing statement
-        if printing is None:
-            printing = self.printing
-
-        # Get the solution metrics if necessary
-        if "z" not in self.solution:
-            self.solution = self.measure_solution(printing=False)
-
-        # Calculate fitness value
-        z = afccp.solutions.handling.fitness_function(self.solution['j_array'], self.parameters,
-                                                      self.value_parameters, self.mdl_p,
-                                                      con_fail_dict=self.solution['con_fail_dict'])
-
-        # Print and return fitness value
         if printing:
-            print("Fitness value calculated to be", round(z, 4))
-        return z
+            print("Exporting datasets", datasets)
 
-    # Matching Algorithm Iterations
-    def export_solution_iterations(self, printing=None):
+        # Shorten module name
+        afccp_dp = afccp.data.processing
+
+        # Check to make sure we have file data information
+        for attribute in [self.import_paths, self.export_paths]:
+
+            # If we don't have this information, that means this is a new instance to export
+            if attribute is None:
+                self.import_paths, self.export_paths = afccp_dp.initialize_file_information(self.data_name,
+                                                                                            self.data_version)
+                break
+
+        # Export various data using the different functions
+        dataset_function_dict = {"AFSCs": afccp_dp.export_afscs_data,
+                                 "Cadets": afccp_dp.export_cadets_data,
+                                 "Preferences": afccp_dp.export_afsc_cadet_matrices_data,
+                                 "Value Parameters": afccp_dp.export_value_parameters_data,
+                                 "Solutions": afccp_dp.export_solutions_data,
+                                 "Additional": afccp_dp.export_additional_data}
+        for dataset in dataset_function_dict:
+            if dataset in datasets:
+                dataset_function_dict[dataset](self)
+
+        # Goal Programming dataframe is an easy export (dataframe is already constructed)
+        if "Goal Programming" in datasets and self.gp_df is not None:
+            self.gp_df.to_csv(self.export_paths["Goal Programming"], index=False)
+
+    def export_solution_results(self, printing=None):
         """
-        Exports iterations of a matching algorithm to excel
+        This function exports the metrics for one solution back to excel for review
         """
         if printing is None:
             printing = self.printing
 
-        # Error handling
-        if 'iterations' not in self.solution:
-            raise ValueError("Error. No solution iterations detected.")
+        # Make sure we have a solution
+        self._error_checking('Solution')
 
-        # Update the solution iterations dictionary
-        if 'sequence' not in self.solution['iterations']:
-            self._manage_bubbles_parameters()
+        # Create solution folder if necessary
+        self._manage_solution_folder()
 
-        # 'Sequence' Folder
-        folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
-        if self.solution['iterations']['sequence'] not in os.listdir(folder_path):
-            os.mkdir(folder_path + self.solution['iterations']['sequence'])
+        # Filepath to export to
+        filename = self.data_name + " " + self.solution_name + " (" + self.vp_name + ").xlsx"
+        filepath = self.export_paths['Analysis & Results'] + self.solution_name + '/' + filename
 
-        # Create proposals dataframe
-        if 'proposals' in self.solution['iterations']:
-            proposals_df = pd.DataFrame({'Cadet': self.parameters['cadets']})
-            for s in self.solution['iterations']['proposals']:
-                solution = self.solution['iterations']['proposals'][s]
-                afsc_solution = [self.parameters['afscs'][j] for j in solution]
-                proposals_df['Iteration ' + str(s + 1)] = afsc_solution
+        # Print statement
+        if printing:
+            print("Exporting solution", self.solution_name, "results to " + filepath + "...")
 
-            # Export file
-            filepath = folder_path + self.solution['iterations']['sequence'] + '/Solution Iterations (Proposals).csv'
-            proposals_df.to_csv(filepath, index=False)
-
-            if printing:
-                print('Proposal iterations exported to', filepath)
-
-        # Create matches dataframe
-        if 'matches' in self.solution['iterations']:
-            solutions_df = pd.DataFrame({'Cadet': self.parameters['cadets']})
-            for s in self.solution['iterations']['matches']:
-                solution = self.solution['iterations']['matches'][s]
-                afsc_solution = [self.parameters['afscs'][j] for j in solution]
-                solutions_df['Iteration ' + str(s + 1)] = afsc_solution
-
-            # Export file
-            filepath = folder_path + self.solution['iterations']['sequence'] + '/Solution Iterations (Matches).csv'
-            solutions_df.to_csv(filepath, index=False)
-
-            if printing:
-                print('Solution iterations exported to', filepath)
+        # Export results
+        afccp.data.processing.export_solution_results_excel(self, filepath)
 
         if printing:
-            print('Done.')
+            print("Done.")
 
-    def import_solution_iterations(self, sequence_name, printing=None):
-        """
-        Exports iterations of a matching algorithm to excel
-        """
-        if printing is None:
-            printing = self.printing
-
-        # 'Sequence' Folder
-        folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
-        if sequence_name not in os.listdir(folder_path):
-            raise ValueError("Error. Sequence '" + str(sequence_name) + "' not found in 'Cadet Board' figure.")
-        sequence_folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/' + sequence_name
-        sequence_folder = os.listdir(sequence_folder_path)
-        self.solution['iterations'] = {'type': sequence_name.split(',')[2].strip()}
-
-        # Current solution should match the sequence name
-        if self.solution_name not in sequence_name:
-            raise ValueError("Error. Current solution is '" + self.solution_name +
-                             "' which is not found in the provided sequence name of '" + sequence_name + "'.")
-
-        # Get proposals if applicable
-        if 'Solution Iterations (Proposals).csv' in sequence_folder:
-            filepath = sequence_folder_path + '/Solution Iterations (Proposals).csv'
-            proposals_df = afccp.globals.import_csv_data(filepath)
-            self.solution['iterations']['proposals'] = {}
-            for s, col in enumerate(proposals_df.columns[1:]):
-                afsc_solution = np.array(proposals_df[col])
-                solution = np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
-                self.solution['iterations']['proposals'][s] = solution
-
-            if printing:
-                print('Proposal iterations imported from', filepath)
-
-        # Get matches if applicable
-        if 'Solution Iterations (Matches).csv' in sequence_folder:
-            filepath = sequence_folder_path + '/Solution Iterations (Matches).csv'
-            matches_df = afccp.globals.import_csv_data(filepath)
-            self.solution['iterations']['matches'] = {}
-            self.solution['iterations']['names'] = {}
-            for s, col in enumerate(matches_df.columns[1:]):
-                afsc_solution = np.array(matches_df[col])
-                solution = np.array(
-                    [np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
-                self.solution['iterations']['matches'][s] = solution
-                self.solution['iterations']['names'][s] = "Iteration " + str(s + 1)
-
-            # Last solution iteration
-            self.solution['iterations']['last_s'] = s
-
-            if printing:
-                print('Solution iterations imported from', filepath)
-
-    def _manage_bubbles_parameters(self, p_dict={}):
-        """
-        Handles the solution iterations that we should already have as an attribute of the problem instance
-        """
-
-        # Error Checking
-        self._error_checking("Solution")
-
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
-
-        # Cadets/AFSCs solved for is by default "All"
-        if "cadets_solved_for" not in self.solution:
-            self.solution['cadets_solved_for'] = "All"
-        if "afscs_solved_for" not in self.solution:
-            self.solution['afscs_solved_for'] = "All"
-        self.mdl_p['afscs_solved_for'] = self.solution['afscs_solved_for']  # Update AFSCs solved for in mdl_p
-
-        # Determine which AFSCs to show in this visualization
-        self.mdl_p = afccp.data.support.determine_afscs_in_image(self.parameters, self.mdl_p)
-
-        # Determine what kind of cadet/AFSC board figure and/or animation we're building
-        if 'iterations' in self.solution:
-
-            # Adjust certain elements for Rated stuff
-            if 'Rated' in self.solution['iterations']['type']:
-                self.solution['afscs_solved_for'] = 'Rated'
-                if "USAFA" in self.solution_name:
-                    self.solution['cadets_solved_for'] = 'USAFA Rated'
-                elif "ROTC" in self.solution_name:
-                    self.solution['cadets_solved_for'] = 'ROTC Rated'
-                elif "OTS" in self.solution_name:
-                    self.solution['cadets_solved_for'] = 'OTS Rated'
-
-            # Adjust sorting method
-            if self.solution['iterations']['type'] == 'OTS Status Quo Algorithm':
-                self.mdl_p['sort_cadets_by'] = 'OM'
-                # self.mdl_p['b_title'] = 'OTS Status Quo Algorithm'
-
-            # Determine name of this BubbleChart sequence
-            self.solution['iterations']['sequence'] = \
-                self.data_name + ', ' + self.solution['cadets_solved_for'] + ' Cadets, ' + \
-                self.solution['iterations']['type'] + ', ' + self.solution['afscs_solved_for'] + \
-                ' AFSCs' + ', ' + self.solution['name']
-            if self.data_version != 'Default':
-                self.solution['iterations']['sequence'] += ' (' + self.data_version + ')'
-            self.solution['iterations']['sequence'] += ' ' + str(self.mdl_p['M']) + " AFSCs Displayed"
-
-        # Single solution
-        else:
-
-            # Create solution folder if necessary
-            self._manage_solution_folder()
-
-    # Data Visualizations
+    # ___________________________________________DATA VISUALIZATIONS____________________________________________________
     def display_data_graph(self, p_dict={}, printing=None):
         """
         This method plots different aspects of the fixed parameters of the problem instance.
@@ -2182,7 +2320,6 @@ class CadetCareerProblem:
 
         return charts
 
-    # Value Parameter Visualizations
     def show_value_function(self, p_dict={}, printing=None):
         """
         This method plots a specific AFSC objective value function
@@ -2260,7 +2397,7 @@ class CadetCareerProblem:
 
         return chart
 
-    # Results Visualizations
+    # _________________________________________RESULTS VISUALIZATIONS___________________________________________________
     def display_all_results_graphs(self, p_dict={}, printing=None):
         """
         Saves all charts for the current solution and for the solutions in the solution names list if specified
@@ -2490,6 +2627,32 @@ class CadetCareerProblem:
         if printing:
             print('Done.')
 
+    def display_utility_histogram(self, p_dict={}, printing=None, folder="Results Charts"):
+        """
+        This method plots the cadet utility histogram
+        """
+
+        # Print statement
+        if printing is None:
+            printing = self.printing
+        if printing:
+            print("Creating cadet utility histogram...")
+
+        # Adjust instance plot parameters
+        self._reset_functional_parameters(p_dict)
+        self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
+
+        # Evaluate the solutions to get metrics
+        if self.mdl_p['solution_names'] is not None:
+            self._evaluate_all_solutions(self.mdl_p['solution_names'])
+
+        # Filepath for plot
+        filepath = self.export_paths['Analysis & Results'] + folder + "/"
+
+        # Construct the chart
+        return afccp.visualizations.charts.cadet_utility_histogram(self, filepath=filepath)
+
+    # ____________________________________________BUBBLE CHARTS_________________________________________________________
     def generate_bubbles_chart(self, p_dict={}, printing=None):
         """
         Method to generate the "BubbleChart" figure by calling the BubbleChart class and applying the parameters
@@ -2516,31 +2679,6 @@ class CadetCareerProblem:
             # Generate the slides to go with this
             self.generate_animation_slides(p_dict, printing)
 
-    def display_utility_histogram(self, p_dict={}, printing=None, folder="Results Charts"):
-        """
-        This method plots the cadet utility histogram
-        """
-
-        # Print statement
-        if printing is None:
-            printing = self.printing
-        if printing:
-            print("Creating cadet utility histogram...")
-
-        # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
-        self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
-
-        # Evaluate the solutions to get metrics
-        if self.mdl_p['solution_names'] is not None:
-            self._evaluate_all_solutions(self.mdl_p['solution_names'])
-
-        # Filepath for plot
-        filepath = self.export_paths['Analysis & Results'] + folder + "/"
-
-        # Construct the chart
-        return afccp.visualizations.charts.cadet_utility_histogram(self, filepath=filepath)
-
     def solve_cadet_board_model_direct(self, filepath):
         """
         This method runs the cadet board model directly from the parameters in the csv at the specified
@@ -2549,6 +2687,154 @@ class CadetCareerProblem:
 
         # Run function
         afccp.solutions.optimization.solve_cadet_board_model_direct_from_board_parameters(self, filepath)
+
+    # ________________________________________MISC VISUALIZATION SUPPORT________________________________________________
+    def export_solution_iterations(self, printing=None):
+        """
+        Exports iterations of a matching algorithm to excel
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Error handling
+        if 'iterations' not in self.solution:
+            raise ValueError("Error. No solution iterations detected.")
+
+        # Update the solution iterations dictionary
+        if 'sequence' not in self.solution['iterations']:
+            self._manage_bubbles_parameters()
+
+        # 'Sequence' Folder
+        folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
+        if self.solution['iterations']['sequence'] not in os.listdir(folder_path):
+            os.mkdir(folder_path + self.solution['iterations']['sequence'])
+
+        # Create proposals dataframe
+        if 'proposals' in self.solution['iterations']:
+            proposals_df = pd.DataFrame({'Cadet': self.parameters['cadets']})
+            for s in self.solution['iterations']['proposals']:
+                solution = self.solution['iterations']['proposals'][s]
+                afsc_solution = [self.parameters['afscs'][j] for j in solution]
+                proposals_df['Iteration ' + str(s + 1)] = afsc_solution
+
+            # Export file
+            filepath = folder_path + self.solution['iterations'][
+                'sequence'] + '/Solution Iterations (Proposals).csv'
+            proposals_df.to_csv(filepath, index=False)
+
+            if printing:
+                print('Proposal iterations exported to', filepath)
+
+        # Create matches dataframe
+        if 'matches' in self.solution['iterations']:
+            solutions_df = pd.DataFrame({'Cadet': self.parameters['cadets']})
+            for s in self.solution['iterations']['matches']:
+                solution = self.solution['iterations']['matches'][s]
+                afsc_solution = [self.parameters['afscs'][j] for j in solution]
+                solutions_df['Iteration ' + str(s + 1)] = afsc_solution
+
+            # Export file
+            filepath = folder_path + self.solution['iterations']['sequence'] + '/Solution Iterations (Matches).csv'
+            solutions_df.to_csv(filepath, index=False)
+
+            if printing:
+                print('Solution iterations exported to', filepath)
+
+        if printing:
+            print('Done.')
+
+    def import_solution_iterations(self, sequence_name, printing=None):
+        """
+        Exports iterations of a matching algorithm to excel
+        """
+        if printing is None:
+            printing = self.printing
+
+        # 'Sequence' Folder
+        folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/'
+        if sequence_name not in os.listdir(folder_path):
+            raise ValueError("Error. Sequence '" + str(sequence_name) + "' not found in 'Cadet Board' figure.")
+        sequence_folder_path = self.export_paths['Analysis & Results'] + 'Cadet Board/' + sequence_name
+        sequence_folder = os.listdir(sequence_folder_path)
+        self.solution['iterations'] = {'type': sequence_name.split(',')[2].strip()}
+
+        # Current solution should match the sequence name
+        if self.solution_name not in sequence_name:
+            raise ValueError("Error. Current solution is '" + self.solution_name +
+                             "' which is not found in the provided sequence name of '" + sequence_name + "'.")
+
+        # Get proposals if applicable
+        if 'Solution Iterations (Proposals).csv' in sequence_folder:
+            filepath = sequence_folder_path + '/Solution Iterations (Proposals).csv'
+            proposals_df = afccp.globals.import_csv_data(filepath)
+            self.solution['iterations']['proposals'] = {}
+            for s, col in enumerate(proposals_df.columns[1:]):
+                afsc_solution = np.array(proposals_df[col])
+                solution = np.array([np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+                self.solution['iterations']['proposals'][s] = solution
+
+            if printing:
+                print('Proposal iterations imported from', filepath)
+
+        # Get matches if applicable
+        if 'Solution Iterations (Matches).csv' in sequence_folder:
+            filepath = sequence_folder_path + '/Solution Iterations (Matches).csv'
+            matches_df = afccp.globals.import_csv_data(filepath)
+            self.solution['iterations']['matches'] = {}
+            self.solution['iterations']['names'] = {}
+            for s, col in enumerate(matches_df.columns[1:]):
+                afsc_solution = np.array(matches_df[col])
+                solution = np.array(
+                    [np.where(self.parameters['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+                self.solution['iterations']['matches'][s] = solution
+                self.solution['iterations']['names'][s] = "Iteration " + str(s + 1)
+
+            # Last solution iteration
+            self.solution['iterations']['last_s'] = s
+
+            if printing:
+                print('Solution iterations imported from', filepath)
+
+    # ___________________________________________SENSITIVITY ANALYSIS___________________________________________________
+    def compute_similarity_matrix(self, solution_names=None):
+        """
+        Generates the similarity matrix for a given set of solutions
+        """
+
+        if 'Similarity Solutions.csv' in os.listdir(self.export_paths['Analysis & Results']):
+            solution_df = afccp.globals.import_csv_data(
+                self.export_paths['Analysis & Results'] + 'Similarity Solutions.csv')
+        else:
+            raise ValueError(
+                "Error. No 'Similarity Solutions.csv' dataframe found in the 'Analysis & Results' folder. "
+                "Please create it.")
+
+        # "Starting" Solutions: Extract solutions from dataframe and then convert to "j_array"
+        solutions = {solution_name: np.array(solution_df[solution_name]) for solution_name in solution_df}
+        solutions = {solution_name: np.array([np.where(
+            self.parameters['afscs'] == afsc)[0][0] for afsc in solutions[solution_name]]) for solution_name in
+                     solutions}
+
+        # If we want to add solutions to highlight in the chart
+        if solution_names is not None:
+            extra_solutions = {
+                solution_name: self.solutions[solution_name]['j_array'] for solution_name in solution_names}
+            for solution_name in extra_solutions:
+                solutions[solution_name] = extra_solutions[solution_name]
+
+        # Create the matrix
+        num_solutions = len(solutions.keys())
+        similarity_matrix = np.zeros((num_solutions, num_solutions))
+        for row, sol_1_name in enumerate(solutions.keys()):
+            for col, sol_2_name in enumerate(solutions.keys()):
+                sol_1 = solutions[sol_1_name]
+                sol_2 = solutions[sol_2_name]
+                similarity_matrix[row, col] = np.sum(sol_1 == sol_2) / self.parameters["N"]  # % similarity!
+
+        # Export similarity_matrix
+        similarity_df = pd.DataFrame(
+            {solution: similarity_matrix[:, s] for s, solution in enumerate(solutions.keys())})
+        similarity_df.to_csv(self.export_paths['Analysis & Results'] + 'Similarity Matrix.csv', index=False)
 
     def similarity_plot(self, p_dict={}, printing=None, folder="Results Charts"):
         """
@@ -2586,7 +2872,6 @@ class CadetCareerProblem:
         return afccp.visualizations.charts.solution_similarity_graph(self, coords, solution_names,
                                                                      filepath=filepath)
 
-    # Sensitivity Analysis
     def solve_for_constraints(self, p_dict={}):
         """
         This method iteratively adds constraints to the model to find which ones should be included based on
@@ -2720,7 +3005,7 @@ class CadetCareerProblem:
             model = afccp.solutions.optimization.assignment_model_build(self, printing=printing)
             solution = afccp.solutions.optimization.solve_pyomo_model(self, model, "GUO", printing=printing)
             solution = afccp.solutions.handling.evaluate_solution(solution, self.parameters, self.value_parameters)
-            solution_name = str(round(cadet_overall_weights[point], 4))
+            solution_name = str(round(castle_weights[point], 4))
 
             # Extract solution information
             solutions[solution_name] = solution['afsc_array']
@@ -2996,96 +3281,38 @@ class CadetCareerProblem:
         # Run the function
         afccp.solutions.sensitivity.generate_pgl_capacity_charts(self, p_dict, printing)
 
-    # Export
-    def export_data(self, datasets=None, printing=None):
+    # _______________________________________________DATA MASKING_______________________________________________________
+    def convert_to_scrubbed_instance(self, new_letter, printing=None):
         """
-        Exports the desired problem instance datasets back to csvs.
-
-        Parameters:
-        datasets (list of str): List of datasets to export. By default, the method exports the "Value Parameters" and
-            "Solutions" datasets, as these are the ones that are likely to change the most. Other possible datasets are
-            "AFSCs", "Cadets", "Preferences", and "Goal Programming".
-        printing (bool): Whether to print status updates or not. If not specified, the value of `self.printing` will
-            be used.
-
-        Returns:
-        None
-
-        This method exports the specified datasets using the `export_<dataset_name>_data` functions from the
-        `afccp.data.processing` module. The exported csvs are saved in the paths specified in the
-        `self.export_paths` dictionary.
-
-        If the `self.import_paths` and `self.export_paths` attributes are not set, this method will call the
-        `afccp_dp.initialize_file_information` function to create the necessary directories and set the paths.
-
-        If the "Goal Programming" dataset is included in the `datasets` parameter and the `gp_df` attribute is not None,
-        the method exports the `gp_df` dataframe to a csv using the file path specified in the `export_paths` dictionary.
-        """
-
-        # Parameter initialization
-        if datasets is None:
-            datasets = ["Cadets", "AFSCs", "Preferences", "Goal Programming", "Value Parameters",
-                        "Solutions", "Additional", "Base Solutions", "Course Solutions"]
-        if printing is None:
-            printing = self.printing
-
-        # Print statement
-        if printing:
-            print("Exporting datasets", datasets)
-
-        # Shorten module name
-        afccp_dp = afccp.data.processing
-
-        # Check to make sure we have file data information
-        for attribute in [self.import_paths, self.export_paths]:
-
-            # If we don't have this information, that means this is a new instance to export
-            if attribute is None:
-                self.import_paths, self.export_paths = afccp_dp.initialize_file_information(self.data_name,
-                                                                                            self.data_version)
-                break
-
-        # Export various data using the different functions
-        dataset_function_dict = {"AFSCs": afccp_dp.export_afscs_data,
-                                 "Cadets": afccp_dp.export_cadets_data,
-                                 "Preferences": afccp_dp.export_afsc_cadet_matrices_data,
-                                 "Value Parameters": afccp_dp.export_value_parameters_data,
-                                 "Solutions": afccp_dp.export_solutions_data,
-                                 "Additional": afccp_dp.export_additional_data}
-        for dataset in dataset_function_dict:
-            if dataset in datasets:
-                dataset_function_dict[dataset](self)
-
-        # Goal Programming dataframe is an easy export (dataframe is already constructed)
-        if "Goal Programming" in datasets and self.gp_df is not None:
-            self.gp_df.to_csv(self.export_paths["Goal Programming"], index=False)
-
-    def export_solution_results(self, printing=None):
-        """
-        This function exports the metrics for one solution back to excel for review
+        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
+        :param printing: If we should print status update
+        :param new_letter: New letter to assign to this problem instance
         """
         if printing is None:
             printing = self.printing
 
-        # Make sure we have a solution
-        self._error_checking('Solution')
-
-        # Create solution folder if necessary
-        self._manage_solution_folder()
-
-        # Filepath to export to
-        filename = self.data_name + " " + self.solution_name + " (" + self.vp_name + ").xlsx"
-        filepath = self.export_paths['Analysis & Results'] + self.solution_name + '/' + filename
-
-        # Print statement
         if printing:
-            print("Exporting solution", self.solution_name, "results to " + filepath + "...")
+            print("Converting problem instance '" + self.data_name + "' to new instance '" + new_letter + "'...")
 
-        # Export results
-        afccp.data.processing.export_solution_results_excel(self, filepath)
+        return afccp.data.adjustments.convert_instance_to_from_scrubbed(self, new_letter, translation_dict=None)
+
+    def convert_back_to_real_instance(self, translation_dict, data_name, printing=None):
+        """
+        This method scrubs the AFSC names by sorting them by their PGL targets and creates a translated problem instance
+        :param printing: If we should print status update
+        :param translation_dict: Dictionary generated from the scrubbed instance method
+        :param data_name: Data Name of the new instance
+        """
+        if printing is None:
+            printing = self.printing
 
         if printing:
-            print("Done.")
+            print("Converting problem instance '" + self.data_name + "' back to instance '" + data_name + "'...")
+
+        return afccp.data.adjustments.convert_instance_to_from_scrubbed(
+            self, translation_dict=translation_dict, data_name=data_name)
+
+
 
 
 
