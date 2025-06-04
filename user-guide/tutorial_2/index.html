@@ -191,7 +191,7 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/dglaird/afccp" title="Go to repository" class="md-source" data-md-component="source">
+        <a href="https://github.com/dglaird/afccp/" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
@@ -447,7 +447,7 @@
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/dglaird/afccp" title="Go to repository" class="md-source" data-md-component="source">
+      <a href="https://github.com/dglaird/afccp/" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
@@ -1855,7 +1855,7 @@
 
 <h1 id="tutorial-2-data-overview">Tutorial 2: Data Overview<a class="headerlink" href="#tutorial-2-data-overview" title="Permanent link">&para;</a></h1>
 <p>In this second tutorial, we'll explain the contents of the <code>data</code> module within <code>afccp</code>, as well as how the data itself 
-is structured in the <a href="../../../reference/main/cadetcareerproblem_overview/">CadetCareerProblem</a> object.</p>
+is structured in the <a href="../../../afccp/reference/main/cadetcareerproblem_overview/">CadetCareerProblem</a> object.</p>
 <hr />
 <h2 id="1-data-module">1. Data Module<a class="headerlink" href="#1-data-module" title="Permanent link">&para;</a></h2>
 <p>A <code>CadetCareerProblem</code> instance comes with a lot of data, and so the largest section of this tutorial is here to 
@@ -1865,7 +1865,7 @@ the <code>CadetCareerProblem</code> class, and where the code is that manages al
 <p>The "data" module of afccp contains the scripts and functions that all have something to do with processing the 
 many sets and parameters of the problem. At a high level the modules are set up like this:</p>
 <p align="center">
-  <img src="/user-guide/images/pic3.png" width="500px">
+  <img src="/afccp/images/user-guide/pic3.png" width="500px">
 </p>
 
 <p>The "adjustments.py" script holds the functions that manipulate the parameters. There is also a function that sanity 
@@ -1965,8 +1965,8 @@ Done, 0 issues found.
 </details>
 <p>There are certainly a lot of things that happen when we "fix" the generated data. I will describe these steps in more
 detail later, but for more information on what is happening please refer to the 
-<a href="../../../reference/main/cadetcareerproblem_generated_data_corrections/">fix_generated_data()</a> method. 
-Now we can <a href="../../../reference/main/cadetcareerproblem_generated_export_data/">export</a> the data!</p>
+<a href="../../../afccp/reference/main/cadetcareerproblem_generated_data_corrections/">fix_generated_data()</a> method. 
+Now we can <a href="../../../afccp/reference/main/cadetcareerproblem_generated_export_data/">export</a> the data!</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Export everything</span>
 <span class="n">instance</span><span class="o">.</span><span class="n">export_data</span><span class="p">()</span>
 </code></pre></div>
@@ -1979,12 +1979,12 @@ Now we can <a href="../../../reference/main/cadetcareerproblem_generated_export_
 <p>Now that we've exported the data (after manipulating it a little), you should have a "Random_1" sub-folder within your 
 "instances" folder:</p>
 <p align="center">
-  <img src="/user-guide/images/pic4.png" width="700px">
+  <img src="/afccp/images/user-guide/pic4.png" width="700px">
 </p>
 
 <p>You have data now located within the "Random_1" sub-folder. There are 5 instance sub-folders that get created:</p>
 <p align="center">
-  <img src="/user-guide/images/pic5.png" width="700px">
+  <img src="/afccp/images/user-guide/pic5.png" width="700px">
 </p>
 
 <p>The first 3 all relate to the pre-processing "phases" that AFPC/DSYA goes through to get the data into the problem 
@@ -1992,7 +1992,7 @@ instance format and are irrelevant for this tutorial. For a real class year of c
 be filled with real data in order to get it into sub-folder "4. Model Input". </p>
 <p>Since we've generated data, all of these parameters are located in this sub-folder:</p>
 <p align="center">
-  <img src="/user-guide/images/pic6.png" width="700px">
+  <img src="/afccp/images/user-guide/pic6.png" width="700px">
 </p>
 
 <p>The files shown above, and which you should also have if you're following along, contain all the information stored in 
@@ -2011,7 +2011,7 @@ Instance &#39;Random_1&#39; initialized.
 </code></pre></div>
 </details>
 <p>At this point, we're ready to dive into the different data elements and structures used within 
-<a href="../../../reference/main/cadetcareerproblem_overview/">CadetCareerProblem</a>. </p>
+<a href="../../../afccp/reference/main/cadetcareerproblem_overview/">CadetCareerProblem</a>. </p>
 <h2 id="summary">📌 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>In this tutorial:</p>
 <ul>

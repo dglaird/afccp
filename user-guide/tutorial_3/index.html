@@ -191,7 +191,7 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/dglaird/afccp" title="Go to repository" class="md-source" data-md-component="source">
+        <a href="https://github.com/dglaird/afccp/" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
@@ -447,7 +447,7 @@
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/dglaird/afccp" title="Go to repository" class="md-source" data-md-component="source">
+      <a href="https://github.com/dglaird/afccp/" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
@@ -1918,14 +1918,14 @@ Let's first discuss the two "primary" datasets: "Cadets.csv" and "AFSCs.csv". </
 <h2 id="1-cadets">1. Cadets<a class="headerlink" href="#1-cadets" title="Permanent link">&para;</a></h2>
 <p>"Random_1 Cadets.csv" defines the basic features of the cadets in this problem instance. It looks like this:</p>
 <p align="center">
-  <img src="/user-guide/images/pic7.png" width="900px">
+  <img src="/afccp/images/user-guide/pic7.png" width="900px">
 </p>
 
 <p>We can gain quite a bit of information from this dataset. I will reiterate that data is represented in this module as 
 numpy arrays within certain dictionaries. I extract these arrays from excel using pandas as the dataframe vehicle. This
 data processing step occurs in the 
-<a href="../../../reference/data/processing/#data.processing.import_cadets_data">import_cadets_data()</a> function, which is called
-from within the <code>__init__</code> method of <a href="../../../reference/main/cadetcareerproblem_overview/">CadetCareerProblem</a>.
+<a href="../../../afccp/reference/data/processing/#data.processing.import_cadets_data">import_cadets_data()</a> function, which is called
+from within the <code>__init__</code> method of <a href="../../../afccp/reference/main/cadetcareerproblem_overview/">CadetCareerProblem</a>.
 Let's go through some of these arrays.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Cadet identifier</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&#39;cadets&#39;:&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;cadets&#39;</span><span class="p">])</span>
@@ -2075,11 +2075,11 @@ kinds of tiers shown in the qualification matrix below. The numbers correspond w
 <h2 id="2-afscs">2. AFSCs<a class="headerlink" href="#2-afscs" title="Permanent link">&para;</a></h2>
 <p>Like cadets, AFSCs are also defined in a separate csv file (Random_1 AFSCs.csv) which looks like this:</p>
 <p align="center">
-  <img src="/user-guide/images/pic8.png" width="900px">
+  <img src="/afccp/images/user-guide/pic8.png" width="900px">
 </p>
 
 <p>Here we have 4 AFSCs, and each has its own set of unique characteristics. In the same way as the cadets, this data is 
-extracted from the <a href="../../../reference/data/processing/#data.processing.import_afscs_data">import_afscs_data()</a> function.</p>
+extracted from the <a href="../../../afccp/reference/data/processing/#data.processing.import_afscs_data">import_afscs_data()</a> function.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Array of AFSC names</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">instance</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;afscs&#39;</span><span class="p">])</span>
 </code></pre></div>
@@ -2237,7 +2237,7 @@ P: 4
 </code></pre></div>
 </details>
 <p>These additional sets, subsets, parameters, etc. are constructed as part of the 
-<a href="../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions">parameter_sets_additions()</a> function in
+<a href="../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions">parameter_sets_additions()</a> function in
 the <code>data.adjustments</code> module. This function is executed often, since any slight data modification could tweak the 
 underlying sets and parameters that are ultimately used by the models and algorithms.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Sets of cadets and AFSCs (indices)</span>
@@ -2335,7 +2335,7 @@ first. There are multiple csv files containing information on cadet and AFSC pre
 <p>For cadets, there is the <code>utility</code> matrix I depicted earlier which is contained in 
 "Random_1 Cadets Utility.csv":</p>
 <p align="center">
-  <img src="/user-guide/images/pic9.png" width="800px">
+  <img src="/afccp/images/user-guide/pic9.png" width="800px">
 </p>
 
 <p>As you can see, the data is the same as was printed from "instance.parameters['utility']" earlier 
@@ -2360,12 +2360,12 @@ their top 10 choices (same rules as before). For FY25, FY26, and beyond, cadets 
 top 10 preferences, just as before. This essentially creates two separate matrices: <code>c_pref_matrix</code> and 
 <code>utility</code>. "Random_1 Cadets Preferences.csv" contains the preference matrix (<code>c_pref_matrix</code>):</p>
 <p align="center">
-  <img src="/user-guide/images/pic10.png" width="800px">
+  <img src="/afccp/images/user-guide/pic10.png" width="800px">
 </p>
 
 <p>The "Cadets Utility" and "Cadets Preferences" files are both extracted into their numpy array counterparts, 
 <code>utility</code> and <code>c_pref_matrix</code>, respectively, within the 
-<a href="../../../reference/data/processing/#data.processing.import_afsc_cadet_matrices_data">import_afsc_cadet_matrices_data()</a> 
+<a href="../../../afccp/reference/data/processing/#data.processing.import_afsc_cadet_matrices_data">import_afsc_cadet_matrices_data()</a> 
 function. In fact, the remainder of data elements discussed in Tutorial 3 are processed by this function since they
 all follow the 2 dimensional cadet-AFSC row-column relationship.</p>
 <div class="highlight"><pre><span></span><code><span class="n">instance</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;c_pref_matrix&#39;</span><span class="p">]</span>
@@ -2443,10 +2443,10 @@ different pieces of information that we must aggregate together to form one "fin
 random dataset, and for the FY24 class, we convert the ordinal rankings (1, 2, 3, 4, 5) to a continuous 1 -&gt; 0 scale 
 (1, 0.8, 0.6, 0.4, 0.2). We then average these converted rankings and the provided utility values to get the final 
 cadet utility matrix, <code>cadet_utility</code>, which is located in "Random_1 Cadets Utility (Final).csv". This occurs in the 
-<a href="../../../reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix">create_new_cadet_utility_matrix()</a> 
+<a href="../../../afccp/reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix">create_new_cadet_utility_matrix()</a> 
 function. For FY25, FY26, and beyond, we utilize additional information on the cadet's bottom choices and on the 
 AFSCs they did not select in their preferences to construct the <code>cadet_utility</code> matrix. The math behind this operation is located in the 
-<a href="../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula">create_final_cadet_utility_matrix_from_new_formula()</a> 
+<a href="../../../afccp/reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula">create_final_cadet_utility_matrix_from_new_formula()</a> 
 function. </p>
 <div class="highlight"><pre><span></span><code><span class="n">instance</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;cadet_utility&#39;</span><span class="p">]</span>
 </code></pre></div>
@@ -2604,8 +2604,8 @@ in "Random_1 ROTC Rated OM.csv" and "Random_1 USAFA Rated OM.csv", respectively.
   <strong>ROTC Rated OM (Left) & USAFA Rated OM (Right)</strong>
 </div>
 <p float="left">
-  <img src="/user-guide/images/pic11.png" width="47%" />
-  <img src="/user-guide/images/pic12.png" width="47%" />
+  <img src="/afccp/images/user-guide/pic11.png" width="47%" />
+  <img src="/afccp/images/user-guide/pic12.png" width="47%" />
 </p>
 
 <p>One of the reasons I like using cadet indices as identifiers (rather than some other ID or name) is for this example 
@@ -2634,7 +2634,7 @@ Cadet preference on R4: [3 0 1 3 0 2 4]
 </details>
 <p>Since both of these lists for <code>R4</code> are relative to each SOC, we can combine them like we do with general OM. 
 We convert to "percentiles" relative to the SOCs and then zipper them together. I have a method that does this: 
-<a href="../../../reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc">construct_rated_preferences_from_om_by_soc()</a>. 
+<a href="../../../afccp/reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc">construct_rated_preferences_from_om_by_soc()</a>. 
 It takes these two matrices and then zippers them together where the final product is an updated <code>a_pref_matrix</code> and 
 <code>afsc_preferences</code>. Let's demonstrate the "zippering":</p>
 <div class="highlight"><pre><span></span><code><span class="n">j</span> <span class="o">=</span> <span class="mi">3</span> <span class="c1"># R4</span>
@@ -2718,11 +2718,11 @@ eligible or not for each of the AFSCs. For rated, everyone is a "P" unless you'r
 This means that if you're on one AFSC's preference list, that AFSC must be on your preference list too. 
 Essentially, this creates three separate eligibility sources (cadet preferences, afsc preferences, and the qual matrix). 
 All three of these need to match up. This is why I have one method of CadetCareerProblem that "ensures" this is true: 
-<a href="../../../reference/main/cadetcareerproblem_main_data_corrections/#afccp.main.CadetCareerProblem.remove_ineligible_choices">instance.remove_ineligible_choices()</a>.
+<a href="../../../afccp/reference/main/cadetcareerproblem_main_data_corrections/#afccp.main.CadetCareerProblem.remove_ineligible_choices">instance.remove_ineligible_choices()</a>.
 This is a fairly aggressive approach since all it does is check if you're ineligible according to one source, 
 and if you are, it removes you from all other sources to force ineligibility. If you're doing this for real data, 
 make sure you know what you're doing! Here's the code I have in the 
-<a href="../../../reference/main/cadetcareerproblem_generated_data_corrections/#afccp.generated.CadetCareerProblem.fix_generated_data">instance.fix_generated_data()</a> 
+<a href="../../../afccp/reference/main/cadetcareerproblem_generated_data_corrections/#afccp.generated.CadetCareerProblem.fix_generated_data">instance.fix_generated_data()</a> 
 method when I remove these choices to show what you need to do afterwards to get the data looking right:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Removes ineligible cadets from all 3 matrices: degree qualifications, cadet preferences, AFSC preferences</span>
 <span class="n">instance</span><span class="o">.</span><span class="n">remove_ineligible_choices</span><span class="p">()</span>
