@@ -1,107 +1,24 @@
+"""
+This module contains functions for constructing and modifying cadet and AFSC preference structures
+within the Air Force Cadet Career Problem (AFCCP) model.
+
+These utilities operate on the model's parameter dictionary to:
+- Build preference matrices (`c_pref_matrix`, `a_pref_matrix`) from raw preference lists
+- Convert preferences into normalized utilities and percentiles
+- Apply eligibility filters to AFSC preferences
+- Update final utility matrices for use in optimization
+
+Functions in this module are essential for:
+- Ensuring consistency between input data (Cadets.csv, AFSCs.csv) and the model structure
+- Supporting preference-based evaluation and assignment logic
+- Performing key preprocessing steps used during instance initialization or data generation
+"""
 import numpy as np
 import pandas as pd
 import copy
 
 
-# Preference functions
-def get_utility_preferences(parameters):
-    """
-    Converts utility matrix into two arrays of preferences and utilities (NxP for each)
-    :param parameters: fixed cadet/afsc data
-    :return: preference matrix and utilities matrix
-    """
-    preferences = np.array([[" " * 10 for _ in range(parameters['P'])] for _ in range(parameters['N'])])
-    utilities_array = np.zeros([parameters['N'], parameters['P']])
-    for i in range(parameters['N']):
-
-        # Sort indices of nonzero utilities
-        indices = parameters['utility'][i, :].nonzero()[0]
-        sorted_init = np.argsort(parameters['utility'][i, :][indices])[::-1]
-        sorted_indices = indices[sorted_init][:parameters['P']]  # Take the top "P" preferences (all preferences)
-
-        # Put the utilities and preferences in the correct spots
-        np.put(utilities_array[i, :], np.arange(len(sorted_indices)), parameters['utility'][i, :][sorted_indices])
-        np.put(preferences[i, :], np.arange(len(sorted_indices)), parameters['afscs'][sorted_indices])
-
-    return preferences, utilities_array
-
-
-def get_utility_preferences_from_preference_array(parameters):
-    """
-    Convert cadet preference matrix to preference columns of AFSC names and calculate utility columns.
-
-    This function takes the cadet preference matrix (NxM) where cadet "ranks" are specified and converts it to
-    preference columns (NxP) of AFSC names, where P is the number of AFSC preferences for each cadet. It uses
-    this preference information alongside the utility dataframe (NxP) to extract the utility columns (NxP) as well.
-
-    Args:
-        parameters (dict): A dictionary containing the following elements:
-            - "c_pref_matrix" (numpy.ndarray): Cadet preference matrix (NxM) with cadet ranks.
-            - "P" (int): Number of AFSC preferences for each cadet.
-            - "N" (int): Total number of cadets.
-            - "I" (list): List of cadet indices.
-            - "M" (int): Total number of AFSCs.
-            - "afscs" (numpy.ndarray): Array of AFSC names.
-            - "num_util" (int): Number of utility values to extract.
-            - "utility" (numpy.ndarray): Utility dataframe (NxM) containing utility values for cadets and AFSCs.
-
-    Returns:
-        tuple: A tuple containing two elements:
-            - preferences (numpy.ndarray): Cadet preference columns (NxP) with AFSC names.
-            - utilities_array (numpy.ndarray): Utility columns (NxP) for each cadet and AFSC preference.
-
-    """
-
-    # Shorthand
-    p = parameters
-
-    # Initialize data
-    preference_matrix = copy.deepcopy(p["c_pref_matrix"])
-    preferences = np.array([[" " * 10 for _ in range(p['P'])] for _ in range(p['N'])])
-    utilities_array = np.zeros([p['N'], p['P']])
-    for i in p['I']:
-
-        # Eliminate AFSCs that weren't in the cadet's preference list (Change the choice to a large #)
-        zero_indices = np.where(preference_matrix[i, :] == 0)[0]
-        preference_matrix[i, zero_indices] = 100
-
-        # Get the ordered list of AFSCs
-        indices = np.argsort(preference_matrix[i, :])  # [::-1]  #.nonzero()[0]
-        ordered_afscs = p["afscs"][indices][:p["M"] - len(zero_indices)][:p["P"]]
-        ordered_utilities = p["utility"][i, indices][:p["M"] - len(zero_indices)][:p["num_util"]]
-
-        # Put the utilities and preferences in the correct spots
-        np.put(utilities_array[i, :], np.arange(len(ordered_utilities)), ordered_utilities)
-        np.put(preferences[i, :], np.arange(len(ordered_afscs)), ordered_afscs)
-
-    return preferences, utilities_array
-
-
-def update_first_choice_cadet_utility_to_one(parameters, printing=True):
-
-    # Shorthand
-    p = parameters
-
-    # Loop through each cadet and make their first choice AFSC have a utility of 1
-    fixed_cadets = []
-    for i in p['I']:
-
-        # If this cadet does not have any preferences, we skip them (must be an OTS candidate)
-        if len(p['cadet_preferences'][i]) == 0:
-            continue
-
-        # Fix the first choice
-        if p['utility'][i, p['cadet_preferences'][i][0]] != 1:
-            p['utility'][i, p['cadet_preferences'][i][0]] = 1
-            fixed_cadets.append(i)
-
-    if printing:
-        print_str = f'Fixed {len(fixed_cadets)} first choice cadet utility values to 100%.\nCadets: {fixed_cadets}'
-        print(print_str)
-
-    return p['utility']
-
-
+# _________________________________________DATA GENERATION SPECIFIC FUNCTIONS___________________________________________
 def convert_utility_matrices_preferences(parameters, cadets_as_well=False):
     """
     Converts utility matrices into ordinal preference matrices.
@@ -185,8 +102,10 @@ def generate_fake_afsc_preferences(parameters, value_parameters=None, fix_cadet_
 
     Examples
     --------
-    >>> p = generate_fake_afsc_preferences(p)
-    >>> p = generate_fake_afsc_preferences(p, value_parameters=vp, fix_cadet_eligibility=True)
+    ```python
+    parameters = generate_fake_afsc_preferences(parameters)
+    parameters = generate_fake_afsc_preferences(parameters, value_parameters=vp, fix_cadet_eligibility=True)
+    ```
     """
     # Shorthand
     p, vp = parameters, value_parameters
@@ -260,26 +179,6 @@ def generate_fake_afsc_preferences(parameters, value_parameters=None, fix_cadet_
     return p
 
 
-def convert_afsc_preferences_to_percentiles(parameters):
-    """
-    This method takes the AFSC preference lists and turns them into normalized percentiles for each cadet for each
-    AFSC.
-    :param parameters: cadet/AFSC fixed data
-    :return: parameters
-    """
-
-    # Shorthand
-    p = parameters
-
-    # Get normalized percentiles (Average of 0.5)
-    p["afsc_utility"] = np.zeros([p['N'], p['M']])
-    for j in p['J']:
-        p['afsc_utility'][p['afsc_preferences'][j], j] = \
-            np.arange(1, len(p['afsc_preferences'][j]) + 1)[::-1] / len(p['afsc_preferences'][j])
-
-    return p
-
-
 def generate_rated_data(parameters):
     """
     Generate Simulated Rated Interest and Order of Merit (OM) Data.
@@ -292,6 +191,7 @@ def generate_rated_data(parameters):
     ----------
     parameters : dict
         The main parameter dictionary for the cadet-AFSC assignment problem. It must contain:
+
         - `Rated Cadets`: Dictionary of rated cadets by commissioning source (`usafa`, `rotc`)
         - `afscs_acc_grp`: AFSCs categorized into assignment groups (must include 'Rated')
         - `SOCs`: List of commissioning source identifiers (e.g., `('usafa', 'Rated')`)
@@ -303,15 +203,19 @@ def generate_rated_data(parameters):
     Returns
     -------
     dict
-        Updated parameter dictionary including:
-        - `rr_interest_matrix`: ROTC cadets' self-assessed interest in rated AFSCs
-        - `xr_om_matrix`, `ur_om_matrix`, etc.: Rated OM matrices for each SOC (generated if missing)
+    Updated parameter dictionary including:
+
+    - `rr_interest_matrix`: ROTC cadets' self-assessed interest in rated AFSCs
+    - `xr_om_matrix`, `ur_om_matrix`, etc.: Rated OM matrices for each SOC (generated if missing)
 
     Examples
     --------
-    >>> parameters = generate_rated_data(parameters)
+    ```python
+    parameters = generate_rated_data(parameters)
+    ```
 
     This generates the following additions:
+
     - `parameters['rr_interest_matrix']` → random values like ['High', 'Med', 'Low', 'None']
     - `parameters['ur_om_matrix']` → OM percentiles for USAFA-rated cadets and AFSCs
     """
@@ -357,48 +261,7 @@ def generate_rated_data(parameters):
     return p
 
 
-def determine_soc_rated_afscs(soc, all_rated_afscs):
-    """
-    Filter Rated AFSCs Based on Source of Commissioning (SOC).
-
-    This function selects only the AFSCs relevant to the given SOC (e.g., USAFA, ROTC, OTS)
-    by excluding AFSCs that are tagged for other SOCs using suffixes like `_U`, `_R`, or `_O`.
-
-    Parameters:
-        soc (str): The name of the source of commissioning (e.g., "usafa", "rotc").
-        all_rated_afscs (List[str]): A list of all rated AFSC strings.
-
-    Returns:
-        List[str]: Filtered list of AFSCs associated with the provided SOC.
-
-    Example:
-        ```python
-        determine_soc_rated_afscs("usafa", ["11X_U", "12X_R", "13X_U", "14X_O"])
-        # Returns: ["11X_U", "13X_U"]
-        ```
-
-    Notes:
-        The filtering logic assumes that the AFSC string contains an SOC-specific suffix.
-        - `_U` for USAFA
-        - `_R` for ROTC
-        - `_O` for OTS
-    """
-
-    # Rated AFSCs for this SOC
-    other_letters = [l for l in ['_U', '_R', '_O'] if l != f'_{soc[0].upper()}']
-    rated_afscs = []
-    for afsc in all_rated_afscs:
-        include = True
-        for l in other_letters:
-            if l in afsc:
-                include = False
-                break
-        if include:
-            rated_afscs.append(afsc)
-
-    return rated_afscs
-
-
+# ____________________________________________MAIN DATA CORRECTION FUNCTIONS____________________________________________
 def construct_rated_preferences_from_om_by_soc(parameters):
     """
     Construct AFSC Preferences for Rated Candidates Using OM Matrices.
@@ -409,25 +272,30 @@ def construct_rated_preferences_from_om_by_soc(parameters):
     list and the `a_pref_matrix` for use in assignment modeling.
 
     Parameters:
-        parameters (dict): Dictionary containing the model instance parameters, including:
-            - `rr_om_matrix`, `ur_om_matrix`: Ordered merit matrices from ROTC and USAFA.
-            - `or_om_matrix`: **Potentially** Ordered merit matrices from OTS.
-            - `afsc_preferences`: Dictionary to update with new AFSC → cadet preference lists.
-            - `a_pref_matrix`: Matrix representing cadet rankings from the AFSCs' perspective.
-            - `SOCs`, `afscs_acc_grp`, and cadet lists for each SOC.
+    --------
+    parameters (dict): Dictionary containing the model instance parameters, including:
+
+    - `rr_om_matrix`, `ur_om_matrix`: Ordered merit matrices from ROTC and USAFA.
+    - `or_om_matrix`: **Potentially** Ordered merit matrices from OTS.
+    - `afsc_preferences`: Dictionary to update with new AFSC → cadet preference lists.
+    - `a_pref_matrix`: Matrix representing cadet rankings from the AFSCs' perspective.
+    - `SOCs`, `afscs_acc_grp`, and cadet lists for each SOC.
 
     Returns:
-        dict: Updated `parameters` dictionary with modified `afsc_preferences` and `a_pref_matrix` reflecting
-        normalized OM-based preference rankings for Rated AFSCs.
+    --------
+    dict: Updated `parameters` dictionary with modified `afsc_preferences` and `a_pref_matrix` reflecting
+    normalized OM-based preference rankings for Rated AFSCs.
 
     Example:
-        ```python
-        parameters = construct_rated_preferences_from_om_by_soc(parameters)
-        ```
+    --------
+    ```python
+    parameters = construct_rated_preferences_from_om_by_soc(parameters)
+    ```
 
     See Also:
-        - [`determine_soc_rated_afscs`](../../../reference/data/preferences/#data.preferences.determine_soc_rated_afscs):
-          Identifies which AFSCs are rated within a given SOC.
+    --------
+    [`determine_soc_rated_afscs`](../../../reference/data/preferences/#data.preferences.determine_soc_rated_afscs):
+        Identifies which AFSCs are rated within a given SOC.
     """
 
     # Shorthand
@@ -484,6 +352,62 @@ def construct_rated_preferences_from_om_by_soc(parameters):
     return p  # Return updated parameters
 
 
+def fill_remaining_preferences(parameters):
+    """
+    Fill in Remaining Cadet Preferences to Complete the Preference Matrix.
+
+    This function ensures that each cadet has a complete preference list across all AFSCs. It fills in any
+    unranked AFSCs (excluding bottom 2 and last choice) with incrementing ranks, followed by bottom 2 preferences,
+    and finally the explicitly marked last choice if applicable.
+
+    Parameters:
+    --------
+    parameters (dict): The problem instance parameters, containing:
+        - `cadet_preferences`: Dictionary of AFSC preference orderings per cadet.
+        - `c_pref_matrix`: Matrix of cadet preferences over AFSCs.
+        - `J^Bottom 2 Choices`: Dictionary of each cadet's bottom two AFSCs.
+        - `J^Last Choice`: Dictionary of each cadet's last AFSC choice.
+        - `I`, `J`, `M`: Indexed sets of cadets, AFSCs, and unmatched AFSC index.
+
+    Returns:
+    --------
+    dict: Updated parameters dictionary with a fully filled `c_pref_matrix`.
+
+    Example:
+    --------
+    ```python
+    parameters = fill_remaining_preferences(parameters)
+    ```
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Loop through all cadets
+    for i in p['I']:
+
+        # Loop through all "indifferent" AFSCs that they are eligible for
+        pref_num = len(p['cadet_preferences'][i]) + 1
+        for j in p['J']:
+
+            # The AFSC is not in the cadet's preferences and it's not in the bottom choices
+            if j not in p['cadet_preferences'][i] and \
+                    j not in p['J^Bottom 2 Choices'][i] and j != p['J^Last Choice'][i]:
+                p['c_pref_matrix'][i, j] = pref_num
+                pref_num += 1
+
+        # Loop through bottom 2 choices
+        for j in p['J^Bottom 2 Choices'][i]:
+            p['c_pref_matrix'][i, j] = pref_num
+            pref_num += 1
+
+        # Set last choice preference if applicable
+        if p['J^Last Choice'][i] != p['M']:
+            p['c_pref_matrix'][i, p['J^Last Choice'][i]] = pref_num
+
+    return p
+
+
 def remove_ineligible_cadet_choices(parameters, printing=False):
     """
     Clean Ineligible Cadet-AFSC Preference Pairings.
@@ -494,22 +418,27 @@ def remove_ineligible_cadet_choices(parameters, printing=False):
     ineligibility for problematic pairs.
 
     Parameters:
-        parameters (dict): Dictionary of the problem instance parameters.
-        printing (bool, optional): If True, logs every change made. Default is False.
+    --------
+    parameters (dict): Dictionary of the problem instance parameters.
+
+    printing (bool, optional): If True, logs every change made. Default is False.
 
     Returns:
-        dict: Updated parameters dictionary with cleaned preference matrices and enforced eligibility alignment.
+    --------
+    dict: Updated parameters dictionary with cleaned preference matrices and enforced eligibility alignment.
 
     Example:
-        ```python
-        parameters = remove_ineligible_cadet_choices(parameters, printing=True)
-        ```
+    --------
+    ```python
+    parameters = remove_ineligible_cadet_choices(parameters, printing=True)
+    ```
 
     See Also:
-        - [`fill_remaining_preferences`](../../../reference/data/preferences/#data.preferences.fill_remaining_preferences):
-          Fills in arbitrary preferences for cadets, excluding bottom-ranked AFSCs.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
-          Rebuilds indexed sets after modifying eligibility or preference matrices.
+    --------
+    - [`fill_remaining_preferences`](../../../reference/data/preferences/#data.preferences.fill_remaining_preferences):
+      Fills in arbitrary preferences for cadets, excluding bottom-ranked AFSCs.
+    - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+      Rebuilds indexed sets after modifying eligibility or preference matrices.
     """
 
     # Shorthand
@@ -613,8 +542,41 @@ def remove_ineligible_cadet_choices(parameters, printing=False):
 
 def update_preference_matrices(parameters):
     """
-    This method takes the preference arrays and re-creates the preference
-    matrices based on the cadets/AFSCs on each list
+    Reconstructs cadet and AFSC preference matrices based on index-based preference lists.
+
+    This function updates the `c_pref_matrix` (cadet preference matrix) and `a_pref_matrix`
+    (AFSC preference matrix) using the indexed preference lists provided in
+    `cadet_preferences` and `afsc_preferences`, respectively. Cadets and AFSCs with empty
+    preferences are skipped.
+
+    Parameters
+    ----------
+    parameters : dict
+    A parameter dictionary containing:
+
+    - `N` : int, total number of cadets
+    - `M` : int, total number of AFSCs
+    - `I` : list of cadet indices
+    - `J` : list of AFSC indices
+    - `cadet_preferences` : dictionary of lists; each list contains AFSC indices ranked by each cadet
+    - `afsc_preferences` : dictionary of lists; each list contains cadet indices ranked by each AFSC
+
+    Returns
+    -------
+    dict
+    Updated parameter dictionary with:
+
+    - `c_pref_matrix` : ndarray, shape (N, M)
+        Preference matrix where entry (i, j) indicates cadet i's rank of AFSC j (0 if not ranked)
+    - `a_pref_matrix` : ndarray, shape (N, M)
+        Preference matrix where entry (i, j) indicates AFSC j's rank of cadet i (0 if not ranked)
+
+    Examples
+    --------
+    ```python
+    from afccp.data.preferences import update_preference_matrices
+    parameters = update_preference_matrices(parameters)
+    ```
     """
     # Shorthand
     p = parameters
@@ -642,10 +604,230 @@ def update_preference_matrices(parameters):
     return p
 
 
+def update_first_choice_cadet_utility_to_one(parameters, printing=True):
+    """
+    Fix First-Choice Cadet Utility to One.
+
+    Updates the utility matrix so that each cadet's top-ranked AFSC is assigned a utility value of 1.0,
+    indicating maximum preference. This only applies to cadets who have valid preference lists.
+
+    Parameters
+    ----------
+    parameters : dict
+    A parameter dictionary containing:
+
+    - `I` : list of int
+      Cadet indices.
+    - `cadet_preferences` : dict of lists
+      Each cadet's list of AFSC indices in ranked order of preference.
+    - `utility` : ndarray of shape (N, M)
+      Matrix of cadet utility values where entry (i, j) is cadet i's utility for AFSC j.
+
+    printing : bool, optional
+    If True, prints the number of cadets updated and their indices. Default is True.
+
+    Returns
+    -------
+    ndarray:
+    Updated utility matrix with each cadet's first choice AFSC set to a utility of 1.
+
+    Examples
+    --------
+    ```python
+    updated_utility = update_first_choice_cadet_utility_to_one(parameters)
+    ```
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Loop through each cadet and make their first choice AFSC have a utility of 1
+    fixed_cadets = []
+    for i in p['I']:
+
+        # If this cadet does not have any preferences, we skip them (must be an OTS candidate)
+        if len(p['cadet_preferences'][i]) == 0:
+            continue
+
+        # Fix the first choice
+        if p['utility'][i, p['cadet_preferences'][i][0]] != 1:
+            p['utility'][i, p['cadet_preferences'][i][0]] = 1
+            fixed_cadets.append(i)
+
+    if printing:
+        print_str = f'Fixed {len(fixed_cadets)} first choice cadet utility values to 100%.\nCadets: {fixed_cadets}'
+        print(print_str)
+
+    return p['utility']
+
+
+def convert_afsc_preferences_to_percentiles(parameters):
+    """
+    Convert AFSC Preferences to Percentile-Based Utilities.
+
+    This method transforms each AFSC's preference list into a normalized percentile utility score
+    for each cadet. Higher-ranked cadets receive higher percentile scores (closer to 1), while lower-ranked
+    cadets receive lower scores (closer to 0). These scores are stored in a new matrix called `afsc_utility`.
+
+    Parameters
+    ----------
+    parameters: dict
+    A parameter dictionary containing:
+
+    - `N` : int
+      Total number of cadets
+    - `M` : int
+      Total number of AFSCs
+    - `J` : list of AFSC indices
+    - `afsc_preferences` : dict
+      Dictionary where each key is an AFSC index and each value is a list of cadet indices ranked by that AFSC
+
+    Returns
+    -------
+    parameters : dict
+    Updated parameter dictionary with:
+
+    - `afsc_utility`: ndarray of shape (N, M)
+      Matrix of normalized percentile utility values for each cadet-AFSC pair. A value of 1.0 indicates
+      top preference, and values decrease with lower preference.
+
+    Examples
+    --------
+    ```python
+    # Define AFSC preferences
+    parameters = {
+        'N': 3,
+        'M': 2,
+        'J': [0, 1],
+        'afsc_preferences': {
+            0: [2, 1, 0],
+            1: [1, 0]
+        }
+    }
+
+    # Convert preferences to percentiles
+    updated = convert_afsc_preferences_to_percentiles(parameters)
+
+    # View result
+    print(updated['afsc_utility'])
+    # Output:
+    # array([[0.333, 0.5],
+    #        [0.666, 1.0],
+    #        [1.0,   0.0]])
+    ```
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Get normalized percentiles (Average of 0.5)
+    p["afsc_utility"] = np.zeros([p['N'], p['M']])
+    for j in p['J']:
+        p['afsc_utility'][p['afsc_preferences'][j], j] = \
+            np.arange(1, len(p['afsc_preferences'][j]) + 1)[::-1] / len(p['afsc_preferences'][j])
+
+    return p
+
+
+def update_cadet_columns_from_matrices(parameters):
+    """
+    Convert cadet preference matrix to preference columns of AFSC names and calculate utility columns.
+
+    This function takes the cadet preference matrix (NxM) where cadet "ranks" are specified and converts it to
+    preference columns (NxP) of AFSC names, where P is the number of AFSC preferences for each cadet. It uses
+    this preference information alongside the utility dataframe (NxP) to extract the utility columns (NxP) as well.
+
+    Args:
+    parameters (dict): A dictionary containing the following elements:
+
+    - "c_pref_matrix" (numpy.ndarray): Cadet preference matrix (NxM) with cadet ranks.
+    - "P" (int): Number of AFSC preferences for each cadet.
+    - "N" (int): Total number of cadets.
+    - "I" (list): List of cadet indices.
+    - "M" (int): Total number of AFSCs.
+    - "afscs" (numpy.ndarray): Array of AFSC names.
+    - "num_util" (int): Number of utility values to extract.
+    - "utility" (numpy.ndarray): Utility dataframe (NxM) containing utility values for cadets and AFSCs.
+
+    Returns:
+    tuple: A tuple containing two elements:
+
+    - preferences (numpy.ndarray): Cadet preference columns (NxP) with AFSC names.
+    - utilities_array (numpy.ndarray): Utility columns (NxP) for each cadet and AFSC preference.
+
+    """
+
+    # Shorthand
+    p = parameters
+
+    # Initialize data
+    preference_matrix = copy.deepcopy(p["c_pref_matrix"])
+    preferences = np.array([[" " * 10 for _ in range(p['P'])] for _ in range(p['N'])])
+    utilities_array = np.zeros([p['N'], p['P']])
+    for i in p['I']:
+
+        # Eliminate AFSCs that weren't in the cadet's preference list (Change the choice to a large #)
+        zero_indices = np.where(preference_matrix[i, :] == 0)[0]
+        preference_matrix[i, zero_indices] = 100
+
+        # Get the ordered list of AFSCs
+        indices = np.argsort(preference_matrix[i, :])  # [::-1]  #.nonzero()[0]
+        ordered_afscs = p["afscs"][indices][:p["M"] - len(zero_indices)][:p["P"]]
+        ordered_utilities = p["utility"][i, indices][:p["M"] - len(zero_indices)][:p["num_util"]]
+
+        # Put the utilities and preferences in the correct spots
+        np.put(utilities_array[i, :], np.arange(len(ordered_utilities)), ordered_utilities)
+        np.put(preferences[i, :], np.arange(len(ordered_afscs)), ordered_afscs)
+
+    return preferences, utilities_array
+
+
 def update_cadet_utility_matrices(parameters):
     """
-    This method takes in the "Util_1 -> Util_P" columns from Cadets.csv and updates the utility matrices
-    accordingly
+    Update Cadet Utility Matrices from Reported Utilities.
+
+    This method reads each cadet's self-reported utility values (from `c_utilities`) and updates the `utility` matrix accordingly.
+    It also creates the normalized `cadet_utility` matrix based on ordinal preferences or a utility-based formula,
+    depending on whether `last_afsc` is present in the parameters.
+
+    Parameters
+    ----------
+    parameters : dict
+    A parameter dictionary containing:
+
+    - `N` : int, total number of cadets
+    - `M` : int, total number of AFSCs
+    - `I` : list of cadet indices
+    - `cadet_preferences` : dict of lists; each list contains AFSC indices ranked by cadet
+    - `c_utilities` : ndarray, shape (N, P); cadet-reported utilities aligned with their preferences
+    - `num_util` : int; number of utility values reported per cadet
+    - `last_afsc` (optional) : str; used to determine which utility processing function to apply
+
+    Returns
+    -------
+    parameters : dict
+    Updated parameter dictionary with:
+
+    - `utility` : ndarray, shape (N, M+1)
+        Utility matrix with cadet-reported values; last column represents unmatched utility
+    - `cadet_utility` : ndarray
+        Normalized utility matrix calculated from rankings or weighted formula
+
+    Raises
+    ------
+    ValueError
+        If required fields (`cadet_preferences`, `c_utilities`) are missing from the parameter dictionary.
+
+    Examples
+    --------
+    ```python
+    parameters = update_cadet_utility_matrices(parameters)
+    ```
+
+    See Also
+    --------
+    - [`create_final_cadet_utility_matrix_from_new_formula`](../../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula)
+    - [`create_new_cadet_utility_matrix`](../../../../reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix)
     """
 
     # Shorthand
@@ -682,10 +864,180 @@ def update_cadet_utility_matrices(parameters):
     return p
 
 
+def modify_rated_cadet_lists_based_on_eligibility(parameters, printing=True):
+    """
+    Remove Ineligible Rated Cadets from Rated Lists and Matrices.
+
+    This method ensures that cadets in each Source of Commissioning (SOC)'s rated list are only included if they have at least
+    one rated AFSC preference. Cadets without any rated preferences are removed from the rated cadet list for that SOC as well as
+    the corresponding rated order-of-merit matrix (e.g., 'rr_om_matrix' for ROTC).
+
+    Parameters
+    ----------
+    parameters : dict
+    A dictionary of model parameters including:
+
+    - `SOCs` : list of str
+        List of Source of Commissioning identifiers (e.g., ['ROTC', 'USAFA', 'OTS'])
+    - `Rated Cadets` : dict
+        Dictionary mapping SOC names to arrays of rated cadet indices
+    - `Rated Choices` : dict
+        Dictionary mapping SOC names to dicts of cadet-rated-AFSC preferences
+    - `rr_om_matrix`, `ur_om_matrix`, etc. : ndarray
+        Matrices used in rated order-of-merit calculations by SOC
+
+    printing : bool, optional
+        If True (default), prints a summary of the cadets removed and the matrices updated.
+
+    Returns
+    -------
+    dict
+    The updated parameter dictionary with:
+
+    - Rated cadet lists pruned of cadets lacking rated preferences
+    - Rated order-of-merit matrices updated to exclude removed cadets
+
+    Examples
+    --------
+    ```python
+    parameters = modify_rated_cadet_lists_based_on_eligibility(parameters, printing=True)
+    ```
+    """
+
+    # Shorthand
+    p = parameters
+
+    # At least one rated preference for rated eligible
+    for soc in p['SOCs']:
+        cadets_to_remove = []
+        cadet_indices_in_matrix = []
+        if soc in p['Rated Cadets']:
+            for idx, i in enumerate(p['Rated Cadets'][soc]):
+                if len(p['Rated Choices'][soc][i]) == 0:
+                    cadets_to_remove.append(i)
+                    cadet_indices_in_matrix.append(idx)
+
+        # Remove cadets from set of rated cadets for this SOC
+        cadets_to_remove = np.array(cadets_to_remove)
+        p['Rated Cadets'][soc] = p['Rated Cadets'][soc][~np.isin(p['Rated Cadets'][soc], cadets_to_remove)]
+
+        # Remove the cadet rows by position in the matrix
+        cadet_indices_in_matrix = np.array(cadet_indices_in_matrix)
+        if len(cadet_indices_in_matrix) > 0:
+            parameter = f'{soc[0]}r_om_matrix'
+            p[parameter] = np.delete(p[parameter], cadet_indices_in_matrix, axis=0)
+
+            # Print results
+            if printing:
+                print_str = f"We removed {len(cadets_to_remove)} cadets from {soc.upper()}'s rated cadet list.\n" \
+                            f"These were cadets {cadets_to_remove}.\nWe removed them from {parameter} as well."
+                print(print_str)
+
+    # Return modified parameters
+    return p
+
+
+# ____________________________________________________AUXILIARY FUNCTIONS_______________________________________________
+def determine_soc_rated_afscs(soc, all_rated_afscs):
+    """
+    Filter Rated AFSCs Based on Source of Commissioning (SOC).
+
+    This function selects only the AFSCs relevant to the given SOC (e.g., USAFA, ROTC, OTS)
+    by excluding AFSCs that are tagged for other SOCs using suffixes like `_U`, `_R`, or `_O`.
+
+    Parameters:
+    --------
+    soc (str): The name of the source of commissioning (e.g., "usafa", "rotc").
+    all_rated_afscs (List[str]): A list of all rated AFSC strings.
+
+    Returns:
+    --------
+    List[str]: Filtered list of AFSCs associated with the provided SOC.
+
+    Example:
+    --------
+    ```python
+    determine_soc_rated_afscs("usafa", ["11XX_U", "11XX_R", "11XX_O", "12XX", "13B", "18X"])
+    # Returns: ["11XX_U", "12XX", "13B", "18X"]
+    ```
+
+    Notes:
+    --------
+    The filtering logic assumes that the AFSC string may contain a SOC-specific suffix.
+    - `_U` for USAFA
+    - `_R` for ROTC
+    - `_O` for OTS
+    """
+
+    # Rated AFSCs for this SOC
+    other_letters = [l for l in ['_U', '_R', '_O'] if l != f'_{soc[0].upper()}']
+    rated_afscs = []
+    for afsc in all_rated_afscs:
+        include = True
+        for l in other_letters:
+            if l in afsc:
+                include = False
+                break
+        if include:
+            rated_afscs.append(afsc)
+
+    return rated_afscs
+
+
 def create_new_cadet_utility_matrix(parameters):
     """
-    This function creates a new "cadet_utility" matrix using normalized preferences and
-    the original "utility" matrix.
+    Create New Cadet Utility Matrix from Rankings and Original Utilities.
+
+    This function constructs a new "cadet_utility" matrix by blending each cadet's ordinal preferences
+    (normalized rankings) with their original reported utility scores. The result is a weighted composite
+    utility score for each cadet–AFSC pair.
+
+    The final matrix is stored in `cadet_utility` and is used in the optimization models.
+
+    Parameters
+    ----------
+    parameters : dict
+    Parameter dictionary containing:
+
+    - `N` : int, number of cadets
+    - `M` : int, number of AFSCs
+    - `I` : list of cadet indices
+    - `utility` : ndarray, cadet-reported utility matrix
+    - `cadet_preferences` : dict, cadet-to-AFSC preference lists
+    - `num_cadet_choices` : dict, number of ranked AFSCs per cadet
+
+    Returns
+    -------
+    dict :
+    Updated parameter dictionary with:
+
+    - `cadet_utility` : ndarray, shape (N, M+1)
+        Blended utility matrix using normalized rankings and reported utilities.
+        Last column is reserved for unmatched cadets.
+
+    Examples
+    --------
+    ```python
+    parameters = {
+        'N': 2,
+        'M': 3,
+        'I': [0, 1],
+        'utility': np.array([[1.0, 0.8, 0.6, 0.0], [0.5, 1.0, 0.0, 0.0]]),
+        'cadet_preferences': {0: [0, 1, 2], 1: [1, 0]},
+        'num_cadet_choices': {0: 3, 1: 2}
+    }
+    updated = create_new_cadet_utility_matrix(parameters)
+    updated['cadet_utility']
+    ```
+    Output:
+    ```
+    array([[1.  , 0.8 , 0.6 , 0.  ],
+           [1.  , 0.75, 0.  , 0.  ]])
+    ```
+
+    See Also
+    --------
+    - [`update_cadet_utility_matrices`](../../../reference/data/preferences/#data.preferences.update_cadet_utility_matrices)
     """
 
     # Shorthand
@@ -718,8 +1070,56 @@ def create_new_cadet_utility_matrix(parameters):
 
 def create_final_cadet_utility_matrix_from_new_formula(parameters):
     """
-    This function creates a new "cadet_utility" matrix using normalized preferences and
-    the original "utility" matrix and some other stuff.
+    Create Final Cadet Utility Matrix Using Eligibility-Aware Scoring Formula.
+
+    This function constructs a final `cadet_utility` matrix by integrating ordinal rankings, cadet-reported utilities,
+    and least desired AFSC criteria. It uses a custom scoring formula that reflects cadet preferences, their
+    eligibility, and how the AFSC ranks among their choices.
+
+    The output matrix is used in the optimization models.
+
+    Parameters
+    ----------
+    parameters : dict
+    A dictionary containing cadet–AFSC preference and eligibility information:
+
+    - `N` : int, number of cadets
+    - `M` : int, number of AFSCs
+    - `I` : list of cadet indices
+    - `cadet_preferences` : dict, AFSC preference list per cadet
+    - `utility` : ndarray, shape (N, M+1), cadet-reported utility values
+    - `J^Selected` : dict, selected AFSCs for each cadet
+    - `J^Bottom 2 Choices` : dict, bottom two AFSC preferences per cadet
+    - `J^Last Choice` : dict, last-choice AFSC for each cadet
+
+    Returns
+    -------
+    parameters : dict
+    Updated parameter dictionary with:
+
+    - `cadet_utility` : ndarray, shape (N, M+1)
+        Weighted utility matrix accounting for ordinal preferences, eligibility, and cadet-reported utilities.
+
+    Examples
+    --------
+    ```python
+    p = {
+        'N': 2,
+        'M': 3,
+        'I': [0, 1],
+        'utility': np.array([[0.8, 1.0, 0.6, 0.0], [0.5, 0.0, 0.9, 0.0]]),
+        'cadet_preferences': {0: [0, 1, 2], 1: [2, 0]},
+        'J^Selected': {0: [0, 1], 1: [0, 2]},
+        'J^Bottom 2 Choices': {0: [1, 2], 1: [0, 2]},
+        'J^Last Choice': {0: 2, 1: 2}
+    }
+    p = create_final_cadet_utility_matrix_from_new_formula(p)
+    print(p['cadet_utility'])
+    ```
+
+    See Also
+    --------
+    - [`create_new_cadet_utility_matrix`](../../../reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix)
     """
 
     # Shorthand
@@ -777,92 +1177,6 @@ def create_final_cadet_utility_matrix_from_new_formula(parameters):
     return p
 
 
-def fill_remaining_preferences(parameters):
-    """
-    Fill in Remaining Cadet Preferences to Complete the Preference Matrix.
-
-    This function ensures that each cadet has a complete preference list across all AFSCs. It fills in any
-    unranked AFSCs (excluding bottom 2 and last choice) with incrementing ranks, followed by bottom 2 preferences,
-    and finally the explicitly marked last choice if applicable.
-
-    Parameters:
-        parameters (dict): The problem instance parameters, containing:
-            - `cadet_preferences`: Dictionary of AFSC preference orderings per cadet.
-            - `c_pref_matrix`: Matrix of cadet preferences over AFSCs.
-            - `J^Bottom 2 Choices`: Dictionary of each cadet's bottom two AFSCs.
-            - `J^Last Choice`: Dictionary of each cadet's last AFSC choice.
-            - `I`, `J`, `M`: Indexed sets of cadets, AFSCs, and unmatched AFSC index.
-
-    Returns:
-        dict: Updated parameters dictionary with a fully filled `c_pref_matrix`.
-
-    Example:
-        ```python
-        parameters = fill_remaining_preferences(parameters)
-        ```
-    """
-
-    # Shorthand
-    p = parameters
-
-    # Loop through all cadets
-    for i in p['I']:
-
-        # Loop through all "indifferent" AFSCs that they are eligible for
-        pref_num = len(p['cadet_preferences'][i]) + 1
-        for j in p['J']:
-
-            # The AFSC is not in the cadet's preferences and it's not in the bottom choices
-            if j not in p['cadet_preferences'][i] and \
-                    j not in p['J^Bottom 2 Choices'][i] and j != p['J^Last Choice'][i]:
-                p['c_pref_matrix'][i, j] = pref_num
-                pref_num += 1
-
-        # Loop through bottom 2 choices
-        for j in p['J^Bottom 2 Choices'][i]:
-            p['c_pref_matrix'][i, j] = pref_num
-            pref_num += 1
-
-        # Set last choice preference if applicable
-        if p['J^Last Choice'][i] != p['M']:
-            p['c_pref_matrix'][i, p['J^Last Choice'][i]] = pref_num
-
-    return p
-
-
-def modify_rated_cadet_lists_based_on_eligibility(parameters, printing=True):
-
-    # Shorthand
-    p = parameters
-
-    # At least one rated preference for rated eligible
-    for soc in p['SOCs']:
-        cadets_to_remove = []
-        cadet_indices_in_matrix = []
-        if soc in p['Rated Cadets']:
-            for idx, i in enumerate(p['Rated Cadets'][soc]):
-                if len(p['Rated Choices'][soc][i]) == 0:
-                    cadets_to_remove.append(i)
-                    cadet_indices_in_matrix.append(idx)
-
-        # Remove cadets from set of rated cadets for this SOC
-        cadets_to_remove = np.array(cadets_to_remove)
-        p['Rated Cadets'][soc] = p['Rated Cadets'][soc][~np.isin(p['Rated Cadets'][soc], cadets_to_remove)]
-
-        # Remove the cadet rows by position in the matrix
-        cadet_indices_in_matrix = np.array(cadet_indices_in_matrix)
-        if len(cadet_indices_in_matrix) > 0:
-            parameter = f'{soc[0]}r_om_matrix'
-            p[parameter] = np.delete(p[parameter], cadet_indices_in_matrix, axis=0)
-
-            # Print results
-            if printing:
-                print_str = f"We removed {len(cadets_to_remove)} cadets from {soc.upper()}'s rated cadet list.\n" \
-                            f"These were cadets {cadets_to_remove}.\nWe removed them from {parameter} as well."
-                print(print_str)
-
-    # Return modified parameters
-    return p
 
 
 

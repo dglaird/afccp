@@ -1,3 +1,51 @@
+"""
+Data Processing Module
+===============
+
+This module handles all input/output operations for the AFCCP modeling pipeline.
+
+It supports importing problem instance data (AFSCs, cadets, preferences, value functions, etc.)
+and exporting solutions and diagnostics to CSV and Excel formats for analysis. It also
+initializes the directory structure for versioned data instances.
+
+Key Capabilities
+----------------
+- Organizes input/output folders and paths for a data instance
+- Imports cleaned data required for AFCCP optimization
+- Exports results and supporting data for evaluation and visualization
+
+Primary Functions
+-----------------
+
+- **Initialization**
+
+    - `initialize_file_information`: Sets up import/export folder paths for a given data name and version
+
+- **Import Functions**
+
+    - `import_afscs_data`: Loads AFSCs and related structural data
+    - `import_cadets_data`: Loads cadet records and attributes
+    - `import_afsc_cadet_matrices_data`: Loads cadet preference matrices and qualification matrices
+    - `import_value_parameters_data`: Loads objective weights and breakpoints for value functions
+    - `import_solutions_data`: Imports previously solved cadet-to-AFSC assignments
+    - `import_additional_data`: Loads auxiliary data like base assignments and course info
+
+- **Export Functions**
+
+    - `export_afscs_data`: Saves AFSC-related data to CSV
+    - `export_cadets_data`: Saves cadet-related data to CSV
+    - `export_afsc_cadet_matrices_data`: Saves preference and qualification matrices to CSV
+    - `export_value_parameters_data`: Saves value function breakpoints and weights to CSV
+    - `export_solutions_data`: Saves one or more solutions in compact CSV format
+    - `export_additional_data`: Saves supporting data (base preferences, utility matrices, courses)
+    - `export_solution_results_excel`: Writes detailed solution metrics and diagnostics to an Excel workbook
+
+Notes
+-----
+All functions assume access to an `Instance` object that contains parameters, value structures,
+solution data, and export path information. The module is used during both the data preparation
+and results analysis stages of the AFCCP workflow.
+"""
 import os
 import numpy as np
 import pandas as pd
@@ -11,32 +59,54 @@ import afccp.data.adjustments
 import afccp.data.preferences
 
 
-# File Handling
+# ______________________________________________INITIALIZATION__________________________________________________________
 def initialize_file_information(data_name: str, data_version: str):
     """
-    Returns the file paths for importing and exporting the data files for a given data instance.
+    Initialize filepaths for an AFCCP data instance.
 
-    Parameters:
-    data_name (str): The name of the data instance.
-    data_version (str): The version of the data instance.
+    This function constructs and returns import/export file path dictionaries for a given AFCCP
+    data instance identified by `data_name` and `data_version`. It ensures the required directory
+    structure exists under `instances/` and dynamically builds file paths for reading and writing
+    instance-specific data and results.
 
-    Returns:
-    Tuple[Dict[str, str], Dict[str, str]]: A tuple containing two dictionaries. The first dictionary contains
-    the file paths for importing the necessary data files, and the second dictionary contains the file paths
-    for exporting the data files.
+    It is primarily used to manage file I/O consistently across different data experiments or
+    scenario versions within the AFCCP modeling system.
 
-    The function checks for the existence of the data instance folder in the 'instances' directory. If the
-    folder does not exist, it is created. The function also creates any sub-folders that do not already exist.
+    Parameters
+    ----------
+    - data_name : str
+      The name of the data instance (e.g., `"2025"`, `"Baseline"`, `"TestRun01"`). This defines the
+      subdirectory under `instances/` where the data is stored.
 
-    The file paths are determined by checking the sub-folders for the necessary data files. If the data version
-    is 'Default', the function imports and exports the files from the default sub-folders. If the data version is
-    specified, the function checks if the sub-folder with that version exists. If it does not, the function
-    imports the files from the default sub-folders and exports them to the specified version sub-folder. If the
-    sub-folder with the specified version already exists, the function imports and exports the files from that
-    sub-folder.
+    - data_version : str
+      The version label for the run (e.g., `"Default"`, `"V1"`). Used to separate multiple experimental
+      runs under the same data instance name, enabling controlled versioning of model input and output files.
 
-    The function returns two dictionaries containing the file paths for importing and exporting the data files.
-    The keys in the dictionaries are the names of the data files, and the values are the corresponding file paths.
+    Returns
+    -------
+    - Tuple[Dict[str, str], Dict[str, str]]
+      A tuple of two dictionaries:
+        - `import_paths`: maps each input data type (e.g., `"Cadets"`, `"AFSCs"`) to its CSV file path.
+        - `export_paths`: maps each output destination (e.g., `"Solutions"`, `"Results Charts"`) to its folder or file path.
+
+    Directory Behavior
+    ------------------
+    - Creates base folder `instances/<data_name>/` if it doesn't exist.
+    - Creates version-specific folders for `"Model Input"` and `"Analysis & Results"`:
+        - e.g., `"4. Model Input (V1)"`, `"5. Analysis & Results (V1)"`
+    - Also creates subfolders under `"Analysis & Results"` such as:
+        - `"Data Charts"`, `"Results Charts"`, `"Cadet Board"`, `"Value Functions"`
+    - If version-specific input files are not found, it defaults to shared or base files when appropriate.
+
+    Examples
+    --------
+    ```python
+    from afccp.data.processing import initialize_file_information
+
+    import_paths, export_paths = initialize_file_information("2025", "V1")
+    afsc_path = import_paths["AFSCs"]
+    solution_folder = export_paths["Analysis & Results"]
+    ```
     """
 
     # If we don't already have the instance folder, we make it now
@@ -137,17 +207,53 @@ def initialize_file_information(data_name: str, data_version: str):
     return import_filepaths, export_filepaths
 
 
-# Data Imports
+# ___________________________________________IMPORT DATA FUNCTIONS______________________________________________________
 def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
     """
-    Imports the 'AFSCs' csv file and updates the instance parameters dictionary with the values from the file.
+    Imports AFSC-level model input data from CSV and populates the instance parameter dictionary.
 
-    Args:
-        import_filepaths (dict): A dictionary of filepaths containing the location of the 'AFSCs' csv file.
-        parameters (dict): A dictionary of instance parameters to update.
+    This function reads the `"AFSCs"` input file (provided via `import_filepaths`) and updates the supplied
+    `parameters` dictionary with structured information for each Air Force Specialty Code (AFSC). These inputs
+    are essential for AFCCP modeling and include AFSC quotas, groupings, tiered degree requirements, and other
+    structural attributes.
 
-    Returns:
-        dict: The updated instance parameters.
+    The function handles type conversion, fills missing entries, and appends a special unmatched AFSC ("*") for
+    use in optimization logic.
+
+    Parameters
+    ----------
+    - import_filepaths : dict
+      A dictionary of import paths keyed by label (e.g., `"AFSCs"`). Must contain the key `"AFSCs"` pointing to
+      the location of the AFSCs input CSV file.
+
+    - parameters : dict
+      A dictionary of instance-wide input parameters. This will be updated in-place with the AFSC-specific
+      parameter values.
+
+    Returns
+    -------
+    - dict
+    The updated `parameters` dictionary, now containing keys such as:
+
+    - `"afscs"`: List of AFSC names (plus an unmatched AFSC "*")
+    - `"acc_grp"`: Accession group categories
+    - `"afscs_stem"`: STEM-designation indicator for each AFSC
+    - `"quota_d"`, `"quota_e"`, `"quota_min"`, `"quota_max"`: Target and constraint bounds
+    - `"pgl"`: Projected graduation levels for each AFSC
+    - `"Deg Tiers"`: Tiered degree qualification matrix (if present)
+
+    Notes
+    -----
+    - All values are loaded as NumPy arrays to facilitate vectorized modeling.
+    - The unmatched AFSC `"*"` is appended to `"afscs"` for modeling unmatched cadets.
+    - NaN entries and string "nan" values in the CSV are sanitized to empty strings before processing.
+    - Degree tiers are only added if the `"Deg Tier 1"` column is present in the CSV.
+    ```
+
+    See Also
+    --------
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_csv_data`](../../../reference/globals/#globals.import_csv_data)
     """
 
     # Shorthand
@@ -194,14 +300,47 @@ def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
 
 def import_cadets_data(import_filepaths, parameters):
     """
-    Imports data from the "Cadets" csv file and updates the instance parameters dictionary with relevant information.
+    Imports Cadet-level model input data from CSV and populates the instance parameter dictionary.
 
-    Args:
-    import_filepaths (dict): A dictionary with the names and paths of the csv files to import. The "Cadets" file should be included.
-    parameters (dict): A dictionary of instance parameters to be updated.
+    This function reads the `"Cadets"` CSV file specified in `import_filepaths` and extracts relevant demographic,
+    qualification, preference, training, and weighting information for each cadet. It populates the provided
+    `parameters` dictionary with this structured data, including derived quantities like total cadet count,
+    preference matrix dimensions, and accession source types (SOCs).
 
-    Returns:
-    dict: The updated instance parameters dictionary.
+    Parameters
+    ----------
+    - import_filepaths : dict
+      Dictionary of import paths keyed by label. Must contain the key `"Cadets"` pointing to the cadet input CSV path.
+
+    - parameters : dict
+      Dictionary of instance-level parameters. This dictionary will be updated in-place with cadet-related entries.
+
+    Returns
+    -------
+    dict
+    The updated `parameters` dictionary, now containing cadet-specific fields such as:
+
+    - `"cadets"`, `"merit"`, `"assigned"`, `"asc1"`/`"asc2"`, `"cip1"`/`"cip2"` (basic identifiers)
+    - `"usafa"`, `"soc"`, `"minority"`, `"race"`, `"ethnicity"` (demographic data)
+    - `"must_match"` (AFSCs that must be assigned)
+    - `"c_preferences"`: Preference matrix (N x P) where N = cadets, P = preference slots
+    - `"c_utilities"`: Utility matrix (N x U), where U = min(P, 10)
+    - `"SOCs"`: List of accession sources present in this instance (e.g., `["usafa", "rotc"]`)
+    - `"training_start"`, `"training_preferences"`, `"training_threshold"` (training pipeline values)
+    - `"weight_afsc"`, `"weight_base"`, `"weight_course"` (objective weights)
+
+    Notes
+    -----
+    - NaN or string 'nan' entries in the CSV are automatically sanitized.
+    - Extra care is taken to remove BOM characters (e.g., `"ï»¿"`) in CSV headers.
+    - Preferences are detected using any column starting with `"Pref_"`, and corresponding utilities from `"Util_1"` onward.
+    - SOCs must be one of `"USAFA"`, `"ROTC"`, or `"OTS"`; any other value will raise an error.
+    - This function calls `gather_degree_tier_qual_matrix()` to supplement qualification mappings.
+
+    See Also
+    --------
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`gather_degree_tier_qual_matrix`](../../../reference/data/adjustments/#data.adjustments.gather_degree_tier_qual_matrix)
     """
 
     # Shorthand
@@ -270,23 +409,65 @@ def import_cadets_data(import_filepaths, parameters):
 
 def import_afsc_cadet_matrices_data(import_filepaths, parameters):
     """
-    Imports additional  data (if available) for cadets and AFSCs, and adds the relevant information to the
-    input dictionary of parameters.
+    Imports optional AFSC-cadet interaction matrices and updates the instance parameter dictionary accordingly.
 
-    Parameters:
-    import_filepaths (dict): A dictionary containing the filepaths of the csv files to be imported.
-        - Required keys: 'Cadets Utility', 'Cadets Preferences', 'AFSCs Utility', 'AFSCs Preferences' (if available)
-    parameters (dict): A dictionary containing the initial input parameters for the model.
-        - Required keys: 'afscs', 'N', 'M', 'num_util', 'P'
+    This function augments the core cadet and AFSC input data by importing preference matrices, utility matrices,
+    and supplemental rated-selection files (if available). The imported data enables more advanced modeling of
+    cadet-AFSC interactions including two-sided preferences and selection boards.
 
-    Returns:
-    dict: The updated dictionary of parameters.
+    Parameters
+    ----------
+    - import_filepaths : dict
+        Dictionary of filepaths keyed by dataset name. Recognized keys include:
 
-    Raises:
-    ValueError: If there is no cadet utility data provided, which is required.
+        - `"Cadets Utility"`
+        - `"Cadets Preferences"`
+        - `"AFSCs Utility"`
+        - `"AFSCs Preferences"`
+        - `"Cadets Utility (Final)"`
+        - `"Cadets Selected"`
+        - `"AFSCs Buckets"`
+        - `"ROTC Rated Interest"`, `"ROTC Rated OM"`, `"USAFA Rated OM"`, `"OTS Rated OM"`
 
-    Note:
-    The function expects that the 'AFSCs' and 'Cadets' csv files have already been imported.
+    - parameters : dict
+        Dictionary of model instance parameters. Must contain:
+
+        - `"afscs"`: array of AFSC names
+        - `"N"`: number of cadets
+        - `"M"`: number of AFSCs
+        - `"num_util"`: number of utility entries per cadet
+        - `"P"`: number of preferences
+
+    Returns
+    -------
+    dict
+    Updated parameter dictionary with new keys (if data was provided), including:
+
+    - `"utility"`: cadet utility matrix (N x M)
+    - `"c_pref_matrix"`: cadet preference rankings (N x M, integer-valued, 1 = top choice)
+    - `"afsc_utility"`: AFSC utility matrix (M x M)
+    - `"a_pref_matrix"`: AFSC preference rankings (M x M)
+    - `"cadet_utility"`: final cadet utility matrix (N x M)
+    - `"c_selected_matrix"`: matrix of cadets selected by AFSCs (N x M)
+    - `"a_bucket_matrix"`: bucketing of AFSCs for visualization or selection (M x M)
+    - `"rr_interest_matrix"`, `"rr_om_matrix"`, `"rr_om_cadets"`: ROTC board data
+    - `"ur_om_matrix"`, `"ur_om_cadets"`: USAFA board data
+    - `"or_om_matrix"`, `"or_om_cadets"`: OTS board data
+    - `"usafa_cadets"`: indices of USAFA cadets in the instance
+
+    Raises
+    ------
+    ValueError
+      If neither `"Cadets Utility"` nor `"c_utilities"` are provided in the inputs, since cadet utility data is required.
+
+    Notes
+    -----
+    - This function assumes the `"Cadets"` and `"AFSCs"` CSVs have already been processed.
+    - If raw preferences/utilities are not explicitly imported, they are reconstructed from `c_preferences` and `c_utilities`.
+    - Preference ranks use integers where `1` is most preferred (not `0`).
+    - Utility matrices are aligned by the order of `p["afscs"]` and not by the file column order alone.
+    - AFSC utility and preference data are optional but support two-sided matching or board processes.
+    - Rated OM/Interest files enable specialty-specific board logic for each SOC.
     """
 
     # Shorthand
@@ -374,47 +555,64 @@ def import_afsc_cadet_matrices_data(import_filepaths, parameters):
 
 def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=24):
     """
-    Imports the data pertaining to the value parameters of the model.
+    Imports and constructs value parameter sets for the model based on CSV definitions and analyst-defined breakpoints.
 
-    Args:
-        import_filepaths (dict): A dictionary of file paths to import.
-            Required keys: "Model Input", "Value Parameters".
-            Optional key: "Cadets Utility Constraints".
-        parameters (dict): A dictionary of parameters for the model.
-        num_breakpoints (int): The number of breakpoints to use for value functions.
+    This function reads and compiles all information associated with value-based decision modeling, including
+    objective functions, breakpoints, weights, and value constraints for both cadets and AFSCs. It supports multiple
+    sets of value parameters, each potentially with different assumptions or constraints.
 
-    Returns:
-        dict: A dictionary containing the value parameters for the model.
+    Parameters
+    ----------
+    - import_filepaths : dict
+      Dictionary containing paths to relevant files. Required keys:
 
-    Raises:
-        FileNotFoundError: If a file path in import_filepaths is invalid.
+        - `"Model Input"`: folder path containing individual VP set CSVs.
+        - `"Value Parameters"`: CSV listing metadata about each VP set.
+        Optional keys:
+        - `"Cadets Utility Constraints"`: file containing minimum cadet utility constraints by VP set.
 
-    The "value parameters" refer to the weights, values, and constraints applied to the VFT model that by in large
-    the analyst determines. The function loads the following data:
-        - A dataframe of cadet utility constraints (if present).
-        - A dataframe of value parameters that describes sets of weights, values, and constraints for the VFT model.
-        - A dataframe for each set of value parameters, specifying weights, values, and constraints for the VFT model.
-    The function returns a dictionary of value parameters, containing the following keys:
-        - 'O': The number of AFSC objectives.
-        - 'afscs_overall_weight': The weight for the AFSCs component.
-        - 'cadets_overall_weight': The weight for the cadets component.
-        - 'cadet_weight_function': The type of function used to calculate cadet weights.
-        - 'afsc_weight_function': The type of function used to calculate AFSC weights.
-        - 'cadets_overall_value_min': The minimum value for the cadets component.
-        - 'afscs_overall_value_min': The minimum value for the AFSCs component.
-        - 'M': The number of AFSCs.
-        - 'afsc_value_min': An array of minimum AFSC values.
-        - 'cadet_value_min': An array of minimum cadet values.
-        - 'objective_value_min': A 2D array of minimum objective values.
-        - 'value_functions': A 2D array of value functions for each AFSC objective.
-        - 'constraint_type': A 2D array specifying the type of constraint for each objective and AFSC.
-        - 'a': A nested list of breakpoints for each AFSC objective.
-        - 'objective_target': A 2D array of target values for each objective and AFSC.
-        - 'f^hat': A nested list of breakpoint values for each objective and AFSC.
-        - 'objective_weight': A 2D array of weights for each objective and AFSC.
-        - 'afsc_weight': An array of weights for each AFSC.
-        - 'objectives': An array of AFSC objectives.
-        - 'K^A': A dictionary of weights for the cadets component.
+    - parameters : dict
+      Instance parameter dictionary already populated with `"M"`, `"N"`, and AFSC/cadet-level arrays.
+
+    - num_breakpoints : int, optional (default=24)
+      Number of breakpoints to discretize each value function unless exact breakpoints are provided.
+
+    Returns
+    -------
+    dict
+    A dictionary keyed by VP set names. Each value is a dictionary of value parameters containing:
+
+    - Objective definitions and weights
+    - Breakpoints (`a`) and values (`f^hat`)
+    - Minimum utility constraints
+    - AFSC objective indexed sets (`K^A`)
+    - `cadet_weight`, `afsc_weight`, and associated metadata
+    - VP set weights and local weights for combination logic
+
+    Raises
+    ------
+    - FileNotFoundError
+      If required files are missing from the provided import paths.
+
+    - ValueError
+      If the `"Value Parameters"` file is missing or empty.
+
+    Notes
+    -----
+    - All AFSC objectives are indexed across `O` objectives per AFSC.
+    - The function automatically parses objective weight strings and reconstructs value functions if needed.
+    - For each VP set listed in the `"Value Parameters"` file, the function expects a matching CSV file named
+      `"VP <VP Name>.csv"` (e.g., `"VP Baseline.csv"`).
+    - Supports optional use of `"Cadets Utility Constraints"` to impose per-cadet minimums.
+    - If `num_breakpoints` is `None`, raw a/f^hat arrays are expected instead of constructing from strings.
+    - Value functions are compressed after loading to remove redundant zero segments for performance.
+
+    See Also
+    --------
+    - [`value_function_builder`](../../../reference/data/values/#data.values.value_function_builder)
+    - [`create_segment_dict_from_string`](../../../reference/data/values/#data.values.create_segment_dict_from_string)
+    - [`condense_value_functions`](../../../reference/data/values/#data.values.condense_value_functions)
+    - [`value_parameters_sets_additions`](../../../reference/data/values/#data.values.value_parameters_sets_additions)
     """
 
     # Shorthand
@@ -574,15 +772,58 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=2
 
 def import_solutions_data(import_filepaths, parameters):
     """
-    This function takes in the names of the files (and paths) to import, as well as a dictionary of parameters (p)
-    and then imports the "Solutions" dataframe. A dictionary of solutions is then returned.
+    Imports and assembles cadet assignment solutions from a saved output file (`<data_name> Solutions.csv`). Optionally,
+    more files are read in for Base/Training Course solutions.
 
-    Args:
-        import_filepaths (dict): A dictionary of file names (and paths) to import.
-        parameters (dict): A dictionary of parameters needed for the function to run.
+    This function reads solution files containing AFSC, base, and course assignments for each cadet,
+    converts string labels to indexed arrays, and returns a structured dictionary containing all
+    available solution configurations.
 
-    Returns:
-        dict: A dictionary of solutions for the given parameters.
+    Parameters
+    ----------
+    - import_filepaths : dict
+    Dictionary containing filepaths to solution files. Expected keys:
+
+        - `"Solutions"`: required CSV file with AFSC assignments (one column per solution).
+        - `"Base Solutions"`: optional CSV with base assignments (same column names as above).
+        - `"Course Solutions"`: optional CSV with course assignments (same column names as above).
+
+    - parameters : dict
+    Dictionary of instance parameters. Must contain:
+
+        - `'afscs'`: array of valid AFSC names.
+        - `'bases'`: array of valid base names (if `"Base Solutions"` is provided).
+        - `'courses'`: list of valid course arrays for each AFSC (if `"Course Solutions"` is provided).
+        - `'S'`: sentinel index value for unmatched bases.
+
+    Returns
+    -------
+    dict
+    Dictionary mapping solution names to their data. Each solution entry contains:
+
+    - `'name'`: name of the solution (from CSV column header)
+    - `'afsc_array'`: array of assigned AFSC strings
+    - `'j_array'`: array of assigned AFSC indices (matching `parameters['afscs']`)
+    - `'base_array'` (optional): array of base names (if base data is present)
+    - `'b_array'` (optional): array of base indices (or sentinel `S` if unmatched)
+    - `'course_array'` (optional): array of course names (if course data is present)
+    - `'c_array'` (optional): array of `(j, c)` tuples representing AFSC/course index pairs
+
+    Raises
+    ------
+    - FileNotFoundError
+      If the required `"Solutions"` file is not present in `import_filepaths`.
+
+    Notes
+    -----
+    - If a course assignment is not found within any AFSC’s course list, a fallback value of `(0, 0)` is added
+      and a warning is printed.
+    - Assumes that all solution files share the same cadet ordering and column headers for consistent mapping.
+
+    See Also
+    --------
+    - [`import_csv_data`](../../../reference/globals/#globals.import_csv_data)
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -654,14 +895,56 @@ def import_solutions_data(import_filepaths, parameters):
 
 def import_additional_data(import_filepaths, parameters):
     """
-    Imports additional csv files and updates the instance parameters dictionary with the values from the file.
-        Extra datasets: "Bases.csv"
-    Args:
-        import_filepaths (dict): A dictionary of filepaths containing the location of the additional csv files.
-        parameters (dict): A dictionary of instance parameters to update.
+    Imports supplemental data files (if present) and updates the instance parameters dictionary.
 
-    Returns:
-        dict: The updated instance parameters.
+    This function loads optional model extensions including base and course assignments, preference matrices,
+    and CASTLE-specific AFSC data. These components are not required for basic operation but enhance downstream
+    modeling functionality (e.g., course scheduling, base optimization, CASTLE implementation).
+
+    Parameters
+    ----------
+    - import_filepaths : dict
+      Dictionary containing filepaths to additional optional data files. Expected keys include:
+
+        - "Bases", "Bases Preferences", "Bases Utility"
+        - "Courses", "Castle Input"
+
+    - parameters : dict
+      Dictionary of core model parameters. This dictionary will be updated with any new fields derived from imported files.
+
+    Returns
+    -------
+    dict
+    Updated parameter dictionary with the following optional fields added if available:
+
+    - `'bases'`: Array of base names
+    - `'S'`: Number of bases
+    - `'base_min'` / `'base_max'`: Base assignment bounds by AFSC
+    - `'b_pref_matrix'`: Cadet base preference matrix
+    - `'base_utility'`: Cadet base utility matrix
+    - `'courses'`: Dict of course options by AFSC
+    - `'course_start'`, `'course_min'`, `'course_max'`: Dicts with course metadata by AFSC
+    - `'castle_afscs_arr'`, `'afpc_afscs_arr'`: Raw CASTLE vs AFPC AFSC labels
+    - `'castle_afscs'`: Mapping of CASTLE AFSCs → AFPC AFSCs
+    - `'J^CASTLE'`: CASTLE AFSCs mapped to indices in the AFPC AFSC array
+    - `'ots_counts'`: OTS accession counts for CASTLE AFSCs
+    - `'optimal_policy'`: Policy toggle per CASTLE AFSC
+    - `'castle_q'`: Dictionary of breakpoint-based value functions:
+
+        - `'a'`, `'f^hat'`: Breakpoints and values
+        - `'r'`: Number of breakpoints
+        - `'L'`: Breakpoint indices
+
+    Notes
+    -----
+    - Breakpoint information from `"Castle Input"` is stored under `castle_q`.
+    - Course and base matrices are assumed to be properly aligned with the cadet and AFSC indices already in memory.
+    - All newly imported data is optional and loaded only if the corresponding files are provided.
+
+    See Also
+    --------
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_csv_data`](../../../reference/globals/#globals.import_csv_data)
     """
 
     # Shorthand
@@ -749,19 +1032,46 @@ def import_additional_data(import_filepaths, parameters):
     return p
 
 
-# Data Exports
+# ___________________________________________EXPORT DATA FUNCTIONS______________________________________________________
 def export_afscs_data(instance):
     """
-    This function takes an Instance object as an argument, which contains the AFSC data to be exported.
-    It creates a dictionary of columns to be included in the "AFSCs" csv file by translating AFSC parameters
-    to their corresponding column names in the file. The function then creates a dataframe using these columns
-    and exports it as a csv file to the path specified in the export_paths attribute of the Instance object.
+    Exports AFSC-level data from the given `Instance` object to a CSV file.
 
-    Args:
-        instance (Instance): An Instance object containing the AFSC data to export.
+    This function collects Air Force Specialty Code (AFSC) parameters stored in the instance,
+    organizes them into a structured dataframe, and writes the result to disk at the location
+    specified by `instance.export_paths["AFSCs"]`.
 
-    Returns:
-        None
+    Parameters
+    ----------
+    - instance : Instance
+      A fully initialized `Instance` object with a populated `parameters` dictionary and `export_paths` mapping.
+      The instance must include AFSC data such as quotas, eligibility, preference counts, and any
+      derived degree tier breakdowns.
+
+    Returns
+    -------
+    - None
+      The function writes the output to disk and does not return a value.
+
+    Notes
+    -----
+    - The function dynamically detects and exports the following fields if present:
+
+        - Core AFSC descriptors: name, accession group, STEM tag, base assignment
+        - Quota targets: Desired, Estimated, Min, Max, PGL, commissioning source quotas
+        - Course counts (`T`) and bubble caps (`max_bubbles`)
+        - Eligibility counts per commissioning source
+        - Degree tier distributions and tier counts (if `"Deg Tiers"` and `"I^D"` are available)
+        - Cadet preference counts per AFSC (if `"Choice Count"` is present)
+
+    - Only the first `p["M"]` AFSCs are included in the output. Any padding elements (e.g., "*") are excluded.
+
+    - The output file is named `"AFSCs.csv"` and stored in the directory determined by `instance.export_paths`.
+
+    See Also
+    --------
+    - [`import_afscs_data`](../../../reference/data/processing/#data.processing.import_afscs_data)
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -810,16 +1120,41 @@ def export_afscs_data(instance):
 
 def export_cadets_data(instance):
     """
-    Export the "Cadets" csv by taking in the names of the files (and paths) to export, as well as a dictionary of
-    parameters (p). The function first translates 'AFSCs' df columns to their parameter counterparts and creates
-    the corresponding 'Cadets' dataframe column. If cadet preference/utility columns and qualification matrix
-    exist in the input parameters, they will be added to the 'Cadets' dataframe. Finally, the function exports the
-    'Cadets' dataframe to a csv file.
+    Exports cadet-level data from the given `Instance` object to a CSV file.
 
-    Args:
-    - instance: an instance of the CadetCareerProblem class
+    This function builds the "Cadets" dataframe from internal model parameters stored in the instance,
+    capturing individual cadet characteristics, preferences, and qualification data (if available).
+    The output is saved to disk at the location specified by `instance.export_paths["Cadets"]`.
 
-    Returns: None
+    Parameters
+    ----------
+    - instance : Instance
+      A fully initialized `Instance` object containing model parameters (`parameters`) and a configured
+      export path for the "Cadets" CSV file.
+
+    Returns
+    -------
+    - None
+      The function writes the cadet-level data to disk and does not return a value.
+
+    Notes
+    -----
+    - The following cadet-level attributes will be included if present in `parameters`:
+
+        - Basic profile: Cadet ID, gender, race, ethnicity, accession group, STEM tag, ASC codes
+        - Assignment metadata: must-match flags, base/course preferences, assigned AFSC
+        - Merit metrics: raw merit, real merit
+        - Training data: start date, preference rankings, course/base weights and thresholds
+        - Utility and preference columns: if present, the full `c_utilities` and `c_preferences` matrices will be exported
+        - Qualification data: if a `qual` matrix is present, columns are added for each AFSC (e.g., `qual_17X`, `qual_21R`)
+
+    - The preference and utility columns are labeled as `Pref_1`, `Pref_2`, ..., `Util_1`, `Util_2`, etc.
+    - The output is saved as `"Cadets.csv"` under the directory given by `instance.export_paths`.
+
+    See Also
+    --------
+    - [`import_cadets_data`](../../../reference/data/processing/#data.processing.import_cadets_data)
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -874,23 +1209,50 @@ def export_cadets_data(instance):
 
 def export_afsc_cadet_matrices_data(instance):
     """
-    Exports the preferences dataframes if they exist in the instance's parameters dictionary.
+    Exports cadet-AFSC utility and preference matrices from the given `Instance` object to CSV files.
 
-    Parameters:
-    instance (Instance): An Instance object containing the parameters dictionary and export paths.
+    This function checks for the presence of known matrix-style parameters in the model (e.g., utility values,
+    preference rankings, interest scores) and exports them to disk. Each matrix is stored as a CSV with cadets
+    as rows and AFSCs as columns (or vice versa), depending on the context.
 
-    Returns:
-    None
+    Parameters
+    ----------
+    - instance : Instance
+      A fully initialized `Instance` object containing model parameters (`parameters`),
+      value parameters (`value_parameters`), and export paths.
 
-    For each potential dataset to export, if it exists in the instance's parameters dictionary, a new dataframe is constructed
-    and exported to the corresponding file path. The potential datasets are:
-    - "Cadets Utility": A matrix of the utility values that each cadet assigns to each AFSC.
-    - "Cadets Preferences": A matrix of the preferences of each cadet for each AFSC, derived from the utility values.
-    - "AFSCs Utility": A matrix of the utility values that each AFSC assigns to each cadet.
-    - "AFSCs Preferences": A matrix of the preferences of each AFSC for each cadet, derived from the utility values.
+    Returns
+    -------
+    - None
+      The function writes one or more matrix-style datasets to disk if they exist.
 
-    Each dataframe has the cadets in the first column and the AFSCs in the remaining columns. The values in each cell
-    correspond to the utility or preference value of the cadet or AFSC for that particular AFSC or cadet.
+    Notes
+    -----
+    - The following parameters will be exported if present:
+
+        - `utility`: Cadet utilities over all AFSCs → `"Cadets Utility"`
+        - `c_pref_matrix`: Cadet preferences over all AFSCs → `"Cadets Preferences"`
+        - `afsc_utility`: AFSC utilities over all cadets → `"AFSCs Utility"`
+        - `a_pref_matrix`: AFSC preferences over all cadets → `"AFSCs Preferences"`
+        - `rr_interest_matrix`: ROTC-rated interest scores → `"ROTC Rated Interest"`
+        - `rr_om_matrix`: ROTC OM values → `"ROTC Rated OM"`
+        - `ur_om_matrix`: USAFA OM values → `"USAFA Rated OM"`
+        - `or_om_matrix`: OTS OM values → `"OTS Rated OM"`
+        - `cadet_utility`: Finalized cadet utility values → `"Cadets Utility (Final)"`
+        - `c_selected_matrix`: Final cadet selection matrix → `"Cadets Selected"`
+        - `a_bucket_matrix`: AFSC bucket matrix → `"AFSCs Buckets"`
+
+    - Each exported dataframe will have a `"Cadet"` column followed by one column per AFSC in the relevant set.
+      The set of AFSCs may vary depending on whether the data is specific to a commissioning source (SOC).
+
+    - Datasets related to specific SOCs (e.g., `"ROTC Rated OM"`) use filtered cadet subsets and
+      AFSCs determined by `determine_soc_rated_afscs()`.
+
+    See Also
+    --------
+    - [`determine_soc_rated_afscs`](../../../reference/data/preferences/#data.preferences.determine_soc_rated_afscs)
+    - [`import_afsc_cadet_matrices_data`](../../../reference/data/processing/#data.processing.import_afsc_cadet_matrices_data)
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -947,40 +1309,45 @@ def export_value_parameters_data(instance):
     """
     Export value parameter datasets and related information to CSV files for analysis.
 
-    This function exports various value parameter datasets to separate CSV files. It provides detailed information
-    about value parameters and constraint data for further analysis.
+    This function extracts and exports optimization value parameter sets, global utility matrices (if available),
+    and cadet-specific constraints. It supports multiple value parameter configurations by exporting separate
+    files per set. This facilitates analysis, debugging, or visualization of value-based multi-objective optimization.
 
-    Args:
-        instance (object): An object containing problem instance and value parameter data.
+    Parameters
+    ----------
+    - instance : Instance
+      A configured instance of the CadetCareerProblem class, including:
 
-    Returns:
-        None
+        - `vp_dict`: Dictionary of value parameter sets
+        - `value_parameters`: Active value parameter configuration
+        - `parameters`: General instance parameters (e.g., AFSCs, cadets)
+        - `export_paths`: File paths for saving exports
 
-    Details:
-    - Value parameters (VP) define optimization settings and constraints. This function extracts and exports different
-      aspects of the VP data.
+    Returns
+    -------
+    None
+      The function writes multiple CSV files to disk for each available dataset.
 
-    - Value Parameters CSVs:
-        - For each set of value parameters, this function exports a CSV file containing detailed information about
-          objective weights, objectives, breakpoint measures (a), breakpoint values (f^hat), and value functions.
-        - These CSVs provide insights into the parameters used in the optimization process.
+    This command will generate:
+    - A separate CSV file for each set of value parameters (e.g., weights, targets, value functions)
+    - An overall summary CSV file of value parameter metadata
+    - A cadet-level constraints CSV file (min values per cadet per VP set)
+    - A global utility matrix CSV (if `global_utility` is present in a VP set)
 
-    - Global Utility CSVs (if applicable):
-        - If global utility data is included in the value parameters, this function exports a CSV containing global
-          utility values for each cadet and AFSC.
-        - This additional dataset is useful for assessing the global utility aspect of the optimization solution.
+    Notes
+    -----
+    - Value function breakpoints `a` and values `f^hat` are stored as comma-separated strings for readability.
+    - Objective weights are scaled to a 0–100 range and normalized per AFSC.
+    - The output files use naming conventions like:
 
-    - Cadet Utility Constraints CSV:
-        - This CSV file contains information about minimum value settings for cadets.
-        - It helps understand the constraints and preferences applied to individual cadets.
+        - `{data_name} {vp_name}.csv`
+        - `{data_name} {vp_name} Global Utility.csv`
+    - These files are versioned if the instance's data version is not `"Default"`.
 
-    - Overall Value Parameters CSV:
-        - A summary CSV is generated, providing an overview of overall value parameters for different VP sets.
-        - It includes information on weights, minimum values, weight functions, and other key parameters.
-
-    The exported CSV files are saved with informative names and extensions to distinguish between different versions
-    of data. The function assumes that the 'instance' object contains the required data and file paths for export.
-    ```
+    See Also
+    --------
+    - [`import_value_parameters_data`](../../../reference/data/processing/#data.processing.import_value_parameters_data)
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1089,27 +1456,42 @@ def export_value_parameters_data(instance):
 
 def export_solutions_data(instance):
     """
-    Export solutions data to a CSV file for analysis.
+    Export cadet-to-AFSC solution assignments to CSV files.
 
-    This function exports the solutions generated by the optimization process to a CSV file. Each solution is
-    represented as a column in the CSV, providing detailed information about the assignment of cadets to AFSCs
-    for different scenarios or optimization runs.
+    This function exports all available cadet solution assignments (including AFSC, base, and course solutions)
+    to CSV files for downstream analysis, visualization, or comparison. Each solution is saved as a column in
+    the exported file, enabling side-by-side comparison of multiple optimization outcomes.
 
-    Args:
-        instance (object): An object containing problem instance and solution data.
+    Parameters
+    ----------
+    - instance : Instance
+        The problem instance containing:
 
-    Returns:
-        None
+        - `parameters` – model parameter dictionary
+        - `solutions` – dictionary of cadet-to-AFSC assignments by solution name
+        - `export_paths` – dictionary of destination paths for saving outputs
 
-    Details:
-    - This function creates a solutions dataframe with each column representing a different solution. It includes
-      data about the assignment of cadets to AFSCs for each scenario.
+    Returns
+    -------
+    None
+        The function writes 1 to 3 CSV files to disk, depending on available solution components.
 
-    - The exported CSV file is saved with an informative name, which typically corresponds to the specific scenario
-      or optimization run being documented.
+    This exports:
+    - `Solutions.csv`: Main cadet-to-AFSC assignment matrix
+    - `Base Solutions.csv`: Optional cadet-to-base assignments, if present
+    - `Course Solutions.csv`: Optional cadet-to-course assignments, if present
 
-    - The function assumes that the 'instance' object contains the required data and file paths for export.
-    ```
+    Notes
+    -----
+    - Each file contains cadets in the first column and one or more solution columns following.
+    - Solution names (keys from `instance.solutions`) define the column headers.
+    - The function safely skips missing data (e.g., base or course assignments are only exported if they exist).
+    - Used primarily to track scenario-based solution outputs from multi-run experiments.
+
+    See Also
+    --------
+    - [`import_solutions_data`](../../../reference/data/processing/#data.processing.import_solutions_data)
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1153,16 +1535,43 @@ def export_solutions_data(instance):
 
 def export_additional_data(instance):
     """
-    This function takes an Instance object as an argument, which contains the additional data to be exported.
-    It creates a dictionary of columns to be included in the additional csv files by translating the parameters
-    to their corresponding column names in the file. The function then creates a dataframe using these columns
-    and exports it as a csv file to the path specified in the export_paths attribute of the Instance object.
+    Export additional configuration and metadata to CSV files.
 
-    Args:
-        instance (Instance): An Instance object containing the additional data to export.
+    This function exports all supplementary datasets associated with the problem instance, including base
+    assignments, base preferences, utility scores, training course data, and CASTLE-AFSC mappings. These
+    datasets are derived from the `instance.parameters` dictionary and written to disk using paths from
+    `instance.export_paths`.
 
-    Returns:
-        None
+    Parameters
+    ----------
+    - instance : Instance
+        The problem instance containing:
+
+        - `parameters` – dictionary of model inputs and outputs
+        - `export_paths` – dictionary of file paths for each dataset
+
+    Returns
+    -------
+    None
+        Outputs are written to CSV files; no value is returned.
+
+    This generates the following (if applicable):
+    - `Bases.csv`: Min/max cadet assignments per AFSC at each base
+    - `Bases Preferences.csv`: Cadet preferences over bases
+    - `Bases Utility.csv`: Cadet utility scores for each base
+    - `Courses.csv`: Course-level details per AFSC (min/max/start)
+    - `Castle Input.csv`: CASTLE-to-AFPC AFSC mappings with optional value curves
+
+    Notes
+    -----
+    - The export is conditional: datasets are only written if their associated parameters exist in `instance.parameters`.
+    - CASTLE-related data (`castle_q`, `castle_afscs_arr`, etc.) must be present to trigger `Castle Input.csv` export.
+    - Base utility and preference matrices are assumed to be cadet-by-base numpy arrays.
+
+    See Also
+    --------
+    - [`import_additional_data`](../../../reference/data/processing/#data.processing.import_additional_data)
+    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1239,60 +1648,53 @@ def export_additional_data(instance):
         df.to_csv(instance.export_paths['Castle Input'], index=False)
 
 
-# Solution Results excel file
+# __________________________________________SOLUTION RESULTS HANDLING___________________________________________________
 def export_solution_results_excel(instance, filepath):
     """
-    Export a solution and associated metrics to an Excel file for detailed analysis.
+    Export a comprehensive Excel workbook of solution results.
 
-    This function exports a comprehensive set of solution metrics, objective values, and constraints, along with detailed
-    solution information, to an Excel file. The exported file serves as a valuable resource for in-depth analysis of
-    optimization results.
+    This function generates an Excel file containing detailed outputs from a solved cadet-AFSC assignment instance,
+    including objective values, cadet assignments, constraint violations, and other performance metrics. The resulting
+    Excel workbook supports deep post-solution analysis and includes conditional formatting for visual clarity.
 
-    Args:
-        instance (object): An object containing problem instance and solution data.
-        filepath (str): The path where the Excel file will be saved.
+    Parameters
+    ----------
+    - instance : Instance
+      An object representing the solved assignment problem. Must contain:
 
-    Returns:
-        None
+      - `parameters` (dict): Problem data
+      - `value_parameters` (dict): Objective metadata and weights
+      - `solution` (dict): Final solution output (e.g., assignments, utilities, choice rankings)
+      - `mdl_p` (dict): Metadata including formatting options
+    - filepath : str
+      Full path where the Excel file will be saved (e.g., `"output/solution_results.xlsx"`)
 
-    Details:
-    - The exported Excel file contains multiple sheets, each providing specific information about the optimization
-      solution.
+    Returns
+    -------
+    None
+      Writes an `.xlsx` file to disk containing multiple sheets of structured solution data.
 
-    - "Main" Sheet:
-        - Displays overall metrics such as the value of the objective function (z).
-        - Lists key metrics related to cadet preferences and choices, including choice counts and proportions.
-        - Provides additional metrics relevant to the optimization problem, constraints, and objectives.
+    Excel Output Includes
+    ---------------------
+    - Main: High-level metrics, objective value, choice counts, and performance indicators
+    - Objective Measures: AFSC scores for each weighted objective
+    - Constraint Fails: Constraint violations by AFSC
+    - Objective Values: Weighted performance per AFSC with visual scoring heatmaps
+    - Solution: Per-cadet assignment breakdown with preferences, utilities, base/course matches
+    - X, V, Q (optional): Assignment matrices for AFSCs, bases, and training courses
+    - Lambda, Y (optional): Value function parameters per AFSC and objective
+    - Castle Metrics (if applicable): Metrics for CASTLE-mode AFSCs
+    - Blocking Pairs (if present): Cadet-AFSC blocking violations
 
-    - "Objective Measures" Sheet:
-        - Presents objective measures for each AFSC (Air Force Specialty Code) in the optimization problem.
-        - Helps in evaluating how well the solution aligns with each objective.
+    Notes
+    -----
+    - Conditional formatting is applied to highlight preference rankings, merit scores, and match quality.
+    - The function handles presence or absence of optional components (e.g., base matching, training courses).
+    - Top 10 cadet choices and utilities are shown in the Solution tab for deeper preference analysis.
 
-    - "Constraint Fails" Sheet:
-        - Displays the number of constraint violations for each AFSC based on various optimization objectives.
-        - Identifies where constraints are not met.
-
-    - "Objective Values" Sheet:
-        - Lists the values achieved for each AFSC for all objectives.
-        - Highlights the performance of AFSCs with conditional formatting.
-
-    - "Solution" Sheet:
-        - Provides detailed information on each cadet's assignment, including matched AFSCs and preferences.
-        - Shows merit, cadet choice, AFSC choice, cadet utility, and AFSC utility.
-        - Includes information about rated cadet assignments and AFSC rankings.
-
-    - "X" Sheet (Optional):
-        - Displays the assignment matrix (X matrix) for cadets and AFSCs.
-        - Shows the assignment status for each combination.
-
-    The function expects an 'instance' object to contain relevant data, including problem parameters, solution data,
-    and value parameters. The Excel file generated by this function serves as a valuable tool for studying and assessing
-    optimization results.
-
-    Note:
-    This function assumes that the 'instance' object conforms to the specific structure expected for your optimization
-    problem. Ensure that the 'instance' is correctly configured before using this function for export.
-    ```
+    See Also
+    --------
+    - [`draw_frame_border_outside`](../../../reference/data/processing/#data.processing.draw_frame_border_outside)
     """
 
     # Shorthand
@@ -1687,6 +2089,24 @@ def export_solution_results_excel(instance, filepath):
 
 def draw_frame_border_outside(workbook, worksheet, first_row, first_col, rows_count, cols_count,
                               color='#0000FF', width=2):
+    """
+    Draws an outer border around a rectangular cell range using conditional formatting.
+
+    - Applies a frame to the specified region starting at (first_row, first_col) with size (rows_count x cols_count)
+    - Border color and width are customizable
+    - Assumes 0-based indexing and adjusts if row/column values are less than 1
+
+    Parameters
+    ----------
+    - workbook : xlsxwriter.Workbook
+    - worksheet : xlsxwriter.Worksheet
+    - first_row : int
+    - first_col : int
+    - rows_count : int
+    - cols_count : int
+    - color : str, default '#0000FF'
+    - width : int, default 2
+    """
 
     # verify type of data passed in
     if first_row <= 0:

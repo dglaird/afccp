@@ -1,6 +1,7 @@
 # The title of your documentation site
 site_name: Air Force Cadet Career Problem
-site_url: https://gitlab.stitches.mil.gitlab.io/
+site_url: https://dglaird.github.io/afccp/
+repo_url: https://github.com/dglaird/afccp
 
 # Theme settings - Uses the Material theme for a clean, modern layout
 theme:
@@ -40,7 +41,8 @@ nav:
       - Overview: user-guide/overview.md
       - Tutorial 1 (Introduction): user-guide/tutorial_1.md
       - Tutorial 2 (Data Overview): user-guide/tutorial_2.md
-      - Tutorial 3 (Values): user-guide/tutorial_3.md
+      - Tutorial 3 (Parameters): user-guide/tutorial_3.md
+      - Tutorial 4 (Value Parameters): user-guide/tutorial_4.md
 
   - 🧠 Developer Guide: developer-guide.md
 
@@ -59,10 +61,12 @@ nav:
   - 📊 Data:
       - Overview: reference/data.md
       - Adjustments: reference/data/adjustments.md
-      - Generation: reference/data/generation.md
       - Preferences: reference/data/preferences.md
       - Processing: reference/data/processing.md
       - Values: reference/data/values.md
+      - Support: reference/data/support.md
+      - Generation- 'Basic': reference/data/generation/basic.md
+      - Generation- 'Realistic': reference/data/generation/realistic.md
 
   - 📈 Solutions:
       - Overview: reference/solutions.md
@@ -141,6 +145,6 @@ extra_css:
 
 extra_javascript:
   - https://polyfill.io/v3/polyfill.min.js?features=es6
-  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
-  - javascripts/mathjax.js
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - javascripts/mathjax.js                      # Your config
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js  # Core MathJax
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/input/tex/extensions/bm.js  # Explicit bm extension

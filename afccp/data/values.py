@@ -1,3 +1,44 @@
+"""
+Value Parameter Processing Module for AFCCP
+===========
+
+This module manages the construction, manipulation, transformation, and comparison of **value parameters**
+for the `CadetCareerProblem` object. Value parameters define the objectives, weights,
+and nonlinear utility functions used to evaluate cadet-to-AFSC assignments under Value-Focused Thinking (VFT)
+and Goal Programming (GP) frameworks.
+
+The functions in this module enable dynamic adjustment of value preferences, conversion between modeling formats,
+and consistent export or validation of weight/value configurations for modeling, diagnostics, or user inspection.
+
+Main Functionalities
+--------------------
+- Build and scale value functions based on cadet and AFSC preferences
+- Generate AFOCD-based weights and objectives using tiered education alignment
+- Update and regenerate weights and utility functions after changes
+- Condense redundant value function breakpoints for speed and clarity
+- Translate between VFT and Goal Programming formats (e.g., for GP solver compatibility)
+- Export value parameters to Excel for audit and transparency
+- Compare multiple value parameter sets for consistency diagnostics
+
+Key Concepts
+------------
+- **Value Parameters**: Contain objective weights, utility functions, and constraints used in the optimization.
+- **Breakpoints**: Discrete x/y points used to approximate nonlinear value functions.
+- **Objective Types**: Tier-based education goals, demographic balancing, quota constraints, cadet merit, etc.
+- **Constraint Types**: Enforce structural bounds (e.g., minimum quotas, tier alignment).
+- **AFOCD Alignment**: Relates cadet degrees (via CIP codes) to tiered AFSC requirements.
+- **Merit-Based Assignment**: Rewards cadet-AFSC matches according to percentile rank.
+
+Available Functions
+-------------------
+- `update_value_and_weight_functions` — Rebuilds weight/value functions after updates
+- `value_function_builder` — Generates piecewise exponential approximations of utility functions
+- `generate_afocd_value_parameters` — Applies AFOCD rules to populate objective targets and constraints
+- `model_value_parameters_to_defaults` — Exports value parameter set to Excel for auditing
+- `compare_value_parameters` — Compares two value parameter dictionaries for equivalency
+- `condense_value_functions` — Removes redundant zeros in piecewise value functions
+- `translate_vft_to_gp_parameters` — Converts VFT model structure to Goal Programming inputs
+"""
 import numpy as np
 import pandas as pd
 from math import *
@@ -6,7 +47,7 @@ from math import *
 import afccp.globals
 
 
-# Value Parameter Procedures
+# __________________________________________VALUE PARAMETER MODIFICATIONS_______________________________________________
 def value_parameters_sets_additions(parameters, value_parameters, printing=False):
     """
     Enhances the `value_parameters` dictionary by adding derived sets and metadata required
@@ -30,38 +71,38 @@ def value_parameters_sets_additions(parameters, value_parameters, printing=False
     dict
         Updated `value_parameters` dictionary with added sets and utility matrices, including:
 
-        - `K` : np.ndarray
-          Indices for all objectives
+    - `K` : np.ndarray
+      Indices for all objectives
 
-        - `K^A[j]` : dict[int → np.ndarray]
-          Objectives with non-zero weights for AFSC `j`
+    - `K^A[j]` : dict[int → np.ndarray]
+      Objectives with non-zero weights for AFSC `j`
 
-        - `K^C[j]` : dict[int → np.ndarray]
-          Constrained objectives (non-zero constraint types) for AFSC `j`
+    - `K^C[j]` : dict[int → np.ndarray]
+      Constrained objectives (non-zero constraint types) for AFSC `j`
 
-        - `J^A[k]` : dict[int → np.ndarray]
-          AFSCs that include objective `k`
+    - `J^A[k]` : dict[int → np.ndarray]
+      AFSCs that include objective `k`
 
-        - `I^C` : np.ndarray
-          Cadets with value constraints (non-zero minimum value)
+    - `I^C` : np.ndarray
+      Cadets with value constraints (non-zero minimum value)
 
-        - `J^Top_Choice[i]` : dict[int → np.ndarray]
-          Preferred AFSCs for cadet `i` that satisfy the cadet's value constraint
+    - `J^Top_Choice[i]` : dict[int → np.ndarray]
+      Preferred AFSCs for cadet `i` that satisfy the cadet's value constraint
 
-        - `J^C` : np.ndarray
-          AFSCs with value constraints
+    - `J^C` : np.ndarray
+      AFSCs with value constraints
 
-        - `r[j, k]` : np.ndarray
-          Number of breakpoints in the value function for AFSC `j` and objective `k`
+    - `r[j, k]` : np.ndarray
+      Number of breakpoints in the value function for AFSC `j` and objective `k`
 
-        - `L[j][k]` : np.ndarray
-          Indices for breakpoints in the value function
+    - `L[j][k]` : np.ndarray
+      Indices for breakpoints in the value function
 
-        - `objective_min`, `objective_max` : np.ndarray
-          Lower and upper bounds on constrained objectives by AFSC
+    - `objective_min`, `objective_max` : np.ndarray
+      Lower and upper bounds on constrained objectives by AFSC
 
-        - `global_utility` : np.ndarray
-          Combined cadet and AFSC utility used for global utility optimization (if available)
+    - `global_utility` : np.ndarray
+      Combined cadet and AFSC utility used for global utility optimization (if available)
 
     Notes
     -----
@@ -160,7 +201,27 @@ def value_parameters_sets_additions(parameters, value_parameters, printing=False
 
 def model_value_parameters_to_defaults(instance, filepath, printing=False):
     """
-    This function takes the current instance value parameters and exports them as defaults back to excel
+    Export Instance Value Parameters to Excel Defaults File.
+
+    This function extracts the current value parameters from the provided AFCCP model `instance`
+    and saves them into a structured Excel file. This allows users to export and preserve
+    a particular configuration of value weights, objectives, and constraints for cadets and AFSCs.
+
+    Parameters:
+    --------
+    - instance (`CadetCareerProblem`): The current problem instance containing value parameters in `instance.value_parameters`.
+    - filepath (str): Full path (including `.xlsx` extension) where the Excel file will be saved.
+    - printing (bool, optional): If True, prints progress message during export. Default is False.
+
+    Returns:
+    --------
+    None: Saves structured Excel file to disk with sheets for overall weights, AFSC weights, and objective components.
+
+    Examples:
+    --------
+    ```python
+    model_value_parameters_to_defaults(instance, filepath='outputs/vp_defaults.xlsx', printing=True)
+    ```
     """
     if printing:
         print('Exporting value parameters as defaults to excel...')
@@ -208,99 +269,39 @@ def model_value_parameters_to_defaults(instance, filepath, printing=False):
             ao_dfs[component].to_excel(writer, sheet_name=component, index=False)
 
 
-def default_value_parameters_from_excel(filepath, num_breakpoints=24, printing=False):
-    """
-    Loads the factory default value parameters from an Excel file into a structured dictionary.
-
-    This function is typically used to initialize a consistent baseline for value-focused models
-    (such as VFT and GP), including AFSC weights, objective weights/targets, constraint types,
-    and breakpoint-based value functions.
-
-    It pulls multiple sheets from a specified Excel file and organizes them into a structured dictionary
-    suitable for assignment model optimization.
-
-    !!! note
-        The `filepath` must point to a valid Excel file containing the following sheets:
-
-        - "Overall Weights"
-        - "AFSC Weights"
-        - "AFSC Objective Weights"
-        - "AFSC Objective Targets"
-        - "AFSC Objective Min Value"
-        - "Constraint Type"
-        - "Value Functions"
-
-    Parameters
-    ----------
-    filepath : str
-        Path to the Excel file containing all value parameter sheets.
-    num_breakpoints : int, optional
-        Number of breakpoints to use for piecewise value functions (default is 24).
-    printing : bool, optional
-        Whether to print status messages during execution (default is False).
-
-    Returns
-    -------
-    dict
-        A dictionary containing all default value parameter arrays and scalars:
-
-        - `cadet_weight_function`: str
-        - `afsc_weight_function`: str
-        - `cadets_overall_weight`: float
-        - `afscs_overall_weight`: float
-        - `afsc_weight`: np.ndarray
-        - `objective_weight`: np.ndarray
-        - `objective_target`: np.ndarray
-        - `objective_value_min`: np.ndarray
-        - `constraint_type`: np.ndarray
-        - `value_functions`: np.ndarray
-        - `cadets_overall_value_min`: float
-        - `afscs_overall_value_min`: float
-        - `afsc_value_min`: np.ndarray
-        - `objectives`: np.ndarray of objective names
-        - `complete_afscs`: np.ndarray of AFSC names
-        - `num_breakpoints`: int (copied from input)
-        - `M`: int (number of AFSCs)
-    """
-    if printing:
-        print('Importing default value parameters...')
-
-    # Get dataframes
-    overall_weights_df = afccp.globals.import_data(filepath, sheet_name="Overall Weights")
-    afsc_weights_df = afccp.globals.import_data(filepath, sheet_name="AFSC Weights")
-    afsc_objective_weights_df = afccp.globals.import_data(filepath, sheet_name="AFSC Objective Weights")
-    afsc_objective_targets_df = afccp.globals.import_data(filepath, sheet_name="AFSC Objective Targets")
-    afsc_objective_value_min_df = afccp.globals.import_data(filepath, sheet_name="AFSC Objective Min Value")
-    afsc_objective_convex_constraints_df = afccp.globals.import_data(filepath, sheet_name="Constraint Type")
-    afsc_value_functions_df = afccp.globals.import_data(filepath, sheet_name="Value Functions")
-    objectives = np.array(afsc_objective_weights_df.keys()[1:])
-    default_value_parameters = {'cadet_weight_function': overall_weights_df['Cadet Weight Function'][0],
-                                'afsc_weight_function': overall_weights_df['AFSC Weight Function'][0],
-                                'cadets_overall_weight': overall_weights_df['Cadets Weight'][0],
-                                'afscs_overall_weight': overall_weights_df['AFSCs Weight'][0],
-                                'afsc_weight': np.array(afsc_weights_df['AFSC Swing Weight']),
-                                'objective_weight': np.array(afsc_objective_weights_df.iloc[:,
-                                                             1:(len(objectives) + 1)]),
-                                'objective_target': np.array(
-                                    afsc_objective_targets_df.iloc[:, 1:(len(objectives) + 1)]),
-                                'objective_value_min': np.array(
-                                    afsc_objective_value_min_df.iloc[:, 1:(len(objectives) + 1)]),
-                                'constraint_type': np.array(
-                                    afsc_objective_convex_constraints_df.iloc[:, 1:(len(objectives) + 1)]),
-                                'value_functions': np.array(afsc_value_functions_df.iloc[:, 1:(len(objectives) + 1)]),
-                                'cadets_overall_value_min': overall_weights_df['Cadets Min Value'][0],
-                                'afscs_overall_value_min': overall_weights_df['AFSCs Min Value'][0],
-                                'afsc_value_min': np.array(afsc_weights_df['AFSC Min Value']),
-                                'objectives': objectives,
-                                'complete_afscs': np.array(afsc_weights_df['AFSC']),
-                                'num_breakpoints': num_breakpoints, "M": len(afsc_weights_df)}
-
-    return default_value_parameters
-
-
 def generate_afocd_value_parameters(parameters, default_value_parameters):
     """
-    Function to add in AFOCD value parameters
+    Generate AFOCD-Based Value Parameters for AFSC Assignment.
+
+    This function builds out the objective weights, targets, and constraints for each AFSC
+    based on their tiered degree requirements as specified in the AFOCD (Air Force Officer
+    Classification Directory). Each tier (1–4) contributes differently based on whether the degree
+    requirement is Mandatory, Desired, or Permitted.
+
+    The function modifies the provided value parameters dictionary in-place by populating:
+
+    - `objective_weight`
+    - `objective_target`
+    - `objective_value_min`
+    - `constraint_type`
+    - `value_functions`
+
+    It uses multipliers for tier importance and maps the degree tier qualifications to model-ready
+    value and constraint settings.
+
+    Parameters:
+    --------
+    - parameters (dict): Problem instance parameters dictionary (contains tier structure, tier types, and tier proportions).
+    - default_value_parameters (dict): Template or pre-initialized dictionary of value parameters to be modified and returned.
+
+    Returns:
+    --------
+    - dict: Updated `default_value_parameters` dictionary with AFOCD-based settings applied.
+
+    Examples:
+    --------
+    ```python
+    updated_value_parameters = generate_afocd_value_parameters(instance.parameters, default_vp)
     """
     p, vp = parameters, default_value_parameters
 
@@ -359,6 +360,112 @@ def generate_afocd_value_parameters(parameters, default_value_parameters):
     return vp
 
 
+def update_value_and_weight_functions(instance, num_breakpoints=None):
+    """
+    Update Value and Weight Functions for the Current Value Parameter Set.
+
+    This function recalculates the cadet weights, AFSC weights, and value function breakpoints
+    (`a` and `f^hat`) for the currently loaded set of value parameters in the instance. It is useful
+    for refreshing value structures after manual edits to the value parameters, such as changes
+    in weight functions or objective targets.
+
+    It does not add or remove objectives from the current set — only updates the internal structure
+    based on the existing configuration. For structural changes (adding/removing objectives), you must
+    reinitialize the value parameter set entirely.
+
+    Parameters:
+    --------
+    - instance (CadetCareerProblem): The active problem instance containing `parameters` and `value_parameters`.
+    - num_breakpoints (int, optional): Number of breakpoints used to approximate the nonlinear value functions.
+      If not specified, defaults to internal value function settings.
+
+    Returns:
+    --------
+    - dict: The updated `value_parameters` dictionary with recalculated weights and piecewise linear segments.
+
+    Examples:
+    --------
+    ```python
+    instance.value_parameters = update_value_and_weight_functions(instance, num_breakpoints=10)
+    ```
+
+    See Also:
+    --------
+    - [`cadet_weight_function`](../../../reference/data/values/#data.values.cadet_weight_function):
+      Generates cadet weights from merit scores using a user-defined weighting function.
+    - [`afsc_weight_function`](../../../reference/data/values/#data.values.afsc_weight_function):
+      Generates AFSC weights based on PGL using either 'Linear', 'Square', or 'Custom' mappings.
+    - [`value_function_builder`](../../../reference/data/values/#data.values.value_function_builder):
+      Builds piecewise linear approximations (`a`, `f^hat`) of nonlinear value functions.
+    - [`create_segment_dict_from_string`](../../../reference/data/values/#data.values.create_segment_dict_from_string):
+      Parses the string representation of a value function and returns a segment definition.
+    """
+
+    # Shorthand
+    p, vp = instance.parameters, instance.value_parameters
+
+    # Determine weights on cadets
+    if 'merit_all' in p:
+        vp['cadet_weight'] = cadet_weight_function(p['merit_all'], func=vp['cadet_weight_function'])
+    else:
+        vp['cadet_weight'] = cadet_weight_function(p['merit'], func=vp['cadet_weight_function'])
+
+    # Determine weights on AFSCs
+    if vp['afsc_weight_function'] != 'Custom':  # If the AFSC weight function is not "custom", we regenerate the weights
+        vp['afsc_weight'] = afsc_weight_function(p["pgl"], vp['afsc_weight_function'])
+
+    # Initialize breakpoints
+    vp['a'] = [[[] for _ in range(vp['O'])] for _ in p["J"]]
+    vp['f^hat'] = [[[] for _ in range(vp['O'])] for _ in p["J"]]
+
+    # Loop through each AFSC
+    for j, afsc in enumerate(p['afscs'][:p['M']]):  # Skip the "unmatched AFSC": '*'
+
+        # Loop through each objective
+        for k, objective in enumerate(vp['objectives']):
+
+            # Value Function specific parameters
+            actual, minimum, maximum = None, None, None
+            if objective == 'Merit':
+                actual = np.mean(p['merit'][p['I^E'][j]])
+            if objective in ['USAFA Proportion', 'Male', 'Minority']:
+                actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
+            if objective in ['Combined Quota', 'ROTC Quota', 'USAFA Quota', 'OTS Quota']:
+
+                # Dictionaries for getting the right value for the specific quota objective
+                min_dict = {"Combined Quota": 'quota_min', 'ROTC Quota': 'rotc_quota',
+                            'USAFA Quota': 'usafa_quota', 'OTS Quota': 'ots_quota'}
+                target_dict = {"Combined Quota": 'quota_d', 'ROTC Quota': 'rotc_quota',
+                               'USAFA Quota': 'usafa_quota', 'OTS Quota': 'ots_quota'}
+                minimum, maximum = int(p[min_dict[objective]][j]), int(p['quota_max'][j])
+
+                # Update minimum values for combined quota objective
+                vp['objective_value_min'][j, k] = str(minimum) + ', ' + str(maximum)
+                vp['objective_min'][j, k], vp['objective_max'][j, k] = minimum, maximum
+                vp['objective_target'][j, k] = p[target_dict[objective]][j]
+
+            # If we care about this objective, we load in its value function breakpoints
+            if vp['objective_weight'][j, k] != 0:
+
+                # Create the non-linear piecewise exponential segment dictionary
+                segment_dict = create_segment_dict_from_string(vp['value_functions'][j, k],
+                                                               vp['objective_target'][j, k],
+                                                               minimum=minimum, maximum=maximum, actual=actual)
+
+                # Linearize the non-linear function using the specified number of breakpoints
+                vp['a'][j][k], vp['f^hat'][j][k] = value_function_builder(
+                    segment_dict, num_breakpoints=num_breakpoints)
+
+        # Scale the objective weights for this AFSC, so they sum to 1
+        vp['objective_weight'][j] = vp['objective_weight'][j] / sum(vp['objective_weight'][j])
+
+    # Scale the weights across all AFSCs, so they sum to 1
+    vp['afsc_weight'] = vp['afsc_weight'] / sum(vp['afsc_weight'])
+
+    return vp  # Return set of value parameters
+
+
+# _____________________________________________DEFAULT VALUE PARAMETERS_________________________________________________
 def generate_value_parameters_from_defaults(parameters, default_value_parameters, generate_afsc_weights=True,
                                             num_breakpoints=None, printing=False):
     """
@@ -383,28 +490,33 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     ----------
     parameters : dict
         Dictionary of instance parameters (cadets, AFSCs, quotas, preferences, etc.).
+
     default_value_parameters : dict
         Dictionary of default value parameters imported via `default_value_parameters_from_excel`.
+
     generate_afsc_weights : bool, optional
         If True (default), compute AFSC weights using the specified function in defaults.
         If False, use static AFSC weights from the defaults (used for "Custom").
+
     num_breakpoints : int, optional
         Number of breakpoints used to discretize value functions. Defaults to what's in defaults.
+
     printing : bool, optional
         Whether to print status updates during generation (default is False).
 
     Returns
     -------
     dict
-        A structured dictionary `vp` containing:
-        - `objectives`: List of active objective names
-        - `objective_weight`: Array of objective weights by AFSC
-        - `objective_target`: Array of target values for each AFSC-objective pair
-        - `objective_value_min`: Text bounds for constrained objectives
-        - `constraint_type`: Type of constraint (e.g., inequality, convex) for each objective
-        - `afsc_weight`, `afsc_value_min`, `cadet_weight`, `cadets_overall_weight`, ...
-        - `a`, `f^hat`: Piecewise value function breakpoints
-        - `K^A`: Dictionary mapping AFSC index to active objective indices
+    A structured dictionary `vp` containing:
+
+    - `objectives`: List of active objective names
+    - `objective_weight`: Array of objective weights by AFSC
+    - `objective_target`: Array of target values for each AFSC-objective pair
+    - `objective_value_min`: Text bounds for constrained objectives
+    - `constraint_type`: Type of constraint (e.g., inequality, convex) for each objective
+    - `afsc_weight`, `afsc_value_min`, `cadet_weight`, `cadets_overall_weight`, ...
+    - `a`, `f^hat`: Piecewise value function breakpoints
+    - `K^A`: Dictionary mapping AFSC index to active objective indices
     """
     if printing:
         print('Generating value parameters from defaults...')
@@ -611,161 +723,97 @@ def generate_value_parameters_from_defaults(parameters, default_value_parameters
     return vp
 
 
-def update_value_and_weight_functions(instance, num_breakpoints=None):
+def default_value_parameters_from_excel(filepath, num_breakpoints=24, printing=False):
     """
-    This function takes in a problem instance and updates the set of value parameters in case the user
-    makes a change to some aspect of them. Note: Only works for the current set of objectives in the value
-    parameters. This does not add/subtract from the objectives. If you want to add a new one in that will
-    have to be re-generated. This works for when the user wants to update an objective weight, weight/value function,
-    etc.
+    Loads the factory default value parameters from an Excel file into a structured dictionary.
+
+    This function is typically used to initialize a consistent baseline for value-focused models
+    (such as VFT and GP), including AFSC weights, objective weights/targets, constraint types,
+    and breakpoint-based value functions.
+
+    It pulls multiple sheets from a specified Excel file and organizes them into a structured dictionary
+    suitable for assignment model optimization.
+
+    !!! note
+        The `filepath` must point to a valid Excel file containing the following sheets:
+
+        - "Overall Weights"
+        - "AFSC Weights"
+        - "AFSC Objective Weights"
+        - "AFSC Objective Targets"
+        - "AFSC Objective Min Value"
+        - "Constraint Type"
+        - "Value Functions"
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the Excel file containing all value parameter sheets.
+    num_breakpoints : int, optional
+        Number of breakpoints to use for piecewise value functions (default is 24).
+    printing : bool, optional
+        Whether to print status messages during execution (default is False).
+
+    Returns
+    -------
+    dict
+    A dictionary containing all default value parameter arrays and scalars:
+
+    - `cadet_weight_function`: str
+    - `afsc_weight_function`: str
+    - `cadets_overall_weight`: float
+    - `afscs_overall_weight`: float
+    - `afsc_weight`: np.ndarray
+    - `objective_weight`: np.ndarray
+    - `objective_target`: np.ndarray
+    - `objective_value_min`: np.ndarray
+    - `constraint_type`: np.ndarray
+    - `value_functions`: np.ndarray
+    - `cadets_overall_value_min`: float
+    - `afscs_overall_value_min`: float
+    - `afsc_value_min`: np.ndarray
+    - `objectives`: np.ndarray of objective names
+    - `complete_afscs`: np.ndarray of AFSC names
+    - `num_breakpoints`: int (copied from input)
+    - `M`: int (number of AFSCs)
     """
+    if printing:
+        print('Importing default value parameters...')
 
-    # Shorthand
-    p, vp = instance.parameters, instance.value_parameters
+    # Get dataframes
+    overall_weights_df = afccp.globals.import_data(filepath, sheet_name="Overall Weights")
+    afsc_weights_df = afccp.globals.import_data(filepath, sheet_name="AFSC Weights")
+    afsc_objective_weights_df = afccp.globals.import_data(filepath, sheet_name="AFSC Objective Weights")
+    afsc_objective_targets_df = afccp.globals.import_data(filepath, sheet_name="AFSC Objective Targets")
+    afsc_objective_value_min_df = afccp.globals.import_data(filepath, sheet_name="AFSC Objective Min Value")
+    afsc_objective_convex_constraints_df = afccp.globals.import_data(filepath, sheet_name="Constraint Type")
+    afsc_value_functions_df = afccp.globals.import_data(filepath, sheet_name="Value Functions")
+    objectives = np.array(afsc_objective_weights_df.keys()[1:])
+    default_value_parameters = {'cadet_weight_function': overall_weights_df['Cadet Weight Function'][0],
+                                'afsc_weight_function': overall_weights_df['AFSC Weight Function'][0],
+                                'cadets_overall_weight': overall_weights_df['Cadets Weight'][0],
+                                'afscs_overall_weight': overall_weights_df['AFSCs Weight'][0],
+                                'afsc_weight': np.array(afsc_weights_df['AFSC Swing Weight']),
+                                'objective_weight': np.array(afsc_objective_weights_df.iloc[:,
+                                                             1:(len(objectives) + 1)]),
+                                'objective_target': np.array(
+                                    afsc_objective_targets_df.iloc[:, 1:(len(objectives) + 1)]),
+                                'objective_value_min': np.array(
+                                    afsc_objective_value_min_df.iloc[:, 1:(len(objectives) + 1)]),
+                                'constraint_type': np.array(
+                                    afsc_objective_convex_constraints_df.iloc[:, 1:(len(objectives) + 1)]),
+                                'value_functions': np.array(afsc_value_functions_df.iloc[:, 1:(len(objectives) + 1)]),
+                                'cadets_overall_value_min': overall_weights_df['Cadets Min Value'][0],
+                                'afscs_overall_value_min': overall_weights_df['AFSCs Min Value'][0],
+                                'afsc_value_min': np.array(afsc_weights_df['AFSC Min Value']),
+                                'objectives': objectives,
+                                'complete_afscs': np.array(afsc_weights_df['AFSC']),
+                                'num_breakpoints': num_breakpoints, "M": len(afsc_weights_df)}
 
-    # Determine weights on cadets
-    if 'merit_all' in p:
-        vp['cadet_weight'] = cadet_weight_function(p['merit_all'], func=vp['cadet_weight_function'])
-    else:
-        vp['cadet_weight'] = cadet_weight_function(p['merit'], func=vp['cadet_weight_function'])
-
-    # Determine weights on AFSCs
-    if vp['afsc_weight_function'] != 'Custom':  # If the AFSC weight function is not "custom", we regenerate the weights
-        vp['afsc_weight'] = afsc_weight_function(p["pgl"], vp['afsc_weight_function'])
-
-    # Initialize breakpoints
-    vp['a'] = [[[] for _ in range(vp['O'])] for _ in p["J"]]
-    vp['f^hat'] = [[[] for _ in range(vp['O'])] for _ in p["J"]]
-
-    # Loop through each AFSC
-    for j, afsc in enumerate(p['afscs'][:p['M']]):  # Skip the "unmatched AFSC": '*'
-
-        # Loop through each objective
-        for k, objective in enumerate(vp['objectives']):
-
-            # Value Function specific parameters
-            actual, minimum, maximum = None, None, None
-            if objective == 'Merit':
-                actual = np.mean(p['merit'][p['I^E'][j]])
-            if objective in ['USAFA Proportion', 'Male', 'Minority']:
-                actual = len(p['I^D'][objective][j]) / len(p['I^E'][j])
-            if objective in ['Combined Quota', 'ROTC Quota', 'USAFA Quota', 'OTS Quota']:
-
-                # Dictionaries for getting the right value for the specific quota objective
-                min_dict = {"Combined Quota": 'quota_min', 'ROTC Quota': 'rotc_quota',
-                            'USAFA Quota': 'usafa_quota', 'OTS Quota': 'ots_quota'}
-                target_dict = {"Combined Quota": 'quota_d', 'ROTC Quota': 'rotc_quota',
-                               'USAFA Quota': 'usafa_quota', 'OTS Quota': 'ots_quota'}
-                minimum, maximum = int(p[min_dict[objective]][j]), int(p['quota_max'][j])
-
-                # Update minimum values for combined quota objective
-                vp['objective_value_min'][j, k] = str(minimum) + ', ' + str(maximum)
-                vp['objective_min'][j, k], vp['objective_max'][j, k] = minimum, maximum
-                vp['objective_target'][j, k] = p[target_dict[objective]][j]
-
-            # If we care about this objective, we load in its value function breakpoints
-            if vp['objective_weight'][j, k] != 0:
-
-                # Create the non-linear piecewise exponential segment dictionary
-                segment_dict = create_segment_dict_from_string(vp['value_functions'][j, k],
-                                                               vp['objective_target'][j, k],
-                                                               minimum=minimum, maximum=maximum, actual=actual)
-
-                # Linearize the non-linear function using the specified number of breakpoints
-                vp['a'][j][k], vp['f^hat'][j][k] = value_function_builder(
-                    segment_dict, num_breakpoints=num_breakpoints)
-
-        # Scale the objective weights for this AFSC, so they sum to 1
-        vp['objective_weight'][j] = vp['objective_weight'][j] / sum(vp['objective_weight'][j])
-
-    # Scale the weights across all AFSCs, so they sum to 1
-    vp['afsc_weight'] = vp['afsc_weight'] / sum(vp['afsc_weight'])
-
-    return vp  # Return set of value parameters
+    return default_value_parameters
 
 
-def compare_value_parameters(parameters, vp1, vp2, vp1name, vp2name, printing=False):
-    """
-    Compares two sets of value parameters to see if they are identical
-    :return: True if they're identical, False otherwise
-    """
-    # Shorthand
-    p = parameters
-
-    # Assume identical until proven otherwise
-    identical = True
-
-    # Loop through each value parameter key
-    for key in vp1:
-
-        if np.shape(vp1[key]) != np.shape(vp2[key]):
-            if printing:
-                print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is a different size.')
-            identical = False
-            break
-
-        if key in ['afscs_overall_weight', 'cadets_overall_weight', 'cadet_weight_function', 'afsc_weight_function',
-                   'cadets_overall_value_min', 'afscs_overall_value_min']:
-            if vp1[key] != vp2[key]:
-                if printing:
-                    print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is different.')
-                identical = False
-                break
-
-        elif key in ['afsc_value_min', 'cadet_value_min', 'objective_value_min', 'value_functions', 'objective_target',
-                     'objective_weight', 'afsc_weight', 'cadet_weight', 'I^C', 'J^C', 'value_functions',
-                     'constraint_type']:
-            if key not in ['objective_value_min', 'value_functions']:
-                vp_1_arr, vp_2_arr = np.ravel(np.around(vp1[key], 4)), np.ravel(np.around(vp2[key], 4))
-            else:
-                vp_1_arr, vp_2_arr = np.ravel(vp1[key]), np.ravel(vp2[key])
-
-            diff_arr = np.array([vp_1_arr[i] != vp_2_arr[i] for i in range(len(vp_1_arr))])
-            if sum(diff_arr) != 0 and (vp1[key] != [] or vp2[key] != []):
-                if printing:
-                    print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is different.')
-                identical = False
-                break
-
-        elif key == 'a':  # Check the breakpoints
-
-            for j in p['J']:
-                afsc = p["afscs"][j]
-                for k in vp1['K^A'][j]:
-                    objective = vp1["objectives"][k]
-                    for l in vp1['L'][j][k]:
-                        try:
-                            if vp1[key][j][k][l] != vp2[key][j][k][l]:
-                                identical = False
-                                if printing:
-                                    print(vp1name + ' and ' + vp2name + ' not the same. '
-                                                                        'Breakpoints are different for AFSC ' + afsc +
-                                          ' Objective ' + objective + '.')
-                                    print(vp1name + ":", vp1[key][j][k])
-                                    print(vp2name + ":", vp2[key][j][k])
-                                break
-                        except:  # If there was a range error, then the breakpoints are not the same
-                            identical = False
-                            if printing:
-                                print(vp1name + ' and ' + vp2name + ' not the same. '
-                                                                    'Breakpoints are different for AFSC ' + afsc +
-                                      ' Objective ' + objective + '.')
-                                print(vp1name + ":", vp1[key][j][k])
-                                print(vp2name + ":", vp2[key][j][k])
-                            break
-                    if not identical:
-                        break
-                if not identical:
-                    break
-            if not identical:
-                break
-
-    if identical and printing:
-        print(vp1name + ' and ' + vp2name + ' are the same.')
-
-    return identical
-
-
+# ____________________________________________________WEIGHT FUNCTIONS__________________________________________________
 def cadet_weight_function(merit, func="Curve_1"):
     """
     Take in a merit array and generate cadet weights depending on function specified
@@ -840,31 +888,34 @@ def afsc_weight_function(quota, func="Curve"):
     return weights
 
 
-# Value Function Construction
+# _____________________________________________________VALUE FUNCTIONS__________________________________________________
 def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual=None, multiplier=False, minimum=None):
     """
     Converts a value function string into a segment dictionary.
 
     Args:
-        vf_string (str): Value function string.
-        target (float, optional): Target objective measure.
-        maximum (float, optional): Maximum objective measure.
-        actual (float, optional): Proportion of eligible cadets.
-        multiplier (bool, optional): Specifies whether the target values are multiplied by a scalar for quota objectives.
-        minimum (float, optional): Minimum objective measure.
+
+    - vf_string (str): Value function string.
+    - target (float, optional): Target objective measure.
+    - maximum (float, optional): Maximum objective measure.
+    - actual (float, optional): Proportion of eligible cadets.
+    - multiplier (bool, optional): Specifies whether the target values are multiplied by a scalar for quota objectives.
+    - minimum (float, optional): Minimum objective measure.
 
     Returns:
         segment_dict (dict): A dictionary representing the segments of the value function.
 
     Notes:
-        - The function assumes that the value function string follows a specific format.
-        - The segment dictionary contains keys representing the segment number and values representing the segment details.
-        - Each segment is represented by a dictionary with the following keys:
-            - 'x1': The starting point on the x-axis.
-            - 'y1': The starting point on the y-axis.
-            - 'x2': The ending point on the x-axis.
-            - 'y2': The ending point on the y-axis.
-            - 'rho': The value of the rho parameter for the segment.
+
+    - The function assumes that the value function string follows a specific format.
+    - The segment dictionary contains keys representing the segment number and values representing the segment details.
+    - Each segment is represented by a dictionary with the following keys:
+
+        - 'x1': The starting point on the x-axis.
+        - 'y1': The starting point on the y-axis.
+        - 'x2': The ending point on the x-axis.
+        - 'y2': The ending point on the y-axis.
+        - 'rho': The value of the rho parameter for the segment.
     """
 
     # Collect the kind of function we're creating
@@ -1003,39 +1054,51 @@ def create_segment_dict_from_string(vf_string, target=None, maximum=None, actual
 
 def value_function_builder(segment_dict=None, num_breakpoints=None, derivative_locations=False):
     """
-    This procedure takes in a dictionary of exponential segments and returns the breakpoints (measures and values) for
-    that value function.
+    Build Piecewise Linear Value Function from Exponential Segments.
 
-    :param segment_dict: A dictionary representing exponential segments of the value function.
-        The dictionary should have the following format:
-        {
-            segment_id: {
-                'x1': measure of the starting point of the segment,
-                'y1': value of the starting point of the segment,
-                'x2': measure of the ending point of the segment,
-                'y2': value of the ending point of the segment,
-                'rho': rate of change for the segment,
-                'r': number of breakpoints per segment (optional)
-            },
-            ...
-        }
-        If segment_dict is not provided, a default dictionary will be used.
+    This function takes a dictionary of exponential segment definitions and returns a pair of
+    arrays representing the piecewise linear approximation of the nonlinear value function:
+    one for the x-axis breakpoints (`a`) and one for the corresponding values (`f^hat`).
 
-    :param num_breakpoints: The total number of breakpoints to be generated for the value function.
-        If not specified within the segment_dict for each segment, a general number of breakpoints will be used.
-        If both segment_dict and num_breakpoints are provided, num_breakpoints takes precedence.
+    The segment dictionary defines the start and end points, curvature (via `rho`), and optionally
+    the number of breakpoints to use for each segment. The function supports both fixed-interval
+    spacing along the x-axis and derivative-based breakpoint spacing.
 
-    :param derivative_locations: A boolean flag indicating whether breakpoints should be placed at locations where
-        the derivative increases by some interval. If True, breakpoints will be placed based on derivative intervals;
-        if False, breakpoints will be placed at fixed intervals based on x.
+    Parameters:
+    --------
+    - segment_dict (dict, optional): A dictionary specifying exponential segments. Each key maps to a sub-dictionary with:
 
-    :return: Two numpy arrays representing the breakpoints of the value function:
-        - a: Array of breakpoint measures.
-        - fhat: Array of breakpoint values.
+        - `'x1'`, `'y1'`: Starting point of the segment
+        - `'x2'`, `'y2'`: Ending point of the segment
+        - `'rho'`: Curvature parameter controlling steepness of the segment
+        - `'r'` (optional): Number of breakpoints for this segment
+    - num_breakpoints (int, optional): Overrides the per-segment breakpoint count. Distributes breakpoints equally if specified.
+    - derivative_locations (bool, optional): If True, breakpoints are spaced using derivative intervals
+      instead of uniform spacing on the x-axis.
 
-    Note:
-    - The breakpoints are determined based on the exponential segments provided.
-    - The resulting breakpoints are returned as numpy arrays, with measures and values rounded to 5 decimal places.
+    Returns:
+    --------
+    - a (np.ndarray): Array of breakpoint locations (measures) on the x-axis.
+    - fhat (np.ndarray): Array of function values at those breakpoint locations.
+
+    Examples:
+    --------
+    ```python
+    segment_def = {
+        1: {'x1': 0, 'y1': 0, 'x2': 0.5, 'y2': 1, 'rho': 0.1, 'r': 10},
+        2: {'x1': 0.5, 'y1': 1, 'x2': 1, 'y2': 0, 'rho': -0.1, 'r': 10}
+    }
+    a, fhat = value_function_builder(segment_def, num_breakpoints=20, derivative_locations=False)
+    ```
+
+    See Also:
+    --------
+    - [`exponential_function`](../../../reference/data/values/#data.values.exponential_function):
+      Computes the value for an exponential segment at a given x.
+    - [`derivative_function`](../../../reference/data/values/#data.values.derivative_function):
+      Returns the derivative of the exponential function at a given x.
+    - [`inverse_derivative_function`](../../../reference/data/values/#data.values.inverse_derivative_function):
+      Finds the x-value corresponding to a specific derivative magnitude for exponential functions.
     """
 
     if segment_dict is None:
@@ -1210,10 +1273,30 @@ def inverse_derivative_function(y_prime, x_f, rho, positive):
 
 def condense_value_functions(parameters, value_parameters):
     """
-    This procedure takes an instances' value functions and removes all unnecessary zeros in the values
-    :param parameters: fixed cadet parameters
-    :param value_parameters: weight and value parameters
-    :return: value parameters with cleaned value functions
+    Remove Redundant Zero Segments in Value Functions.
+
+    This procedure cleans up the value function breakpoints (`a`, `f^hat`) by removing
+    unnecessary internal segments where the value remains zero, which do not affect
+    the overall utility calculation but may clutter the optimization model.
+
+    Parameters:
+    --------
+    - parameters (dict): Dictionary of cadet/AFSC parameters (e.g., `J`, `K^A`, etc.).
+    - value_parameters (dict): Dictionary of value and weight parameter arrays, including:
+
+        - `a`: Breakpoint measures (list of lists by AFSC and objective index)
+        - `f^hat`: Breakpoint values (list of lists by AFSC and objective index)
+
+    Returns:
+    --------
+    - value_parameters (dict): Updated dictionary with condensed `a` and `f^hat` arrays,
+      where redundant zero-valued breakpoints have been removed.
+
+    Examples:
+    --------
+    ```python
+    new_value_parameters = condense_value_functions(parameters, value_parameters)
+    ```
     """
 
     # Shorthand
@@ -1238,21 +1321,163 @@ def condense_value_functions(parameters, value_parameters):
     return vp
 
 
-# Rebecca's Model Parameter Translation
-def translate_vft_to_gp_parameters(instance):
+# _________________________________________________VALUE PARAMETER COMPARISON___________________________________________
+def compare_value_parameters(parameters, vp1, vp2, vp1name, vp2name, printing=False):
     """
-    Translates the VFT (Value Focused Thinking) parameters to Rebecca's model parameters.
+    Compare Two Sets of Value Parameters for Equality.
 
-    Args:
-        instance: An instance of CadetCareerProblem
+    This function compares two dictionaries of value parameters used in cadet-AFSC utility modeling.
+    It checks structural consistency (array shapes) and content equality across keys that define
+    objective weights, constraints, value functions, and other relevant configurations.
+
+    Parameters:
+    --------
+    - parameters (dict): The shared cadet-AFSC parameter dictionary used for indexing and labels.
+    - vp1 (dict): The first value parameter dictionary to compare.
+    - vp2 (dict): The second value parameter dictionary to compare.
+    - vp1name (str): Name label for the first value parameter set (used in print statements).
+    - vp2name (str): Name label for the second value parameter set (used in print statements).
+    - printing (bool, optional): If True, prints the first detected mismatch with context. Default is False.
 
     Returns:
-        gp (dict): A dictionary containing the translated parameters for Rebecca's model.
+    --------
+    - identical (bool): True if all structure and content matches exactly between the two value parameter sets;
+      False otherwise.
 
-    Notes:
-        The function assumes that the instance object contains the following attributes:
-            - parameters: A dictionary containing the VFT model parameters.
-            - value_parameters: A dictionary containing the value parameters of the VFT model.
+    Examples:
+    --------
+    ```python
+    result = compare_value_parameters(p, vp_baseline, vp_candidate, 'Baseline', 'Candidate', printing=True)
+    if not result:
+        print("Differences found between value parameter sets.")
+    ```
+    """
+    # Shorthand
+    p = parameters
+
+    # Assume identical until proven otherwise
+    identical = True
+
+    # Loop through each value parameter key
+    for key in vp1:
+
+        if np.shape(vp1[key]) != np.shape(vp2[key]):
+            if printing:
+                print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is a different size.')
+            identical = False
+            break
+
+        if key in ['afscs_overall_weight', 'cadets_overall_weight', 'cadet_weight_function', 'afsc_weight_function',
+                   'cadets_overall_value_min', 'afscs_overall_value_min']:
+            if vp1[key] != vp2[key]:
+                if printing:
+                    print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is different.')
+                identical = False
+                break
+
+        elif key in ['afsc_value_min', 'cadet_value_min', 'objective_value_min', 'value_functions', 'objective_target',
+                     'objective_weight', 'afsc_weight', 'cadet_weight', 'I^C', 'J^C', 'value_functions',
+                     'constraint_type']:
+            if key not in ['objective_value_min', 'value_functions']:
+                vp_1_arr, vp_2_arr = np.ravel(np.around(vp1[key], 4)), np.ravel(np.around(vp2[key], 4))
+            else:
+                vp_1_arr, vp_2_arr = np.ravel(vp1[key]), np.ravel(vp2[key])
+
+            diff_arr = np.array([vp_1_arr[i] != vp_2_arr[i] for i in range(len(vp_1_arr))])
+            if sum(diff_arr) != 0 and (vp1[key] != [] or vp2[key] != []):
+                if printing:
+                    print(vp1name + ' and ' + vp2name + ' not the same. ' + key + ' is different.')
+                identical = False
+                break
+
+        elif key == 'a':  # Check the breakpoints
+
+            for j in p['J']:
+                afsc = p["afscs"][j]
+                for k in vp1['K^A'][j]:
+                    objective = vp1["objectives"][k]
+                    for l in vp1['L'][j][k]:
+                        try:
+                            if vp1[key][j][k][l] != vp2[key][j][k][l]:
+                                identical = False
+                                if printing:
+                                    print(vp1name + ' and ' + vp2name + ' not the same. '
+                                                                        'Breakpoints are different for AFSC ' + afsc +
+                                          ' Objective ' + objective + '.')
+                                    print(vp1name + ":", vp1[key][j][k])
+                                    print(vp2name + ":", vp2[key][j][k])
+                                break
+                        except:  # If there was a range error, then the breakpoints are not the same
+                            identical = False
+                            if printing:
+                                print(vp1name + ' and ' + vp2name + ' not the same. '
+                                                                    'Breakpoints are different for AFSC ' + afsc +
+                                      ' Objective ' + objective + '.')
+                                print(vp1name + ":", vp1[key][j][k])
+                                print(vp2name + ":", vp2[key][j][k])
+                            break
+                    if not identical:
+                        break
+                if not identical:
+                    break
+            if not identical:
+                break
+
+    if identical and printing:
+        print(vp1name + ' and ' + vp2name + ' are the same.')
+
+    return identical
+
+
+# ________________________________________________GOAL PROGRAMMING PARAMETERS___________________________________________
+def translate_vft_to_gp_parameters(instance):
+    """
+    Translates VFT (Value-Focused Thinking) Parameters to Goal Programming (GP) Model Parameters.
+
+    This function maps the VFT-based cadet-AFSC assignment model parameters stored in a `CadetCareerProblem`
+    instance into a format suitable for a separate goal programming model structure (e.g., Rebecca's model).
+    It builds constraint sets, cadet eligibility mappings, parameter values, and associated reward/penalty weights.
+
+    Parameters
+    --------
+    - instance : CadetCareerProblem
+        An instance containing:
+
+        - `parameters` (dict): Core cadet and AFSC parameter structures.
+        - `value_parameters` (dict): Weighting schemes, objective values, and constraints.
+        - `gp_df` (DataFrame): Reward and penalty configurations used in GP model.
+
+    Returns
+    --------
+    - gp : dict
+    A dictionary of goal programming model parameters with the following structure:
+
+    - Sets: `A`, `C`, `A^`, `C^` for AFSCs and Cadets by constraint type.
+    - Parameters: `param` for bounds and targets, `utility`, `merit`, `Big_M`, `u_limit`.
+    - Reward/Penalty: `lam^`, `mu^` representing incentive structures.
+    - Constraint Types: `con` defines the list of all modeled constraints.
+
+    Notes
+    --------
+    - The model assumes AFSCs are indexed by `A` (0 to M-1), cadets by `C` (0 to N-1).
+    - Constraint types include:
+
+        - `T`: Target quotas (min)
+        - `F`: Over-classification limits (max)
+        - `M`, `D_under`, `D_over`, `P`: Education tier constraints
+        - `U_under`, `U_over`: Bounds on USAFA proportions
+        - `R_under`, `R_over`: Percentile constraints (e.g., merit)
+        - `W`: Minimum preference coverage
+    - Cadets’ eligible and expressed-preference AFSCs are stored in `A^['E']` and `A^['W^E']`.
+    - `lam^['S']` rewards assignments that match cadet preferences in order of merit.
+    - Constraint-specific cadet sets are available via `C^[con]`, e.g., `C^['D_under']`.
+
+    Examples
+    --------
+    ```python
+    gp_model_inputs = translate_vft_to_gp_parameters(instance)
+    gp_model.solve(gp_model_inputs)
+    ```
     """
 
     # Shorthand

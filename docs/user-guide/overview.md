@@ -18,19 +18,16 @@ Learn how to set up the AFCCP environment and run your first model. This tutoria
 
 ---
 
-### ✅ [Tutorial 2: Understanding the Parameters](tutorial_2.md)
-Dive into the parameters that power the AFCCP model. You’ll learn:
-- What input parameters are required
-- How authorizations, inventory, and preferences are defined
-- The structure of AFSC, cadet, and constraint data
+### ✅ [Tutorial 2: Data Overview](tutorial_2.md)
+Dive into the data that power the AFCCP model. You’ll learn:
 
 ---
 
-### ✅ [Tutorial 3: Exploring Value Functions](tutorial_3.md)
-Learn how value functions drive decision-making and assignment scoring. Topics include:
-- How value curves are constructed
-- Role of utility transformations
-- How to visualize and customize cadet/AFSC value interactions
+### ✅ [Tutorial 3: Parameters](tutorial_3.md)
+
+---
+
+### ✅ [Tutorial 4: Value Parameters](tutorial_4.md)
 
 ---
 

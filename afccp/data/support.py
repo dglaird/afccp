@@ -1,3 +1,29 @@
+"""
+Data Support Module
+============
+
+Provides supporting functions for configuring problem instances and generating AFSC-related visualization and
+qualification metadata in the AFCCP system.
+
+This module contains helper functions used to initialize and update key parameter sets related to AFSCs, cadet
+eligibility, solution comparison, and qualification tiers. These functions support both the modeling pipeline and
+result interpretation by preparing model-specific parameters and simplifying downstream visualization or analysis tasks.
+
+Functions
+---------
+- `initialize_instance_functional_parameters`: Adds AFCCP-specific keys to the model parameters, including default display and export options.
+- `determine_afsc_plot_details`: Sets visualization attributes for each AFSC (e.g., colors, abbreviations, names) used in plots and diagrams.
+- `determine_afscs_in_image`: Filters AFSCs to display in charts based on the solution scope, accession source, or eligibility threshold.
+- `pick_most_changed_afscs`: Identifies the AFSCs with the greatest variability in cadet assignments across multiple solutions.
+- `cip_to_qual_tiers`: Computes cadet qualification tiers (e.g., M1, D2, P3) based on their CIP degree codes for each AFSC.
+
+Typical Use Cases
+-----------------
+- Automatically setting up model parameters based on the data inputs (`initialize_instance_functional_parameters`)
+- Preparing AFSC visuals for comparison charts or preference graphs (`determine_afsc_plot_details`, `determine_afscs_in_image`)
+- Analyzing how different modeling approaches affect AFSC-level cadet outcomes (`pick_most_changed_afscs`)
+- Generating qualification matrices for cadets using AFOCD-based tiering rules (`cip_to_qual_tiers`)
+"""
 import os
 import pandas as pd
 import numpy as np
@@ -9,24 +35,48 @@ import copy
 # Data/Instance supporting functions
 def initialize_instance_functional_parameters(N):
     """
-    Initializes the various instance parameters for the CadetCareerProblem object.
+    Initializes the functional parameters used by the CadetCareerProblem object.
 
-    Parameters:
-        N (int): The number of cadets in the problem instance.
+    Parameters
+    ----------
+    N : int
+        Number of cadets in the problem instance. Used to scale certain algorithm parameters.
 
-    Returns:
-        dict: A dictionary containing the initialized instance parameters.
+    Returns
+    -------
+    dict
+        A dictionary of instance parameters (`mdl_p`) controlling behavior, algorithms, chart rendering,
+        Pyomo integration, CASTLE compatibility, and more.
 
-    This function initializes the hyperparameters and toggles for the CadetCareerProblem object.
-    It sets default values for various parameters that control the behavior and visualization of the problem instance.
+    Overview
+    --------
+    This function provides a centralized configuration for the CadetCareerProblem object.
+    Parameters are grouped by functionality and define the default settings for:
 
-    The parameters are organized into different sections, including graph parameters, AFSC chart versions,
-    colors for different bar types, animation colors, value function chart parameters, and more.
+    - **Generic Solution Handling**: Toggles for storing, naming, and gathering metrics from solutions.
+    - **Matching Algorithm Parameters**: Controls for deterministic/rated/genetic matching algorithms.
+    - **Rated Matching Parameters**: Defines logic for cross-commissioning and board behavior for rated tracks.
+    - **Genetic Algorithm Settings**: Population size, mutation logic, crossover mechanics, and GA heuristics.
+    - **Pyomo Integration**: Solver-specific options, time limits, and accessions logic.
+    - **Constraint Logic**: Bounds and options for special constraints (e.g., USSF-specific, merit floors).
+    - **VFT and Constraint Placement**: Value Function Tool (VFT) control and constraint modeling logic.
+    - **Chart Parameters**: Configuration for Bubble, AFSC, utility, and comparison charts.
+    - **Sensitivity Analysis**: Controls for PGL iteration studies and Pareto frontier evaluations.
+    - **CASTLE Integration**: Optional toggles for syncing with the CASTLE system (e.g., GUO compatibility).
+    - **Chart Color Palettes**: A full color dictionary for use across demographics, performance, and visuals.
+    - **Animation and Interaction Colors**: Highlights for matched/unmatched cadets and choice levels.
+    - **Slide Export and Layout**: Coordinates and chart choices for building slides or figures.
 
-    The function returns a dictionary containing all the initialized instance parameters.
+    Notes
+    -----
+    - Analysts can modify these values in-place or pass an updated version of this dictionary into
+      CadetCareerProblem methods. See the `p_dict` parameter option of the `CadetCareerProblem` class
+    - Chart rendering behavior (figures, legends, annotations) is also fully parameterized here.
+    - Default values are tuned for USAFA cadet datasets but can be adapted to ROTC/OTS or simulation needs.
 
-    Note: The analyst can modify the default parameter values by specifying new values in this initialization
-    function or by passing them as arguments when calling the CadetCareerProblem object methods.
+    See Also
+    --------
+    - [CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/)
     """
 
     # Parameters for the graphs
@@ -277,8 +327,45 @@ def initialize_instance_functional_parameters(N):
 
 def determine_afsc_plot_details(instance, results_chart=False):
     """
-    Takes in the problem instance object and alters the plot parameters based on the kind of chart
-    being generated as well as the type of data we're looking at
+    Configures AFSC chart display parameters based on the instance settings and chart type.
+
+    This function adjusts plotting parameters such as which AFSCs to display, label rotation,
+    selected AFSC objective, color schemes, and solution settings. It ensures that the
+    plotting context is consistent with the data variant and chart type requested.
+
+    Parameters
+    ----------
+    instance : object
+        The CadetCareerProblem instance containing parameters, solution data, and metadata
+        used to configure the plot behavior.
+
+    results_chart : bool, optional
+        Whether this is a results-oriented plot (e.g., for solution comparison). When True,
+        solution names, objective validation, and plotting colors/markers are configured.
+
+    Returns
+    -------
+    dict
+        The updated `mdl_p` dictionary containing plot-specific parameters.
+
+    Behavior
+    --------
+    - Automatically determines AFSCs to display (`afscs_to_show`) based on instance context.
+    - Decides whether to skip or rotate AFSC x-axis labels, depending on the number of AFSCs and data source.
+    - Ensures a valid AFSC and corresponding objective are selected for chart generation.
+    - Validates compatibility of the selected chart `version` with the chosen `objective`.
+    - Limits solution comparisons to a maximum of 4 solutions unless `Multi-Criteria Comparison` is specified.
+    - Assigns distinct colors, markers, and z-order to each solution when `results_chart=True`.
+
+    Raises
+    ------
+    ValueError
+        If an unsupported objective or chart version is selected, or if too many solutions
+        are selected for a results plot.
+
+    See Also
+    --------
+    - [`determine_afscs_in_image`](../../../reference/data/support/#data.support.determine_afscs_in_image)
     """
 
     # Shorthand
@@ -394,7 +481,39 @@ def determine_afsc_plot_details(instance, results_chart=False):
 
 def determine_afscs_in_image(p, mdl_p):
     """
-    This function determines which AFSCs were solved for and which AFSCs should be in the visualization
+    Determines which AFSCs were included in the optimization and which should be displayed in the visualization.
+
+    This function updates the `mdl_p` dictionary with:
+    - AFSCs that were solved for (`afscs_in_solution`)
+    - AFSCs that should be shown in the plots (`afscs`)
+    - The corresponding AFSC indices (`J`) and total count (`M`)
+
+    It handles various ways the user may specify AFSC subsets to visualize, including:
+    - 'All' to show all solved AFSCs
+    - A specific accessions group like 'Rated', 'NRL', or 'USSF'
+    - A commissioning source like 'USAFA', 'ROTC', or 'OTS'
+    - A user-supplied list of AFSC names
+
+    If `eligibility_limit` is set, only AFSCs with a number of eligible cadets below that threshold are included.
+
+    Parameters
+    ----------
+    p : dict
+        The problem parameters, including AFSCs, eligibility mappings, and accessions group information.
+
+    mdl_p : dict
+        The model parameters used for chart configuration and visualization. This dictionary is updated in place
+        with the resolved AFSCs to include in plots.
+
+    Returns
+    -------
+    dict
+    The updated `mdl_p` dictionary with the following keys updated or added:
+
+    - 'afscs_in_solution': list of AFSCs optimized in the current instance
+    - 'afscs': list of AFSCs to display in the current visualization
+    - 'J': numpy array of AFSC indices corresponding to `afscs`
+    - 'M': integer count of AFSCs in the chart
     """
 
     # Determine what AFSCs we solved for
@@ -504,8 +623,34 @@ def determine_afscs_in_image(p, mdl_p):
 
 def pick_most_changed_afscs(instance):
     """
-    Checks the specified solutions for the instance "Multi-Criteria Comparison" chart and determines which
-    AFSCs change the most in the solution based on the cadets that are assigned.
+    Identifies the AFSCs with the most variation in cadet assignments across solutions.
+
+    This function analyzes multiple solutions in a "Multi-Criteria Comparison" context and selects
+    the AFSCs whose cadet assignments vary the most. For each AFSC, it computes how many cadets
+    are consistently assigned to it across all solutions and compares that to the maximum number of
+    cadets ever assigned to it in any single solution.
+
+    Parameters
+    ----------
+    instance : object
+    An instance of the problem containing:
+
+    - `parameters`: a dictionary of static problem data
+    - `solutions`: a dictionary of named solution outputs
+    - `mdl_p`: model parameters including 'solution_names' and 'num_afscs_to_compare'
+
+    Returns
+    -------
+    np.ndarray
+        An array of AFSC names (strings) corresponding to the most changed AFSCs,
+        ranked by variability in cadet assignments.
+
+    Examples
+    --------
+    ```python
+    afscs = pick_most_changed_afscs(instance)
+    print("Top variable AFSCs across solutions:", afscs)
+    ```
     """
 
     # Get necessary info
@@ -555,30 +700,62 @@ def pick_most_changed_afscs(instance):
 # Important function! This is the CIP -> Qual Matrix function!!
 def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, true_tiers=True):
     """
-    Generate qualification tiers for cadets based on their CIP codes and AFSCs.
+    Generate qualification tiers for cadets based on CIP codes and AFSCs. Current as of Oct '2024
 
-    AFOCD c/ao Oct '23
+    This function determines the qualification tiers (e.g., M1, D2, P3, I4) for a set of cadets based on the
+    Classification of Instructional Programs (CIP) codes associated with their degrees. It evaluates the suitability
+    of each cadet for each Air Force Specialty Code (AFSC) using official AFOCD guidance and updates from
+    career field managers.
 
-    This function calculates qualification tiers for a list of cadets based on their CIP (Classification of Instructional
-    Programs) codes and the specified AFSCs. The qualification tiers consider both tier and requirement (e.g., M1, D2).
+    If multiple CIP sources are available (e.g., primary, secondary, tertiary degrees), the function returns the
+    best qualifying tier across all provided sources.
 
-    Args:
-        afscs (list of str): A list of Air Force Specialty Codes (AFSCs) to determine cadet qualifications for.
-        cip1 (numpy array): A numpy array containing CIP codes for the primary degrees of the cadets.
-        cip2 (numpy array, optional): A numpy array containing CIP codes for the secondary degrees of the cadets.
-        cip3 (numpy array, optional): A numpy array containing CIP codes for a third "source of truth".
-        business_hours (numpy array, optional): An array indicating the number of business hours each cadet works.
-        true_tiers (bool, optional): Set to True to use more accurate qualification tiers (as of June 2023).
+    Parameters
+    ----------
+    - afscs : list of str
+        List of Air Force Specialty Codes (AFSCs) to evaluate against cadet degree qualifications.
+    - cip1 : numpy.ndarray
+        Primary degree CIP codes for each cadet. Expected to be a string or numeric array of length N.
+    - cip2 : numpy.ndarray, optional
+        Secondary degree CIP codes for each cadet (if available).
+    - cip3 : numpy.ndarray, optional
+        Tertiary or external CIP codes (e.g., scraped from catalog websites or manually added).
+    - business_hours : numpy.ndarray, optional
+        Number of business-related credit hours per cadet. Used for disambiguation in certain AFSCs (e.g., 63A).
+    - true_tiers : bool, default=True
+        If True, applies refined qualification tiers based on updates from CFMs and AFOCD (as of June 2023 and later).
 
-    Returns:
-        numpy array: A qualification matrix representing the qualification tiers for each cadet and AFSC.
+    Returns
+    -------
+    - numpy.ndarray
+        A matrix of shape (N, M), where each entry is a qualification tier string (e.g., 'M1', 'D2', 'P3', 'I4') for
+        cadet i and AFSC j.
 
-    Details:
-    - The function calculates qualification tiers for both primary and, if specified, secondary degrees of the cadets.
-    - The qualification tiers are generated based on the CIP codes and the specified AFSCs.
-    - The `true_tiers` parameter allows you to choose between more accurate tiers (as of June 2023) or the
-      official tiers defined in the AFOCD (Air Force Officer Classification Directory).
+    Examples
+    --------
+    ```python
+    afscs = ['17X', '62EXE', '21R']
+    cip1 = np.array(['110102', '141001', '520409'])
+    qual_matrix = cip_to_qual_tiers(afscs, cip1)
+    print(qual_matrix)
     ```
+
+    Details
+    -------
+    - Qualification tiers follow AFOCD conventions:
+
+        - M = Mandatory
+        - D = Desired
+        - P = Permitted
+        - I = Ineligible
+    - The second number (e.g., 1 in 'M1') indicates how strong the tier is within that category (1 = best).
+    - If multiple CIP sources are provided, the best (lowest) tier number is selected for each cadet–AFSC pair.
+    - Covers dozens of AFSCs and handles specific CIP-to-AFSC mappings with multiple tiers per AFSC.
+
+    Notes
+    -----
+    - Includes recent updates from AFOCD Oct '24 and refinements from Air Force CFMs.
+    - Used in the cadet-career field qualification model to help filter and prioritize match options.
     """
 
     # AFOCD CLASSIFICATION

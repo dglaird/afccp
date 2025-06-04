@@ -17,7 +17,7 @@ build my code and test it. If you're just getting started with this project, or 
 python in general, I'd recommend using jupyter notebooks. You can make a new jupyter notebook (.ipynb file) and follow
 along with the code I use throughout these tutorials. For instructions on how to get jupyter notebook working
 alongside the `afccp` virtual environment, you can follow the 
-[Jupyter Installation Instructions](../getting-started/installation.md).
+[Jupyter Installation Instructions](../getting-started/jupyter-instructions.md).
 
 I HIGHLY recommend actually typing out the code and following along, rather than just reading this, as that will 
 get you familiar with the many variables used. Assuming you're using a .py script or jupyter notebook inside an 
@@ -67,7 +67,7 @@ from afccp import CadetCareerProblem
 I like to include some print statements just to show that the module is working properly. The code
 also checks some less popular packages that I use to see if you have them installed because 
 I still want this whole thing to work even if you don't have them. You should, however, if you've followed
-the [Installation Guide](../getting-started/installation):
+the [Installation Guide](../getting-started/installation.md):
 
 ```
 Importing 'afccp' module...
@@ -107,7 +107,7 @@ The class "CadetCareerProblem" lives in main.py:
 I higly encourage you to at least read the `__init__` function code of `CadetCareerProblem` as that is what defines the
 data for a particular instance. The object then runs through several processes depending on what the analyst is trying to do.
 I've broken up these processes into four core categories: "data", "solutions", "visualizations", and "research". 
-The next several tutorials will discuss these four different concepts in much more detail. 
+The next several tutorials will discuss these four different concepts in much more detail.
 
 ---
 
@@ -117,3 +117,5 @@ In this quickstart:
 
 - We described the necessary steps to set up the development environment
 - Introduced the `CadetCareerProblem` class and showed where it resides
+
+Continue on to [Tutorial 2](../user-guide/tutorial_2.md).

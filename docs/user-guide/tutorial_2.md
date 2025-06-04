@@ -1,7 +1,7 @@
 # Tutorial 2: Data Overview
 
 In this second tutorial, we'll explain the contents of the `data` module within `afccp`, as well as how the data itself 
-is structured in the [CadetCareerProblem](../reference/main.md#cadetcareerproblem) object.
+is structured in the [CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/) object.
 
 ---
 
@@ -130,7 +130,9 @@ instance.fix_generated_data()
     ```
 
 There are certainly a lot of things that happen when we "fix" the generated data. I will describe these steps in more
-detail later, but for more information on what is happening please refer the [REFERENCE]. Now we can export the data!
+detail later, but for more information on what is happening please refer to the 
+[fix_generated_data()](../../../reference/main/cadetcareerproblem_generated_data_corrections/) method. 
+Now we can [export](../../../reference/main/cadetcareerproblem_generated_export_data/) the data!
 
 ```python
 # Export everything
@@ -169,7 +171,7 @@ Since we've generated data, all of these parameters are located in this sub-fold
 
 The files shown above, and which you should also have if you're following along, contain all the information stored in 
 the data dictionaries "parameters" and "value_parameters". In a moment I will discuss what that data looks like and how 
-it's stored in this dictionary structure. First, however, let's re-import the "Random_1" problem instance:
+it's stored in this dictionary structure. Lastly, let's re-import the "Random_1" problem instance:
 
 ### Importing Data
 
@@ -186,3 +188,26 @@ instance = CadetCareerProblem('Random_1')
     Importing 'Random_1' instance...
     Instance 'Random_1' initialized.
     ```
+
+At this point, we're ready to dive into the different data elements and structures used within 
+[CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/). 
+
+## 📌 Summary
+
+In this tutorial:
+
+- We introduced the `data` module within `afccp`, which handles most of the parameter creation and manipulation logic.
+- We broke down the purpose of each submodule in `afccp.data`:
+    - `adjustments.py`: for manipulating and validating parameters  
+    - `generation.py`: for generating synthetic cadet/AFSC data  
+    - `preferences.py`: for managing preference matrices  
+    - `processing.py`: for importing/exporting data files  
+    - `support.py`: for CadetCareerProblem support functions  
+    - `values.py`: for creating and managing value parameters
+- We explained the role of `mdl_p`, the instance hyperparameter dictionary used across modules.
+- We demonstrated how to generate synthetic data using `CadetCareerProblem('Random', N=20, M=4, P=4)`.
+- We showed how to fix and export that generated data using `instance.fix_generated_data()` and `instance.export_data()`.
+- We visualized how that data is stored within the "instances" folder.
+- We described how to import a saved problem instance using `CadetCareerProblem('Random_1')`.
+
+You’re now ready to explore how the different data elements and structures in [Tutorial 3](../user-guide/tutorial_3.md)!

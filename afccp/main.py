@@ -100,17 +100,17 @@ class CadetCareerProblem:
         ### 💡 Example
 
         ```python
-        >>> # Generate a synthetic problem instance
-        >>> instance = CadetCareerProblem(data_name="Random", N=300, M=12, P=5)
+        # Generate a synthetic problem instance
+        instance = CadetCareerProblem(data_name="Random", N=300, M=12, P=5)
 
-        >>> # Fix generated data by adding & correcting parameters, value parameters
-        >>> instance.fix_generated_data()
+        # Fix generated data by adding & correcting parameters, value parameters
+        instance.fix_generated_data()
 
-        >>> # Solve using VFT optimization
-        >>> instance.solve_vft_pyomo_model()
+        # Solve using VFT optimization
+        instance.solve_vft_pyomo_model()
 
-        >>> # Export results to Excel
-        >>> instance.export_solution_results()
+        # Export results to Excel
+        instance.export_solution_results()
         ```
 
         ---
@@ -620,7 +620,34 @@ class CadetCareerProblem:
     # ________________________________________GENERATED DATA CORRECTIONS________________________________________________
     def fix_generated_data(self, printing=None):
         """
-        NOTE: ONLY DO THIS FOR GENERATED DATA
+        Fix Generated Data Instance.
+
+        This method prepares a synthetic cadet–AFSC instance by populating missing data, generating preferences,
+        updating qualification matrices, and ensuring valid preference and utility structures. It is intended
+        **only** for generated (synthetic) data instances and should not be used on real-world datasets.
+
+        Parameters
+        ----------
+        printing : bool, optional
+            If True, print progress updates at each step. Defaults to the instance's `self.printing`.
+
+        Notes
+        -----
+        This function assumes that no valid AFSC preference or utility data currently exists. It will:
+
+        - Convert utility values to preference ranks
+        - Generate fake AFSC preference lists
+        - Create separate rated datasets for each SOC
+        - Update the qualification matrix based on preferences
+        - Remove ineligible cadets from all matrices
+        - Normalize preference matrices to eliminate ranking gaps
+        - Force first-choice utilities to 100%
+        - Convert AFSC preferences to percentile scores
+        - Update cadet preference columns
+        - Create new utility matrices from cadet columns
+        - Rebuild rated eligibility lists
+        - Generate random value parameters
+        - Perform a final parameter sanity check
         """
 
         if printing is None:
@@ -701,9 +728,9 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`convert_utility_matrices_preferences`](../../reference/data/preferences/#data.preferences.convert_utility_matrices_preferences):
+        - [`convert_utility_matrices_preferences`](../../../reference/data/preferences/#data.preferences.convert_utility_matrices_preferences):
           Underlying function that performs the actual matrix transformation.
-        - [`parameter_sets_additions`](../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates parameter subsets after modifying the preference matrices.
         """
 
@@ -723,23 +750,24 @@ class CadetCareerProblem:
         Parameters
         ----------
         fix_cadet_eligibility : bool, optional
-            If True, cadet preferences are regenerated to strictly respect eligibility constraints.
-            If False (default), original eligibility is used as-is when computing preferences.
+        If True, cadet preferences are regenerated to strictly respect eligibility constraints.
+        If False (default), original eligibility is used as-is when computing preferences.
 
         Returns
         -------
         None
-            Updates the `parameters` attribute of the current `CadetCareerProblem` instance with:
-            - `afsc_utility`: N x M utility matrix
-            - `a_pref_matrix`: AFSCs' ranked preferences over cadets
-            - `c_pref_matrix`: Cadets' ranked preferences over AFSCs
-            - `afsc_preferences`, `cadet_preferences`: Index-based ranking dictionaries
+        Updates the `parameters` attribute of the current `CadetCareerProblem` instance with:
+
+        - `afsc_utility`: N x M utility matrix
+        - `a_pref_matrix`: AFSCs' ranked preferences over cadets
+        - `c_pref_matrix`: Cadets' ranked preferences over AFSCs
+        - `afsc_preferences`, `cadet_preferences`: Index-based ranking dictionaries
 
         See Also
         --------
-        - [`generate_fake_afsc_preferences`](../../reference/data/preferences/#data.preferences.generate_fake_afsc_preferences):
+        - [`generate_fake_afsc_preferences`](../../../reference/data/preferences/#data.preferences.generate_fake_afsc_preferences):
           Underlying utility simulation and preference generation function.
-        - [`parameter_sets_additions`](../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates parameter subsets and mappings based on the new preference structure.
         """
         self.parameters = afccp.data.preferences.generate_fake_afsc_preferences(
@@ -763,20 +791,23 @@ class CadetCareerProblem:
         Returns
         -------
         None
-            The method updates the internal `self.parameters` dictionary in-place by adding:
-            - ROTC-rated interest matrix (`rr_interest_matrix`)
-            - OM matrices for each Source of Commission (SOC), e.g., `ur_om_matrix`, `rr_om_matrix`
+        The method updates the internal `self.parameters` dictionary in-place by adding:
+
+        - ROTC-rated interest matrix (`rr_interest_matrix`)
+        - OM matrices for each Source of Commission (SOC), e.g., `ur_om_matrix`, `rr_om_matrix`
 
         Examples
         --------
-        >>> instance = CadetCareerProblem("Random", N=30, M=6, P=6)
-        >>> instance.generate_rated_data()  # Adds Rated OM and interest matrices
+        ```python
+        instance = CadetCareerProblem("Random", N=30, M=6, P=6)
+        instance.generate_rated_data()  # Adds Rated OM and interest matrices
+        ```
 
         See Also
         --------
-        - [`generate_rated_data`](../../reference/data/preferences/#data.preferences.generate_rated_data):
+        - [`generate_rated_data`](../../../reference/data/preferences/#data.preferences.generate_rated_data):
           Underlying function that constructs the rated OM and interest matrices.
-        - [`parameter_sets_additions`](../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates relevant parameter sets derived from new OM data.
         """
 
@@ -793,29 +824,32 @@ class CadetCareerProblem:
         value functions, and AFSC/cadet preferences, making this method ideal for testing and experimentation.
 
         Parameters:
-            num_breakpoints (int, optional): Number of breakpoints to use for linearizing value functions.
-                Defaults to 24.
-            vp_weight (int, optional): Scalar weight applied to the overall value parameter set.
-                Defaults to 100.
-            printing (bool, optional): Whether to print progress information. Defaults to the instance attribute.
+        --------
+        num_breakpoints (int, optional): Number of breakpoints to use for linearizing value functions.
+            Defaults to 24.
+        vp_weight (int, optional): Scalar weight applied to the overall value parameter set.
+            Defaults to 100.
+        printing (bool, optional): Whether to print progress information. Defaults to the instance attribute.
 
         Returns:
-            dict: A complete dictionary of randomly generated value parameters for the instance.
+        --------
+        dict: A complete dictionary of randomly generated value parameters for the instance.
 
         Example:
-            ```python
-            # Generate and assign a new set of value parameters using 30 breakpoints
-            vp = instance.generate_random_value_parameters(num_breakpoints=30, vp_weight=80)
-            ```
+        --------
+        ```python
+        # Generate and assign a new set of value parameters using 30 breakpoints
+        vp = instance.generate_random_value_parameters(num_breakpoints=30, vp_weight=80)
+        ```
 
         See Also:
-
-            - [`generate_random_value_parameters`](../../../reference/data/generation/#data.generation.generate_random_value_parameters):
-              Initializes a value parameter dictionary from scratch with random objective weights and targets.
-            - [`condense_value_functions`](../../../reference/data/values/#data.values.condense_value_functions):
-              Cleans and optimizes value function definitions by removing unused entries.
-            - [`value_parameters_sets_additions`](../../../reference/data/values/#data.values.value_parameters_sets_additions):
-              Adds structured sets and subsets to the value parameter dictionary for optimization logic.
+        --------
+        - [`generate_random_value_parameters`](../../../reference/data/generation/#data.generation.generate_random_value_parameters):
+          Initializes a value parameter dictionary from scratch with random objective weights and targets.
+        - [`condense_value_functions`](../../../reference/data/values/#data.values.condense_value_functions):
+          Cleans and optimizes value function definitions by removing unused entries.
+        - [`value_parameters_sets_additions`](../../../reference/data/values/#data.values.value_parameters_sets_additions):
+          Adds structured sets and subsets to the value parameter dictionary for optimization logic.
         """
 
         # Print Statement
@@ -859,21 +893,25 @@ class CadetCareerProblem:
         CASTLE sustainment simulations.
 
         Parameters:
-            num_breakpoints (int, optional): Number of breakpoints to use for the concave curve.
-                Defaults to 10.
+        --------
+        num_breakpoints (int, optional): Number of breakpoints to use for the concave curve.
+            Defaults to 10.
 
         Returns:
-            None
+        --------
+        None
 
         Example:
-            ```python
-            instance.generate_example_castle_value_curves(num_breakpoints=15)
-            q = instance.parameters['castle_q']
-            ```
+        --------
+        ```python
+        instance.generate_example_castle_value_curves(num_breakpoints=15)
+        q = instance.parameters['castle_q']
+        ```
 
         See Also:
-            - [`generate_realistic_castle_value_curves`](../../../reference/data/generation/#data.generation.generate_realistic_castle_value_curves):
-              Generates concave breakpoint utility functions for CASTLE AFSCs.
+        --------
+        - [`generate_realistic_castle_value_curves`](../../../reference/data/generation/#data.generation.generate_realistic_castle_value_curves):
+          Generates concave breakpoint utility functions for CASTLE AFSCs.
         """
 
         # Create "q" dictionary containing breakpoint information for castle value curves
@@ -885,6 +923,22 @@ class CadetCareerProblem:
 
     # ____________________________________________MAIN DATA CORRECTIONS_________________________________________________
     def make_all_initial_real_instance_modifications(self, printing=None, vp_defaults_filename=None):
+        """
+        Perform All Initial Modifications for Real Data Instances.
+
+        This method runs the full preprocessing pipeline to prepare a real cadet–AFSC instance for modeling.
+        It imports default value parameters, constructs rated preferences, updates qualification matrices,
+        and fills in missing data. It also normalizes preferences and utilities and ensures that rated
+        cadets meet eligibility criteria.
+
+        Parameters
+        ----------
+        printing : bool, optional
+            If True, print progress updates for each major processing step. Defaults to the instance's `self.printing`.
+
+        vp_defaults_filename : str, optional
+            Path to the default value parameter file. If not provided, uses the standard fallback.
+        """
 
         # Should we print updates?
         if printing is None:
@@ -937,33 +991,41 @@ class CadetCareerProblem:
         Parameters
         ----------
         no_constraints : bool, optional
-            If True, disables all value-based constraints by zeroing out the `constraint_type` matrix.
+        If True, disables all value-based constraints by zeroing out the `constraint_type` matrix.
+
         num_breakpoints : int, optional
-            Number of piecewise breakpoints used when linearizing nonlinear value functions. Defaults to 24.
+        Number of piecewise breakpoints used when linearizing nonlinear value functions. Defaults to 24.
+
         generate_afsc_weights : bool, optional
-            Whether to generate AFSC weights using the configured weight function, or use defaults. Defaults to True.
+        Whether to generate AFSC weights using the configured weight function, or use defaults. Defaults to True.
+
         vp_weight : float, optional
-            Overall weight assigned to this value parameter configuration (used in ensemble models). Defaults to 100.
+        Overall weight assigned to this value parameter configuration (used in ensemble models). Defaults to 100.
+
         printing : bool, optional
-            Whether to print status updates during import and evaluation. Uses the instance default if None.
+        Whether to print status updates during import and evaluation. Uses the instance default if None.
         vp_defaults_filename : str, optional
-            Optional filename for the Excel workbook to load defaults from. If not specified, uses an intelligent default
-            based on `self.data_name`.
+
+        Optional filename for the Excel workbook to load defaults from. If not specified, uses an intelligent default
+        based on `self.data_name`.
 
         Returns
         -------
         dict
-            A dictionary of `value_parameters` customized for this instance. Keys include:
-            - `objective_weight`, `objective_target`, `constraint_type`
-            - `value_functions`, `afsc_weight`, `cadet_weight`
-            - `a`, `f^hat` (linearized value functions), and other modeling sets like `K^A`, `J^A`, etc.
+        A dictionary of `value_parameters` customized for this instance. Keys include:
+
+        - `objective_weight`, `objective_target`, `constraint_type`
+        - `value_functions`, `afsc_weight`, `cadet_weight`
+        - `a`, `f^hat` (linearized value functions), and other modeling sets like `K^A`, `J^A`, etc.
 
         Notes
         -----
         - The value parameter defaults are imported from one of the following:
+
             - `"Value_Parameters_Defaults_<data_name>.xlsx"`
             - `"Value_Parameters_Defaults_Perfect.xlsx"`
             - `"Value_Parameters_Defaults_Generated.xlsx"`
+
         - If `self.mdl_p["set_to_instance"]` is True, the generated parameters are assigned to `self.value_parameters`.
         - If a solution already exists, it will be re-evaluated using the new value parameters.
         - If `self.mdl_p["add_to_dict"]` is True, the parameters are stored in `self.vp_dict`.
@@ -977,10 +1039,10 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`default_value_parameters_from_excel`](../../reference/data/values/#data.values.default_value_parameters_from_excel)
-        - [`generate_value_parameters_from_defaults`](../../reference/data/values/#data.values.generate_value_parameters_from_defaults)
-        - [`value_parameters_sets_additions`](../../reference/data/values/#data.values.value_parameters_sets_additions)
-        - [`evaluate_solution`](../../reference/solutions/handling/#solutions.handlling.evaluate_solution)
+        - [`default_value_parameters_from_excel()`](../../../reference/data/values/#data.values.default_value_parameters_from_excel)
+        - [`generate_value_parameters_from_defaults()`](../../../reference/data/values/#data.values.generate_value_parameters_from_defaults)
+        - [`value_parameters_sets_additions()`](../../../reference/data/values/#data.values.value_parameters_sets_additions)
+        - [`evaluate_solution()`](../../../reference/solutions/handling/#solutions.handlling.evaluate_solution)
         """
 
         if printing is None:
@@ -1052,22 +1114,26 @@ class CadetCareerProblem:
         (`afsc_preferences`) and the AFSC preference matrix (`a_pref_matrix`) in the `parameters` dictionary.
 
         Parameters:
-            printing (bool, optional): If True, prints a log statement indicating the preference integration process.
-                Defaults to `self.printing`.
+        --------
+        printing (bool, optional): If True, prints a log statement indicating the preference integration process.
+            Defaults to `self.printing`.
 
         Returns:
-            None
+        --------
+        None
 
         Example:
-            ```python
-            instance.construct_rated_preferences_from_om_by_soc(printing=True)
-            ```
+        --------
+        ```python
+        instance.construct_rated_preferences_from_om_by_soc(printing=True)
+        ```
 
         See Also:
-            - [`construct_rated_preferences_from_om_by_soc`](../../../reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc):
-              Underlying function that consolidates SOC-specific OM matrices into ranked preferences.
-            - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
-              Updates indexed subsets after modifying AFSC preferences.
+        --------
+        - [`construct_rated_preferences_from_om_by_soc`](../../../reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc):
+          Underlying function that consolidates SOC-specific OM matrices into ranked preferences.
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Updates indexed subsets after modifying AFSC preferences.
         """
 
         if printing is None:
@@ -1098,15 +1164,17 @@ class CadetCareerProblem:
         This method helps ensure that the qualification matrix aligns with cadet preferences and the AFOCD.
 
         Args:
-            self: The class instance containing the qualification matrix and parameters.
+        --------
+        self: The class instance containing the qualification matrix and parameters.
 
         Returns:
-            None
+        --------
+        None
 
         Raises:
-            ValueError: If there is no AFSC preference matrix ('a_pref_matrix') in the parameters.
-            :param printing: print status updates
-
+        --------
+        ValueError: If there is no AFSC preference matrix ('a_pref_matrix') in the parameters.
+        :param printing: print status updates
         """
 
         if printing is None:
@@ -1201,21 +1269,25 @@ class CadetCareerProblem:
         appends any remaining eligible AFSCs not yet ranked by each cadet.
 
         Parameters:
-            printing (bool, optional): If True, prints a status update. If None, defaults to the instance’s `self.printing`.
+        --------
+        printing (bool, optional): If True, prints a status update. If None, defaults to the instance’s `self.printing`.
 
         Returns:
-            None: Updates `self.parameters` in-place with a complete preference matrix.
+        --------
+        None: Updates `self.parameters` in-place with a complete preference matrix.
 
         Example:
-            ```python
-            instance.fill_remaining_afsc_choices()
-            ```
+        --------
+        ```python
+        instance.fill_remaining_afsc_choices()
+        ```
 
         See Also:
-            - [`fill_remaining_preferences`](../../../reference/data/preferences/#data.preferences.fill_remaining_preferences):
-              Underlying function that assigns missing cadet AFSC preferences.
-            - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
-              Updates parameter subsets after modifying the preference matrix.
+        --------
+        - [`fill_remaining_preferences`](../../../reference/data/preferences/#data.preferences.fill_remaining_preferences):
+          Underlying function that assigns missing cadet AFSC preferences.
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Updates parameter subsets after modifying the preference matrix.
         """
 
         if printing is None:
@@ -1238,22 +1310,26 @@ class CadetCareerProblem:
         them all on eligibility (`c_pref_matrix`, `a_pref_matrix`, `qual`).
 
         Parameters:
-            printing (bool, optional): If True, prints progress and debug information. If None (default),
-            it uses the instance-level `self.printing` attribute.
+        --------
+        printing (bool, optional): If True, prints progress and debug information. If None (default),
+        it uses the instance-level `self.printing` attribute.
 
         Returns:
-            None: The method modifies the `parameters` attribute in-place.
+        --------
+        None: The method modifies the `parameters` attribute in-place.
 
         Examples:
-            ```python
-            instance.remove_ineligible_choices(printing=True)
-            ```
+        --------
+        ```python
+        instance.remove_ineligible_choices(printing=True)
+        ```
 
         See Also:
-            - [`remove_ineligible_cadet_choices`](../../../reference/data/preferences/#data.preferences.remove_ineligible_cadet_choices):
-              Underlying function that performs the actual validation and cleanup of preference matrices.
-            - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
-              Rebuilds indexed sets and eligibility structures after editing cadet-AFSC pairings.
+        --------
+        - [`remove_ineligible_cadet_choices`](../../../reference/data/preferences/#data.preferences.remove_ineligible_cadet_choices):
+          Underlying function that performs the actual validation and cleanup of preference matrices.
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Rebuilds indexed sets and eligibility structures after editing cadet-AFSC pairings.
         """
 
         if printing is None:
@@ -1268,10 +1344,34 @@ class CadetCareerProblem:
 
     def update_preference_matrices(self, printing=None):
         """
-        Update Preference Matrices from Preference Arrays.
+        Update preference matrices from cadet and AFSC preference arrays.
 
-        This method reconstructs the cadet preference matrices from the preference arrays by renumbering preferences to eliminate gaps.
-        In preference lists, gaps may exist due to unranked choices, and this method ensures preferences are sequentially numbered.
+        This method reconstructs the cadet and AFSC preference matrices (`c_pref_matrix` and `a_pref_matrix`)
+        by transforming indexed preference arrays into complete, gapless matrices. Any gaps in the ranking (e.g.,
+        preferences like 1, 2, 4, 6, 7) are renumbered to ensure a continuous ranking (1, 2, 3, 4, 5), which is
+        required for consistent model input.
+
+        Parameters
+        ----------
+        printing : bool, optional
+        Whether to print status updates during execution. Defaults to `self.printing`.
+
+        Returns
+        -------
+        None
+        This method updates the internal `parameters` attribute of the instance in place.
+
+        Examples
+        --------
+        ```python
+        instance = CadetCareerProblem(parameters)
+        instance.update_preference_matrices(printing=True)
+        ```
+
+        See Also
+        --------
+        [`afccp.data.preferences.update_preference_matrices`](../../../reference/data/preferences/#data.preferences.update_preference_matrices)
+            Underlying function that reconstructs preference matrices from dictionary of lists
         """
         if printing is None:
             printing = self.printing
@@ -1284,6 +1384,33 @@ class CadetCareerProblem:
         self.parameters = afccp.data.preferences.update_preference_matrices(self.parameters)
 
     def update_first_choice_cadet_utility_to_one(self, printing=None):
+        """
+        Fix Cadet First-Choice Utility to 100%.
+
+        This method updates the `utility` matrix so that each cadet's top-ranked AFSC is assigned a utility value of 1.
+        This normalization ensures that the first choice always represents the maximum utility (100%) for that cadet.
+
+        Parameters
+        ----------
+        printing : bool, optional
+        If True, prints the number and indices of cadets whose utilities were updated.
+        Defaults to `self.printing` if not explicitly provided.
+
+        Returns
+        -------
+        None
+        Updates `self.parameters['utility']` in-place.
+
+        Examples
+        --------
+        ```python
+        instance.update_first_choice_cadet_utility_to_one()
+        ```
+
+        See Also
+        --------
+        [`update_first_choice_cadet_utility_to_one`](../../../reference/data/preferences/#data.preferences.update_first_choice_cadet_utility_to_one)
+        """
 
         if printing is None:
             printing = self.printing
@@ -1299,11 +1426,33 @@ class CadetCareerProblem:
         """
         Convert AFSC Preference Lists to Normalized Percentiles.
 
-        This method takes the AFSC preference lists (a_pref_matrix) for each cadet and converts them into normalized percentiles
-        based on the provided preferences. The resulting percentiles represent how each cadet ranks AFSCs compared to their peers.
+        This method takes the AFSC preference lists (`a_pref_matrix`) and converts them into normalized
+        percentiles representing how strongly each AFSC prefers each cadet relative to others.
+        Higher-ranked cadets receive values closer to 1.0, while lower-ranked cadets receive values closer to 0.0.
 
-        The percentiles are stored in the 'afsc_utility' on AFSCs Utility.csv. This conversion can be helpful for analyzing cadet
-        preferences and running assignment algorithms.
+        The result is stored in `afsc_utility` and can be used for further utility-based calculations or
+        optimization models. Results are also saved under "AFSCs Utility.csv".
+
+        Parameters
+        ----------
+        printing : bool, optional
+        If True, prints a message about the conversion process.
+        If None, defaults to the object's `self.printing` attribute.
+
+        Returns
+        -------
+        None
+        This method updates `self.parameters` in place with a new `afsc_utility` matrix.
+
+        Examples
+        --------
+        ```python
+        instance.convert_afsc_preferences_to_percentiles(printing=True)
+        ```
+
+        See Also
+        --------
+        - [`convert_afsc_preferences_to_percentiles()`](../../../reference/data/preferences/#data.preferences.convert_afsc_preferences_to_percentiles)
         """
         if printing is None:
             printing = self.printing
@@ -1317,8 +1466,34 @@ class CadetCareerProblem:
         """
         Update Cadet Columns from Preference Matrix.
 
-        This method updates the preference and utility columns for cadets based on the preference matrix (c_pref_matrix).
-        The preferences are converted to preference columns, and the utility values are extracted and stored in their respective columns.
+        This method updates cadet-level columns (`c_preferences`, `c_utilities`) by extracting them
+        from the cadet preference matrix (`c_pref_matrix`). Each cadet's ranked AFSCs are transformed
+        into a compact preference list, and the associated utility values are retrieved.
+
+        Parameters
+        ----------
+        printing : bool, optional
+        If True, prints a message about the conversion process.
+        If None, defaults to the object's `self.printing` attribute.
+
+        Returns
+        -------
+        None: This method updates `self.parameters` in place with:
+
+        - `c_preferences` : dict of lists
+            Ranked AFSCs for each cadet (non-zero entries from `c_pref_matrix`)
+        - `c_utilities` : dict of lists
+            Corresponding utility values for each cadet’s preference list
+
+        Examples
+        --------
+        ```python
+        instance.update_cadet_columns_from_matrices(printing=True)
+        ```
+
+        See Also
+        --------
+        - [`update_cadet_columns_from_matrices`](../../../reference/data/preferences/#data.preferences.update_cadet_columns_from_matrices)
         """
         if printing is None:
             printing = self.printing
@@ -1329,13 +1504,41 @@ class CadetCareerProblem:
 
         # Update parameters
         self.parameters['c_preferences'], self.parameters['c_utilities'] = \
-            afccp.data.preferences.get_utility_preferences_from_preference_array(self.parameters)
+            afccp.data.preferences.update_cadet_columns_from_matrices(self.parameters)
 
     def update_cadet_utility_matrices_from_cadets_data(self, printing=None):
         """
         Update Cadet Utility Matrices from Cadets Data.
 
-        This method updates the utility matrices ('utility' and 'cadet_utility') by extracting data from the "Util_1 -> Util_P" columns in Cadets.csv.
+        This method updates the `utility` and `cadet_utility` matrices using the cadet-reported utility values stored in the
+        `"Util_1"` through `"Util_P"` columns of `Cadets.csv`. It first populates the raw utility matrix (`utility`) and then
+        normalizes these values to construct the final `cadet_utility` matrix based on either ordinal rankings or a value-based
+        transformation if the `last_afsc` parameter is provided.
+
+        Parameters
+        ----------
+        printing : bool, optional
+            Whether to print progress information. Defaults to the instance's `self.printing` setting.
+
+        Returns
+        -------
+        None: Updates the following attributes in-place:
+
+        - `self.parameters['utility']` : ndarray, cadet-reported utilities with an unmatched column
+        - `self.parameters['cadet_utility']` : ndarray, normalized utility matrix
+
+        Examples
+        --------
+        ```python
+        instance.update_cadet_utility_matrices_from_cadets_data()
+        ```
+
+        See Also
+        --------
+        - [`update_cadet_utility_matrices`](../../../reference/data/preferences/#data.preferences.update_cadet_utility_matrices)
+        - [`create_final_cadet_utility_matrix_from_new_formula`](../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula)
+        - [`create_final_cadet_utility_matrix`](../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix)
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions)
         """
         if printing is None:
             printing = self.printing
@@ -1348,6 +1551,25 @@ class CadetCareerProblem:
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
     def modify_rated_cadet_lists_based_on_eligibility(self, printing=None):
+        """
+        Modify Rated Eligibility Lists and Matrices by SOC.
+
+        This method removes cadets from each Source of Commissioning (SOC)'s rated cadet list if they lack any rated AFSC
+        preferences. It also updates the corresponding rated order-of-merit matrix (e.g., 'rr_om_matrix') by removing the
+        appropriate cadet rows.
+
+        This ensures that rated eligibility lists and matrices only contain cadets who actually have at least one rated AFSC
+        preference, which is essential for valid downstream rated matching logic.
+
+        Parameters
+        ----------
+        printing : bool, optional
+            If True (default is `self.printing`), prints a summary of removed cadets and updated matrices.
+
+        See Also
+        --------
+        - [`modify_rated_cadet_lists_based_on_eligibility`](../../../reference/data/preferences/#data.preferences.modify_rated_cadet_lists_based_on_eligibility)
+        """
 
         if printing is None:
             printing = self.printing
@@ -1363,24 +1585,46 @@ class CadetCareerProblem:
     # _______________________________________________OTHER ADJUSTMENTS__________________________________________________
     def parameter_sanity_check(self):
         """
-        This method performs a comprehensive sanity check on the parameters and value parameters
-        to ensure the data is in a valid and correct state before running the model.
+        Perform a Full Sanity Check on the Instance Parameters and Value Parameters.
 
-        It examines various parameters and their values within the class instance to identify and
-        address any issues or discrepancies. The checks are designed to ensure that the data is consistent,
-        within valid ranges, and suitable for use in the model.
+        This method serves as a high-level entry point for validating the integrity and feasibility of all input data
+        used in the AFSC cadet-career field assignment model. It ensures that parameters (`self.parameters`) and value
+        parameters (`self.value_parameters`) are properly defined, logically consistent, and free of structural or
+        numerical issues prior to model execution.
 
-        While the exact details of these checks are implemented in an external function or module,
-        this method serves as the entry point for conducting these checks.
+        The method internally delegates the actual check logic to
+        `afccp.data.adjustments.parameter_sanity_check(self)`, which audits everything from AFSC quotas, cadet eligibility,
+        objective constraints, preference matrices, tier distributions, and utility monotonicity.
 
-        It is essential to run this method before executing the model to guarantee the integrity
-        of the input data and to prevent potential errors or unexpected behavior during the modeling process.
+        Parameters:
+        --------
+        - self: `CadetCareerProblem`
+            The instance of the assignment problem containing the full dataset and modeling structure.
 
-        This method is part of an object-oriented programming structure and uses 'self' to access
-        the class instance's attributes and data.
+        Returns:
+        --------
+        - None: This method prints a summary of all issues detected but does not return any value. It may raise a
+          `ValueError` if the `value_parameters` are missing or invalid.
 
-        Note: The specific details of the sanity checks are defined in an external function
-        or module called 'afccp.data.adjustments.parameter_sanity_check.'
+        Examples:
+        --------
+        ```python
+        # Run a full input audit before solving
+        instance.parameter_sanity_check()
+        ```
+
+        Example output (truncated for brevity):
+        ```
+        3 ISSUE: AFSC '15A' quota_min (15) > number of eligible cadets (13)
+        4 ISSUE: Cadet 41 has no preferences and is therefore eligible for nothing.
+        5 ISSUE: Objective 'Tier 2' has value function with unsorted breakpoints.
+        ```
+
+        See Also:
+        --------
+        - [`parameter_sanity_check`](../../../reference/data/adjustments/#data.adjustments.parameter_sanity_check):
+          Full implementation of the internal logic performing the data validation.
+        ```
         """
 
         # Call the function
@@ -1388,6 +1632,44 @@ class CadetCareerProblem:
 
     def create_final_utility_matrix_from_new_formula(self, printing=None):
         """
+        Construct the Final Cadet Utility Matrix Using a New Weighted Formula.
+
+        This method builds the `cadet_utility` matrix by applying a new utility scoring formula that combines:
+
+        - Ranked ordinal preferences
+        - Cadet-specified utility values
+        - Boolean least desired AFSC logic (e.g., last choice, bottom 2, etc.)
+
+        The scoring function is applied to each cadet-AFSC pairing based on a normalized mix of ranking and utility
+        to capture more nuanced decision-making behavior. This method is essential for creating the input data used
+        in optimization.
+
+        After computing the new utility values, the method also updates the internal parameter sets to ensure consistency
+        between derived structures (e.g., eligibility dictionaries and matrix representations).
+
+        Parameters:
+        --------
+        - printing (bool, optional): Whether to print progress messages. If None, defaults to `self.printing`.
+
+        Returns:
+        --------
+        - None: This method modifies `self.parameters` in-place with updated cadet utility values and updated
+          preference-derived sets.
+
+        Examples:
+        --------
+        ```python
+        # Run the transformation step to produce cadet utilities from ranked inputs
+        instance.create_final_utility_matrix_from_new_formula(printing=True)
+        ```
+
+        See Also:
+        --------
+        - [`create_final_cadet_utility_matrix_from_new_formula`](../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula):
+          Core function that applies the new weighted formula to calculate cadet utilities.
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Ensures derived sets such as `I^E` and `J^E` are regenerated after utility/preference updates.
+        ```
         """
         if printing is None:
             printing = self.printing
@@ -1400,6 +1682,41 @@ class CadetCareerProblem:
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
     def set_ots_must_matches(self, printing=None):
+        """
+        Set OTS Cadet Must-Match Constraints Based on Order of Merit.
+
+        This method determines which Officer Training School (OTS) cadets must be assigned an AFSC
+        by evaluating their Order of Merit (OM) scores. It sorts the eligible OTS cadets by merit and
+        selects the top `ots_accessions` (rounded to 99.5%) to be marked as "must match" within the
+        optimization model.
+
+        The method modifies the `must_match` vector and updates the `I^Must_Match` set accordingly.
+        These constraints are used to enforce that high-ranking OTS cadets must be matched during the
+        assignment process.
+
+        If the instance does not include OTS cadets (i.e., 'ots' not in `SOCs`), the function exits early
+        without making any changes.
+
+        Parameters:
+        --------
+        - printing (bool, optional): If True, prints logging information about the matching process.
+          If None (default), uses the instance's `self.printing` attribute.
+
+        Returns:
+        --------
+        - None: This method updates the instance's `parameters` attribute in place.
+
+        Examples:
+        --------
+        ```python
+        instance.set_ots_must_matches(printing=True)
+        ```
+
+        See Also:
+        --------
+        - [`set_ots_must_matches`](../../../reference/data/adjustments/#data.adjustments.set_ots_must_matches):
+          Underlying function that applies the must-match logic to the parameter dictionary.
+        """
 
         if printing is None:
             printing = self.printing
@@ -1412,17 +1729,35 @@ class CadetCareerProblem:
 
     def calculate_qualification_matrix(self, printing=None):
         """
-        This procedure re-runs the CIP to Qual function to generate or update the qualification matrix.
-        The qualification matrix determines whether cadets are eligible for specific AFSCs.
+        Generate or Update the Qualification Matrix Based on CIP Codes.
 
-        Args:
-        printing (bool, optional): If True, print messages about the process. Defaults to the class's `printing` attribute.
+        This method regenerates the degree qualification matrix (`qual`) using CIP codes
+        (`cip1`, and optionally `cip2`) mapped to AFSCs via a tiered system. The qualification matrix
+        determines which cadets are eligible for which AFSCs and tags them accordingly as mandatory,
+        desired, permitted, ineligible, or exceptional. It is useful when switching qualification logic
+        or refreshing the matrix after modifying degree information.
 
-        Raises:
-        ValueError: Raised when there are no CIP codes provided.
+        Parameters:
+        --------
+        - printing (bool, optional): If True, print progress messages to the console.
+          Defaults to the instance's `self.printing` attribute.
 
-        This method recalculates the qualification matrix based on CIP (Career Intermission Program) codes and
-        AFSCs. It updates the matrix and related parameters within the class.
+        Returns:
+        --------
+        - None: The function updates the `self.parameters` attribute in-place.
+
+        Examples:
+        --------
+        ```python
+        instance.calculate_qualification_matrix(printing=True)
+        ```
+
+        See Also:
+        --------
+        - [`cip_to_qual_tiers`](../../../reference/data/support/#data.support.cip_to_qual_tiers):
+          Generates the tiered qualification matrix based on CIP-to-AFSC logic.
+        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+          Rebuilds internal indexed parameter sets and flags after matrix updates.
         """
         if printing is None:
             printing = self.printing
@@ -1457,8 +1792,28 @@ class CadetCareerProblem:
     # ___________________________________________VALUE PARAMETER SPECIFICATION__________________________________________
     def set_value_parameters(self, vp_name=None):
         """
-        Sets the current instance value parameters to a specified set based on the vp_name. This vp_name must be
-        in the value parameter dictionary
+        Set the Active Value Parameters for the Current Problem Instance.
+
+        This method assigns the current working set of value parameters (`self.value_parameters`) based on
+        a given name from the value parameter dictionary (`self.vp_dict`). These value parameters determine
+        cadet-level utilities, preferences, or constraints and are essential inputs to various components
+        of the AFCCP model (e.g., CAVE, ALERT, MARKET).
+
+        If no `vp_name` is specified, the method defaults to the first entry in the dictionary.
+
+        Parameters:
+        --------
+        - vp_name (str, optional): Name of the value parameter set to activate. If None, defaults to the first available set.
+
+        Returns:
+        --------
+        None: Updates `self.vp_name` and `self.value_parameters` in-place.
+
+        Examples:
+        --------
+        ```python
+        instance.set_value_parameters()  # Automatically select the first available VP set
+        ```
         """
         if self.vp_dict is None:
             raise ValueError("Error. No sets of value parameters (vp_dict) detected. You need to import the "
@@ -1485,17 +1840,15 @@ class CadetCareerProblem:
         :param num_breakpoints: Number of breakpoints to use when building the value functions
         """
 
-        # Module shorthand
-        afccp_vp = afccp.data.values
-
         # Update the value functions and cadet/AFSC weights
-        self.value_parameters = afccp_vp.update_value_and_weight_functions(self, num_breakpoints)
+        self.value_parameters = afccp.data.values.update_value_and_weight_functions(self, num_breakpoints)
 
         # "Condense" the value functions by removing unnecessary zeros in the breakpoints
-        self.value_parameters = afccp_vp.condense_value_functions(self.parameters, self.value_parameters)
+        self.value_parameters = afccp.data.values.condense_value_functions(self.parameters, self.value_parameters)
 
         # Add indexed sets and subsets of AFSCs and AFSC objectives
-        self.value_parameters = afccp_vp.value_parameters_sets_additions(self.parameters, self.value_parameters)
+        self.value_parameters = afccp.data.values.value_parameters_sets_additions(
+            self.parameters, self.value_parameters)
 
         # Update the set of value parameters in the dictionary (vp_dict attribute)
         self._update_value_parameters_in_dict()
