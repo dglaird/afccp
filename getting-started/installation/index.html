@@ -2100,7 +2100,7 @@ folder is located in the root directory:</p>
 ├───── Random_1/       # Specific problem instance (newly generated data)
 </code></pre></div>
 <p>For more information on the instance data structure used by afccp, please refer to the
-<a href="../reference/data/__init__.md">Data</a> module.</p>
+<a href="../afccp/reference/data/__init__.md">Data</a> module.</p>
 <hr />
 <h2 id="5-install-pyomo-solvers">5. Install Pyomo Solvers<a class="headerlink" href="#5-install-pyomo-solvers" title="Permanent link">&para;</a></h2>
 <p>One very important step is the setup of the optimization <strong>solvers</strong> used by Pyomo.</p>
@@ -2111,8 +2111,20 @@ folder is located in the root directory:</p>
 <h3 id="recommended-method-for-solver-setup">🔧 Recommended Method for Solver Setup:<a class="headerlink" href="#recommended-method-for-solver-setup" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Go to the <a href="https://portal.ampl.com/user/ampl/download/list">AMPL download portal</a>.</li>
-<li>Under <strong>COIN-OR solvers</strong>, choose the appropriate compressed "coin" package for your operating system.</li>
-<li>Download and extract the ZIP file.</li>
+<li>
+<p>Under <strong>COIN-OR solvers</strong>, choose the appropriate compressed "coin" package for your operating system.</p>
+<ul>
+<li>This page has undergone changes, and so I have no guarantee what it'll look like in the future. </li>
+<li>As of right now (June 2025), you can scroll down to the "Individual Modules" section, and select the version of
+the COIN-OR solver collection that fits your operating system (MacOS or Windows):
+    <p align="center">
+        <img src="/afccp/images/getting-started/pic1.png" width="500px">
+    </p></li>
+</ul>
+</li>
+<li>
+<p>Download and extract the ZIP file.</p>
+</li>
 <li>Locate the solver executables inside (e.g., <code>cbc.exe</code> on Windows or <code>cbc</code> on Unix-based systems).</li>
 <li>Drag those solver executables into the <code>solvers/</code> folder in your working directory (the same directory as your <code>afccp/</code> project).</li>
 </ol>

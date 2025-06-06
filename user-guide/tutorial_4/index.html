@@ -857,6 +857,51 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#overall-value-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      "Overall" value parameters
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-controls-mdl_p-side-bar" class="md-nav__link">
+    <span class="md-ellipsis">
+      Model Controls ("mdl_p" side-bar)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#afsc-objectives" class="md-nav__link">
+    <span class="md-ellipsis">
+      AFSC Objectives
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#afsc-objective-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      AFSC Objective Components
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#value-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Value Functions
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1817,6 +1862,588 @@ we have already done that (it happens in
 This set of value parameters exists in our <code>vp_dict</code> but we haven't actually activated it yet. 
 My code works with the idea that you could have different sets of things you care about, and when you solve the model 
 with one set of value parameters you could solve it again with a different set. Let's see what this looks like:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># List of sets of value parameters</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">instance</span><span class="o">.</span><span class="n">vp_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+<span class="c1"># Current &quot;activated&quot; value parameters (we haven&#39;t told CadetCareerProblem to activate any yet!)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;VP dictionary:&#39;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">value_parameters</span><span class="p">,</span> <span class="s1">&#39;VP Name:&#39;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">vp_name</span><span class="p">)</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>dict_keys([&#39;VP&#39;])
+VP dictionary: None VP Name: None
+</code></pre></div>
+</details>
+<p>We need to activate this set of value parameters, which we can do like this:</p>
+<div class="highlight"><pre><span></span><code><span class="n">instance</span><span class="o">.</span><span class="n">set_value_parameters</span><span class="p">()</span>  <span class="c1"># Defaults to grabbing the first set in the list</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;VP Name:&#39;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">vp_name</span><span class="p">)</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>VP Name: VP
+</code></pre></div>
+</details>
+<p>One of the things we can do is export the current set of value parameters as "defaults" back to excel. 
+That is what I do here:</p>
+<div class="highlight"><pre><span></span><code><span class="n">instance</span><span class="o">.</span><span class="n">export_value_parameters_as_defaults</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Exporting value parameters as defaults to excel...
+</code></pre></div>
+</details>
+<p>This set of value parameters now exists in it's "default" form in your afccp/support/value parameters defaults/ 
+folder! I add a "New" to the end of the name purely as a way to ensure you don't unintentionally overwrite your 
+previous set of default value parameters:</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic13.png" width="900px">
+</p>
+
+<p>Simply go in and manually change the name to "Value_Parameters_Defaults_Random_1.xlsx" (again, the "New" thing is 
+because I don't want you to accidentally overwrite the real one if applicable!). Once you've done that, we can import 
+this set of value parameters as "defaults" rather than generating random ones like we did at the beginning for this 
+simulated dataset! </p>
+<div class="highlight"><pre><span></span><code><span class="n">v</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">import_default_value_parameters</span><span class="p">()</span>  <span class="c1"># I add the &quot;v = &quot; because there&#39;s a lot of output otherwise</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Importing default value parameters...
+Imported.
+</code></pre></div>
+</details>
+<p>There are two reasons I'm having you import the value parameters as defaults above: to show you how can initialize 
+a set of value parameters for an instance from excel (rather than generating random ones), and also to show that I 
+have a nifty function that checks if a new set of value parameters is really "new". What I mean by that is if you 
+acquire a new set of value parameters by importing defaults, ideally it should only be added as a new one if it 
+really is a unique set of parameters. You already had a set of value parameters "VP", and now you've just imported a 
+new one so you should have "VP2". However, you'll still only see "VP" in your list because the two were identical:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Only one set of value parameters found for this instance</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">vp_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>dict_keys([&#39;VP&#39;])
+</code></pre></div>
+</details>
+<p>Now that we have our value parameters imported, I want to take a moment to describe the various components. 
+I'm going to do this by using the "Value_Parameters_Defaults" excel file as a reference. Remember, these are the 
+"defaults" that get imported for a particular problem instance that then turn into the actual set of value parameters 
+used. To describe these value parameters, I will show the various dataframes inside the "Value_Parameters_Defaults"
+excel file structure. This default excel workbook was created when I ran the <code>instance.import_default_value_parameters()</code>
+method. After changing the name to remove the "_New" extension, I have the file: 
+"support/value parameters defaults/Value_Parameters_Defaults_Random_1.xlsx".</p>
+<h2 id="overall-value-parameters">"Overall" value parameters<a class="headerlink" href="#overall-value-parameters" title="Permanent link">&para;</a></h2>
+<p>The first dataframe I'll show contains the information for the "big toggles" on the value parameters:</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic14.png" width="900px">
+</p>
+
+<p>Once initialized for the "Random_1" problem instance, these highest level settings are stored in 
+"Random_1 Value Parameters.csv" in the "Model Input" folder. This dataframe controls the overall settings 
+for each set of value parameters. It's also what tells <code>afccp</code> the names of the different sets of value parameters 
+as well. Right now, we only have one set ("VP").</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Shorthand</span>
+<span class="n">p</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">parameters</span>
+<span class="n">vp</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">value_parameters</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Current value parameter set name:&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">vp_name</span><span class="p">)</span>
+
+<span class="c1"># Overall weights on Cadets/AFSCs</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Cadets Overall Weight:&#39;</span><span class="p">,</span> <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadets_overall_weight&#39;</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;AFSCs Overall Weight:&#39;</span><span class="p">,</span> <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;afscs_overall_weight&#39;</span><span class="p">])</span>
+
+<span class="c1"># If we want to constrain the overall values on Cadets/AFSCs (we won&#39;t, but it&#39;s here)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Cadets Overall Minimum Value:&#39;</span><span class="p">,</span> <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadets_overall_value_min&#39;</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;AFSCs Overall Minimum Value:&#39;</span><span class="p">,</span> <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;afscs_overall_value_min&#39;</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Current value parameter set name: VP
+
+Cadets Overall Weight: 0.5153395820213456
+AFSCs Overall Weight: 0.4846604179786544
+
+Cadets Overall Minimum Value: 0
+AFSCs Overall Minimum Value: 0
+</code></pre></div>
+</details>
+<p>For the "individual" weight on each cadet relative to all other cadets (and vice versa for AFSCs), we use weight 
+functions. For cadets, their weights are based on their order of merit. In my random set of data, the cadet weight 
+function initialized is "Curve_1". (Yours may differ!)</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Cadet weight function</span>
+<span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadet_weight_function&#39;</span><span class="p">]</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>&#39;Curve_1&#39;
+</code></pre></div>
+</details>
+<p>Here, cadet weight is a "sigmoid" function of their order of merit. Again, yours likely will not be! I can 
+illustrate the weight function by plotting cadet weight versus their OM:</p>
+<div class="highlight"><pre><span></span><code><span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;square_figsize&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic15.png" width="700px">
+</p>
+
+<p>Now, the percentiles for a real class will be uniformly distributed between 0 and 1. This is a fake class of 20 cadets 
+and so they were randomly selected between 0 and 1 which is why the graph looks a little weird. The y-axis shows the 
+"swing weights" for the cadets. Swing weights simply mean that they've been scaled so the biggest value is 1 and all 
+other weights are relative to that one. "Local" weights, by contrast, sum to 1 collectively. I've printed out the 
+differences below and you can see how I calculate them:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Merit&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;merit&#39;</span><span class="p">],</span> <span class="mi">3</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&#39;Local&#39; Weight&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadet_weight&#39;</span><span class="p">],</span> <span class="mi">3</span><span class="p">),</span> <span class="s2">&quot;Local Weight Sum:&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadet_weight&#39;</span><span class="p">]),</span> <span class="mi">3</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&#39;Swing&#39; (Scaled) Weight&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadet_weight&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadet_weight&#39;</span><span class="p">]),</span> <span class="mi">3</span><span class="p">))</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Merit [0.145 0.172 0.288 0.042 0.326 0.329 0.849 0.817 0.349 0.415 0.955 0.031 0.8   0.581 0.794 0.261 0.904 0.578 0.846 0.607]
+
+&#39;Local&#39; Weight [0.026 0.027 0.03  0.026 0.033 0.033 0.074 0.073 0.034 0.04  0.075 0.026 0.073 0.06  0.073 0.029 0.074 0.059 0.074 0.062] Local Weight Sum: 1.0
+
+&#39;Swing&#39; (Scaled) Weight [0.354 0.36  0.408 0.343 0.436 0.438 0.987 0.98  0.457 0.537 1.    0.342 0.975 0.801 0.973 0.392 0.995 0.795 0.987 0.835]
+</code></pre></div>
+</details>
+<p>We can also change the weight function through afccp if we want to.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Linear function of OM (not very &quot;forgiving&quot; to low OM cadets)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Direct&quot;</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;square_figsize&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic16.png" width="700px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Cadets are equal no matter what their OM is</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Equal&quot;</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;square_figsize&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic17.png" width="700px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Exponential curve (not recommended since it puts heavy emphasis on top performers)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Exponential&quot;</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;square_figsize&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic18.png" width="700px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Sigmoid curve of OM (more forgiving in terms of differences between highest and lowest rank)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Curve_1&quot;</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;square_figsize&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic19.png" width="700px">
+</p>
+
+<p>These curves are what I'd use since the top cadet is a little more than twice as "important" as the lowest cadet. 
+On the other linear/exponential curves, the difference is quite drastic (100% to 0%).</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Sigmoid curve of OM (very similar to previous one)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Curve_2&quot;</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;square_figsize&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic20.png" width="700px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Change back to &quot;Curve_1&quot; weight function</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Curve_1&quot;</span><span class="p">)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">value_parameters</span><span class="p">[</span><span class="s1">&#39;cadet_weight_function&#39;</span><span class="p">]</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>&#39;Curve_1&#39;
+</code></pre></div>
+</details>
+<p>AFSC weights may be determined as a function of their size. Ideally, in the future it'd be some function of their size, 
+difficulty to fill, manpower needs, and maybe more. I want a better method for determining those weights on the AFSCs.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># In my generated data, AFSCs are weighted equally</span>
+<span class="n">vp</span><span class="p">[</span><span class="s1">&#39;afsc_weight_function&#39;</span><span class="p">]</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>&#39;Equal&#39;
+</code></pre></div>
+</details>
+<p>Here is the AFSC weight chart. The AFSC weight chart is a bar chart since we can show relative importance pretty well 
+with those kinds of charts.</p>
+<div class="highlight"><pre><span></span><code><span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s2">&quot;cadets_graph&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;skip_afscs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic21.png" width="700px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Weight based purely on size</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Size&quot;</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s2">&quot;cadets_graph&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;skip_afscs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic22.png" width="700px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Slightly different function of size (function from generated data)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Curve_1&quot;</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s2">&quot;cadets_graph&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;skip_afscs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic23.png" width="700px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Another function of size</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Curve_2&quot;</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s2">&quot;cadets_graph&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;skip_afscs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic24.png" width="700px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Change back to &quot;Equal&quot; weight function</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">change_weight_function</span><span class="p">(</span><span class="n">cadets</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;Equal&quot;</span><span class="p">)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">value_parameters</span><span class="p">[</span><span class="s1">&#39;afsc_weight_function&#39;</span><span class="p">]</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>&#39;Equal&#39;
+</code></pre></div>
+</details>
+<p>If we pass the function "Custom" for AFSC weights, we will pull from the predefined weights in the "AFSC Weights" 
+excel sheet.</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic25.png" width="900px">
+</p>
+
+<p>Right now they are from the "Equal" function. If we want to constrain the AFSC values, we can do that using the 
+"AFSC Min Value" column.</p>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;AFSC &#39;local&#39; weight:&quot;</span><span class="p">,</span> <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;afsc_weight&#39;</span><span class="p">])</span>  <span class="c1"># Sum to 1!</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;AFSC minimum values:&quot;</span><span class="p">,</span> <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;afsc_value_min&#39;</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>AFSC &#39;local&#39; weight: [0.25 0.25 0.25 0.25]
+AFSC minimum values: [0. 0. 0. 0.]
+</code></pre></div>
+</details>
+<p>I'm going to show the "overall weights" dataset again for reference since there are a lot of charts above and I don't 
+want you to have to keep scrolling up!</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic14.png" width="900px">
+</p>
+
+<h2 id="model-controls-mdl_p-side-bar">Model Controls ("mdl_p" side-bar)<a class="headerlink" href="#model-controls-mdl_p-side-bar" title="Permanent link">&para;</a></h2>
+<p>I've mentioned the attribute "mdl_p" earlier on in this tutorial but haven't gone too much into detail on it. 
+Essentially, this is my dictionary of all the various toggles and components used across afccp. 
+Everything from genetic algorithm hyperparameters to the colors of various components of the visualizations. 
+There's a lot there. I've actually been using them for the charts above everytime I pass in a dictionary as a parameter 
+for the method I'm calling. If you recall the 
+<a href="../../../afccp/reference/main/cadetcareerproblem_data_visualizations/#afccp.main.CadetCareerProblem.display_weight_function"><code>instance.display_weight_function()</code></a> 
+method was taking a dictionary including things like <code>{"dpi": 80, "cadets_graph": False, "skip_afscs": False}</code>. 
+These control specific components used in some place within afccp. In that context, they're controls used in the weight 
+function chart.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># DPI (Dots per inch) of my charts</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">mdl_p</span><span class="p">[</span><span class="s1">&#39;dpi&#39;</span><span class="p">]</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>80
+</code></pre></div>
+</details>
+<p>I alluded to this towards the beginning of the tutorial, but essentially within <code>afccp.core.data.support</code> there is a 
+function called 
+<a href="../../../afccp/reference/data/support/#data.support.initialize_instance_functional_parameters">initialize_instance_functional_parameters()</a>
+that initializes the many "hyperparameters" of afccp. "Hyperparameters" traditionally refer to the parameters 
+that control the learning process of some algorithms and are probably not the best term to use for this since that's 
+really only applicable to the genetic algorithm. "Controls" is probably a better word, since I've generalized this 
+dictionary to control for a lot of different elements. When I say a lot, I mean it!</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Number of keys in the &quot;mdl_p&quot; dictionary</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Number of afccp &#39;controls&#39;:&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">instance</span><span class="o">.</span><span class="n">mdl_p</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Number of afccp &#39;controls&#39;: 246
+</code></pre></div>
+</details>
+<p>If you scroll through "main.py" and look at the keyword arguments used you'll notice "p_dict={}" is quite common. 
+What this does is allow you to change the default settings that are initialized for mdl_p. Using "mdl_p" as I do 
+allows me to come up with a needed "control" for some function buried deep within afccp and not worry about passing it 
+through the many layers of functions to get to where it needs to be. The instance object contains mdl_p as an attribute 
+and so we just define it in the parameter initialization function of support.py and bam- we have it wherever we need it. 
+It's also now something I can have a default setting for and potentially change using "p_dict". Here's an example:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Default bar color- HEX codes are useful ways of selecting precise colors</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Default bar color:&#39;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">mdl_p</span><span class="p">[</span><span class="s1">&#39;bar_color&#39;</span><span class="p">])</span>  <span class="c1"># (google &quot;color picker&quot;)</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Default bar color: #3287cd
+</code></pre></div>
+</details>
+<p>The color above is the light-ish shade of blue you've seen for the charts above. 
+Let's produce the AFSC chart again after changing the 'bar_color' parameter.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Slightly different function of size</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">display_weight_function</span><span class="p">({</span><span class="s2">&quot;dpi&quot;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s2">&quot;cadets_graph&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;skip_afscs&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> 
+                                          <span class="s1">&#39;bar_color&#39;</span><span class="p">:</span> <span class="s2">&quot;#08d152&quot;</span><span class="p">})</span>  <span class="c1"># Shade of green</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic26.png" width="700px">
+</p>
+
+<p>As a reminder, in order to make use of <code>p_dict</code> as a means of passing a new value for one of the controls inside "mdl_p", 
+you simply call the desired method and pass a dictionary ie. {"bar_color": "blue"} containing the keys that you want to 
+change as the only argument. </p>
+<h2 id="afsc-objectives">AFSC Objectives<a class="headerlink" href="#afsc-objectives" title="Permanent link">&para;</a></h2>
+<p>Before I dive deep into the components of the AFSC objectives, it's probably worthwhile to talk about what the 
+objectives themselves are. Here they are printed out for you:</p>
+<div class="highlight"><pre><span></span><code><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;objectives&#39;</span><span class="p">]</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>array([&#39;Norm Score&#39;, &#39;Merit&#39;, &#39;USAFA Proportion&#39;, &#39;Combined Quota&#39;,
+   &#39;USAFA Quota&#39;, &#39;ROTC Quota&#39;, &#39;Utility&#39;, &#39;Mandatory&#39;, &#39;Desired&#39;,
+   &#39;Permitted&#39;, &#39;Tier 1&#39;, &#39;Tier 2&#39;, &#39;Tier 3&#39;, &#39;Tier 4&#39;], dtype=&#39;&lt;U16&#39;)
+</code></pre></div>
+</details>
+<p>The "Norm Score" objective refers to the newly defined career field preference lists. Basically, career fields get to 
+rank cadets in order of preference similar to how the cadets rank their AFSC choices. To evaluate how well we meet the 
+needs of the AFSC according to their preferences, I came up with a normalized score idea. Imagine you have a set of ten 
+cadets, ranked 1 to 10. If you are picking 3 cadets from that list, the best cadets you could select are the ones 
+ranked 1, 2, 3. The worst are the cadets ranked 8, 9, 10. The former is a score of 1 and the latter is a score of 0. 
+Whatever you ultimately pick is likely going to be somewhere in between, which is where the norm score comes in. 
+Here is that example:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span> <span class="nn">random</span>
+
+<span class="c1"># Cadet rankings</span>
+<span class="n">num_cadets</span> <span class="o">=</span> <span class="mi">10</span>  <span class="c1"># 10 cadets in the above example</span>
+<span class="n">rankings</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_cadets</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Rankings:&#39;</span><span class="p">,</span> <span class="n">rankings</span><span class="p">)</span>
+
+<span class="c1"># Picking &quot;n&quot; cadets</span>
+<span class="n">n</span> <span class="o">=</span> <span class="mi">3</span>  <span class="c1"># picking 3 for this example</span>
+
+<span class="c1"># Selecting n cadets</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Best Cadets:&#39;</span><span class="p">,</span> <span class="n">rankings</span><span class="p">[:</span><span class="n">n</span><span class="p">])</span>
+
+<span class="c1"># &quot;Score&quot; is the sum of these numbers</span>
+<span class="n">best_score</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rankings</span><span class="p">[:</span><span class="n">n</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Best Cadets Score:&#39;</span><span class="p">,</span> <span class="n">best_score</span><span class="p">)</span>
+
+<span class="c1"># Selecting n cadets</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Worst Cadets:&#39;</span><span class="p">,</span> <span class="n">rankings</span><span class="p">[</span><span class="n">num_cadets</span><span class="o">-</span><span class="n">n</span><span class="p">:])</span>
+
+<span class="c1"># &quot;Score&quot; is the sum of these numbers</span>
+<span class="n">worst_score</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rankings</span><span class="p">[</span><span class="n">num_cadets</span><span class="o">-</span><span class="n">n</span><span class="p">:])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Worst Cadets Score:&#39;</span><span class="p">,</span> <span class="n">worst_score</span><span class="p">)</span>
+
+<span class="c1"># Pick a random set of n cadets</span>
+<span class="n">selected_cadets</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">rankings</span><span class="p">),</span> <span class="n">n</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Randomly selected cadets:&#39;</span><span class="p">,</span> <span class="n">selected_cadets</span><span class="p">)</span>
+
+<span class="n">selected_score</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">selected_cadets</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Random cadets score:&#39;</span><span class="p">,</span> <span class="n">selected_score</span><span class="p">)</span>
+
+<span class="c1"># &quot;Norm Score&quot; normalizes that &quot;selected_score&quot; on a 1 to 0 scale using the best/worst scores</span>
+<span class="n">norm_score</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">selected_score</span> <span class="o">-</span> <span class="n">best_score</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">worst_score</span> <span class="o">-</span> <span class="n">best_score</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Norm Score:&#39;</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">norm_score</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+
+<span class="c1"># Everything described above is what is used in afccp</span>
+<span class="kn">from</span> <span class="nn">afccp.solutions.handling</span> <span class="kn">import</span> <span class="n">calculate_afsc_norm_score_general</span>
+
+<span class="c1"># This function takes the rankings and selected rankings as arguments</span>
+<span class="n">norm_score_2</span> <span class="o">=</span> <span class="n">calculate_afsc_norm_score_general</span><span class="p">(</span><span class="n">rankings</span><span class="p">,</span> <span class="n">selected_cadets</span><span class="p">)</span>  
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Norm Score (from afccp):&#39;</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">norm_score_2</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Rankings: [ 1  2  3  4  5  6  7  8  9 10]
+
+Best Cadets: [1 2 3]
+Best Cadets Score: 6
+
+Worst Cadets: [ 8  9 10]
+Worst Cadets Score: 27
+
+Randomly selected cadets: [10, 4, 8]
+Random cadets score: 22
+
+Norm Score: 0.2381
+Norm Score (from afccp): 0.2381
+</code></pre></div>
+</details>
+<p>The "Merit" objective is one that was used to fairly distribute "quality" cadets across the AFSCs. 
+The idea is that no single "large" AFSC should be composed of entirely high or low performers. 
+I've never liked this objective because it puts too much emphasis on defining quality for a career field purely on 
+graduating order of merit. I believe that the career field preferences provide a much better way of defining quality 
+cadets that is specific to each career field. It is no longer a zero-sum game, and it is theoretically possible 
+(though highly improbable) that the rankings given could perfectly line up with the needs of the Air Force such that 
+every single AFSC receives their top performers. Again, this won't ever happen, but we are now deviating from order of 
+merit as the one-size-fits-all metric of quality.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Average order of merit of the class</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Average OM:&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;merit&#39;</span><span class="p">]))</span> <span class="c1"># Should be about 0.5 for a real class (random data will not)</span>
+
+<span class="c1"># Proportion of USAFA cadets of the class</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;USAFA Proportion:&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;usafa&#39;</span><span class="p">]))</span> <span class="c1"># Closer to 1/3 for a real class</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Average OM: 0.5044154990687344
+USAFA Proportion: 0.35
+</code></pre></div>
+</details>
+<p>In a very similar way that we want to keep average OM around 0.5 (or whatever the actual average is) for each of the 
+large AFSCs, we also don't want any single large AFSC to be composed of entirely USAFA or ROTC cadets. 
+We take the actual proportion of the cadets as the baseline and then shoot to be within +- 15% of that number. 
+That is another AFSC objective that may or may not actually be that important. The idea now is that it should be left 
+up to the career field manager to determine.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># USAFA quota (for each AFSC)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;USAFA Quota:&#39;</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;usafa_quota&#39;</span><span class="p">])</span>
+
+<span class="c1"># ROTC quota (for each AFSC)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ROTC Quota:&#39;</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;rotc_quota&#39;</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>USAFA Quota: [1. 1. 0. 0.]
+ROTC Quota: [7. 4. 2. 2.]
+</code></pre></div>
+</details>
+<p>If you recall the USAFA/ROTC quotas from earlier on, these numbers are fed into their appropriate objectives. 
+Meeting the individual USAFA and ROTC quotas are two objectives that are separate from the USAFA proportion objective. 
+They're doing similar things, but one is trying to balance the proportion of cadets assigned to be around some 
+baseline while the others are simply trying to meet a quota and that's it. These objectives really only come into play 
+now with the rated AFSCs since we need to keep the slots specific to each source of commissioning.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># The &quot;desired&quot; number of cadets for a given AFSC</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;PGL Target (Combined SOC quotas):&#39;</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;pgl&#39;</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Desired number:&#39;</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;quota_d&#39;</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>PGL Target (Combined SOC quotas): [8. 5. 2. 2.]
+
+Desired number: [8. 8. 3. 2.]
+</code></pre></div>
+</details>
+<p>The quota objective that we absolutely do care about is the "Combined Quota" objective which is used right now to meet 
+the PGL. It currently provides the minimum number of cadets to classify and so as long as we meet each of the minimums 
+then we are good! In the future, there's a lot more we should do with this objective to really hone in on the 
+importance of assigning more or fewer cadets to a given AFSC (cross-collaboration with AFMAA/A1XD in the works).</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># The AFOCD Tier objectives (from the &quot;AFSCs.csv&quot; I showed earlier)</span>
+<span class="n">p</span><span class="p">[</span><span class="s1">&#39;Deg Tiers&#39;</span><span class="p">]</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>array([[&#39;M &gt; 0.27&#39;, &#39;P &lt; 0.73&#39;, &#39;&#39;, &#39;&#39;],
+       [&#39;P = 1&#39;, &#39;I = 0&#39;, &#39;&#39;, &#39;&#39;],
+       [&#39;M = 1&#39;, &#39;I = 0&#39;, &#39;&#39;, &#39;&#39;],
+       [&#39;P = 1&#39;, &#39;I = 0&#39;, &#39;&#39;, &#39;&#39;]], dtype=&#39;&lt;U8&#39;)
+</code></pre></div>
+</details>
+<p>There are generally up to four Air Force Officer Classification Directory (AFOCD) degree tiers per career field. 
+Each degree tier has a target proportion and requirement level associated with it: Mandatory, Desired, or Permitted 
+(M, D, P). Above, the columns correspond to degree tiers (1, 2, 3, 4) and the rows are the AFSCs. It just so 
+happens that in this example we have 4 AFSCs and so it's worth clarifying! The format above provides a few pieces 
+of information: the requirement level, target proportion, and the type of inequality specified (&gt;, &lt;, or =). 
+So, for a degree tier format of "D &gt; 0.54", we know the requirement is "Desired" and the AFSC wants at LEAST 54% of 
+their accessions to have degrees in that tier. If you recall, the information on what tier everyone is placed in 
+for each AFSC based on their degree is located in the "qual" matrix. There is a function in <code>afccp.core.support</code>
+called <a href="../../../afccp/reference/data/support/#data.support.cip_to_qual_tiers"><code>cip_to_qual_tiers()</code></a>
+that creates the <code>qual</code> matrix based on the cadets' degrees. This is an important function for the AFPC/DSYA analyst 
+to maintain, and is irrelevant for random data since it's all fake anyway!</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Qual matrix! This conveys requirement level (M, D, P), tier (1, 2, 3, 4) and even eligibility (&quot;I&quot; is ineligible)</span>
+<span class="n">p</span><span class="p">[</span><span class="s1">&#39;qual&#39;</span><span class="p">]</span>  <span class="c1"># Rows are cadets, columns are AFSCs!</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>array([[&#39;M1&#39;, &#39;P1&#39;, &#39;I2&#39;, &#39;P1&#39;],
+       [&#39;M1&#39;, &#39;P1&#39;, &#39;I2&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;I2&#39;],
+       [&#39;M1&#39;, &#39;I2&#39;, &#39;I2&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;I2&#39;],
+       [&#39;M1&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;P1&#39;],
+       [&#39;M1&#39;, &#39;P1&#39;, &#39;I2&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;I2&#39;, &#39;M1&#39;, &#39;P1&#39;],
+       [&#39;M1&#39;, &#39;I2&#39;, &#39;I2&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;I2&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;P1&#39;],
+       [&#39;M1&#39;, &#39;I2&#39;, &#39;M1&#39;, &#39;I2&#39;],
+       [&#39;M1&#39;, &#39;P1&#39;, &#39;I2&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;I2&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;P1&#39;],
+       [&#39;P2&#39;, &#39;P1&#39;, &#39;M1&#39;, &#39;P1&#39;]], dtype=&#39;&lt;U2&#39;)
+</code></pre></div>
+</details>
+<p>As you can imagine, the objectives for "Tier 1" -&gt; "Tier 4" are there to meet the respective degree tier proportions! 
+There are the legacy "Mandatory", "Desired", and "Permitted" objectives as well, but those were replaced with the tier
+objectives ("Tier 1" -&gt; "Tier 4"). Essentially, we used to just group each of the categories (M, D, P) together and 
+constrain the model that way. This was not completely accurate, since two tiers that both have a mandatory label (M) 
+should be treated separately. </p>
+<p>Lastly, the "Utility" objective is simply to maximize cadet utility (happiness) and is measured by the average 
+cadet utility of the cadets assigned. I have this in there so AFSCs can prioritize the preferences of their incoming 
+cadets as well.</p>
+<h2 id="afsc-objective-components">AFSC Objective Components<a class="headerlink" href="#afsc-objective-components" title="Permanent link">&para;</a></h2>
+<p>This section describes the various pieces of the AFSC objectives: their weights, targets, and constraints. 
+The value functions are another component of the objectives, but we'll cover them in their own section since 
+there's a lot going on there! The first component of the AFSC objectives we'll discuss are the weights.</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic27.png" width="900px">
+</p>
+
+<p>Here are the objective weights for each AFSC for each objective. Like the AFSC "individual" weights, these are swing 
+weights that will be scaled for each AFSC so that they sum to 1. Many objectives are weighted at 0 which effectively 
+removes them from consideration for a given AFSC.</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic28.png" width="900px">
+</p>
+
+<p>This dataframe displays the target measure for each of the objectives. In a perfect world, we'd meet every AFSC 
+objective by hitting these values for each of them. </p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic29.png" width="900px">
+</p>
+
+<p>These are the constraints for each objective for each AFSC. Most are determined automatically based on the "fixed" data. 
+For example, the Combined Quota constraint is determined by the "Min, Max" values in "Random_1 AFSCs.csv". 
+The AFOCD Tier objective constraint ranges come from the "Deg Tiers" columns of "Random_1 AFSCs.csv" as well. 
+Since this is random data, nothing else is constrained to begin with.</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic30.png" width="900px">
+</p>
+
+<p>Here is where you actually turn different constraints on or off. If there is a 0, the constraint is turned off. 
+A "1" is an "approximate" constraint. This means that the denominator is the PGL target for an AFSC, not the actual 
+number of cadets assigned. If this is confusing, please reference my thesis or my slides that talk about the 
+difference between the Approximate Model and the Exact Model. The "2", therefore, is an "exact" constraint. 
+The only place where we could legitimately use a "1" instead of a "2" is for the AFOCD constraints. </p>
+<p>Example: Let's say 14N wants 70% of their cadets to have tier 1 degrees. Let's also say the PGL is 190 and we assign 
+220 cadets. A "1" constraint is a less restrictive constraint, and would ensure that 133 cadets (190 * 0.70) have 
+"Tier 1" degrees. Alternatively, a "2" constraint ensures the actual proportion gets constrained, so 154 cadets 
+(220 * 0.70) will have "Tier 1" degrees. Sometimes it is really hard to meet the AFOCD for some AFSCs, 
+and so a "1" constraint is necessary to ensure we meet the target based on the PGL, not the actual number of cadets. 
+Most of the time, however, we use "2" as the constraint type.</p>
+<p>Once these default value parameters have been imported/initialized for <code>Random_1</code>, they will be imported from 
+"Random_1 VP.csv" in "Model Input".</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic31.png" width="900px">
+</p>
+
+<p>As you can see, this file structure has a row for every AFSC and objective pair. The dataframes shown previously are 
+flattened into columns and exist here. Again, these are the actual value parameters used for the problem instance, 
+since the "Defaults" could have been more generalized (they aren't here since we exported our randomly generated set 
+as defaults, therefore having it be the same thing as what you're seeing here). 
+For a real class you could simply take the previous years defaults, tweak them a bit if needed, 
+and import those as a starting point for a new class year. The objective targets would be updated to reflect 
+the information of the problem instance you're looking at (the USAFA proportion objective target would be the 
+proportion of the USAFA cadets of the instance you're solving, for example).</p>
+<p>The "AFSC Weight" and "Min Value" columns above pertain to the AFSC itself, not the AFSC-objective pair 
+like the others (which is why "AFSC Weight" is all 100s for R1). The three columns to the right pertain to the 
+value functions used for each AFSC and objective which I will discuss in more detail in the following section.</p>
+<h2 id="value-functions">Value Functions<a class="headerlink" href="#value-functions" title="Permanent link">&para;</a></h2>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic32.png" width="1000px">
+</p>
 
 
 

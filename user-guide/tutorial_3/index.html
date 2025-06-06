@@ -927,6 +927,15 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      📌 Summary
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2958,14 +2967,26 @@ arrays of how many people have each AFSC at that choice.</p>
   Matrix and count of rated AFSC preferences submitted by cadets.</p>
 </li>
 <li>
-<p><code>w^G</code> (<code>np.ndarray</code>):<br />
-  Cadet weight vector used in merit-adjusted optimization.</p>
+<p><code>w^G</code> (<code>float</code>):<br />
+  Overall weight on <code>GUO</code> model relative to CASTLE (0 to 1).</p>
 </li>
 <li>
 <p><code>N^Match</code> (<code>int</code>):<br />
-  Total number of cadets to match in optimization.</p>
+  Total number of cadets to match in the optimization model.</p>
 </li>
 </ul>
+<h2 id="summary">📌 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>This tutorial demonstrates how to initialize and prepare a full <code>CadetCareerProblem</code> instance using raw input data. 
+We walk through each major import function, illustrating how to load cadets, AFSCs, quotas, preferences, and utility 
+matrices from CSV files and transform them into structured parameter dictionaries.</p>
+<p>Key steps include:</p>
+<ul>
+<li>Loading cadet and AFSC data within the <code>import_cadets_data()</code> and <code>import_afscs_data()</code> as part of the <code>CadetCareerProblem</code> initialization.</li>
+<li>Importing compatibility and preference matrices between cadets and AFSCs via <code>import_afsc_cadet_matrices_data()</code>.</li>
+<li>Generating cadet utility matrices, using tier, merit, and preference information to construct a personalized utility score for each cadet-AFSC pair.</li>
+<li>Finalizing model inputs for downstream evaluation or optimization by integrating all components into a unified parameter dictionary.</li>
+</ul>
+<p>You’re now ready to explore how the <code>value_parameters</code> work in <a href="../tutorial_4/">Tutorial 4</a>!</p>
 
 
 
