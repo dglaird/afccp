@@ -1,7 +1,10 @@
 # The title of your documentation site
 site_name: Air Force Cadet Career Problem
 site_url: https://dglaird.github.io/afccp/
-repo_url: https://github.com/dglaird/afccp
+repo_url: https://github.com/dglaird/afccp/
+docs_dir: docs
+
+use_directory_urls: true
 
 # Theme settings - Uses the Material theme for a clean, modern layout
 theme:
@@ -43,6 +46,8 @@ nav:
       - Tutorial 2 (Data Overview): user-guide/tutorial_2.md
       - Tutorial 3 (Parameters): user-guide/tutorial_3.md
       - Tutorial 4 (Value Parameters): user-guide/tutorial_4.md
+      - Tutorial 5 (Data Methods): user-guide/tutorial_5.md
+      - Tutorial 6 (Solutions Overview): user-guide/tutorial_6.md
 
   - 🧠 Developer Guide: developer-guide.md
 

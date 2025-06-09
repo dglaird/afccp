@@ -294,7 +294,7 @@ def construct_rated_preferences_from_om_by_soc(parameters):
 
     See Also:
     --------
-    [`determine_soc_rated_afscs`](../../../reference/data/preferences/#data.preferences.determine_soc_rated_afscs):
+    [`determine_soc_rated_afscs`](../../../afccp/reference/data/preferences/#data.preferences.determine_soc_rated_afscs):
         Identifies which AFSCs are rated within a given SOC.
     """
 
@@ -435,9 +435,9 @@ def remove_ineligible_cadet_choices(parameters, printing=False):
 
     See Also:
     --------
-    - [`fill_remaining_preferences`](../../../reference/data/preferences/#data.preferences.fill_remaining_preferences):
+    - [`fill_remaining_preferences`](../../../afccp/reference/data/preferences/#data.preferences.fill_remaining_preferences):
       Fills in arbitrary preferences for cadets, excluding bottom-ranked AFSCs.
-    - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+    - [`parameter_sets_additions`](../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
       Rebuilds indexed sets after modifying eligibility or preference matrices.
     """
 
@@ -826,8 +826,8 @@ def update_cadet_utility_matrices(parameters):
 
     See Also
     --------
-    - [`create_final_cadet_utility_matrix_from_new_formula`](../../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula)
-    - [`create_new_cadet_utility_matrix`](../../../../reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix)
+    - [`create_final_cadet_utility_matrix_from_new_formula`](../../../../afccp/reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula)
+    - [`create_new_cadet_utility_matrix`](../../../../afccp/reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix)
     """
 
     # Shorthand
@@ -1037,7 +1037,7 @@ def create_new_cadet_utility_matrix(parameters):
 
     See Also
     --------
-    - [`update_cadet_utility_matrices`](../../../reference/data/preferences/#data.preferences.update_cadet_utility_matrices)
+    - [`update_cadet_utility_matrices`](../../../afccp/reference/data/preferences/#data.preferences.update_cadet_utility_matrices)
     """
 
     # Shorthand
@@ -1119,7 +1119,7 @@ def create_final_cadet_utility_matrix_from_new_formula(parameters):
 
     See Also
     --------
-    - [`create_new_cadet_utility_matrix`](../../../reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix)
+    - [`create_new_cadet_utility_matrix`](../../../afccp/reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix)
     """
 
     # Shorthand

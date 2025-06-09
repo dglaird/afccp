@@ -298,15 +298,15 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
 
     See Also
     --------
-    - [`generate_afocd_value_parameters`](../../../reference/data/values/#data.values.generate_afocd_value_parameters):
+    - [`generate_afocd_value_parameters`](../../../afccp/reference/data/values/#data.values.generate_afocd_value_parameters):
       Adds tiered AFOCD objectives and fills in default VFT structure for a given instance.
-    - [`create_segment_dict_from_string`](../../../reference/data/values/#data.values.create_segment_dict_from_string):
+    - [`create_segment_dict_from_string`](../../../afccp/reference/data/values/#data.values.create_segment_dict_from_string):
       Parses string definitions into nonlinear segment dictionaries for value functions.
-    - [`value_function_builder`](../../../reference/data/values/#data.values.value_function_builder):
+    - [`value_function_builder`](../../../afccp/reference/data/values/#data.values.value_function_builder):
       Linearizes nonlinear value functions using a fixed number of breakpoints.
-    - [`cadet_weight_function`](../../../reference/data/values/#data.values.cadet_weight_function):
+    - [`cadet_weight_function`](../../../afccp/reference/data/values/#data.values.cadet_weight_function):
       Creates weights across cadets based on merit scores and function type.
-    - [`afsc_weight_function`](../../../reference/data/values/#data.values.afsc_weight_function):
+    - [`afsc_weight_function`](../../../afccp/reference/data/values/#data.values.afsc_weight_function):
       Creates weights across AFSCs based on projected gains/losses and selected function type.
     """
 
@@ -643,7 +643,7 @@ def generate_realistic_castle_value_curves(parameters, num_breakpoints: int = 10
         ```
 
     See Also:
-        - [`generate_concave_curve`](../../../reference/data/generation/#data.generation.generate_concave_curve):
+        - [`generate_concave_curve`](../../../afccp/reference/data/generation/#data.generation.generate_concave_curve):
           Generates a concave (diminishing returns) curve with specified number of points and max range.
     """
     # Shorthand

@@ -52,7 +52,7 @@ several folders that are generated when importing `afccp` for the first time. Th
 the generated folders circled in yellow:
 
 <p align="center">
-  <img src="/user-guide/images/pic1.png" width="700px">
+  <img src="/afccp/images/user-guide/pic1.png" width="700px">
 </p>
 ___
 
@@ -99,11 +99,12 @@ class year (2019, 2020, 2021, etc.) with various cadet/AFSC parameters.
 
 Before we get into the data, let's talk about how the code is structured. 
 The class "CadetCareerProblem" lives in main.py:
+
 <p align="center">
-  <img src="/user-guide/images/pic2.png" width="500px">
+  <img src="/afccp/images/user-guide/pic2.png" width="500px">
 </p>
 
-[CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/) calls all the other various functions across the "afccp" module that handle this problem. 
+[CadetCareerProblem](../../../afccp/reference/main/cadetcareerproblem_overview/) calls all the other various functions across the "afccp" module that handle this problem. 
 I higly encourage you to at least read the `__init__` function code of `CadetCareerProblem` as that is what defines the
 data for a particular instance. The object then runs through several processes depending on what the analyst is trying to do.
 I've broken up these processes into four core categories: "data", "solutions", "visualizations", and "research". 

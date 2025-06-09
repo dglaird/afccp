@@ -1,7 +1,7 @@
 # Tutorial 2: Data Overview
 
 In this second tutorial, we'll explain the contents of the `data` module within `afccp`, as well as how the data itself 
-is structured in the [CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/) object.
+is structured in the [CadetCareerProblem](../../../afccp/reference/main/cadetcareerproblem_overview/) object.
 
 ---
 
@@ -17,7 +17,7 @@ The "data" module of afccp contains the scripts and functions that all have some
 many sets and parameters of the problem. At a high level the modules are set up like this:
 
 <p align="center">
-  <img src="/user-guide/images/pic3.png" width="500px">
+  <img src="/afccp/images/user-guide/pic3.png" width="500px">
 </p>
 
 The "adjustments.py" script holds the functions that manipulate the parameters. There is also a function that sanity 
@@ -131,8 +131,8 @@ instance.fix_generated_data()
 
 There are certainly a lot of things that happen when we "fix" the generated data. I will describe these steps in more
 detail later, but for more information on what is happening please refer to the 
-[fix_generated_data()](../../../reference/main/cadetcareerproblem_generated_data_corrections/) method. 
-Now we can [export](../../../reference/main/cadetcareerproblem_generated_export_data/) the data!
+[fix_generated_data()](../../../afccp/reference/main/cadetcareerproblem_generated_data_corrections/) method. 
+Now we can [export](../../../afccp/reference/main/cadetcareerproblem_generated_export_data/) the data!
 
 ```python
 # Export everything
@@ -150,13 +150,13 @@ Now that we've exported the data (after manipulating it a little), you should ha
 "instances" folder:
 
 <p align="center">
-  <img src="/user-guide/images/pic4.png" width="700px">
+  <img src="/afccp/images/user-guide/pic4.png" width="700px">
 </p>
 
 You have data now located within the "Random_1" sub-folder. There are 5 instance sub-folders that get created:
 
 <p align="center">
-  <img src="/user-guide/images/pic5.png" width="700px">
+  <img src="/afccp/images/user-guide/pic5.png" width="700px">
 </p>
 
 The first 3 all relate to the pre-processing "phases" that AFPC/DSYA goes through to get the data into the problem 
@@ -166,7 +166,7 @@ be filled with real data in order to get it into sub-folder "4. Model Input".
 Since we've generated data, all of these parameters are located in this sub-folder:
 
 <p align="center">
-  <img src="/user-guide/images/pic6.png" width="700px">
+  <img src="/afccp/images/user-guide/pic6.png" width="700px">
 </p>
 
 The files shown above, and which you should also have if you're following along, contain all the information stored in 
@@ -190,7 +190,7 @@ instance = CadetCareerProblem('Random_1')
     ```
 
 At this point, we're ready to dive into the different data elements and structures used within 
-[CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/). 
+[CadetCareerProblem](../../../afccp/reference/main/cadetcareerproblem_overview/). 
 
 ## 📌 Summary
 
@@ -210,4 +210,4 @@ In this tutorial:
 - We visualized how that data is stored within the "instances" folder.
 - We described how to import a saved problem instance using `CadetCareerProblem('Random_1')`.
 
-You’re now ready to explore how the different data elements and structures in [Tutorial 3](../user-guide/tutorial_3.md)!
+You’re now ready to explore the different data elements and structures in [Tutorial 3](../user-guide/tutorial_3.md)!

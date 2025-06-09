@@ -24,10 +24,22 @@ Dive into the data that power the AFCCP model. You’ll learn:
 ---
 
 ### ✅ [Tutorial 3: Parameters](tutorial_3.md)
+Explore the `parameters` dictionary and get to know all the underlying data represented by it.
 
 ---
 
 ### ✅ [Tutorial 4: Value Parameters](tutorial_4.md)
+Learn how the weights/values/constraints are structured within the `value_parameters` dictionary.
+
+---
+
+### ✅ [Tutorial 5: Data Methods](tutorial_5.md)
+Discover the various `CadetCareerProblem` methods used to correct the data for specific purposes.
+
+---
+
+### ✅ [Tutorial 6: Solutions Overview](tutorial_6.md)
+Get a basic understanding of how the solutions are processed in `afccp`.
 
 ---
 
@@ -35,7 +47,7 @@ Dive into the data that power the AFCCP model. You’ll learn:
 
 - **Cadet assignment modelers** looking to experiment with AFSC match logic  
 - **Researchers** interested in operations research applications in workforce planning  
-- **Developers** wanting to understand or extend the AFCCP Python codebase
+- **Developers** wanting to understand or extend the `afccp` Python codebase
 
 ---
 

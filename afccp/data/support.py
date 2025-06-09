@@ -76,7 +76,7 @@ def initialize_instance_functional_parameters(N):
 
     See Also
     --------
-    - [CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/)
+    - [CadetCareerProblem](../../../afccp/reference/main/cadetcareerproblem_overview/)
     """
 
     # Parameters for the graphs
@@ -365,7 +365,7 @@ def determine_afsc_plot_details(instance, results_chart=False):
 
     See Also
     --------
-    - [`determine_afscs_in_image`](../../../reference/data/support/#data.support.determine_afscs_in_image)
+    - [`determine_afscs_in_image`](../../../afccp/reference/data/support/#data.support.determine_afscs_in_image)
     """
 
     # Shorthand

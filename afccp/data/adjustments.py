@@ -475,9 +475,9 @@ def parameter_sets_additions(parameters):
 
     See Also
     --------
-    - [`more_parameter_additions`](../../../reference/data/adjustments/#data.adjustments.more_parameter_additions):
+    - [`more_parameter_additions`](../../../afccp/reference/data/adjustments/#data.adjustments.more_parameter_additions):
       Adds enhanced logic for cadet/AFSC matching, preference flattening, and diversity tracking.
-    - [`base_training_parameter_additions`](../../../reference/data/adjustments/#data.adjustments.base_training_parameter_additions):
+    - [`base_training_parameter_additions`](../../../afccp/reference/data/adjustments/#data.adjustments.base_training_parameter_additions):
       Adds base and training assignment structures to the parameters.
     """
 
@@ -621,7 +621,7 @@ def more_parameter_additions(parameters):
 
     See Also
     --------
-    - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+    - [`parameter_sets_additions`](../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
       Related utility that adds indexed parameter sets post-preference generation.
     """
 
@@ -880,7 +880,7 @@ def base_training_parameter_additions(parameters):
 
     See Also
     --------
-    - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+    - [`parameter_sets_additions`](../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
       Adds foundational indexed sets and preference structures used prior to base/training expansion.
     """
 
@@ -1199,7 +1199,7 @@ def gather_degree_tier_qual_matrix(cadets_df, parameters):
 
     See Also:
     --------
-    - [`cip_to_qual_tiers`](../../../reference/data/support/#data.support.cip_to_qual_tiers):
+    - [`cip_to_qual_tiers`](../../../afccp/reference/data/support/#data.support.cip_to_qual_tiers):
       Generates tier-based qualification matrix from CIP codes.
     """
 

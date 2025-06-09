@@ -124,7 +124,7 @@ class CadetCareerProblem:
 
         ---
 
-        For a tailored guide on the use of this object, please refer to [Tutorial 1](../../../../../user-guide/tutorial_1).
+        For a tailored guide on the use of this object, please refer to [Tutorial 1](../../../../../afccp/user-guide/tutorial_1).
 
         ### 🛠 See Also
         - `solve_vft_pyomo_model`, `solve_guo_pyomo_model`, `solve_gp_pyomo_model`
@@ -728,9 +728,9 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`convert_utility_matrices_preferences`](../../../reference/data/preferences/#data.preferences.convert_utility_matrices_preferences):
+        - [`convert_utility_matrices_preferences`](../../../../afccp/reference/data/preferences/#data.preferences.convert_utility_matrices_preferences):
           Underlying function that performs the actual matrix transformation.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates parameter subsets after modifying the preference matrices.
         """
 
@@ -765,9 +765,9 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`generate_fake_afsc_preferences`](../../../reference/data/preferences/#data.preferences.generate_fake_afsc_preferences):
+        - [`generate_fake_afsc_preferences`](../../../../afccp/reference/data/preferences/#data.preferences.generate_fake_afsc_preferences):
           Underlying utility simulation and preference generation function.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates parameter subsets and mappings based on the new preference structure.
         """
         self.parameters = afccp.data.preferences.generate_fake_afsc_preferences(
@@ -805,9 +805,9 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`generate_rated_data`](../../../reference/data/preferences/#data.preferences.generate_rated_data):
+        - [`generate_rated_data`](../../../../afccp/reference/data/preferences/#data.preferences.generate_rated_data):
           Underlying function that constructs the rated OM and interest matrices.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates relevant parameter sets derived from new OM data.
         """
 
@@ -844,11 +844,11 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`generate_random_value_parameters`](../../../reference/data/generation/#data.generation.generate_random_value_parameters):
+        - [`generate_random_value_parameters`](../../../../afccp/reference/data/generation/#data.generation.generate_random_value_parameters):
           Initializes a value parameter dictionary from scratch with random objective weights and targets.
-        - [`condense_value_functions`](../../../reference/data/values/#data.values.condense_value_functions):
+        - [`condense_value_functions`](../../../../afccp/reference/data/values/#data.values.condense_value_functions):
           Cleans and optimizes value function definitions by removing unused entries.
-        - [`value_parameters_sets_additions`](../../../reference/data/values/#data.values.value_parameters_sets_additions):
+        - [`value_parameters_sets_additions`](../../../../afccp/reference/data/values/#data.values.value_parameters_sets_additions):
           Adds structured sets and subsets to the value parameter dictionary for optimization logic.
         """
 
@@ -910,7 +910,7 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`generate_realistic_castle_value_curves`](../../../reference/data/generation/#data.generation.generate_realistic_castle_value_curves):
+        - [`generate_realistic_castle_value_curves`](../../../../afccp/reference/data/generation/#data.generation.generate_realistic_castle_value_curves):
           Generates concave breakpoint utility functions for CASTLE AFSCs.
         """
 
@@ -1039,10 +1039,10 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`default_value_parameters_from_excel()`](../../../reference/data/values/#data.values.default_value_parameters_from_excel)
-        - [`generate_value_parameters_from_defaults()`](../../../reference/data/values/#data.values.generate_value_parameters_from_defaults)
-        - [`value_parameters_sets_additions()`](../../../reference/data/values/#data.values.value_parameters_sets_additions)
-        - [`evaluate_solution()`](../../../reference/solutions/handling/#solutions.handlling.evaluate_solution)
+        - [`default_value_parameters_from_excel()`](../../../../afccp/reference/data/values/#data.values.default_value_parameters_from_excel)
+        - [`generate_value_parameters_from_defaults()`](../../../../afccp/reference/data/values/#data.values.generate_value_parameters_from_defaults)
+        - [`value_parameters_sets_additions()`](../../../../afccp/reference/data/values/#data.values.value_parameters_sets_additions)
+        - [`evaluate_solution()`](../../../../afccp/reference/solutions/handling/#solutions.handlling.evaluate_solution)
         """
 
         if printing is None:
@@ -1130,9 +1130,9 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`construct_rated_preferences_from_om_by_soc`](../../../reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc):
+        - [`construct_rated_preferences_from_om_by_soc`](../../../../afccp/reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc):
           Underlying function that consolidates SOC-specific OM matrices into ranked preferences.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates indexed subsets after modifying AFSC preferences.
         """
 
@@ -1284,9 +1284,9 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`fill_remaining_preferences`](../../../reference/data/preferences/#data.preferences.fill_remaining_preferences):
+        - [`fill_remaining_preferences`](../../../../afccp/reference/data/preferences/#data.preferences.fill_remaining_preferences):
           Underlying function that assigns missing cadet AFSC preferences.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates parameter subsets after modifying the preference matrix.
         """
 
@@ -1326,9 +1326,9 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`remove_ineligible_cadet_choices`](../../../reference/data/preferences/#data.preferences.remove_ineligible_cadet_choices):
+        - [`remove_ineligible_cadet_choices`](../../../../afccp/reference/data/preferences/#data.preferences.remove_ineligible_cadet_choices):
           Underlying function that performs the actual validation and cleanup of preference matrices.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Rebuilds indexed sets and eligibility structures after editing cadet-AFSC pairings.
         """
 
@@ -1370,7 +1370,7 @@ class CadetCareerProblem:
 
         See Also
         --------
-        [`afccp.data.preferences.update_preference_matrices`](../../../reference/data/preferences/#data.preferences.update_preference_matrices)
+        [`afccp.data.preferences.update_preference_matrices`](../../../../afccp/reference/data/preferences/#data.preferences.update_preference_matrices)
             Underlying function that reconstructs preference matrices from dictionary of lists
         """
         if printing is None:
@@ -1409,7 +1409,7 @@ class CadetCareerProblem:
 
         See Also
         --------
-        [`update_first_choice_cadet_utility_to_one`](../../../reference/data/preferences/#data.preferences.update_first_choice_cadet_utility_to_one)
+        [`update_first_choice_cadet_utility_to_one`](../../../../afccp/reference/data/preferences/#data.preferences.update_first_choice_cadet_utility_to_one)
         """
 
         if printing is None:
@@ -1452,7 +1452,7 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`convert_afsc_preferences_to_percentiles()`](../../../reference/data/preferences/#data.preferences.convert_afsc_preferences_to_percentiles)
+        - [`convert_afsc_preferences_to_percentiles()`](../../../../afccp/reference/data/preferences/#data.preferences.convert_afsc_preferences_to_percentiles)
         """
         if printing is None:
             printing = self.printing
@@ -1493,7 +1493,7 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`update_cadet_columns_from_matrices`](../../../reference/data/preferences/#data.preferences.update_cadet_columns_from_matrices)
+        - [`update_cadet_columns_from_matrices`](../../../../afccp/reference/data/preferences/#data.preferences.update_cadet_columns_from_matrices)
         """
         if printing is None:
             printing = self.printing
@@ -1535,10 +1535,10 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`update_cadet_utility_matrices`](../../../reference/data/preferences/#data.preferences.update_cadet_utility_matrices)
-        - [`create_final_cadet_utility_matrix_from_new_formula`](../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula)
-        - [`create_final_cadet_utility_matrix`](../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix)
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions)
+        - [`update_cadet_utility_matrices`](../../../../afccp/reference/data/preferences/#data.preferences.update_cadet_utility_matrices)
+        - [`create_final_cadet_utility_matrix_from_new_formula`](../../../../afccp/reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula)
+        - [`create_final_cadet_utility_matrix`](../../../../afccp/reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix)
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions)
         """
         if printing is None:
             printing = self.printing
@@ -1568,7 +1568,7 @@ class CadetCareerProblem:
 
         See Also
         --------
-        - [`modify_rated_cadet_lists_based_on_eligibility`](../../../reference/data/preferences/#data.preferences.modify_rated_cadet_lists_based_on_eligibility)
+        - [`modify_rated_cadet_lists_based_on_eligibility`](../../../../afccp/reference/data/preferences/#data.preferences.modify_rated_cadet_lists_based_on_eligibility)
         """
 
         if printing is None:
@@ -1622,7 +1622,7 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`parameter_sanity_check`](../../../reference/data/adjustments/#data.adjustments.parameter_sanity_check):
+        - [`parameter_sanity_check`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sanity_check):
           Full implementation of the internal logic performing the data validation.
         ```
         """
@@ -1665,9 +1665,9 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`create_final_cadet_utility_matrix_from_new_formula`](../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula):
+        - [`create_final_cadet_utility_matrix_from_new_formula`](../../../../afccp/reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula):
           Core function that applies the new weighted formula to calculate cadet utilities.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Ensures derived sets such as `I^E` and `J^E` are regenerated after utility/preference updates.
         ```
         """
@@ -1714,7 +1714,7 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`set_ots_must_matches`](../../../reference/data/adjustments/#data.adjustments.set_ots_must_matches):
+        - [`set_ots_must_matches`](../../../../afccp/reference/data/adjustments/#data.adjustments.set_ots_must_matches):
           Underlying function that applies the must-match logic to the parameter dictionary.
         """
 
@@ -1754,9 +1754,9 @@ class CadetCareerProblem:
 
         See Also:
         --------
-        - [`cip_to_qual_tiers`](../../../reference/data/support/#data.support.cip_to_qual_tiers):
+        - [`cip_to_qual_tiers`](../../../../afccp/reference/data/support/#data.support.cip_to_qual_tiers):
           Generates the tiered qualification matrix based on CIP-to-AFSC logic.
-        - [`parameter_sets_additions`](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions):
+        - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Rebuilds internal indexed parameter sets and flags after matrix updates.
         """
         if printing is None:

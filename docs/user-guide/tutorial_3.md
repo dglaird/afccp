@@ -29,14 +29,14 @@ Let's first discuss the two "primary" datasets: "Cadets.csv" and "AFSCs.csv".
 "Random_1 Cadets.csv" defines the basic features of the cadets in this problem instance. It looks like this:
 
 <p align="center">
-  <img src="/user-guide/images/pic7.png" width="900px">
+  <img src="/afccp/images/user-guide/pic7.png" width="900px">
 </p>
 
 We can gain quite a bit of information from this dataset. I will reiterate that data is represented in this module as 
 numpy arrays within certain dictionaries. I extract these arrays from excel using pandas as the dataframe vehicle. This
 data processing step occurs in the 
-[import_cadets_data()](../../../reference/data/processing/#data.processing.import_cadets_data) function, which is called
-from within the `__init__` method of [CadetCareerProblem](../../../reference/main/cadetcareerproblem_overview/).
+[import_cadets_data()](../../../afccp/reference/data/processing/#data.processing.import_cadets_data) function, which is called
+from within the `__init__` method of [CadetCareerProblem](../../../afccp/reference/main/cadetcareerproblem_overview/).
 Let's go through some of these arrays.
 
 ```python
@@ -200,11 +200,11 @@ instance.parameters['qual']
 Like cadets, AFSCs are also defined in a separate csv file (Random_1 AFSCs.csv) which looks like this:
 
 <p align="center">
-  <img src="/user-guide/images/pic8.png" width="900px">
+  <img src="/afccp/images/user-guide/pic8.png" width="900px">
 </p>
 
 Here we have 4 AFSCs, and each has its own set of unique characteristics. In the same way as the cadets, this data is 
-extracted from the [import_afscs_data()](../../../reference/data/processing/#data.processing.import_afscs_data) function.
+extracted from the [import_afscs_data()](../../../afccp/reference/data/processing/#data.processing.import_afscs_data) function.
 
 ```python
 # Array of AFSC names
@@ -385,7 +385,7 @@ for param in ['N', 'M', 'P']:
     ```
 
 These additional sets, subsets, parameters, etc. are constructed as part of the 
-[parameter_sets_additions()](../../../reference/data/adjustments/#data.adjustments.parameter_sets_additions) function in
+[parameter_sets_additions()](../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions) function in
 the `data.adjustments` module. This function is executed often, since any slight data modification could tweak the 
 underlying sets and parameters that are ultimately used by the models and algorithms.
 
@@ -498,7 +498,7 @@ For cadets, there is the `utility` matrix I depicted earlier which is contained 
 "Random_1 Cadets Utility.csv":
 
 <p align="center">
-  <img src="/user-guide/images/pic9.png" width="800px">
+  <img src="/afccp/images/user-guide/pic9.png" width="800px">
 </p>
 
 As you can see, the data is the same as was printed from "instance.parameters['utility']" earlier 
@@ -528,12 +528,12 @@ top 10 preferences, just as before. This essentially creates two separate matric
 `utility`. "Random_1 Cadets Preferences.csv" contains the preference matrix (`c_pref_matrix`):
 
 <p align="center">
-  <img src="/user-guide/images/pic10.png" width="800px">
+  <img src="/afccp/images/user-guide/pic10.png" width="800px">
 </p>
 
 The "Cadets Utility" and "Cadets Preferences" files are both extracted into their numpy array counterparts, 
 `utility` and `c_pref_matrix`, respectively, within the 
-[import_afsc_cadet_matrices_data()](../../../reference/data/processing/#data.processing.import_afsc_cadet_matrices_data) 
+[import_afsc_cadet_matrices_data()](../../../afccp/reference/data/processing/#data.processing.import_afsc_cadet_matrices_data) 
 function. In fact, the remainder of data elements discussed in Tutorial 3 are processed by this function since they
 all follow the 2 dimensional cadet-AFSC row-column relationship.
 
@@ -617,10 +617,10 @@ different pieces of information that we must aggregate together to form one "fin
 random dataset, and for the FY24 class, we convert the ordinal rankings (1, 2, 3, 4, 5) to a continuous 1 -> 0 scale 
 (1, 0.8, 0.6, 0.4, 0.2). We then average these converted rankings and the provided utility values to get the final 
 cadet utility matrix, `cadet_utility`, which is located in "Random_1 Cadets Utility (Final).csv". This occurs in the 
-[create_new_cadet_utility_matrix()](../../../reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix) 
+[create_new_cadet_utility_matrix()](../../../afccp/reference/data/preferences/#data.preferences.create_new_cadet_utility_matrix) 
 function. For FY25, FY26, and beyond, we utilize additional information on the cadet's bottom choices and on the 
 AFSCs they did not select in their preferences to construct the `cadet_utility` matrix. The math behind this operation is located in the 
-[create_final_cadet_utility_matrix_from_new_formula()](../../../reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula) 
+[create_final_cadet_utility_matrix_from_new_formula()](../../../afccp/reference/data/preferences/#data.preferences.create_final_cadet_utility_matrix_from_new_formula) 
 function. 
 
 ```python
@@ -804,8 +804,8 @@ in "Random_1 ROTC Rated OM.csv" and "Random_1 USAFA Rated OM.csv", respectively.
   <strong>ROTC Rated OM (Left) & USAFA Rated OM (Right)</strong>
 </div>
 <p float="left">
-  <img src="/user-guide/images/pic11.png" width="47%" />
-  <img src="/user-guide/images/pic12.png" width="47%" />
+  <img src="/afccp/images/user-guide/pic11.png" width="47%" />
+  <img src="/afccp/images/user-guide/pic12.png" width="47%" />
 </p>
 
 One of the reasons I like using cadet indices as identifiers (rather than some other ID or name) is for this example 
@@ -838,7 +838,7 @@ print('Cadet preference on R4:', instance.parameters['c_pref_matrix'][indices, 3
 
 Since both of these lists for `R4` are relative to each SOC, we can combine them like we do with general OM. 
 We convert to "percentiles" relative to the SOCs and then zipper them together. I have a method that does this: 
-[construct_rated_preferences_from_om_by_soc()](../../../reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc). 
+[construct_rated_preferences_from_om_by_soc()](../../../afccp/reference/data/preferences/#data.preferences.construct_rated_preferences_from_om_by_soc). 
 It takes these two matrices and then zippers them together where the final product is an updated `a_pref_matrix` and 
 `afsc_preferences`. Let's demonstrate the "zippering":
 
@@ -929,11 +929,11 @@ In the age of wanting to try matching algorithms, preferences on both sides (cad
 This means that if you're on one AFSC's preference list, that AFSC must be on your preference list too. 
 Essentially, this creates three separate eligibility sources (cadet preferences, afsc preferences, and the qual matrix). 
 All three of these need to match up. This is why I have one method of CadetCareerProblem that "ensures" this is true: 
-[instance.remove_ineligible_choices()](../../../reference/main/cadetcareerproblem_main_data_corrections/#afccp.main.CadetCareerProblem.remove_ineligible_choices).
+[instance.remove_ineligible_choices()](../../../afccp/reference/main/cadetcareerproblem_main_data_corrections/#afccp.main.CadetCareerProblem.remove_ineligible_choices).
 This is a fairly aggressive approach since all it does is check if you're ineligible according to one source, 
 and if you are, it removes you from all other sources to force ineligibility. If you're doing this for real data, 
 make sure you know what you're doing! Here's the code I have in the 
-[instance.fix_generated_data()](../../../reference/main/cadetcareerproblem_generated_data_corrections/#afccp.generated.CadetCareerProblem.fix_generated_data) 
+[instance.fix_generated_data()](../../../afccp/reference/main/cadetcareerproblem_generated_data_corrections/#afccp.generated.CadetCareerProblem.fix_generated_data) 
 method when I remove these choices to show what you need to do afterwards to get the data looking right:
 
 ```python
@@ -1137,8 +1137,23 @@ arrays of how many people have each AFSC at that choice.
 - `Rated Choices`, `Num Rated Choices` (`np.ndarray`, `int`):  
   Matrix and count of rated AFSC preferences submitted by cadets.
 
-- `w^G` (`np.ndarray`):  
-  Cadet weight vector used in merit-adjusted optimization.
+- `w^G` (`float`):  
+  Overall weight on `GUO` model relative to CASTLE (0 to 1).
 
 - `N^Match` (`int`):  
-  Total number of cadets to match in optimization.
+  Total number of cadets to match in the optimization model.
+
+## 📌 Summary
+
+This tutorial demonstrates how to initialize and prepare a full `CadetCareerProblem` instance using raw input data. 
+We walk through each major import function, illustrating how to load cadets, AFSCs, quotas, preferences, and utility 
+matrices from CSV files and transform them into structured parameter dictionaries.
+
+Key steps include:
+
+- Loading cadet and AFSC data within the `import_cadets_data()` and `import_afscs_data()` as part of the `CadetCareerProblem` initialization.
+- Importing compatibility and preference matrices between cadets and AFSCs via `import_afsc_cadet_matrices_data()`.
+- Generating cadet utility matrices, using tier, merit, and preference information to construct a personalized utility score for each cadet-AFSC pair.
+- Finalizing model inputs for downstream evaluation or optimization by integrating all components into a unified parameter dictionary.
+
+You’re now ready to explore how the `value_parameters` work in [Tutorial 4](../user-guide/tutorial_4.md)!

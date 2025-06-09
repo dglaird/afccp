@@ -391,13 +391,13 @@ def update_value_and_weight_functions(instance, num_breakpoints=None):
 
     See Also:
     --------
-    - [`cadet_weight_function`](../../../reference/data/values/#data.values.cadet_weight_function):
+    - [`cadet_weight_function`](../../../../afccp/reference/data/values/#data.values.cadet_weight_function):
       Generates cadet weights from merit scores using a user-defined weighting function.
-    - [`afsc_weight_function`](../../../reference/data/values/#data.values.afsc_weight_function):
+    - [`afsc_weight_function`](../../../../afccp/reference/data/values/#data.values.afsc_weight_function):
       Generates AFSC weights based on PGL using either 'Linear', 'Square', or 'Custom' mappings.
-    - [`value_function_builder`](../../../reference/data/values/#data.values.value_function_builder):
+    - [`value_function_builder`](../../../../afccp/reference/data/values/#data.values.value_function_builder):
       Builds piecewise linear approximations (`a`, `f^hat`) of nonlinear value functions.
-    - [`create_segment_dict_from_string`](../../../reference/data/values/#data.values.create_segment_dict_from_string):
+    - [`create_segment_dict_from_string`](../../../../afccp/reference/data/values/#data.values.create_segment_dict_from_string):
       Parses the string representation of a value function and returns a segment definition.
     """
 
@@ -1093,11 +1093,11 @@ def value_function_builder(segment_dict=None, num_breakpoints=None, derivative_l
 
     See Also:
     --------
-    - [`exponential_function`](../../../reference/data/values/#data.values.exponential_function):
+    - [`exponential_function`](../../../../afccp/reference/data/values/#data.values.exponential_function):
       Computes the value for an exponential segment at a given x.
-    - [`derivative_function`](../../../reference/data/values/#data.values.derivative_function):
+    - [`derivative_function`](../../../../afccp/reference/data/values/#data.values.derivative_function):
       Returns the derivative of the exponential function at a given x.
-    - [`inverse_derivative_function`](../../../reference/data/values/#data.values.inverse_derivative_function):
+    - [`inverse_derivative_function`](../../../../afccp/reference/data/values/#data.values.inverse_derivative_function):
       Finds the x-value corresponding to a specific derivative magnitude for exponential functions.
     """
 
@@ -1475,8 +1475,7 @@ def translate_vft_to_gp_parameters(instance):
     Examples
     --------
     ```python
-    gp_model_inputs = translate_vft_to_gp_parameters(instance)
-    gp_model.solve(gp_model_inputs)
+    gp_parameters = translate_vft_to_gp_parameters(instance)
     ```
     """
 

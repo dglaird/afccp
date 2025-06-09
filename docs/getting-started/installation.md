@@ -189,7 +189,7 @@ afccp/                 # Root directory
 ```
 
 For more information on the instance data structure used by afccp, please refer to the
-[Data](../reference/data/__init__.md) module.
+[Data](../afccp/reference/data/__init__.md) module.
 
 ---
 
@@ -204,6 +204,14 @@ One very important step is the setup of the optimization **solvers** used by Pyo
 
 1. Go to the [AMPL download portal](https://portal.ampl.com/user/ampl/download/list).
 2. Under **COIN-OR solvers**, choose the appropriate compressed "coin" package for your operating system.
+   
+    - This page has undergone changes, and so I have no guarantee what it'll look like in the future. 
+    - As of right now (June 2025), you can scroll down to the "Individual Modules" section, and select the version of
+the COIN-OR solver collection that fits your operating system (MacOS or Windows):
+        <p align="center">
+            <img src="/afccp/images/getting-started/pic1.png" width="500px">
+        </p>
+    
 3. Download and extract the ZIP file.
 4. Locate the solver executables inside (e.g., `cbc.exe` on Windows or `cbc` on Unix-based systems).
 5. Drag those solver executables into the `solvers/` folder in your working directory (the same directory as your `afccp/` project).

@@ -252,8 +252,8 @@ def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
 
     See Also
     --------
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
-    - [`import_csv_data`](../../../reference/globals/#globals.import_csv_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_csv_data`](../../../afccp/reference/globals/#globals.import_csv_data)
     """
 
     # Shorthand
@@ -339,8 +339,8 @@ def import_cadets_data(import_filepaths, parameters):
 
     See Also
     --------
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
-    - [`gather_degree_tier_qual_matrix`](../../../reference/data/adjustments/#data.adjustments.gather_degree_tier_qual_matrix)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
+    - [`gather_degree_tier_qual_matrix`](../../../afccp/reference/data/adjustments/#data.adjustments.gather_degree_tier_qual_matrix)
     """
 
     # Shorthand
@@ -609,10 +609,10 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=2
 
     See Also
     --------
-    - [`value_function_builder`](../../../reference/data/values/#data.values.value_function_builder)
-    - [`create_segment_dict_from_string`](../../../reference/data/values/#data.values.create_segment_dict_from_string)
-    - [`condense_value_functions`](../../../reference/data/values/#data.values.condense_value_functions)
-    - [`value_parameters_sets_additions`](../../../reference/data/values/#data.values.value_parameters_sets_additions)
+    - [`value_function_builder`](../../../afccp/reference/data/values/#data.values.value_function_builder)
+    - [`create_segment_dict_from_string`](../../../afccp/reference/data/values/#data.values.create_segment_dict_from_string)
+    - [`condense_value_functions`](../../../afccp/reference/data/values/#data.values.condense_value_functions)
+    - [`value_parameters_sets_additions`](../../../afccp/reference/data/values/#data.values.value_parameters_sets_additions)
     """
 
     # Shorthand
@@ -822,8 +822,8 @@ def import_solutions_data(import_filepaths, parameters):
 
     See Also
     --------
-    - [`import_csv_data`](../../../reference/globals/#globals.import_csv_data)
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_csv_data`](../../../afccp/reference/globals/#globals.import_csv_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -943,8 +943,8 @@ def import_additional_data(import_filepaths, parameters):
 
     See Also
     --------
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
-    - [`import_csv_data`](../../../reference/globals/#globals.import_csv_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_csv_data`](../../../afccp/reference/globals/#globals.import_csv_data)
     """
 
     # Shorthand
@@ -1070,8 +1070,8 @@ def export_afscs_data(instance):
 
     See Also
     --------
-    - [`import_afscs_data`](../../../reference/data/processing/#data.processing.import_afscs_data)
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_afscs_data`](../../../afccp/reference/data/processing/#data.processing.import_afscs_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1153,8 +1153,8 @@ def export_cadets_data(instance):
 
     See Also
     --------
-    - [`import_cadets_data`](../../../reference/data/processing/#data.processing.import_cadets_data)
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_cadets_data`](../../../afccp/reference/data/processing/#data.processing.import_cadets_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1183,7 +1183,7 @@ def export_cadets_data(instance):
             col_name = cadet_parameters_to_columns[parameter]
             cadets_columns[col_name] = p[parameter]
 
-    # If we had the cadet preference/utility columns before, we'll add them back in
+    # If we had the cadet pafccp/reference/utility columns before, we'll add them back in
     if "c_preferences" in p:
 
         # Add utility columns
@@ -1250,9 +1250,9 @@ def export_afsc_cadet_matrices_data(instance):
 
     See Also
     --------
-    - [`determine_soc_rated_afscs`](../../../reference/data/preferences/#data.preferences.determine_soc_rated_afscs)
-    - [`import_afsc_cadet_matrices_data`](../../../reference/data/processing/#data.processing.import_afsc_cadet_matrices_data)
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`determine_soc_rated_afscs`](../../../afccp/reference/data/preferences/#data.preferences.determine_soc_rated_afscs)
+    - [`import_afsc_cadet_matrices_data`](../../../afccp/reference/data/processing/#data.processing.import_afsc_cadet_matrices_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1346,8 +1346,8 @@ def export_value_parameters_data(instance):
 
     See Also
     --------
-    - [`import_value_parameters_data`](../../../reference/data/processing/#data.processing.import_value_parameters_data)
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_value_parameters_data`](../../../afccp/reference/data/processing/#data.processing.import_value_parameters_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1490,8 +1490,8 @@ def export_solutions_data(instance):
 
     See Also
     --------
-    - [`import_solutions_data`](../../../reference/data/processing/#data.processing.import_solutions_data)
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_solutions_data`](../../../afccp/reference/data/processing/#data.processing.import_solutions_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1570,8 +1570,8 @@ def export_additional_data(instance):
 
     See Also
     --------
-    - [`import_additional_data`](../../../reference/data/processing/#data.processing.import_additional_data)
-    - [`initialize_file_information`](../../../reference/data/processing/#data.processing.initialize_file_information)
+    - [`import_additional_data`](../../../afccp/reference/data/processing/#data.processing.import_additional_data)
+    - [`initialize_file_information`](../../../afccp/reference/data/processing/#data.processing.initialize_file_information)
     """
 
     # Shorthand
@@ -1694,7 +1694,7 @@ def export_solution_results_excel(instance, filepath):
 
     See Also
     --------
-    - [`draw_frame_border_outside`](../../../reference/data/processing/#data.processing.draw_frame_border_outside)
+    - [`draw_frame_border_outside`](../../../afccp/reference/data/processing/#data.processing.draw_frame_border_outside)
     """
 
     # Shorthand

@@ -19,7 +19,7 @@ logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 warnings.filterwarnings('ignore')
 
 
-# _____________________ASSIGNMENT MODEL (GUO) MAIN COMPONENTS________________________________
+# __________________________________ASSIGNMENT MODEL (GUO) MAIN COMPONENTS______________________________________________
 def assignment_model_build(instance, printing=False):
     """
     Converts the parameters and value parameters to the pyomo data structure
@@ -170,7 +170,7 @@ def build_old_afpc_model_utility_matrix(p):
     return c
 
 
-# __________________COMMON OPTIMIZATION COMPONENTS (Across Models)___________________________
+# _______________________________COMMON OPTIMIZATION COMPONENTS (Across Models)_________________________________________
 def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
     """
     Define the objective function for the assignment model.
@@ -544,7 +544,7 @@ def add_rated_alternates_constraints(m, p, mdl_p):
     return m
 
 
-# _________________________________CONSTRAINT LOGGING________________________________________
+# ______________________________________________CONSTRAINT LOGGING______________________________________________________
 def log_constraint_violations_to_file(model, filepath, tolerance=1e-4, max_violations=100):
     """
     Logs violated constraints to a text file, suppressing uninitialized variable warnings.
@@ -806,7 +806,7 @@ def parse_lp_file(lp_path, output_log="lp_analysis.txt"):
     print(f"✔️ LP file parsed and analyzed. Results written to: {output_log}")
 
 
-# ____________________________SOLVE THE MODEL WITH A SOLVER__________________________________
+# _________________________________________SOLVE THE MODEL WITH A SOLVER________________________________________________
 def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
     """
     Solve a Pyomo model using a specified solver.
@@ -1190,7 +1190,7 @@ def execute_solver(model, solver, mdl_p):
     return model
 
 
-# ____________________________CASTLE MARKET MODEL COMPONENTS_________________________________
+# _________________________________________CASTLE MARKET MODEL COMPONENTS_______________________________________________
 def initialize_castle_value_curve_function_variables(m, p, q):
     # Castle AFSCs
     afscs = [afsc for afsc, _ in p['castle_afscs'].items()]
@@ -1232,7 +1232,7 @@ def add_castle_value_curve_function_constraints(m, measure, afsc, q):
     return m
 
 
-# ________________________VALUE FOCUSED THINKING COMPONENTS__________________________________
+# _____________________________________VALUE FOCUSED THINKING COMPONENTS________________________________________________
 def vft_model_build(instance, printing=False):
     """
     Builds the VFT optimization model using pyomo.
@@ -1648,7 +1648,7 @@ def add_objective_value_function_constraints(m, j, k, measure, q):
     return m
 
 
-# _____________________________BASE & IST COMPONENTS_________________________________________
+# __________________________________________BASE & IST COMPONENTS_______________________________________________________
 def base_training_model_handling(m, p, mdl_p):
     """
     Adds optimization model components to handle base and training (IST) assignments.
@@ -1743,7 +1743,7 @@ def base_training_model_handling(m, p, mdl_p):
     return m
 
 
-# ________________________________BUBBLE CHART MODEL!________________________________________
+# _____________________________________________BUBBLE CHART MODEL!______________________________________________________
 def bubble_chart_configuration_model(b):
     """
     Builds a Pyomo optimization model to determine the x and y coordinates of AFSC squares on a chart.
@@ -1827,7 +1827,7 @@ def bubble_chart_configuration_model(b):
     return m
 
 
-# _________________GOAL PROGRAMMING (REBECCA THESIS) COMPONENTS______________________________
+# ______________________________GOAL PROGRAMMING (REBECCA THESIS) COMPONENTS____________________________________________
 def gp_model_build(instance, printing=False):
     """
     Builds Rebecca's goal programming (GP) model using the provided problem instance.
