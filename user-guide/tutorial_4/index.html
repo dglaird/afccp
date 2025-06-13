@@ -14,7 +14,7 @@
         <link rel="prev" href="../tutorial_3/">
       
       
-        <link rel="next" href="../../developer-guide/">
+        <link rel="next" href="../tutorial_5/">
       
       
       <link rel="icon" href="../../images/logos/afccp_logo_favicon.png">
@@ -902,10 +902,161 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#global-utility" class="md-nav__link">
+    <span class="md-ellipsis">
+      Global Utility
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cadet-utility-constraints-meant-just-for-afpcdsya-through-an-operational-lens" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cadet Utility Constraints (Meant just for AFPC/DSYA through an operational lens)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#goal-programming-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Goal-Programming Parameters
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      📌 Summary
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 5 (Data Methods)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 6 (Solutions Overview)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_7/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 7 (Algorithms)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_8/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 8 (Optimization)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 9 (Visualizations)
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -2444,6 +2595,440 @@ value functions used for each AFSC and objective which I will discuss in more de
 <p align="center">
   <img src="/afccp/images/user-guide/pic32.png" width="1000px">
 </p>
+
+<p>Here we have the value functions for each of the AFSC objectives. These definitely require some explaining. 
+I've created my own terminology so that they can be generalized and constructed into actual value functions for each 
+of the objectives. I have an excel file that outlines how these functions are created and what they look like 
+(Value_Function_Builds.xlsx), but I will also detail them here. </p>
+<div class="highlight"><pre><span></span><code><span class="c1"># I need to import this script</span>
+<span class="kn">import</span> <span class="nn">afccp.data.values</span>
+</code></pre></div>
+<p>Before you read this next section on the value functions, please look at my "Creating Value Functions" slides in 
+<a href="../../../afccp/academics/VFT_Model_Slides.pptx">VFT_Model_Slides.pptx</a> (starts on slide 130), and just click 
+through them. This is how I construct the value functions, and this should help your understanding of the different 
+piece-wise "segments" used.</p>
+<p>The purpose of the "vf_string" (Value Function string) is to construct the "segment_dict" (Segment Dictionary) 
+which provides the coordinates for the main piece-wise value function segment breakpoints. As illustrated below, 
+there are four "segments" of exponential functions that are pieced together using "breakpoints". 
+There are therefore 5 breakpoints. For this example, they are at the coordinates (0, 0), (3, 0.5), (5, 1), (7, 0.5), 
+and (10, 0). This would compose the "segment_dict".</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic33.png" width="600px">
+</p>
+
+<p>Let's illustrate the "Balance" value function. It takes several inputs pertaining to the "margins" and the 
+<span class="arithmatex">\(\rho\)</span> parameters. Here is what it looks like:</p>
+<p>vf_string <span class="arithmatex">\(=\)</span> "Balance|left_base_margin, right_base_margin, <span class="arithmatex">\(\rho_1\)</span>, <span class="arithmatex">\(\rho_2\)</span>, <span class="arithmatex">\(\rho_3\)</span>, <span class="arithmatex">\(\rho_4\)</span>, margin_y"</p>
+<p>Honestly, you really don't need to worry about what these all mean. The only thing you should focus on is the 
+<span class="arithmatex">\(\rho\)</span> ("rho") parameters. These control how steep each of the exponential segments are. Let's see an example. 
+We'll first generate the "segment_dict" based on the "vf_string":</p>
+<div class="highlight"><pre><span></span><code><span class="n">vf_string</span> <span class="o">=</span> <span class="s2">&quot;Balance|0.2, 0.2, 0.1, 0.08, 0.08, 0.1, 0.5&quot;</span>
+<span class="n">target</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="n">actual</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="n">segment_dict</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span> <span class="n">actual</span><span class="o">=</span><span class="n">actual</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">segment</span> <span class="ow">in</span> <span class="n">segment_dict</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;:&quot;</span><span class="p">,</span> <span class="n">segment_dict</span><span class="p">[</span><span class="n">segment</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>1: {&#39;x1&#39;: 0, &#39;y1&#39;: 0, &#39;x2&#39;: 0.3, &#39;y2&#39;: 0.5, &#39;rho&#39;: -0.1}
+2: {&#39;x1&#39;: 0.3, &#39;y1&#39;: 0.5, &#39;x2&#39;: 0.5, &#39;y2&#39;: 1, &#39;rho&#39;: 0.08}
+3: {&#39;x1&#39;: 0.5, &#39;y1&#39;: 1, &#39;x2&#39;: 0.7, &#39;y2&#39;: 0.5, &#39;rho&#39;: 0.08}
+4: {&#39;x1&#39;: 0.7, &#39;y1&#39;: 0.5, &#39;x2&#39;: 1, &#39;y2&#39;: 0, &#39;rho&#39;: -0.1}
+</code></pre></div>
+</details>
+<p>Now we have our segment dictionary! We know what the coordinates for the "main" breakpoints are, so we can now 
+generate the rest of the breakpoints to make the function linear. Let's calculate the x and y coordinates of our 
+function's breakpoints.</p>
+<div class="highlight"><pre><span></span><code><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="n">segment_dict</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;x:&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;y:&quot;</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>x: [0.   0.06 0.12 0.18 0.24 0.3  0.34 0.38 0.42 0.46 0.5  0.54 0.58 0.62 0.66 0.7  0.76 0.82 0.88 0.94 1.  ] 
+
+y: [0.      0.00288 0.01245 0.04423 0.14973 0.5     0.8182  0.93527 0.97833 0.99417 1.      0.99417 0.97833 
+    0.93527 0.8182  0.5     0.14973 0.04423 0.01245 0.00288 0.     ]
+</code></pre></div>
+</details>
+<p>Now we plot our value function!</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># &quot;Balance&quot; type of value function!</span>
+<span class="kn">from</span> <span class="nn">afccp.visualizations.charts</span> <span class="kn">import</span> <span class="n">ValueFunctionChart</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">ValueFunctionChart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic34.png" width="600px">
+</p>
+
+<p>And there we have it. This is the value function we've constructed from that initial "vf_string". 
+Play around with the different parameters and see what happens here!</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Change this</span>
+<span class="n">vf_string</span> <span class="o">=</span> <span class="s2">&quot;Balance|0.2, 0.2, 0.1, 0.08, 0.08, 0.1, 0.5&quot;</span>
+<span class="n">target</span> <span class="o">=</span> <span class="mf">0.5</span>  <span class="c1"># This is what we&#39;re after</span>
+<span class="n">actual</span> <span class="o">=</span> <span class="mf">0.5</span>  <span class="c1"># This is essentially what we could realistically expect (based on set of eligible cadets)</span>
+<span class="n">num_breakpoints</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># How many breakpoints to use </span>
+<span class="c1"># (the more breakpoints used, the more the function appears non-linear)</span>
+
+<span class="c1"># Don&#39;t change this</span>
+<span class="n">segment_dict</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span> <span class="n">actual</span><span class="o">=</span><span class="n">actual</span><span class="p">)</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="n">segment_dict</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="n">num_breakpoints</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">ValueFunctionChart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic35.png" width="600px">
+</p>
+
+<p>That is the "Balance" value function type. This is intended for the objectives that seek to "balance" certain 
+characteristics of the cadets (USAFA proportions and sometimes Merit as well). I did end up changing the Merit 
+value function to be a "Min Increasing" because I decided against penalizing the objective for exceeding 0.5. 
+At this point, I will note that these value functions don't necessarily have to have 4 segments. 
+I do have value function types that use 3, 2, or even 1 segment. Let's discuss the quota value functions.</p>
+<p>"Quota_Direct" is intended for AFSCs that have a range on the number of cadets that are to be assigned, 
+but also know around where they'd like to fall within that range. There are 6 parameters, the <span class="arithmatex">\(\rho\)</span> (rho) parameters 
+for each of the four segments, and the y values for the two breakpoints on either side of the "peak". The vf_string 
+is then: "Quota_Direct|<span class="arithmatex">\(\rho_1\)</span>, <span class="arithmatex">\(\rho_2\)</span>, <span class="arithmatex">\(\rho_3\)</span>, <span class="arithmatex">\(\rho_4\)</span>, <span class="arithmatex">\(y_1\)</span>, <span class="arithmatex">\(y_2\)</span>". The additional AFSC specific parameters 
+are the upper/lower bounds on the number of cadets as well as the actual target number of cadets within that range. 
+Here is an example:</p>
+<div class="highlight"><pre><span></span><code><span class="n">vf_string</span> <span class="o">=</span> <span class="s2">&quot;Quota_Direct|0.1, 1, 0.6, 0.1, 0.8, 0.8&quot;</span>
+<span class="n">minimum</span> <span class="o">=</span> <span class="mi">120</span>  <span class="c1"># Lower Bound</span>
+<span class="n">maximum</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># Upper Bound</span>
+<span class="n">target</span> <span class="o">=</span> <span class="mi">140</span>  <span class="c1"># Desired number of cadets within the range</span>
+<span class="n">num_breakpoints</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># How many breakpoints to use </span>
+
+<span class="c1"># Don&#39;t change this</span>
+<span class="n">segment_dict</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span> 
+                                                                      <span class="n">minimum</span><span class="o">=</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="o">=</span><span class="n">maximum</span><span class="p">)</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="n">segment_dict</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="n">num_breakpoints</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">ValueFunctionChart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic36.png" width="600px">
+</p>
+
+<p>Here you can see that although the range of 120 to 200 is specified, there is a direction of preference within that 
+range (the AFSC wants around 140 cadets, but is fairly accepting of values around that range). I will note that the 
+target, minimum, and maximum parameters are taken from the "Random_1 AFSCs.csv" data!</p>
+<p>Another value function we can choose for the quota objective is the "Quota_Normal" function type. 
+This is intended for AFSCs that either don't care about the number of cadets (as long as they fall within a certain 
+range) or didn't specify. For example, the PGL says 120 and after speaking with them we determine the upper bound is 
+200 and they say they have no preference between 120 and 200 and everything in between. There are 2 segments for this 
+function, connected by a horizontal line at y = 1 for the range on the cadets. The function parameters are <span class="arithmatex">\(\rho_1\)</span>, 
+<span class="arithmatex">\(\rho_2\)</span>, and "domain_max" which is the max number of cadets that could have a nonzero value (arbitrary scalar just 
+to get a curve on the right side of the function). Here is the vf_string: "Quota_Normal|d_max, <span class="arithmatex">\(\rho_1\)</span>, <span class="arithmatex">\(\rho_2\)</span>". 
+Here is an example:</p>
+<div class="highlight"><pre><span></span><code><span class="n">vf_string</span> <span class="o">=</span> <span class="s2">&quot;Quota_Normal|0.2, 0.25, 0.05&quot;</span>
+<span class="n">minimum</span> <span class="o">=</span> <span class="mi">120</span>  <span class="c1"># Lower Bound</span>
+<span class="n">maximum</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># Upper Bound</span>
+<span class="n">target</span> <span class="o">=</span> <span class="mi">140</span>  <span class="c1"># (Doesn&#39;t matter here)</span>
+<span class="n">num_breakpoints</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># How many breakpoints to use </span>
+
+<span class="c1"># Don&#39;t change this</span>
+<span class="n">segment_dict</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span> 
+                                                                      <span class="n">minimum</span><span class="o">=</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="o">=</span><span class="n">maximum</span><span class="p">)</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="n">segment_dict</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="n">num_breakpoints</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">ValueFunctionChart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic37.png" width="600px">
+</p>
+
+<p>The last two kinds of value functions I'll discuss are the "Min Increasing" and "Min Decreasing" types. 
+They are very simple and only have one segment which is a simple exponentional curve to get to the target measure 
+(in the x space). The only parameter is <span class="arithmatex">\(\rho\)</span>. The vf_string then looks like: "Min Increasing|<span class="arithmatex">\(\rho\)</span>" or 
+"Min Decreasing|<span class="arithmatex">\(\rho\)</span>". They are called "Min" functions because it's essentially the same thing as taking the 
+minimum value between some exponential curve and 1. Here are some examples:</p>
+<div class="highlight"><pre><span></span><code><span class="n">vf_string</span> <span class="o">=</span> <span class="s2">&quot;Min Increasing|0.1&quot;</span>
+<span class="n">target</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="n">num_breakpoints</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># How many breakpoints to use </span>
+
+<span class="c1"># Don&#39;t change this</span>
+<span class="n">segment_dict</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">)</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="n">segment_dict</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="n">num_breakpoints</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">ValueFunctionChart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic38.png" width="600px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="n">vf_string</span> <span class="o">=</span> <span class="s2">&quot;Min Increasing|-0.1&quot;</span>
+<span class="n">target</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">num_breakpoints</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># How many breakpoints to use </span>
+
+<span class="c1"># Don&#39;t change this</span>
+<span class="n">segment_dict</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">)</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="n">segment_dict</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="n">num_breakpoints</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">ValueFunctionChart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic39.png" width="600px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="n">vf_string</span> <span class="o">=</span> <span class="s2">&quot;Min Decreasing|-1&quot;</span>
+<span class="n">target</span> <span class="o">=</span> <span class="mf">0.2</span>
+<span class="n">num_breakpoints</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># How many breakpoints to use </span>
+
+<span class="c1"># Don&#39;t change this</span>
+<span class="n">segment_dict</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">)</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="n">segment_dict</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="n">num_breakpoints</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">ValueFunctionChart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic40.png" width="600px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="n">vf_string</span> <span class="o">=</span> <span class="s2">&quot;Min Decreasing|1&quot;</span>
+<span class="n">target</span> <span class="o">=</span> <span class="mf">0.2</span>
+<span class="n">num_breakpoints</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># How many breakpoints to use </span>
+
+<span class="c1"># Don&#39;t change this</span>
+<span class="n">segment_dict</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">)</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="n">segment_dict</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="n">num_breakpoints</span><span class="p">)</span>
+<span class="n">chart</span> <span class="o">=</span> <span class="n">ValueFunctionChart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic41.png" width="600px">
+</p>
+
+<p>And there you have it! This is how I code up and construct my many value functions for each of the objectives for 
+each of the AFSCs. Please reach out if you have any questions as I know this is a confusing section.</p>
+<p>Now that we're done discussing the types of value functions, we can take a look at the actual value functions used on 
+"Random_1". We're plotting the breakpoints (x/y coordinates) for a specific AFSC objective value function. 
+Here is an example:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Plot the value function (this also saves it to the &quot;Value Functions&quot; sub-folder by default FYI)</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">show_value_function</span><span class="p">({</span><span class="s1">&#39;afsc&#39;</span><span class="p">:</span> <span class="s2">&quot;R1&quot;</span><span class="p">,</span> <span class="s1">&#39;objective&#39;</span><span class="p">:</span> <span class="s1">&#39;Combined Quota&#39;</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Creating value function chart for objective Combined Quota for AFSC R1
+</code></pre></div>
+</details>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic42.png" width="600px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Plot the value function (this also saves it to the &quot;Value Functions&quot; sub-folder by default FYI)</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">show_value_function</span><span class="p">({</span><span class="s1">&#39;afsc&#39;</span><span class="p">:</span> <span class="s2">&quot;R2&quot;</span><span class="p">,</span> <span class="s1">&#39;objective&#39;</span><span class="p">:</span> <span class="s1">&#39;USAFA Proportion&#39;</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Creating value function chart for objective USAFA Proportion for AFSC R2
+</code></pre></div>
+</details>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic43.png" width="600px">
+</p>
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Plot the value function (this also saves it to the &quot;Value Functions&quot; sub-folder by default FYI)</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">show_value_function</span><span class="p">({</span><span class="s1">&#39;afsc&#39;</span><span class="p">:</span> <span class="s2">&quot;R1&quot;</span><span class="p">,</span> <span class="s1">&#39;objective&#39;</span><span class="p">:</span> <span class="s1">&#39;Tier 1&#39;</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Creating value function chart for objective Tier 1 for AFSC R1
+</code></pre></div>
+</details>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic44.png" width="600px">
+</p>
+
+<h2 id="global-utility">Global Utility<a class="headerlink" href="#global-utility" title="Permanent link">&para;</a></h2>
+<p>There are a few other components of the "value parameters" that I haven't mentioned yet. 
+The <code>global_utility</code> matrix is based on the cadets' preferences as well as the AFSCs' preferences. 
+The two matrices <code>cadet_utility</code> and <code>afsc_utility</code> are merged according to the overall weights on the cadets/AFSCs.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Cadet Utility Matrix</span>
+<span class="n">p</span><span class="p">[</span><span class="s1">&#39;cadet_utility&#39;</span><span class="p">]</span>  <span class="c1"># As a reminder &#39;p&#39; -&gt; &#39;instance.parameters&#39;!!!</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>array([[1.    , 0.4683, 0.    , 0.1917],
+       [1.    , 0.5433, 0.    , 0.3667],
+       [0.135 , 1.    , 0.42  , 0.65  ],
+       [0.7933, 0.4717, 1.    , 0.    ],
+       [1.    , 0.    , 0.    , 0.355 ],
+       [1.    , 0.2   , 0.47  , 0.805 ],
+       [0.7133, 1.    , 0.1817, 0.    ],
+       [1.    , 0.21  , 0.42  , 0.655 ],
+       [1.    , 0.3833, 0.    , 0.1767],
+       [0.1867, 0.    , 1.    , 0.3633],
+       [0.265 , 0.    , 0.    , 1.    ],
+       [1.    , 0.7983, 0.    , 0.3917],
+       [0.645 , 0.495 , 1.    , 0.325 ],
+       [1.    , 0.    , 0.43  , 0.    ],
+       [0.8083, 1.    , 0.    , 0.3467],
+       [0.7233, 0.4217, 1.    , 0.    ],
+       [0.355 , 0.2   , 1.    , 0.5   ],
+       [0.855 , 0.72  , 1.    , 0.52  ],
+       [1.    , 0.56  , 0.21  , 0.725 ],
+       [0.29  , 0.135 , 0.66  , 1.    ]])
+</code></pre></div>
+</details>
+<div class="highlight"><pre><span></span><code><span class="c1"># AFSC Utility Matrix</span>
+<span class="n">p</span><span class="p">[</span><span class="s1">&#39;afsc_utility&#39;</span><span class="p">]</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>array([[0.75      , 0.0625    , 0.        , 0.0625    ],
+       [0.6       , 0.25      , 0.        , 0.3125    ],
+       [0.05      , 0.6875    , 0.07692308, 0.4375    ],
+       [0.2       , 0.3125    , 0.23076923, 0.        ],
+       [0.55      , 0.        , 0.        , 0.375     ],
+       [0.4       , 0.1875    , 0.15384615, 0.5       ],
+       [0.7       , 0.9375    , 0.38461538, 0.        ],
+       [1.        , 0.5625    , 0.69230769, 0.8125    ],
+       [0.45      , 0.125     , 0.        , 0.125     ],
+       [0.1       , 0.        , 0.76923077, 0.25      ],
+       [0.85      , 0.        , 0.        , 1.        ],
+       [0.25      , 0.5       , 0.        , 0.1875    ],
+       [0.5       , 0.75      , 0.92307692, 0.6875    ],
+       [0.9       , 0.        , 0.30769231, 0.        ],
+       [0.95      , 1.        , 0.        , 0.5625    ],
+       [0.3       , 0.4375    , 0.53846154, 0.        ],
+       [0.35      , 0.625     , 1.        , 0.625     ],
+       [0.65      , 0.8125    , 0.84615385, 0.75      ],
+       [0.8       , 0.875     , 0.46153846, 0.9375    ],
+       [0.15      , 0.375     , 0.61538462, 0.875     ]])
+</code></pre></div>
+</details>
+<div class="highlight"><pre><span></span><code><span class="c1"># Overall weights on cadets/AFSCs</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;weight on cadets:&quot;</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadets_overall_weight&#39;</span><span class="p">],</span> <span class="mi">2</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;weight on AFSCs:&quot;</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;afscs_overall_weight&#39;</span><span class="p">],</span> <span class="mi">2</span><span class="p">))</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>weight on cadets: 0.52
+weight on AFSCs: 0.48
+</code></pre></div>
+</details>
+<div class="highlight"><pre><span></span><code><span class="c1"># Global Utility Matrix (Each cell is the weighted sum of cadet/AFSC utility)</span>
+<span class="n">vp</span><span class="p">[</span><span class="s1">&#39;global_utility&#39;</span><span class="p">]</span>  <span class="c1"># Extra column is for the unmatched cadets!</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>array([[0.8788349 , 0.2716248 , 0.        , 0.12908187, 0.        ],
+       [0.80613583, 0.4011491 , 0.        , 0.34043141, 0.        ],
+       [0.09380386, 0.84854362, 0.2537242 , 0.54700966, 0.        ],
+       [0.50575097, 0.39454206, 0.62718429, 0.        , 0.        ],
+       [0.78190281, 0.        , 0.        , 0.36469321, 0.        ],
+       [0.70920375, 0.19394174, 0.31677274, 0.65717857, 0.        ],
+       [0.70685402, 0.96970872, 0.28004506, 0.        , 0.        ],
+       [1.        , 0.3808428 , 0.55197676, 0.73133402, 0.        ],
+       [0.73343677, 0.25811221, 0.        , 0.15164306, 0.        ],
+       [0.14467994, 0.        , 0.88815529, 0.30838797, 0.        ],
+       [0.54852634, 0.        , 0.        , 1.        , 0.        ],
+       [0.63650469, 0.6537258 , 0.        , 0.29273234, 0.        ],
+       [0.57472424, 0.61858841, 0.96271843, 0.5006894 , 0.        ],
+       [0.95153396, 0.        , 0.3707223 , 0.        , 0.        ],
+       [0.87697638, 1.        , 0.        , 0.45128972, 0.        ],
+       [0.51814325, 0.42935763, 0.77631058, 0.        , 0.        ],
+       [0.3525767 , 0.40598068, 1.        , 0.56058255, 0.        ],
+       [0.75564461, 0.76483109, 0.92543686, 0.6314719 , 0.        ],
+       [0.90306792, 0.71266803, 0.33191074, 0.82799034, 0.        ],
+       [0.22214754, 0.2513185 , 0.63837669, 0.93941745, 0.        ]])
+</code></pre></div>
+</details>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Cadet 0&#39;s utility on AFSC 0:&quot;</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;cadet_utility&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;AFSC 0&#39;s utility on cadet 0:&quot;</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;afsc_utility&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Global Utility[0, 0]:&quot;</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadets_overall_weight&#39;</span><span class="p">],</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;*&quot;</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;cadet_utility&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;+&quot;</span><span class="p">,</span> 
+     <span class="nb">round</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;afscs_overall_weight&#39;</span><span class="p">],</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;*&quot;</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;afsc_utility&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;=&quot;</span><span class="p">,</span> <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;global_utility&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Cadet 0&#39;s utility on AFSC 0: 1.0
+AFSC 0&#39;s utility on cadet 0: 0.75
+Global Utility[0, 0]: 0.52 * 1.0 + 0.48 * 0.75 = 0.8788348955053363
+</code></pre></div>
+</details>
+<p>The global utility matrix is unique to each set of value parameters (since you can toggle the weights on 
+cadets/AFSCs and get a different matrix). This matrix lives in "Random_1 VP Global Utility.csv":</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic45.png" width="600px">
+</p>
+
+<h2 id="cadet-utility-constraints-meant-just-for-afpcdsya-through-an-operational-lens">Cadet Utility Constraints (Meant just for AFPC/DSYA through an operational lens)<a class="headerlink" href="#cadet-utility-constraints-meant-just-for-afpcdsya-through-an-operational-lens" title="Permanent link">&para;</a></h2>
+<p>Another component of the value parameters is the cadet utility constraints. These constraints ensure certain cadets 
+receive some minimum utility value, and the implication here usually applies to the top 10% of cadets as my method of 
+preventing as much of the "adjudication" piece on the backend. Built into the classification process is adjudication 
+where the sources of commissioning get to review the results prior to release and make adjustments as needed. 
+One thing they always want to make sure is that their top cadets are getting something they want, and if they aren't 
+they'll kick it back to AFPC to fix. I can use the cadet utility constraints to ensure that the top 10% of cadets 
+receive one of their top 3 choices, or there is a good reason why they aren't getting one (if they only have very 
+competitive AFSCs as their top 3 choices and don't rank high enough for them then that may cause problems). </p>
+<p>These constraints live in the file "Random_1 Cadets Utility Constraints.csv":</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic46.png" width="600px">
+</p>
+
+<p>As you can see, I include the cadet indices (as I've said before, it's because I like referring to cadets by their 
+indices in the numpy arrays since that allows me to do a lot of things) as well as the cadets' order of merit. 
+This information gives more context to why certain cadets have constrained minimum values versus other cadets! 
+The "VP" column is the actual constrained minimum utilities for all the cadets. If you have a second set of 
+value parameters that you're using, there would be another column called "VP2". As you can see, the default is to 
+keep all the cadets unconstrained. I've thought a lot about how this should work and wrestled with the idea of 
+just making a function to go through and constrain the top 10% to get a utility value greater than or equal to their 
+third choice but ultimately decided against it. The reason is that it's more complicated than that, and I firmly 
+believe the AFPC/DSYA analyst needs to be the one to do it manually. </p>
+<p>When I ran this for FY23 and FY24, I tuned the model parameters to be what I needed them to be based on everyone's 
+wants and desires and then solved it initially without any cadet constraints. I can then look at the solution at the 
+top 10/20% of the class and if the cadet is receiving a top 3 preference anyway (vast majority do), then I constrain 
+their utilities to be whatever their third choice utility was. I then filter on the people who aren't getting a top 3 
+preference. If the reason is just because the optimal solution involved this cadet not getting a top 3 preference, 
+and they really should have received one based on preferences (they didn't have 3 very hard choices to meet), 
+then I also enforce the utility constraint. If there's a clear reason why they're getting their fourth choice (and I 
+mean a VERY justifiable reason), then I constrain them to their fourth choice utility. For top 10%, I don't think this 
+happened at all but did occur for top 20%.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Cadet utility constriants</span>
+<span class="n">vp</span><span class="p">[</span><span class="s1">&#39;cadet_value_min&#39;</span><span class="p">]</span>  <span class="c1"># Defaults to 0! For an example problem (not real class year), don&#39;t mess with this</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+       0., 0., 0.])
+</code></pre></div>
+</details>
+<h2 id="goal-programming-parameters">Goal-Programming Parameters<a class="headerlink" href="#goal-programming-parameters" title="Permanent link">&para;</a></h2>
+<p>One final input file that I haven't mentioned is "Random_1 Goal Programming.csv". These are the inputs that 
+another AFIT researcher, former Lt. Rebecca Reynolds (now Capt. Rebecca Eisemann), used for her goal-programming model. 
+My intent for <code>afccp</code> has always been to provide a way for researchers in this field to contribute to this 
+"academic" problem and try new things to inspire innovation for AFPC/DSYA. For her goal programming model, her 
+inputs are structured in this way:</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic47.png" width="600px">
+</p>
+
+<p>In order to get the penalty/reward terms here we need to run the model on the specific class year to tune the 
+parameters to get the actual parameters needed to run the full goal programming model. It's a little nuanced and 
+you can certainly view her thesis <a href="https://scholar.afit.edu/etd/5449/">here</a>. I will briefly cover her model a 
+little more later on.</p>
+<h2 id="summary">📌 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>This tutorial explains how to generate and customize value parameters for cadet-to-AFSC matching within the AFCCP model. 
+Value parameters are central to the Value-Focused Thinking model through the use of modeling AFSC objectives. That said,
+since the main model used now is the GUO model, most of the contents of the <code>value_parameters</code> dictionary are no longer
+used. That said, there are still some components that are very much used (like the constraints).</p>
+<p>The tutorial walks through:</p>
+<ul>
+<li>
+<p><strong>Default Value Generation</strong><br />
+  How to use predefined "defaults" to create baseline value parameters.</p>
+</li>
+<li>
+<p><strong>AFSC Objectives and Components</strong>
+  The data available for each AFSC and objective (weights, targets, constraints, value functions)</p>
+</li>
+<li>
+<p><strong>Custom Curve Generation</strong><br />
+  Methods to create and visualize alternative value functions using exponential or polynomial interpolation.</p>
+</li>
+<li>
+<p><strong>Adjustments and Additions</strong><br />
+  How to modify value curves for specific AFSCs or cadet groups, including smoothing and parameter additions.</p>
+</li>
+<li>
+<p><strong>Visualization</strong><br />
+  Optional plotting functions to help understand the shape and effect of each value function.</p>
+</li>
+</ul>
+<p>By the end, you should have a fully defined set of <code>value_parameters</code> stored in the appropriate dictionary structure 
+to feed into the various <code>afccp</code> optimization models. You’re now ready to continue on and discover the data methods
+used to correct the parameters in <a href="../tutorial_5/">Tutorial 5</a>!</p>
 
 
 

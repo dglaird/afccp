@@ -810,6 +810,121 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 5 (Data Methods)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 6 (Solutions Overview)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_7/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 7 (Algorithms)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_8/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 8 (Optimization)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 9 (Visualizations)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2579,7 +2694,7 @@ read-ability of the various kinds of charts.</p>
     <span class="c1"># Y axis</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">labelsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s1">&#39;yaxis_tick_size&#39;</span><span class="p">])</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">ylim</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s2">&quot;y_max&quot;</span><span class="p">]))</span>
-    <span class="k">if</span> <span class="s2">&quot;y_ticks&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">:</span>
+    <span class="k">if</span> <span class="s2">&quot;y_ticks&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;y_max&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">50</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;y_ticks&#39;</span><span class="p">])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;y_ticks&#39;</span><span class="p">])</span>
 
@@ -2837,7 +2952,7 @@ for AFOCD objectives</p>
             <span class="n">count_sum</span> <span class="o">+=</span> <span class="n">count</span>
 
         <span class="c1"># Add the text</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]),</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s1">&#39;bar_text_offset&#39;</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]),</span>
                      <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
     <span class="c1"># DIY Colorbar</span>
@@ -4346,7 +4461,7 @@ specified</p>
                                  <span class="n">zorder</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;bar_text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
             <span class="c1"># Add the text and an outline</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s1">&#39;bar_text_offset&#39;</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]),</span>
                          <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">([</span><span class="n">index</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -4762,7 +4877,7 @@ specified</p>
                                      <span class="n">zorder</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;bar_text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
             <span class="c1"># Add the text</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s1">&#39;bar_text_offset&#39;</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]),</span>
                          <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
     <span class="k">else</span><span class="p">:</span>  <span class="c1"># Sorted Sized Bar Chart</span>
@@ -4813,7 +4928,7 @@ specified</p>
                              <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;bar_text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
             <span class="c1"># Add the text and an outline</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">measure</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="mi">2</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s1">&#39;bar_text_offset&#39;</span><span class="p">],</span> <span class="nb">round</span><span class="p">(</span><span class="n">measure</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="mi">2</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span>
                          <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -5054,7 +5169,7 @@ specified</p>
             <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="mf">1.005</span><span class="p">,</span> <span class="n">txt</span><span class="p">,</span> <span class="n">verticalalignment</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span>
                          <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="n">txt</span><span class="p">,</span> <span class="n">verticalalignment</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s1">&#39;bar_text_offset&#39;</span><span class="p">],</span> <span class="n">txt</span><span class="p">,</span> <span class="n">verticalalignment</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span><span class="p">,</span>
                          <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
     <span class="c1"># Plot the data</span>
@@ -5520,7 +5635,7 @@ specified</p>
         <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;M&#39;</span><span class="p">]):</span>
 
             <span class="c1"># Add the text</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">measure</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">measure</span><span class="p">[</span><span class="n">j</span><span class="p">]),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">measure</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s1">&#39;bar_text_offset&#39;</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">measure</span><span class="p">[</span><span class="n">j</span><span class="p">]),</span>
                          <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
             <span class="c1"># Determine which category the AFSC falls into</span>
@@ -5740,8 +5855,7 @@ specified</p>
 <span class="normal">1774</span>
 <span class="normal">1775</span>
 <span class="normal">1776</span>
-<span class="normal">1777</span>
-<span class="normal">1778</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">results_preference_chart</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="normal">1777</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">results_preference_chart</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This method builds the charts for cadet/AFSC preferences</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -5809,7 +5923,6 @@ specified</p>
                     <span class="n">counts</span><span class="p">[</span><span class="s1">&#39;top_choices&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;choice_counts&#39;</span><span class="p">][</span><span class="s1">&#39;TOTAL&#39;</span><span class="p">][</span><span class="s1">&#39;Top 3&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span>
                     <span class="n">counts</span><span class="p">[</span><span class="s1">&#39;mid_choices&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;choice_counts&#39;</span><span class="p">][</span><span class="s1">&#39;TOTAL&#39;</span><span class="p">][</span><span class="s1">&#39;Next 3&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span>
                     <span class="n">counts</span><span class="p">[</span><span class="s1">&#39;bottom_choices&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;choice_counts&#39;</span><span class="p">][</span><span class="s1">&#39;TOTAL&#39;</span><span class="p">][</span><span class="s1">&#39;All Others&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span>
-
 
         <span class="k">else</span><span class="p">:</span>
 
@@ -5891,7 +6004,7 @@ specified</p>
                                  <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;bar_text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
             <span class="c1"># Add the text</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s1">&#39;bar_text_offset&#39;</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="s1">&#39;total_count&#39;</span><span class="p">][</span><span class="n">index</span><span class="p">]),</span>
                          <span class="n">fontsize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;text_size&quot;</span><span class="p">],</span> <span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 
     <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">[</span><span class="s2">&quot;version&quot;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;dot&quot;</span><span class="p">,</span> <span class="s2">&quot;bar&quot;</span><span class="p">]:</span>
@@ -5942,7 +6055,8 @@ specified</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1780</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1779</span>
+<span class="normal">1780</span>
 <span class="normal">1781</span>
 <span class="normal">1782</span>
 <span class="normal">1783</span>
@@ -5969,8 +6083,7 @@ specified</p>
 <span class="normal">1804</span>
 <span class="normal">1805</span>
 <span class="normal">1806</span>
-<span class="normal">1807</span>
-<span class="normal">1808</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">results_norm_score_chart</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="normal">1807</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">results_norm_score_chart</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This method constructs the different charts showing the &quot;Norm Score&quot; objective</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -6058,7 +6171,8 @@ specified</p>
 
                   <details class="quote">
                     <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1812</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1811</span>
+<span class="normal">1812</span>
 <span class="normal">1813</span>
 <span class="normal">1814</span>
 <span class="normal">1815</span>
@@ -6206,8 +6320,7 @@ specified</p>
 <span class="normal">1957</span>
 <span class="normal">1958</span>
 <span class="normal">1959</span>
-<span class="normal">1960</span>
-<span class="normal">1961</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+<span class="normal">1960</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 
 <span class="sd">    :param instance:</span>
@@ -6399,7 +6512,8 @@ of code and increase read-ability of the various kinds of charts.</p>
 
                   <details class="quote">
                     <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1965</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1964</span>
+<span class="normal">1965</span>
 <span class="normal">1966</span>
 <span class="normal">1967</span>
 <span class="normal">1968</span>
@@ -6431,8 +6545,7 @@ of code and increase read-ability of the various kinds of charts.</p>
 <span class="normal">1994</span>
 <span class="normal">1995</span>
 <span class="normal">1996</span>
-<span class="normal">1997</span>
-<span class="normal">1998</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+<span class="normal">1997</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This is a class dedicated to creating &quot;Accessions Group Charts&quot; which are all charts</span>
 <span class="sd">    that include the &quot;accessions groups&quot; on the x-axis alongside the basline. This is meant to condense the amount</span>
@@ -6496,7 +6609,8 @@ of code and increase read-ability of the various kinds of charts.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2000</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1999</span>
+<span class="normal">2000</span>
 <span class="normal">2001</span>
 <span class="normal">2002</span>
 <span class="normal">2003</span>
@@ -6565,8 +6679,7 @@ of code and increase read-ability of the various kinds of charts.</p>
 <span class="normal">2066</span>
 <span class="normal">2067</span>
 <span class="normal">2068</span>
-<span class="normal">2069</span>
-<span class="normal">2070</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">chart_type</span><span class="o">=</span><span class="s2">&quot;Data&quot;</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="normal">2069</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">chart_type</span><span class="o">=</span><span class="s2">&quot;Data&quot;</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Builds the specific chart based on what the user passes within the &quot;instance plot parameters&quot; (ip)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -6658,7 +6771,8 @@ of code and increase read-ability of the various kinds of charts.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2072</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2071</span>
+<span class="normal">2072</span>
 <span class="normal">2073</span>
 <span class="normal">2074</span>
 <span class="normal">2075</span>
@@ -6749,8 +6863,7 @@ of code and increase read-ability of the various kinds of charts.</p>
 <span class="normal">2160</span>
 <span class="normal">2161</span>
 <span class="normal">2162</span>
-<span class="normal">2163</span>
-<span class="normal">2164</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">results_demographic_chart</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="normal">2163</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">results_demographic_chart</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Displays a demographic breakdown across accessions groups</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -6896,7 +7009,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2252</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2251</span>
+<span class="normal">2252</span>
 <span class="normal">2253</span>
 <span class="normal">2254</span>
 <span class="normal">2255</span>
@@ -6984,8 +7098,7 @@ individual weights on the AFSCs</p>
 <span class="normal">2337</span>
 <span class="normal">2338</span>
 <span class="normal">2339</span>
-<span class="normal">2340</span>
-<span class="normal">2341</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">individual_weight_graph</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
+<span class="normal">2340</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">individual_weight_graph</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function creates the chart for either the individual weight function for cadets or the actual</span>
 <span class="sd">    individual weights on the AFSCs</span>
@@ -7096,7 +7209,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2344</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2343</span>
+<span class="normal">2344</span>
 <span class="normal">2345</span>
 <span class="normal">2346</span>
 <span class="normal">2347</span>
@@ -7342,8 +7456,7 @@ individual weights on the AFSCs</p>
 <span class="normal">2587</span>
 <span class="normal">2588</span>
 <span class="normal">2589</span>
-<span class="normal">2590</span>
-<span class="normal">2591</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">afsc_multi_criteria_graph</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">max_num</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2590</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">afsc_multi_criteria_graph</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">max_num</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This chart compares certain AFSCs in a solution according to multiple criteria</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -7612,7 +7725,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2594</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2593</span>
+<span class="normal">2594</span>
 <span class="normal">2595</span>
 <span class="normal">2596</span>
 <span class="normal">2597</span>
@@ -7687,8 +7801,7 @@ individual weights on the AFSCs</p>
 <span class="normal">2666</span>
 <span class="normal">2667</span>
 <span class="normal">2668</span>
-<span class="normal">2669</span>
-<span class="normal">2670</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">cadet_utility_histogram</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">filepath</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2669</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">cadet_utility_histogram</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">filepath</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Builds the Cadet Utility histogram</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -7786,7 +7899,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2673</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2672</span>
+<span class="normal">2673</span>
 <span class="normal">2674</span>
 <span class="normal">2675</span>
 <span class="normal">2676</span>
@@ -7835,8 +7949,7 @@ individual weights on the AFSCs</p>
 <span class="normal">2719</span>
 <span class="normal">2720</span>
 <span class="normal">2721</span>
-<span class="normal">2722</span>
-<span class="normal">2723</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">cadet_utility_merit_scatter</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
+<span class="normal">2722</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">cadet_utility_merit_scatter</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Scatter plot of cadet utility vs cadet merit</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -8023,7 +8136,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2726</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2725</span>
+<span class="normal">2726</span>
 <span class="normal">2727</span>
 <span class="normal">2728</span>
 <span class="normal">2729</span>
@@ -8088,8 +8202,7 @@ individual weights on the AFSCs</p>
 <span class="normal">2788</span>
 <span class="normal">2789</span>
 <span class="normal">2790</span>
-<span class="normal">2791</span>
-<span class="normal">2792</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">holistic_color_graph</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">11</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">facecolor</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">):</span>
+<span class="normal">2791</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">holistic_color_graph</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">11</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">facecolor</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Builds the Holistic Color Chart</span>
 <span class="sd">    :param facecolor: color of the background of the graph</span>
@@ -8357,7 +8470,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2796</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2795</span>
+<span class="normal">2796</span>
 <span class="normal">2797</span>
 <span class="normal">2798</span>
 <span class="normal">2799</span>
@@ -8434,8 +8548,7 @@ individual weights on the AFSCs</p>
 <span class="normal">2870</span>
 <span class="normal">2871</span>
 <span class="normal">2872</span>
-<span class="normal">2873</span>
-<span class="normal">2874</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pareto_graph</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">pareto_df</span><span class="p">,</span> <span class="n">solution_names</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span>
+<span class="normal">2873</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">pareto_graph</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">pareto_df</span><span class="p">,</span> <span class="n">solution_names</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span>
                  <span class="n">facecolor</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">,</span> <span class="n">display_title</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">l_word</span><span class="o">=</span><span class="s1">&#39;Value&#39;</span><span class="p">,</span> <span class="n">filepath</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Builds the Pareto Frontier Chart for adjusting the overall weight on cadets</span>
@@ -8767,7 +8880,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2877</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2876</span>
+<span class="normal">2877</span>
 <span class="normal">2878</span>
 <span class="normal">2879</span>
 <span class="normal">2880</span>
@@ -8857,8 +8971,7 @@ individual weights on the AFSCs</p>
 <span class="normal">2964</span>
 <span class="normal">2965</span>
 <span class="normal">2966</span>
-<span class="normal">2967</span>
-<span class="normal">2968</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">afsc_objective_weights_graph</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters_dict</span><span class="p">,</span> <span class="n">afsc</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">19</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span>
+<span class="normal">2967</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">afsc_objective_weights_graph</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters_dict</span><span class="p">,</span> <span class="n">afsc</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">19</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span>
                                  <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;white&quot;</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">display_title</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">label_size</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">bar_color</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                  <span class="n">xaxis_tick_size</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">yaxis_tick_size</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">legend_size</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">title_size</span><span class="o">=</span><span class="mi">25</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -9073,7 +9186,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2971</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2970</span>
+<span class="normal">2971</span>
 <span class="normal">2972</span>
 <span class="normal">2973</span>
 <span class="normal">2974</span>
@@ -9120,8 +9234,7 @@ individual weights on the AFSCs</p>
 <span class="normal">3015</span>
 <span class="normal">3016</span>
 <span class="normal">3017</span>
-<span class="normal">3018</span>
-<span class="normal">3019</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solution_parameter_comparison_graph</span><span class="p">(</span><span class="n">z_dict</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">19</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span> <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;white&quot;</span><span class="p">):</span>
+<span class="normal">3018</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solution_parameter_comparison_graph</span><span class="p">(</span><span class="n">z_dict</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">19</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span> <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;white&quot;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This chart compares the solutions&#39; objective values under different value parameters</span>
 <span class="sd">    :param z_dict: dictionary of solution objective values for each set of value parameters</span>
@@ -9345,7 +9458,8 @@ individual weights on the AFSCs</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">3022</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">3021</span>
+<span class="normal">3022</span>
 <span class="normal">3023</span>
 <span class="normal">3024</span>
 <span class="normal">3025</span>
@@ -9446,8 +9560,7 @@ individual weights on the AFSCs</p>
 <span class="normal">3120</span>
 <span class="normal">3121</span>
 <span class="normal">3122</span>
-<span class="normal">3123</span>
-<span class="normal">3124</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solution_results_graph</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">,</span> <span class="n">solutions</span><span class="p">,</span> <span class="n">vp_name</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="normal">3123</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solution_results_graph</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">,</span> <span class="n">solutions</span><span class="p">,</span> <span class="n">vp_name</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                            <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">19</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span> <span class="n">facecolor</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Builds the Graph to show how well we meet each of the objectives</span>
@@ -9572,7 +9685,8 @@ objective value</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/visualizations/charts.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">3127</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">3126</span>
+<span class="normal">3127</span>
 <span class="normal">3128</span>
 <span class="normal">3129</span>
 <span class="normal">3130</span>
@@ -9628,8 +9742,7 @@ objective value</p>
 <span class="normal">3180</span>
 <span class="normal">3181</span>
 <span class="normal">3182</span>
-<span class="normal">3183</span>
-<span class="normal">3184</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solution_similarity_graph</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">coords</span><span class="p">,</span> <span class="n">solution_names</span><span class="p">,</span> <span class="n">filepath</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">3183</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solution_similarity_graph</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">coords</span><span class="p">,</span> <span class="n">solution_names</span><span class="p">,</span> <span class="n">filepath</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This is the chart that compares the approximate and exact models (with genetic algorithm) in solve time and</span>
 <span class="sd">    objective value</span>

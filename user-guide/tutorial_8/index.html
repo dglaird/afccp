@@ -1,0 +1,2618 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://dglaird.github.io/afccp/user-guide/tutorial_8/">
+      
+      
+        <link rel="prev" href="../tutorial_7/">
+      
+      
+        <link rel="next" href="../tutorial_9/">
+      
+      
+      <link rel="icon" href="../../images/logos/afccp_logo_favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>Tutorial 8 (Optimization) - Air Force Cadet Career Problem</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#optimization" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Air Force Cadet Career Problem" class="md-header__button md-logo" aria-label="Air Force Cadet Career Problem" data-md-component="logo">
+      
+  <img src="../../images/logos/afccp_logo_and_text_light.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Air Force Cadet Career Problem
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Tutorial 8 (Optimization)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/dglaird/afccp/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  🏠 Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/getting-started/" class="md-tabs__link">
+          
+  
+  
+  🚀 Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  
+  📘 User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../developer-guide/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  🧠 Developer Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/main/cadetcareerproblem_overview/" class="md-tabs__link">
+          
+  
+  
+  CadetCareerProblem
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/data/" class="md-tabs__link">
+          
+  
+  
+  📊 Data
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/solutions/" class="md-tabs__link">
+          
+  
+  
+  📈 Solutions
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/visualizations/" class="md-tabs__link">
+          
+  
+  
+  Visualizations
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  ❓ FAQs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../help/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  🆘 Help & Support
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Air Force Cadet Career Problem" class="md-nav__button md-logo" aria-label="Air Force Cadet Career Problem" data-md-component="logo">
+      
+  <img src="../../images/logos/afccp_logo_and_text_light.png" alt="logo">
+
+    </a>
+    Air Force Cadet Career Problem
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/dglaird/afccp/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    🏠 Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    🚀 Getting Started
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            🚀 Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    📄 Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    🛠️ Install Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            🛠️ Install Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation Instructions
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/developer-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Developer Checklist
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    📘 User Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            📘 User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 1 (Introduction)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 2 (Data Overview)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 3 (Parameters)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 4 (Value Parameters)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 5 (Data Methods)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 6 (Solutions Overview)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_7/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 7 (Algorithms)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 8 (Optimization)
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 8 (Optimization)
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vft-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      VFT Model
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vft-main-methodology" class="md-nav__link">
+    <span class="md-ellipsis">
+      VFT Main Methodology
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assignment-problem-model-global-utility-optimization-guo" class="md-nav__link">
+    <span class="md-ellipsis">
+      🧮 Assignment Problem Model- "Global Utility Optimization" (GUO)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🧮 Assignment Problem Model- &#34;Global Utility Optimization&#34; (GUO)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#objective-simplified" class="md-nav__link">
+    <span class="md-ellipsis">
+      Objective (Simplified):
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subject-to-simplified" class="md-nav__link">
+    <span class="md-ellipsis">
+      Subject to (Simplified):
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assignment-problem-model-original-afpc-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      Assignment Problem Model- "Original" AFPC model
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#goal-programming-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      Goal Programming Model
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sensitivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sensitivity
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-model-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recommended Model Flow
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      📌 Summary
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 9 (Visualizations)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    🧠 Developer Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    CadetCareerProblem
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            CadetCareerProblem
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_generated_data_corrections/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Generated Data Corrections
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_main_data_corrections/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Main Data Corrections
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_other_adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Other Adjustments
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_value_parameter_specifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Value Parameter Specifications
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_solution_generation_%26_algorithms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Solution Generation & Algorithms
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_optimization_models_%26_meta-heuristics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Optimization Models & Meta-Heuristics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_solution_handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Solution Handling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_export_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Export Data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_data_visualizations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Data Visualizations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_results_visualizations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Results Visualizations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    📊 Data
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            📊 Data
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Adjustments
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/preferences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Preferences
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Processing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/values/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Values
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Support
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/generation/basic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Generation- 'Basic'
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/generation/realistic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Generation- 'Realistic'
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    📈 Solutions
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            📈 Solutions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/algorithms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Algorithms
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Handling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Optimization
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Sensitivity
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Visualizations
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Visualizations
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/visualizations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/visualizations/bubbles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Bubbles
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/visualizations/charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Charts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/visualizations/slides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Slides
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    ❓ FAQs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../help/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    🆘 Help & Support
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="optimization">Optimization<a class="headerlink" href="#optimization" title="Permanent link">&para;</a></h1>
+<p>This section is here to describe the various optimization model components we have to solve the <code>CadetCareerProblem</code>. 
+At the time I'm writing this tutorial, the VFT methodology doesn't work on the current combined classification 
+problem (Rated, USSF, NRL). The model used now and for the foreseeable future is the GUO model.
+This is the global utility optimization model that OLEA has advertised, and it's represented in the code as the 
+"assignment problem model". We'll discuss that soon.</p>
+<h2 id="vft-model">VFT Model<a class="headerlink" href="#vft-model" title="Permanent link">&para;</a></h2>
+<p>For more information on the VFT model, please review my <a href="https://scholar.afit.edu/cgi/viewcontent.cgi?article=6348&context=etd" target="_blank">thesis</a>. 
+It describes in detail the difference between the "Approximate" model and the "Exact" model. The VFT model was my main
+focus while at AFIT, and I've summarized that work through this poster:</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/output.gif" width="1200px">
+</p>
+
+<p>Here, I will solve this random instance using both the "Approximate" model and the "Exact" model.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Solve with the &quot;Approximate&quot; model  (These three controls I&#39;ve added are also the defaults!)</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">solve_vft_pyomo_model</span><span class="p">({</span><span class="s2">&quot;approximate&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">&quot;pyomo_max_time&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;solver_name&quot;</span><span class="p">:</span> <span class="s2">&quot;cbc&quot;</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Building VFT Model...
+Solving Approximate VFT Model instance with solver cbc...
+Start Time: June 09 2025 01:56:48 PM.
+✅ Solver complete: |████████████████████████████████████████| 100.0%              
+Model solved in 7.04 seconds at June 09 2025 01:56:55 PM. Pyomo reported objective value: 0.8883
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8969.
+Global Utility Score: 0.7988. 3 / 3 AFSCs fixed. 4 / 4 AFSCs reserved. 7 / 7 alternate list scenarios respected.
+Blocking pairs: 2. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<div class="highlight"><pre><span></span><code><span class="c1"># Solve with the &quot;Exact&quot; model (On a small problem, this actually works quite well!)</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">solve_vft_pyomo_model</span><span class="p">({</span><span class="s2">&quot;approximate&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;pyomo_max_time&quot;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;solver_name&quot;</span><span class="p">:</span> <span class="s2">&quot;ipopt&quot;</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Building VFT Model...
+Solving Exact VFT Model instance with solver ipopt...
+Start Time: June 09 2025 01:56:33 PM.
+✅ Solver complete: |████████████████████████████████████████| 100.0%              
+Model solved in 3.03 seconds at June 09 2025 01:56:36 PM. Pyomo reported objective value: 0.9445
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8885.
+Global Utility Score: 0.8291. 3 / 3 AFSCs fixed. 4 / 4 AFSCs reserved. 7 / 7 alternate list scenarios respected.
+Blocking pairs: 1. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<div class="highlight"><pre><span></span><code><span class="n">instance</span><span class="o">.</span><span class="n">solutions</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>dict_keys([&#39;Random&#39;, &#39;Random_2&#39;, &#39;HR&#39;, &#39;Rated ROTC HR (Reserves)&#39;, &#39;Rated ROTC HR (Matches)&#39;, &#39;Rated ROTC HR&#39;, &#39;Rated USAFA HR (Reserves)&#39;, &#39;Rated USAFA HR (Matches)&#39;, &#39;Rated Matches&#39;, &#39;Rated Alternates (Hard)&#39;, &#39;Rated Alternates (Soft)&#39;, &#39;ROTCRatedBoard&#39;, &#39;VFT_Genetic&#39;, &#39;A-VFT&#39;, &#39;E-VFT&#39;])
+</code></pre></div>
+</details>
+<p>We just solved the VFT model twice (once with the "Approximate Model" and another with the "Exact Model"). 
+As you can probably tell, both solutions are represented from two different methods: "A-VFT" and "E-VFT". 
+I'll let you guess which one is which. Since it is a very small problem, they both do exactly what they're 
+supposed to: the Exact model finds the optimal solution to the "real" (Exact) VFT objective function 
+(beating the Approximate model) and they both produce integer solutions (something that isn't true when the problem 
+gets bigger). Additionally, these models are deterministic, meaning they will produce the same solution every time. 
+This is not true for the GA solutions!</p>
+<div class="admonition info">
+<p class="admonition-title">💡 Calculations are off</p>
+<p>When I was working through my thesis, I was very meticulous to ensure all the calculations were correct and my own
+method of evaluating solutions with the <a href="../../../afccp/reference/solutions/handling/#solutions.handling.evaluate_solution"><code>evaluate_solution()</code></a>
+function would perfectly match the objective value produced by <code>pyomo</code>. As you can see from above, this does not seem
+to be the case. To be honest I don't know why the VFT model is not the same but I don't have the time to explore this
+issue again. I DO know, however, that the GUO values do match up with what pyomo calculates! Just not the VFT one.</p>
+</div>
+<p>The next section describes my VFT methodology using the Approximate model.</p>
+<h2 id="vft-main-methodology">VFT Main Methodology<a class="headerlink" href="#vft-main-methodology" title="Permanent link">&para;</a></h2>
+<p>I had this weird "con_fail_dict" (constraint fail dictionary) feature of the model to allow some AFSC objective constraints to be broken by AT MOST the amount they were broken as a product of the non-integer pyomo output of the VFT Approximate Model. This will be made more clear in the third bullet below.</p>
+<p>My current pyomo VFT model does not produce integer solutions using cbc. I really don't understand why this is and it's certainly the motivation for future AFIT research using that model. My methodology that I came up with (only for NRL cadets/AFSCs at the time) is as follows:</p>
+<ol>
+<li>
+<p>[Solve the VFT Model] Solve the VFT Approximate Model for 10 seconds using the cbc solver. The time limit of 10 seconds allows us to find a pretty good solution (not optimal, but close-ish enough) to the Exact Model. As a reminder, the Exact Model is the real objective function using the true number of assigned cadets, whereas the Approximate Model approximates that number (specifically, it uses the "Estimated" number of cadets from AFSCs.csv). The optimal solution to the Approximate Model, therefore, is not the optimal solution to the Exact Model. One other reason to cut the Approximate Model short is that we were never going to find the optimal solution to the "real" problem anyway! </p>
+</li>
+<li>
+<p>[Round the <span class="arithmatex">\(X\)</span> variables] Ok, so as a result of stopping it at 10 seconds we don't get integer values for all the variables we need. I therefore have to round them to make sure cadets receive one and only one AFSC. By doing this, I am oftentimes breaking constraints. This was generally ok, however, since constraints were primarily meant as guidelines to ensure quality distributions across AFSCs. The class of 2023 and 2024 were very different problems in many ways, and the fact that we had ~150 extra cadets above the PGL in 2023 allowed for this to be less of an issue. Since we're 4 short in 2024, rounding these variables could have produced other problems.</p>
+</li>
+<li>
+<p>[Create "con_fail_dict"] As mentioned previously, this constraint fail dictionary was used to determine the extent to which we broke the AFSC objective constraints from whatever solution(s) pyomo produced. This dictionary is then used in the GA to allow more flexibility when evaluating the solutions (or "chromosomes") fitness values. Fitness is based directly on the true (Exact, not Approximate) VFT objective function, and constraint violations result in a fitness score of 0. I played around with providing a tolerance but ultimately decided to aggressively restrict constraint violations. This is why con_fail_dict is so important, since it allows the initial solutions to be feasible. </p>
+</li>
+<li>
+<p>[Initialize GA Population] In my "real" solution methodology, I solve the VFT model several different times with slightly different settings on the overall weights for cadets/AFSCs. This essentially creates my initial population of solutions that I use to then create the "con_fail_dict" from. These solutions are then fed into the GA.</p>
+</li>
+<li>
+<p>[Run GA] </p>
+</li>
+</ol>
+<h2 id="assignment-problem-model-global-utility-optimization-guo">🧮 Assignment Problem Model- "Global Utility Optimization" (GUO)<a class="headerlink" href="#assignment-problem-model-global-utility-optimization-guo" title="Permanent link">&para;</a></h2>
+<p>The GUO model refers to solving the generalized assignment problem formulation that seeks the optimal assignment of 
+a set of <span class="arithmatex">\(n\)</span> workers, <span class="arithmatex">\(\mathcal{I}\)</span>, to a set of <span class="arithmatex">\(m\)</span> jobs, <span class="arithmatex">\(\mathcal{J}\)</span>, such that the total cost is minimized. Let:</p>
+<ul>
+<li><span class="arithmatex">\(c_{ij}\)</span> = cost of assigning worker <span class="arithmatex">\(i\)</span> to job <span class="arithmatex">\(j\)</span></li>
+<li><span class="arithmatex">\(d_j\)</span> = capacity of job <span class="arithmatex">\(j\)</span></li>
+<li><span class="arithmatex">\( x_{ij} = \text{1 if worker } i \text{ is assigned to job } j; \text{ 0 otherwise} \)</span></li>
+</ul>
+<h3 id="objective-simplified">Objective (Simplified):<a class="headerlink" href="#objective-simplified" title="Permanent link">&para;</a></h3>
+<p>Minimize total cost:</p>
+<div class="arithmatex">\[
+\min \sum_{i=1}^{n} \sum_{j=1}^{m} c_{ij} x_{ij}
+\]</div>
+<h3 id="subject-to-simplified">Subject to (Simplified):<a class="headerlink" href="#subject-to-simplified" title="Permanent link">&para;</a></h3>
+<p>Each worker is assigned to exactly one job:</p>
+<div class="arithmatex">\[
+\sum_{j=1}^{m} x_{ij} = 1 \quad \forall i \in \{1, \dots, n\}
+\]</div>
+<p>Each job does not surpass its capacity:</p>
+<div class="arithmatex">\[
+\sum_{i=1}^{n} x_{ij} \leq d_j \quad \forall j \in \{1, \dots, m\}
+\]</div>
+<p>Binary constraints:</p>
+<div class="arithmatex">\[
+x_{ij} \in \{0, 1\} \quad \forall i \in \mathcal{I}, j \in \mathcal{J}
+\]</div>
+<p>Again, this is the "generalized" formulation of this academic problem. Like the "original model" (the model AFPC used 
+up until the class of 2023), there are many additional constraints that can be added to this model. The addition of 
+these constraints is one key difference between "GUO" in our context and the generalized framework. Another key 
+difference is the utility matrix itself. Unlike the original AFPC model, this "new" utility matrix is much more direct 
+with its representation of quality for the career fields. This is the merged cadet/AFSC <code>global_utility</code> matrix 
+I've referenced in the Data section of this tutorial. Quick note: rather than a "min cost" function, it's a 
+"max utility" function. This is a small, but necessary, clarification!</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Solve the GUO model!</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">solve_guo_pyomo_model</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Building assignment problem (GUO) model...
+Done. Solving model...
+Solving GUO Model instance with solver cbc...
+Start Time: June 09 2025 03:15:04 PM.
+Model solved in 0.21 seconds at June 09 2025 03:15:05 PM. Pyomo reported objective value: 0.8364
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8718.
+Global Utility Score: 0.8364. 3 / 3 AFSCs fixed. 4 / 4 AFSCs reserved. 7 / 7 alternate list scenarios respected.
+Blocking pairs: 4. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<p>As you can see, it solves very fast on a small problem! On a larger problem, too, it still solves pretty quickly. 
+Although the value functions and weights from the VFT model aren't used in the GUO model, the constraints certainly are! 
+The value parameters, therefore, are still very important in this model as they control the constraints applied to the 
+problem. This model can be found in the 
+<a href="../../../afccp/reference/solutions/optimization/#solutions.optimization.assignment_model_build"><code>assignment_model_build()</code></a> function.
+If you look at that function, you can see an additional 
+<a href="../../../afccp/reference/solutions/optimization/#solutions.optimization.common_optimization_handling"><code>common_optimization_handling()</code></a> 
+function that does exactly what it sounds like: handles the features of the pyomo model that are common across all of my 
+optimization models (VFT, original, GUO). Mostly, this function handles the definition of the "<code>x</code>" variable and the 
+many potential constraints associated with it. This includes the fixed/reserved slot constraints I discussed in the 
+<a href="../../../../afccp/user-guide/tutorial_7/#soc-rated-algorithm"><code>SOC Rated Algorithm</code></a> section previously.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Run the USAFA/ROTC rated algorithm</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">soc_rated_matching_algorithm</span><span class="p">({</span><span class="s2">&quot;soc&quot;</span><span class="p">:</span> <span class="s2">&quot;usafa&quot;</span><span class="p">})</span>  <span class="c1"># &quot;s =&quot; prevents lots of output</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">soc_rated_matching_algorithm</span><span class="p">({</span><span class="s2">&quot;soc&quot;</span><span class="p">:</span> <span class="s2">&quot;rotc&quot;</span><span class="p">})</span>  <span class="c1"># &quot;s =&quot; prevents lots of output</span>
+
+<span class="c1"># Integrate the Rated algorithm solutions into &quot;instance.parameters&quot; </span>
+<span class="n">instance</span><span class="o">.</span><span class="n">incorporate_rated_algorithm_results</span><span class="p">()</span>
+
+<span class="c1"># Solve the GUO model with the rated algorithm results!</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">solve_guo_pyomo_model</span><span class="p">({</span><span class="s2">&quot;USSF OM&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Solving the rated matching algorithm for USAFA cadets...
+Solving the rated matching algorithm for ROTC cadets...
+Incorporating rated algorithm results...
+Rated SOC Algorithm Results:
+USAFA Fixed Cadets: 1, USAFA Reserved Cadets: 0, ROTC Fixed Cadets: 2, ROTC Reserved Cadets: 4
+USAFA Rated Alternates: 0, ROTC Rated Alternates: 7
+Building assignment problem (GUO) model...
+Done. Solving model...
+Solving GUO Model instance with solver cbc...
+Start Time: June 09 2025 07:44:24 PM.
+Model solved in 0.11 seconds at June 09 2025 07:44:24 PM. Pyomo reported objective value: 0.8324
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8753.
+Global Utility Score: 0.8324. 3 / 3 AFSCs fixed. 4 / 4 AFSCs reserved. 7 / 7 alternate list scenarios respected.
+Blocking pairs: 2. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<p>Quick note: Turning on the "USSF OM" constraint above ensures that the overall distribution of OM of the Space Force 
+is around where it is with the Air Force. When running this officially, you should turn this constraint on like I did 
+above. The mdl_p control "ussf_merit_bound" determines how wide of a range we can have around 50%. 
+It is defaulted to 0.03, which means that USSF OM can be within 47%-53%.</p>
+<p>As a reminder, for rated cadet-AFSC matches, the optimization model does not get to decide entirely based on global utility. 
+We adhere to the rated OM list exclusively! The SOC rated matching algorithm must be run once, and then every time we execute 
+<a href="../../../afccp/reference/solutions/handling/#solutions.handling.incorporate_rated_algorithm_results"><code>instance.incorporate_rated_algorithm_results()</code></a>, 
+the alternate list sets and parameters are added by default. </p>
+<div class="highlight"><pre><span></span><code><span class="c1"># These are the default controls, so alternate lists should always be included unless otherwise specified!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">incorporate_rated_algorithm_results</span><span class="p">({</span><span class="s1">&#39;rated_alternates&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                                              <span class="s1">&#39;alternate_list_iterations_printing&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Incorporating rated algorithm results...
+Rated SOC Algorithm Results:
+USAFA Fixed Cadets: 1, USAFA Reserved Cadets: 0, ROTC Fixed Cadets: 2, ROTC Reserved Cadets: 4
+USAFA Rated Alternates: 0, ROTC Rated Alternates: 7
+</code></pre></div>
+</details>
+<p>If we want to see the rated alternate algorithm a little more clearly, we can toggle the 
+"alternate_list_iterations_printing" parameter.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># These are the default controls, so alternate lists should always be included unless otherwise specified!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">incorporate_rated_algorithm_results</span><span class="p">({</span><span class="s1">&#39;alternate_list_iterations_printing&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Incorporating rated algorithm results...
+
+SOC: USAFA
+
+Iteration 0
+Possible {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 0}
+Reserved {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Hard) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Soft) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Iteration 1
+Possible {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 0}
+Reserved {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Hard) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Soft) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+
+SOC: ROTC
+
+Iteration 0
+Possible {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 1}
+Reserved {&#39;R2&#39;: 3, &#39;R4&#39;: 1}
+Alternates (Hard) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Soft) {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Iteration 1
+Possible {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 1}
+Reserved {&#39;R2&#39;: 3, &#39;R4&#39;: 1}
+Alternates (Hard) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Soft) {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Rated SOC Algorithm Results:
+USAFA Fixed Cadets: 1, USAFA Reserved Cadets: 0, ROTC Fixed Cadets: 2, ROTC Reserved Cadets: 4
+USAFA Rated Alternates: 0, ROTC Rated Alternates: 7
+</code></pre></div>
+</details>
+<p>Again, not much happens here as a result of the small, random dataset. </p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Re-import module and data </span>
+<span class="kn">from</span> <span class="nn">afccp.main</span> <span class="kn">import</span> <span class="n">CadetCareerProblem</span>
+<span class="n">instance</span> <span class="o">=</span> <span class="n">CadetCareerProblem</span><span class="p">(</span><span class="s2">&quot;Random_1&quot;</span><span class="p">)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">set_value_parameters</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Importing &#39;Random_1&#39; instance...
+Instance &#39;Random_1&#39; initialized.
+</code></pre></div>
+</details>
+<h2 id="assignment-problem-model-original-afpc-model">Assignment Problem Model- "Original" AFPC model<a class="headerlink" href="#assignment-problem-model-original-afpc-model" title="Permanent link">&para;</a></h2>
+<p>To be true to this problem's history, I have coded up the original AFPC model formulation. However, this isn't 
+entirely accurate since it relies on my value parameters for constraints and can be solved in an almost identical 
+manner to GUO. The only difference here is the objective function! We create the original utility matrix that 
+AFPC used up until 2023 for AFSC NRL classification and solve the model with the same features as GUO. If you 
+look at the optimization.py script at the assignment_model_build() function, you will notice that I simply have 
+an "if" statement to differentiate the two models. Here it is:</p>
+<div class="highlight"><pre><span></span><code><span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">solve_original_pyomo_model</span><span class="p">()</span>  <span class="c1"># Not recommended in anyway, just here as an artifact!</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Building original assignment problem model...
+Done. Solving model...
+Solving Original Model instance with solver cbc...
+Start Time: June 09 2025 07:53:30 PM.
+Model solved in 0.1 seconds at June 09 2025 07:53:30 PM. Pyomo reported objective value: 141.9145
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8408.
+Global Utility Score: 0.7979. 0 / 0 AFSCs fixed. 0 / 0 AFSCs reserved. 0 / 0 alternate list scenarios respected.
+Blocking pairs: 3. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<h2 id="goal-programming-model">Goal Programming Model<a class="headerlink" href="#goal-programming-model" title="Permanent link">&para;</a></h2>
+<p>This section is here to talk about former Lt Rebecca Reynold's optimization model. I have it coded up to follow her 
+methodology to the best of my ability and it lives in the code as well. Again, this is here primarily for 
+historical purposes to capture academic contributions to this problem! You are free to look at all the ins and outs 
+of this model and see how the data is represented and utilized. </p>
+<p>Quick note, part of the process of running her goal programming model involves translating my parameters &amp; 
+value parameters into her own specific parameters that she uses. Additionally, when she and I took on the 
+thesis, we handled AFOCD objectives through the lens of "Mandatory", "Desired", and "Permitted" rather than 
+"Tier 1 -&gt; Tier 4". Her model uses the requirement levels (M, D, P) rather than the tiers in the same way DSY used 
+that through c/2023. Little nuanced thing but since making this tutorial I have updated the random value 
+parameter generation function to still generate these objectives (Mandatory, Desired, Permitted) so this translation 
+function will work. Moral of the story: I just need to regenerate a set of value parameters to include 
+these objectives which will allow me to translate my parameters to hers, and ultimately solve the model.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Generate random set of value parameters (will contain M, D, P objectives)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">generate_random_value_parameters</span><span class="p">()</span>
+
+<span class="c1"># We now have two sets of value parameters!</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">instance</span><span class="o">.</span><span class="n">vp_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>dict_keys([&#39;VP&#39;, &#39;VP2&#39;])
+</code></pre></div>
+</details>
+<div class="highlight"><pre><span></span><code><span class="c1"># Solve the goal-programming model!</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">solve_gp_pyomo_model</span><span class="p">({</span><span class="s1">&#39;USSF OM&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+
+<span class="c1"># Re-activate the first set of value parameters</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">set_value_parameters</span><span class="p">(</span><span class="s2">&quot;VP&quot;</span><span class="p">)</span>  <span class="c1"># VP_2 evaluated the model by default (we want VP)</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Translating VFT model parameters to Goal Programming Model parameters...
+Building GP Model...
+Model built.
+Solving GP Model instance with solver cbc...
+Start Time: June 09 2025 07:55:35 PM.
+Model solved.
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8266.
+Global Utility Score: 0.7732. 0 / 0 AFSCs fixed. 0 / 0 AFSCs reserved. 0 / 0 alternate list scenarios respected.
+Blocking pairs: 3. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+
+Solution Evaluated: GP.
+Measured exact VFT objective value: 0.873.
+Global Utility Score: 0.8336. 0 / 0 AFSCs fixed. 0 / 0 AFSCs reserved. 0 / 0 alternate list scenarios respected.
+Blocking pairs: 3. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<p>Another note, the "GP" model is not bound by any of the same constraints as the other models. This includes the 
+value parameter constraints and the common optimization handling constraints. This is how her model was formulated and 
+so it doesn't adhere to any of our "rules". This model remains here in case any future researchers want to look at her 
+work and expand upon it in some capacity to work with the current state of the problem.</p>
+<h2 id="sensitivity">Sensitivity<a class="headerlink" href="#sensitivity" title="Permanent link">&para;</a></h2>
+<p>There are some sensitivity analysis functions within <code>afccp</code>, and this is really the next step of what to do with 
+this project. I don't have many yet, but the goal is to continue to develop these capabilities in the future. 
+(I'm skipping this section for now except the one function below).</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Iteratively solve model activating constraints one at a time to check feasibility</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">solve_for_constraints</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Initializing Assignment Model Constraint Algorithm...
+Done. Solving model with no constraints active...
+Done. New solution objective value: 0.8652
+Running through 4 total constraint iterations...
+
+------[1] AFSC R4 Objective Combined Quota------------
+Constraint 1 Active Constraints: 1 Validated: 1
+Result: SKIPPED [Measure: 3.0],  Range: (2.0, 3.0)
+Active Objective Measure Constraints: 1
+Total Failed Constraints: 0
+Current Objective Measure: 3.0 Range: 2, 3
+---------- Objective Measure Fails:0-------------------
+
+------[2] AFSC R2 Objective Combined Quota------------
+Constraint 2 Active Constraints: 2 Validated: 2
+Result: SOLVED [Z = 0.8587]
+Active Objective Measure Constraints: 2
+Total Failed Constraints: 0
+Current Objective Measure: 5.0 Range: 5, 9
+---------- Objective Measure Fails:0-------------------
+
+------[3] AFSC R3 Objective Combined Quota------------
+Constraint 3 Active Constraints: 3 Validated: 3
+Result: SOLVED [Z = 0.8364]
+Active Objective Measure Constraints: 3
+Total Failed Constraints: 0
+Current Objective Measure: 3.0 Range: 2, 3
+---------- Objective Measure Fails:0-------------------
+
+------[4] AFSC R1 Objective Combined Quota------------
+Constraint 4 Active Constraints: 4 Validated: 4
+Result: SKIPPED [Measure: 9.0],  Range: (8.0, 9.0)
+Active Objective Measure Constraints: 4
+Total Failed Constraints: 0
+Current Objective Measure: 9.0 Range: 8, 9
+---------- Objective Measure Fails:0-------------------
+</code></pre></div>
+</details>
+<h2 id="recommended-model-flow">Recommended Model Flow<a class="headerlink" href="#recommended-model-flow" title="Permanent link">&para;</a></h2>
+<p>The "Solutions" section first discussed how solutions are represented in csv format as well as in the code. 
+Just like the parameters, we have a csv dataframe containing the content which is then pulled into a <code>solutions</code> 
+dictionary containing the various metrics of one particular solution given all the many parameters to the problem. 
+The section then discusses the various solution algorithms/models that may be applied to the problem. Below is my 
+recommended approach to the problem. I start by importing the data and applying the SOC rated algorithms first, and 
+then exporting it back.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Import the &quot;Random_1&quot; instance</span>
+<span class="n">instance</span> <span class="o">=</span> <span class="n">CadetCareerProblem</span><span class="p">(</span><span class="s1">&#39;Random_1&#39;</span><span class="p">)</span>
+
+<span class="c1"># &quot;Activate&quot; a particular set of value parameters (since you can have multiple)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">set_value_parameters</span><span class="p">(</span><span class="s2">&quot;VP&quot;</span><span class="p">)</span>  <span class="c1"># There could be &quot;VP&quot;, &quot;VP2&quot;, &quot;VP3&quot;, etc.</span>
+
+<span class="c1"># In case you change some parameter that the value parameters depend on</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">update_value_parameters</span><span class="p">()</span>  <span class="c1"># AFSC quotas are a good example here</span>
+
+<span class="c1"># Always make sure your data is good to go!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">parameter_sanity_check</span><span class="p">()</span>
+
+<span class="c1"># Run the SOC algorithms!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">soc_rated_matching_algorithm</span><span class="p">({</span><span class="s2">&quot;soc&quot;</span><span class="p">:</span> <span class="s2">&quot;rotc&quot;</span><span class="p">,</span> <span class="s2">&quot;ma_printing&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">soc_rated_matching_algorithm</span><span class="p">({</span><span class="s2">&quot;soc&quot;</span><span class="p">:</span> <span class="s2">&quot;usafa&quot;</span><span class="p">,</span> <span class="s2">&quot;ma_printing&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+
+<span class="c1"># Export data back to csvs</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">export_data</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Importing &#39;Random_1&#39; instance...
+Instance &#39;Random_1&#39; initialized.
+Sanity checking the instance parameters...
+Done, 0 issues found.
+Solving the rated matching algorithm for ROTC cadets...
+
+Iteration 1
+Proposals: {&#39;R2&#39;: 6, &#39;R4&#39;: 6}
+Matched {&#39;R2&#39;: 4, &#39;R4&#39;: 2}
+Rejected {&#39;R2&#39;: 2, &#39;R4&#39;: 4}
+
+Iteration 2
+Proposals: {&#39;R2&#39;: 6, &#39;R4&#39;: 4}
+Matched {&#39;R2&#39;: 4, &#39;R4&#39;: 2}
+Rejected {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Solving the rated matching algorithm for USAFA cadets...
+
+Iteration 1
+Proposals: {&#39;R2&#39;: 5, &#39;R4&#39;: 2}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 0}
+Rejected {&#39;R2&#39;: 4, &#39;R4&#39;: 2}
+
+Iteration 2
+Proposals: {&#39;R2&#39;: 2, &#39;R4&#39;: 2}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 0}
+Rejected {&#39;R2&#39;: 5, &#39;R4&#39;: 4}
+Exporting datasets [&#39;Cadets&#39;, &#39;AFSCs&#39;, &#39;Preferences&#39;, &#39;Goal Programming&#39;, &#39;Value Parameters&#39;, &#39;Solutions&#39;, &#39;Additional&#39;, &#39;Base Solutions&#39;, &#39;Course Solutions&#39;]
+</code></pre></div>
+</details>
+<p>The reason I have the above code split up from below is because you only need to run the rated SOC algorithms 
+themselves once, and then from that point on they exist in your "Solutions.csv" file, and you can just incorporate them 
+into the parameters everytime!</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Import the &quot;Random_1&quot; instance</span>
+<span class="n">instance</span> <span class="o">=</span> <span class="n">CadetCareerProblem</span><span class="p">(</span><span class="s1">&#39;Random_1&#39;</span><span class="p">)</span>
+
+<span class="c1"># &quot;Activate&quot; a particular set of value parameters (since you can have multiple)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">set_value_parameters</span><span class="p">(</span><span class="s2">&quot;VP&quot;</span><span class="p">)</span>  <span class="c1"># There could be &quot;VP&quot;, &quot;VP2&quot;, &quot;VP3&quot;, etc.</span>
+
+<span class="c1"># In case you change some parameter that the value parameters depend on</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">update_value_parameters</span><span class="p">()</span>  <span class="c1"># AFSC quotas are a good example here</span>
+
+<span class="c1"># From now on, this becomes one of your &quot;default&quot; functions to apply!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">incorporate_rated_algorithm_results</span><span class="p">()</span>
+
+<span class="c1"># Always make sure your data is good to go!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">parameter_sanity_check</span><span class="p">()</span>
+
+<span class="c1"># Run GUO!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">solve_guo_pyomo_model</span><span class="p">()</span>
+
+<span class="c1"># Export data back to csvs</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">export_data</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Importing &#39;Random_1&#39; instance...
+Instance &#39;Random_1&#39; initialized.
+Incorporating rated algorithm results...
+Rated SOC Algorithm Results:
+USAFA Fixed Cadets: 1, USAFA Reserved Cadets: 0, ROTC Fixed Cadets: 2, ROTC Reserved Cadets: 4
+USAFA Rated Alternates: 0, ROTC Rated Alternates: 7
+Sanity checking the instance parameters...
+Done, 0 issues found.
+Building assignment problem (GUO) model...
+Done. Solving model...
+Solving GUO Model instance with solver cbc...
+Start Time: June 10 2025 10:22:40 AM.
+Model solved in 0.2 seconds at June 10 2025 10:22:40 AM. Pyomo reported objective value: 0.8364
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8718.
+Global Utility Score: 0.8364. 3 / 3 AFSCs fixed. 4 / 4 AFSCs reserved. 7 / 7 alternate list scenarios respected.
+Blocking pairs: 4. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+
+Exporting datasets [&#39;Cadets&#39;, &#39;AFSCs&#39;, &#39;Preferences&#39;, &#39;Goal Programming&#39;, &#39;Value Parameters&#39;, &#39;Solutions&#39;, &#39;Additional&#39;, &#39;Base Solutions&#39;, &#39;Course Solutions&#39;]
+</code></pre></div>
+</details>
+<p>If you've followed along with your own random dataset, then you should have several solutions now in your 
+"Random_1 Solutions.csv" file:</p>
+<p align="center">
+  <img src="/afccp/images/user-guide/pic51.png" width="800px">
+</p>
+
+<p>We now have the "GUO" solution too which we will use to visualize in the next tutorial.</p>
+<h2 id="summary">📌 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>Tutorial 8 outlines the core <strong>optimization models</strong> used to solve the <code>CadetCareerProblem</code>, focusing on how 
+cadet-to-AFSC assignments are generated using formal decision models. The section presents multiple optimization strategies 
+that evolved from academic and operational contributions.</p>
+<p>It covers the following models and methods:</p>
+<ol>
+<li>
+<p><strong>Value-Focused Thinking (VFT) Models</strong> – Includes both Approximate and Exact models, originally developed at AFIT.</p>
+<ul>
+<li>Highlights their differences, how they’re solved using Pyomo, and why Approximate models are often preferred in practice.</li>
+<li>Explains how the <code>con_fail_dict</code> is used to manage constraint violations and guide genetic algorithms.</li>
+</ul>
+</li>
+<li>
+<p><strong>Global Utility Optimization (GUO)</strong> – The current default assignment model that maximizes a merged cadet-AFSC utility matrix.</p>
+<ul>
+<li>Efficient and scalable with accurate Pyomo objective value evaluation.</li>
+<li>Used with rated cadet integration and the “USSF OM” constraint when applicable.</li>
+</ul>
+</li>
+<li>
+<p><strong>Original AFPC Model</strong> – Rebuilt for historical reference, this model mimics the legacy assignment method used through 2023.</p>
+</li>
+<li>
+<p><strong>Goal Programming Model</strong> – Captures Lt. Rebecca Reynold's research contributions using “Mandatory/Desired/Permitted” logic instead of value tiers.</p>
+<ul>
+<li>The model can be executed after translating value parameters and is unconstrained by <code>afccp</code>'s standard rule set.</li>
+</ul>
+</li>
+<li>
+<p><strong>Sensitivity Analysis</strong> – An early capability that tests the impact of activating constraints one at a time on solution feasibility.</p>
+</li>
+</ol>
+<p>The tutorial emphasizes how constraints, value parameters, and alternate list logic continue to play a vital role in 
+each formulation. The GUO model is currently used for official cadet-AFSC classification. All models integrate with the 
+solution evaluation tools covered in <a href="../tutorial_6/">Tutorial 6</a> and the algorithm controls from 
+<a href="../tutorial_7/">Tutorial 7</a>. Continue on to <a href="../tutorial_9/">Tutorial 9</a> for more information
+on the visualizations within <code>afccp</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://gitlab.com/path-to-your-repo" target="_blank" rel="noopener" title="gitlab.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/input/tex/extensions/bm.js"></script>
+      
+    
+  </body>
+</html>

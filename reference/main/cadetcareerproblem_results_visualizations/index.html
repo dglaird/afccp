@@ -810,6 +810,121 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 5 (Data Methods)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 6 (Solutions Overview)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_7/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 7 (Algorithms)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_8/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 8 (Optimization)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 9 (Visualizations)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2108,9 +2223,7 @@
 <span class="normal">2859</span>
 <span class="normal">2860</span>
 <span class="normal">2861</span>
-<span class="normal">2862</span>
-<span class="normal">2863</span>
-<span class="normal">2864</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">display_results_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2862</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">display_results_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Builds the AFSC Results graphs</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2133,8 +2246,6 @@
 
     <span class="c1"># Determine which chart to create</span>
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mdl_p</span><span class="p">[</span><span class="s2">&quot;macro_chart_kind&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;AFSC Chart&quot;</span><span class="p">:</span>
-
-        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;wow&#39;</span><span class="p">)</span>
 
         <span class="c1"># Initialize the AFSC Chart object</span>
         <span class="n">afsc_chart</span> <span class="o">=</span> <span class="n">afccp</span><span class="o">.</span><span class="n">visualizations</span><span class="o">.</span><span class="n">charts</span><span class="o">.</span><span class="n">AFSCsChart</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
@@ -2170,7 +2281,9 @@
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2866</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2864</span>
+<span class="normal">2865</span>
+<span class="normal">2866</span>
 <span class="normal">2867</span>
 <span class="normal">2868</span>
 <span class="normal">2869</span>
@@ -2190,9 +2303,7 @@
 <span class="normal">2883</span>
 <span class="normal">2884</span>
 <span class="normal">2885</span>
-<span class="normal">2886</span>
-<span class="normal">2887</span>
-<span class="normal">2888</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_results_slides</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2886</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_results_slides</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Method to generate the results slides for a particular problem instance with solution</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2236,7 +2347,9 @@
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2890</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2888</span>
+<span class="normal">2889</span>
+<span class="normal">2890</span>
 <span class="normal">2891</span>
 <span class="normal">2892</span>
 <span class="normal">2893</span>
@@ -2260,9 +2373,7 @@
 <span class="normal">2911</span>
 <span class="normal">2912</span>
 <span class="normal">2913</span>
-<span class="normal">2914</span>
-<span class="normal">2915</span>
-<span class="normal">2916</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_comparison_slides</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2914</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_comparison_slides</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Method to generate the results slides for a particular problem instance with solution</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2310,7 +2421,9 @@
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2918</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2916</span>
+<span class="normal">2917</span>
+<span class="normal">2918</span>
 <span class="normal">2919</span>
 <span class="normal">2920</span>
 <span class="normal">2921</span>
@@ -2330,9 +2443,7 @@
 <span class="normal">2935</span>
 <span class="normal">2936</span>
 <span class="normal">2937</span>
-<span class="normal">2938</span>
-<span class="normal">2939</span>
-<span class="normal">2940</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_animation_slides</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2938</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_animation_slides</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Method to generate the animation slides for a particular problem instance and solution iterations</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2376,7 +2487,9 @@
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2942</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2940</span>
+<span class="normal">2941</span>
+<span class="normal">2942</span>
 <span class="normal">2943</span>
 <span class="normal">2944</span>
 <span class="normal">2945</span>
@@ -2413,9 +2526,7 @@
 <span class="normal">2976</span>
 <span class="normal">2977</span>
 <span class="normal">2978</span>
-<span class="normal">2979</span>
-<span class="normal">2980</span>
-<span class="normal">2981</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_comparison_slide_components</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2979</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_comparison_slide_components</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Method to do all the steps of generating the specific solution comparison charts I want</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2476,7 +2587,9 @@
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2983</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2981</span>
+<span class="normal">2982</span>
+<span class="normal">2983</span>
 <span class="normal">2984</span>
 <span class="normal">2985</span>
 <span class="normal">2986</span>
@@ -2497,9 +2610,7 @@
 <span class="normal">3001</span>
 <span class="normal">3002</span>
 <span class="normal">3003</span>
-<span class="normal">3004</span>
-<span class="normal">3005</span>
-<span class="normal">3006</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">display_utility_histogram</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">folder</span><span class="o">=</span><span class="s2">&quot;Results Charts&quot;</span><span class="p">):</span>
+<span class="normal">3004</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">display_utility_histogram</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">folder</span><span class="o">=</span><span class="s2">&quot;Results Charts&quot;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This method plots the cadet utility histogram</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2545,7 +2656,9 @@ as specified in the ccp helping functions.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">3009</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">3007</span>
+<span class="normal">3008</span>
+<span class="normal">3009</span>
 <span class="normal">3010</span>
 <span class="normal">3011</span>
 <span class="normal">3012</span>
@@ -2567,9 +2680,7 @@ as specified in the ccp helping functions.</p>
 <span class="normal">3028</span>
 <span class="normal">3029</span>
 <span class="normal">3030</span>
-<span class="normal">3031</span>
-<span class="normal">3032</span>
-<span class="normal">3033</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_bubbles_chart</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">3031</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_bubbles_chart</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Method to generate the &quot;BubbleChart&quot; figure by calling the BubbleChart class and applying the parameters</span>
 <span class="sd">    as specified in the ccp helping functions.</span>

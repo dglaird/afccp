@@ -1,0 +1,2466 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://dglaird.github.io/afccp/user-guide/tutorial_7/">
+      
+      
+        <link rel="prev" href="../tutorial_6/">
+      
+      
+        <link rel="next" href="../tutorial_8/">
+      
+      
+      <link rel="icon" href="../../images/logos/afccp_logo_favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>Tutorial 7 (Algorithms) - Air Force Cadet Career Problem</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#tutorial-7-algorithms" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Air Force Cadet Career Problem" class="md-header__button md-logo" aria-label="Air Force Cadet Career Problem" data-md-component="logo">
+      
+  <img src="../../images/logos/afccp_logo_and_text_light.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Air Force Cadet Career Problem
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Tutorial 7 (Algorithms)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/dglaird/afccp/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  🏠 Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/getting-started/" class="md-tabs__link">
+          
+  
+  
+  🚀 Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  
+  📘 User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../developer-guide/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  🧠 Developer Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/main/cadetcareerproblem_overview/" class="md-tabs__link">
+          
+  
+  
+  CadetCareerProblem
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/data/" class="md-tabs__link">
+          
+  
+  
+  📊 Data
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/solutions/" class="md-tabs__link">
+          
+  
+  
+  📈 Solutions
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/visualizations/" class="md-tabs__link">
+          
+  
+  
+  Visualizations
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  ❓ FAQs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../help/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  🆘 Help & Support
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Air Force Cadet Career Problem" class="md-nav__button md-logo" aria-label="Air Force Cadet Career Problem" data-md-component="logo">
+      
+  <img src="../../images/logos/afccp_logo_and_text_light.png" alt="logo">
+
+    </a>
+    Air Force Cadet Career Problem
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/dglaird/afccp/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    🏠 Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    🚀 Getting Started
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            🚀 Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    📄 Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    🛠️ Install Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            🛠️ Install Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation Instructions
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/developer-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Developer Checklist
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    📘 User Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            📘 User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 1 (Introduction)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 2 (Data Overview)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 3 (Parameters)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 4 (Value Parameters)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 5 (Data Methods)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 6 (Solutions Overview)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 7 (Algorithms)
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 7 (Algorithms)
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#matching-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      Matching Algorithms
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Matching Algorithms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#classic-hr" class="md-nav__link">
+    <span class="md-ellipsis">
+      Classic HR
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soc-rated-algorithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      SOC Rated Algorithm
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soc-rated-algorithm-alternates" class="md-nav__link">
+    <span class="md-ellipsis">
+      SOC Rated Algorithm-Alternates
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rotc-rated-board-original-algorithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      ROTC Rated Board Original Algorithm
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#meta-heuristics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Meta-heuristics
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Meta-heuristics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vft-genetic-algorithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      VFT Genetic Algorithm
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#genetic-matching-algorithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      Genetic Matching Algorithm
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      📌 Summary
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_8/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 8 (Optimization)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 9 (Visualizations)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    🧠 Developer Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    CadetCareerProblem
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            CadetCareerProblem
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_generated_data_corrections/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Generated Data Corrections
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_main_data_corrections/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Main Data Corrections
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_other_adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Other Adjustments
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_value_parameter_specifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Value Parameter Specifications
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_solution_generation_%26_algorithms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Solution Generation & Algorithms
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_optimization_models_%26_meta-heuristics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Optimization Models & Meta-Heuristics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_solution_handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Solution Handling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_export_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Export Data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_data_visualizations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Data Visualizations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/main/cadetcareerproblem_results_visualizations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Results Visualizations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    📊 Data
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            📊 Data
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Adjustments
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/preferences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Preferences
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Processing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/values/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Values
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Support
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/generation/basic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Generation- 'Basic'
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data/generation/realistic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Generation- 'Realistic'
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    📈 Solutions
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            📈 Solutions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/algorithms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Algorithms
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Handling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Optimization
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/solutions/sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Sensitivity
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Visualizations
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Visualizations
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/visualizations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/visualizations/bubbles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Bubbles
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/visualizations/charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Charts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/visualizations/slides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Slides
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    ❓ FAQs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../help/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    🆘 Help & Support
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="tutorial-7-algorithms">Tutorial 7: Algorithms<a class="headerlink" href="#tutorial-7-algorithms" title="Permanent link">&para;</a></h1>
+<p>Now that we've discussed how a solution is represented in the data and stored within the <code>CadetCareerProblem</code> object, 
+we can talk about the methods of generating solutions (ones that are hopefully a bit better than throwing darts at the 
+board with the "Random" method). The first series of solution techniques I'll describe are matching algorithms. </p>
+<h2 id="matching-algorithms">Matching Algorithms<a class="headerlink" href="#matching-algorithms" title="Permanent link">&para;</a></h2>
+<p>Matching algorithms encompass the various methods of assignment by which we don't incorporate any sort of optimization 
+framework. The first of which is the classic "Hospital/Residents" (HR) deferred acceptance algorithm (DAA). </p>
+<h3 id="classic-hr">Classic HR<a class="headerlink" href="#classic-hr" title="Permanent link">&para;</a></h3>
+<p>We formulate the AFSC/Cadet matching problem as a Hospital/Residents problem where each entity possesses an ordinal 
+preference list for members of the other. It's a simple algorithm, and the function itself is 
+<a href="../../../afccp/reference/solutions/algorithms/#solutions.algorithms.classic_hr"><code>classic_hr()</code></a>.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Run the &quot;Classic HR&quot; algorithm on the &quot;Random_1&quot; instance</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">classic_hr</span><span class="p">({</span><span class="s1">&#39;ma_printing&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Modeling this as an H/R problem and solving with DAA...
+
+Iteration 1
+Proposals: {&#39;R1&#39;: 9, &#39;R2&#39;: 3, &#39;R3&#39;: 6, &#39;R4&#39;: 2}
+Matched {&#39;R1&#39;: 9.0, &#39;R2&#39;: 3.0, &#39;R3&#39;: 3.0, &#39;R4&#39;: 2.0}
+Rejected {&#39;R1&#39;: 0.0, &#39;R2&#39;: 0.0, &#39;R3&#39;: 3.0, &#39;R4&#39;: 0.0}
+
+Iteration 2
+Proposals: {&#39;R1&#39;: 11, &#39;R2&#39;: 3, &#39;R3&#39;: 3, &#39;R4&#39;: 3}
+Matched {&#39;R1&#39;: 9.0, &#39;R2&#39;: 3.0, &#39;R3&#39;: 3.0, &#39;R4&#39;: 3.0}
+Rejected {&#39;R1&#39;: 2.0, &#39;R2&#39;: 0.0, &#39;R3&#39;: 3.0, &#39;R4&#39;: 0.0}
+
+Iteration 3
+Proposals: {&#39;R1&#39;: 9, &#39;R2&#39;: 5, &#39;R3&#39;: 3, &#39;R4&#39;: 3}
+Matched {&#39;R1&#39;: 9.0, &#39;R2&#39;: 5.0, &#39;R3&#39;: 3.0, &#39;R4&#39;: 3.0}
+Rejected {&#39;R1&#39;: 2.0, &#39;R2&#39;: 0.0, &#39;R3&#39;: 3.0, &#39;R4&#39;: 0.0}
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8777.
+Global Utility Score: 0.8158. 0 / 0 AFSCs fixed. 0 / 0 AFSCs reserved. 0 / 0 alternate list scenarios respected.
+Blocking pairs: 0. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<p>The "ma_printing" parameter controls whether the algorithm should print iteration-specific information 
+(it's defaulted to False). As you can see, with 20 cadets and 4 AFSCs this is a pretty short algorithm. 
+With my particular randomly generated cadets, only three cadets were rejected in iteration 1 (all by R3). 
+In the second iteration, two of these cadets propose to R1 and one proposes to R4. The two proposing to R1 are then 
+rejected by R1 while the 1 proposing to R4 is accepted. Finally, in the third iteration those two cadets both propose
+and are accepted by R2 and the algorithm concludes.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Current solution (HR)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Solution Name:&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">solution</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Solution Array:&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">solution</span><span class="p">[</span><span class="s1">&#39;afsc_array&#39;</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Solution Name: HR
+Solution Array: [&#39;R1&#39; &#39;R1&#39; &#39;R2&#39; &#39;R2&#39; &#39;R1&#39; &#39;R1&#39; &#39;R2&#39; &#39;R1&#39; &#39;R1&#39; &#39;R4&#39; &#39;R4&#39; &#39;R2&#39; &#39;R3&#39; &#39;R1&#39; &#39;R2&#39; &#39;R1&#39; &#39;R3&#39; &#39;R3&#39; &#39;R1&#39; &#39;R4&#39;]
+</code></pre></div>
+</details>
+<h3 id="soc-rated-algorithm">SOC Rated Algorithm<a class="headerlink" href="#soc-rated-algorithm" title="Permanent link">&para;</a></h3>
+<p>One very important solution technique we need to address is the specific rated algorithm we employ to pre-process 
+cadets into rated career fields in the spirit of the DAA. Although the DAA in its true form does not work for all 
+career fields across the Air &amp; Space Force (due to degree requirements and popularity issues), it does work really 
+well if we use it on the rated career fields in a unique way. Pilot, and the other three rated career fields to a 
+lesser extent, is a very "political" career field and one that must be handled with great care. Any kind of matches 
+are fair game in an optimization model, and people don't always get matched to their desired career fields in order of 
+merit unless we explicitly enforce it. One huge benefit of the DAA is that it's simple and defendable. It is fair to 
+all cadets by directly adhering to the career field rankings. Because we want a defendable solution (especially when 
+it comes to pilot), we apply the DAA to rated cadets from both SOCs to constrain AFSCs for cadets based on what 
+they would have received as a result of the "complete" DAA.</p>
+<p>As discussed, this algorithm strips out all non-rated AFSC choices and purely looks at the rated choices, 
+ordered amongst themselves. We then run the DAA, matching cadets to their rated AFSCs from each SOC honoring their 
+specific rated PGL targets. If the DAA matches a cadet to a rated AFSC that was also their true first choice then that
+cadet is definitively matched to that AFSC. If the cadet is matched to a rated AFSC but that AFSC was not their 
+first choice, we reserve that slot for them but allow them to compete in the optimization model for their more 
+desired AFSCs. To apply this methodology, we run the <a href="../../../afccp/reference/solutions/algorithms/#solutions.algorithms.soc_rated_matching_algorithm"><code>soc_rated_matching_algorithm()</code></a>
+function for each SOC. We'll show this method for ROTC first:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Run the SOC rated algorithm for ROTC</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">soc_rated_matching_algorithm</span><span class="p">({</span><span class="s2">&quot;soc&quot;</span><span class="p">:</span> <span class="s2">&quot;rotc&quot;</span><span class="p">,</span> <span class="s2">&quot;ma_printing&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>  <span class="c1"># &quot;s =&quot; prevents lots of output</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Solving the rated matching algorithm for ROTC cadets...
+
+Iteration 1
+Proposals: {&#39;R2&#39;: 6, &#39;R4&#39;: 6}
+Matched {&#39;R2&#39;: 4, &#39;R4&#39;: 2}
+Rejected {&#39;R2&#39;: 2, &#39;R4&#39;: 4}
+
+Iteration 2
+Proposals: {&#39;R2&#39;: 6, &#39;R4&#39;: 4}
+Matched {&#39;R2&#39;: 4, &#39;R4&#39;: 2}
+Rejected {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+</code></pre></div>
+</details>
+<p>As you can see from the output, we're evaluating three new solutions. I use the solutions dictionary to store my 
+results from the rated algorithm for both SOCs. One solution contains the information on cadets with reserved slots 
+for rated AFSCs, one solution contains the information on cadets that were definitively matched to a rated AFSC, 
+and the last one simply combines the two. You can see these solutions below for ROTC:</p>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">s_name</span> <span class="ow">in</span> <span class="n">instance</span><span class="o">.</span><span class="n">solutions</span><span class="p">:</span>
+
+    <span class="k">if</span> <span class="s2">&quot;Rated&quot;</span> <span class="ow">in</span> <span class="n">s_name</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Solution name: &#39;&quot;</span> <span class="o">+</span> <span class="n">s_name</span> <span class="o">+</span> <span class="s2">&quot;&#39;&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Solution:&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">solutions</span><span class="p">[</span><span class="n">s_name</span><span class="p">][</span><span class="s1">&#39;afsc_array&#39;</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Solution name: &#39;Rated ROTC HR (Reserves)&#39;
+Solution: [&#39;*&#39; &#39;*&#39; &#39;*&#39;  &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;R2&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;R2&#39; &#39;R2&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;R4&#39; &#39;*&#39; ]
+Solution name: &#39;Rated ROTC HR (Matches)&#39;
+Solution: [&#39;*&#39; &#39;*&#39; &#39;R2&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39;  &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39;  &#39;*&#39;  &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39;  &#39;R4&#39;]
+Solution name: &#39;Rated ROTC HR&#39;
+Solution: [&#39;*&#39; &#39;*&#39; &#39;R2&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;R2&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;R2&#39; &#39;R2&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;*&#39; &#39;R4&#39; &#39;R4&#39;]
+</code></pre></div>
+</details>
+<p>In my simple "Random_1" data example, we have two rated AFSCs: R2 and R4. There are 4 ROTC slots for R2 and 2 ROTC 
+slots for R4. The cadet at index 2 and the cadet at index 19 both had R2 and R4, respectively, as their first choice 
+AFSCs. Therefore, they are matched to those AFSCs. The other 4 cadets are reserved for these rated AFSCs.
+Also in my data example, USAFA has 1 slot for R2 and doesn't have any slots for R4, so that algorithm isn't as
+useful. We still need to run it to have the required components, however!</p>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;USAFA Targets:&quot;</span><span class="p">,</span> <span class="p">{</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;afscs&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]:</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;usafa_quota&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;J&#39;</span><span class="p">]})</span>  <span class="c1"># None for R4!</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ROTC Targets:&quot;</span><span class="p">,</span> <span class="p">{</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;afscs&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]:</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;rotc_quota&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;J&#39;</span><span class="p">]})</span>  <span class="c1"># 2 for R4!</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>  <span class="c1"># just adding a space</span>
+
+<span class="c1"># Run the USAFA rated algorithm</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">soc_rated_matching_algorithm</span><span class="p">({</span><span class="s2">&quot;soc&quot;</span><span class="p">:</span> <span class="s2">&quot;usafa&quot;</span><span class="p">,</span> <span class="s2">&quot;ma_printing&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>  <span class="c1"># &quot;s =&quot; prevents lots of output</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>USAFA Targets: {&#39;R1&#39;: 1.0, &#39;R2&#39;: 1.0, &#39;R3&#39;: 0.0, &#39;R4&#39;: 0.0}
+ROTC Targets: {&#39;R1&#39;: 7.0, &#39;R2&#39;: 4.0, &#39;R3&#39;: 2.0, &#39;R4&#39;: 2.0}
+
+Solving the rated matching algorithm for USAFA cadets...
+
+Iteration 1
+Proposals: {&#39;R2&#39;: 5, &#39;R4&#39;: 2}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 0}
+Rejected {&#39;R2&#39;: 4, &#39;R4&#39;: 2}
+
+Iteration 2
+Proposals: {&#39;R2&#39;: 2, &#39;R4&#39;: 2}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 0}
+Rejected {&#39;R2&#39;: 5, &#39;R4&#39;: 4}
+</code></pre></div>
+</details>
+<p>We've now run these two algorithms (USAFA/ROTC) and can incorporate their information into our instance parameters. 
+This will be used later on within the optimization models, but worth discussing here. In order to incorporate these 
+solutions into the parameters, we need to call the 
+<a href="../../../afccp/reference/solutions/handling/#solutions.handling.incorporate_rated_results_in_parameters"><code>incorporate_rated_results_in_parameters()</code></a> 
+function!</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Integrate the Rated algorithm solutions into &quot;instance.parameters&quot; </span>
+<span class="n">instance</span><span class="o">.</span><span class="n">incorporate_rated_algorithm_results</span><span class="p">()</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Incorporating rated algorithm results...
+Rated SOC Algorithm Results:
+USAFA Fixed Cadets: 1, USAFA Reserved Cadets: 0, ROTC Fixed Cadets: 2, ROTC Reserved Cadets: 4
+USAFA Rated Alternates: 0, ROTC Rated Alternates: 7
+</code></pre></div>
+</details>
+<p>This creates two new dictionaries: "J^Fixed" and "J^Reserved". They are used to constrain the available AFSCs for 
+each cadet as a result of the SOC-specific rated DAA described above.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># 3 cadets are fixed to AFSCs. Ex: Cadet 14 must be matched to the AFSC at index 1 (R2)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&#39;J^Fixed&#39;:&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;J^Fixed&#39;</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>&#39;J^Fixed&#39;: {14: 1, 2: 1, 19: 3}
+</code></pre></div>
+</details>
+<p>"J^Fixed" is a dictionary where the keys are the cadets with "fixed" AFSCs and the values are the AFSC indices that 
+they are fixed to. In a similar, but slightly different way, "J^Reserved" is a dictionary where the keys are the 
+cadets with "reserved" AFSCs. For each key here, however, the value is an ordered list of the cadet's preferences up 
+to and including the rated AFSC they're reserved for. This ensures that the cadet receives one of these AFSCs, since 
+the rated AFSC is reserved for them.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Cadet 3 must receive either AFSC 0 (R1), 2 (R3), or 3 (R4) -&gt; R4 is reserved for them</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&#39;J^Reserved&#39;:&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;J^Reserved&#39;</span><span class="p">])</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>&#39;J^Reserved&#39;: {7: array([0, 3, 2, 1]), 11: array([0, 1]), 12: array([2, 0, 1]), 18: array([0, 3])}
+</code></pre></div>
+</details>
+<h3 id="soc-rated-algorithm-alternates">SOC Rated Algorithm-Alternates<a class="headerlink" href="#soc-rated-algorithm-alternates" title="Permanent link">&para;</a></h3>
+<p>One thing I haven't mentioned yet is how we give even more special attention to rated AFSCs with an 
+"alternate list" idea. The fixed/reserved slot idea works really well to "protect" those individuals that would get 
+rated slots based purely on their rated OM, by giving them a chance to get their more preferred AFSC. 
+If they don't get that more preferred AFSC, they have their reserved rated AFSC to fall back on. What this current 
+methodology does not address, however, is who back-fills those reserved slots. To do this, we have to run a separate 
+algorithm to determine who is on each alternate list for each SOC. Essentially, we want to know who is "next in line" 
+to receive each of the rated AFSCs. These individuals just missed the cutoff to be a reserved/fixed cadet for that AFSC. </p>
+<p>The SOC rated matching algorithm must be run once, and then every time we execute 
+<a href="../../../afccp/reference/solutions/handling/#solutions.handling.incorporate_rated_results_in_parameters"><code>instance.incorporate_rated_results_in_parameters()</code></a>, 
+the alternate list sets and parameters are added by default. </p>
+<div class="highlight"><pre><span></span><code><span class="c1"># These are the default controls, so alternate lists should always be included unless otherwise specified!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">incorporate_rated_algorithm_results</span><span class="p">({</span><span class="s1">&#39;rated_alternates&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                                              <span class="s1">&#39;alternate_list_iterations_printing&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Incorporating rated algorithm results...
+Rated SOC Algorithm Results:
+USAFA Fixed Cadets: 1, USAFA Reserved Cadets: 0, ROTC Fixed Cadets: 2, ROTC Reserved Cadets: 4
+USAFA Rated Alternates: 0, ROTC Rated Alternates: 7
+</code></pre></div>
+</details>
+<p>If we want to see the rated alternate algorithm a little more clearly, we can toggle the 
+"alternate_list_iterations_printing" parameter.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># These are the default controls, so alternate lists should always be included unless otherwise specified!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">incorporate_rated_algorithm_results</span><span class="p">({</span><span class="s1">&#39;alternate_list_iterations_printing&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Incorporating rated algorithm results...
+
+SOC: USAFA
+
+Iteration 0
+Possible {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 0}
+Reserved {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Hard) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Soft) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Iteration 1
+Possible {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 0}
+Reserved {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Hard) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Soft) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+
+SOC: ROTC
+
+Iteration 0
+Possible {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 1}
+Reserved {&#39;R2&#39;: 3, &#39;R4&#39;: 1}
+Alternates (Hard) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Soft) {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Iteration 1
+Possible {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Matched {&#39;R2&#39;: 1, &#39;R4&#39;: 1}
+Reserved {&#39;R2&#39;: 3, &#39;R4&#39;: 1}
+Alternates (Hard) {&#39;R2&#39;: 0, &#39;R4&#39;: 0}
+Alternates (Soft) {&#39;R2&#39;: 4, &#39;R4&#39;: 6}
+Rated SOC Algorithm Results:
+USAFA Fixed Cadets: 1, USAFA Reserved Cadets: 0, ROTC Fixed Cadets: 2, ROTC Reserved Cadets: 4
+USAFA Rated Alternates: 0, ROTC Rated Alternates: 7
+</code></pre></div>
+</details>
+<p>Nothing really happens here as a product of the randomness in this small example. Effectively, the rated alternates'
+algorithm addition provides the set of cadet-AFSC pairs that must not form blocking pairs. In the optimization models,
+these cadet-AFSC pairs are provided special blocking pair constraints, enforcing the "alternate list" concept.</p>
+<h3 id="rotc-rated-board-original-algorithm">ROTC Rated Board Original Algorithm<a class="headerlink" href="#rotc-rated-board-original-algorithm" title="Permanent link">&para;</a></h3>
+<p>This one is not too important anymore, but it is included in the code since it helped my case to convince ROTC that 
+this new rated algorithm was a good idea. I'm not going to discuss it too much, but it uses the ROTC rated OM 
+dataset and the rotc rated interest dataset: Random_1 ROTC Rated Interest.csv. Their board then commenced in 
+different phases and if you're really interested I suggest you read the 
+<a href="../../../afccp/reference/solutions/algorithms/#solutions.algorithms.rotc_rated_board_original"><code>rotc_rated_board_original()</code></a>
+function and then reach out with questions if it's still unclear!</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Run the algorithm</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">rotc_rated_board_original</span><span class="p">()</span>  <span class="c1"># &quot;s =&quot; prevents lots of output</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Running status quo ROTC rated algorithm...
+
+Phase 1 High OM &amp; High Interest
+R2 Phase Matched: 2   ---&gt;   Total Matched: 2 / 4.0
+R4 Phase Matched: 2   ---&gt;   Total Matched: 2 / 2.0
+
+Phase 2 High OM &amp; Med Interest
+R2 Phase Matched: 2   ---&gt;   Total Matched: 4 / 4.0
+New Solution Evaluated.
+Measured exact VFT objective value: 0.3705.
+Global Utility Score: 0.6372. 3 / 3 AFSCs fixed. 3 / 4 AFSCs reserved. 6 / 7 alternate list scenarios respected.
+Blocking pairs: 19. Unmatched cadets: 14.
+Matched cadets: 6/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<p>Now that we've incorporated the rated algorithm results within our parameters, you'll notice the solution evaluation 
+output reflects that we should have three cadets with fixed AFSCs and four cadets with reserved AFSCs. 
+In the original rated board algorithm we just ran, one of those constraints was adequately met and the other wasn't. 
+Additionally, we have adequately met 6/7 of the alternate cases, meaning there is still one rated cadet-AFSC blocking
+pair which is in violation of the alternate list concept.</p>
+<h2 id="meta-heuristics">Meta-heuristics<a class="headerlink" href="#meta-heuristics" title="Permanent link">&para;</a></h2>
+<p>This section describes the meta-heuristics we have to solve the problem. Meta-heuristics refer to solution 
+techniques that use unconventional algorithms to solve optimization models. They are typically meant for really 
+complicated optimization models that are too computationally expensive to solve with a conventional "global" solver. 
+Right now, the only meta-heuristic I have in the code is the genetic algorithm (GA). Genetic algorithms are great
+methods of finding initial solutions that are then "evolved" into better and better solutions. This algorithm is 
+currently used in conjunction with the VFT pyomo model (specifically, the "Approximate Model" I discuss in my thesis) 
+to get closer to the optimal solution since I don't currently have a method of finding the global optimal solution to
+the VFT "Exact Model". If these terms are confusing, please reference section 3.4.1 of my master's thesis.</p>
+<h3 id="vft-genetic-algorithm">VFT Genetic Algorithm<a class="headerlink" href="#vft-genetic-algorithm" title="Permanent link">&para;</a></h3>
+<p>For more information on this algorithm specifically, you can find it here: 
+<a href="../../../afccp/reference/solutions/algorithms/#solutions.algorithms.vft_genetic_algorithm"><code>vft_genetic_algorithm()</code></a>. 
+One big note here is that I haven't found a good way of reconciling the many constraints of the optimization model(s) 
+with the GA. When we were just solving the NRL process, before combining Rated and USSF for FY2024 (so just for 2023 
+really), the only constraints I had placed were the AFSC objective constraints and some cadet utility constraints 
+(top 10%). I will describe how these constraints are handled later on using the "con_fail_dict" (constraint fail 
+dictionary). This is the reason why there are initially a lot of 0s in the initial population of solutions below 
+(constraint violations result in a fitness score of 0). Since this is a small &amp; simple example, however, we quickly 
+determine feasible solutions right out the gate.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Solve the GA using the VFT objective function as the fitness function</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">vft_genetic_algorithm</span><span class="p">({</span><span class="s2">&quot;initialize&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;ga_max_time&quot;</span><span class="p">:</span> <span class="mi">20</span><span class="p">})</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Running Genetic Algorithm with no initial solutions (not advised!)...
+Initial Fitness Scores [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+10% complete. Best solution value: 0.7579
+Average evaluation time for 12 solutions: 0.0143 seconds.
+Average generation time: 0.0156 seconds.
+20% complete. Best solution value: 0.7794
+Average evaluation time for 12 solutions: 0.013 seconds.
+Average generation time: 0.0141 seconds.
+30% complete. Best solution value: 0.7794
+Average evaluation time for 12 solutions: 0.0128 seconds.
+Average generation time: 0.0139 seconds.
+40% complete. Best solution value: 0.8029
+Average evaluation time for 12 solutions: 0.0125 seconds.
+Average generation time: 0.0136 seconds.
+50% complete. Best solution value: 0.8129
+Average evaluation time for 12 solutions: 0.0123 seconds.
+Average generation time: 0.0134 seconds.
+60% complete. Best solution value: 0.8129
+Average evaluation time for 12 solutions: 0.0125 seconds.
+Average generation time: 0.0134 seconds.
+70% complete. Best solution value: 0.8129
+Average evaluation time for 12 solutions: 0.0125 seconds.
+Average generation time: 0.0136 seconds.
+80% complete. Best solution value: 0.8129
+Average evaluation time for 12 solutions: 0.0125 seconds.
+Average generation time: 0.0135 seconds.
+90% complete. Best solution value: 0.8129
+Average evaluation time for 12 solutions: 0.0123 seconds.
+Average generation time: 0.0134 seconds.
+100% complete. Best solution value: 0.8129
+Average evaluation time for 12 solutions: 0.0123 seconds.
+Average generation time: 0.0134 seconds.
+End time reached in 20.01 seconds.
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8129.
+Global Utility Score: 0.7814. 3 / 3 AFSCs fixed. 4 / 4 AFSCs reserved. 7 / 7 alternate list scenarios respected.
+Blocking pairs: 6. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<h3 id="genetic-matching-algorithm">Genetic Matching Algorithm<a class="headerlink" href="#genetic-matching-algorithm" title="Permanent link">&para;</a></h3>
+<p>Ian Macdonald had the idea to create a GA in order to iteratively determine the optimal capacities for each AFSC to 
+find a solution that is as stable as possible. This algorithm works if we have a designated range on the number of 
+cadets for each AFSC. Essentially, we need a sizeable "surplus" of cadets above the PGL targets. For sake of time, 
+I won't go into too much detail here but the algorithm is shown below.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Because this is a small/easy problem, we easily find a stable solution! (GMA isn&#39;t necessary)</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">genetic_matching_algorithm</span><span class="p">({</span><span class="s1">&#39;gma_printing&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>  <span class="c1"># Turns on print statements for the GMA</span>
+</code></pre></div>
+<details class="note">
+<summary>💻 Console Output</summary>
+<div class="highlight"><pre><span></span><code>Generation 0 Fitness [0. 0. 0. 1.]
+Final capacities: [9. 9. 2. 3.]
+Modeling this as an H/R problem and solving with DAA...
+New Solution Evaluated.
+Measured exact VFT objective value: 0.8425.
+Global Utility Score: 0.7998. 3 / 3 AFSCs fixed. 4 / 4 AFSCs reserved. 7 / 7 alternate list scenarios respected.
+Blocking pairs: 0. Unmatched cadets: 0.
+Matched cadets: 20/20. N^Match: 20. Ineligible cadets: 0.
+</code></pre></div>
+</details>
+<h2 id="summary">📌 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>Tutorial 7 dives into the <strong>algorithmic backbone</strong> of how <code>afccp</code> generates cadet-to-AFSC assignments. 
+It introduces a variety of algorithmic approaches—both matching-based and meta-heuristic—that serve as the 
+foundation for feasible and defensible solutions before any optimization model is solved.</p>
+<p>The tutorial walks through:</p>
+<ul>
+<li>Classic matching algorithms like <strong>Deferred Acceptance (DAA)</strong> using the Hospital/Residents (HR) formulation.</li>
+<li>SOC-specific <strong>Rated Matching Algorithms</strong> that pre-process cadets into fixed or reserved rated slots to ensure fairness and defendability—particularly for pilot and other rated fields.</li>
+<li>How to incorporate fixed/reserved/alternate outcomes from the rated matching into the <code>CadetCareerProblem</code> parameters for use in optimization models.</li>
+<li>The structure and purpose of alternate lists: identifying cadets who just missed a rated assignment.</li>
+<li>The legacy <strong>ROTC Rated Board algorithm</strong> used to demonstrate improvements over prior processes.</li>
+</ul>
+<p>It then transitions to <strong>meta-heuristic methods</strong> like:</p>
+<ul>
+<li>The <code>vft_genetic_algorithm()</code>—a genetic algorithm designed to navigate complex constraints in the VFT (Value-Focused Thinking) optimization model.</li>
+<li>The <code>genetic_matching_algorithm()</code>—which uses evolutionary logic to discover AFSC capacities that yield the most stable HR solution.</li>
+</ul>
+<p>These methods lay the groundwork for solving more advanced optimization models under real-world constraints. 
+Continue on to <a href="../tutorial_8/">Tutorial 8</a> to learn how these results integrate into the full optimization pipeline of <code>afccp</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://gitlab.com/path-to-your-repo" target="_blank" rel="noopener" title="gitlab.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/input/tex/extensions/bm.js"></script>
+      
+    
+  </body>
+</html>

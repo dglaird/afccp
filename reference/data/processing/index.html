@@ -810,6 +810,121 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 5 (Data Methods)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 6 (Solutions Overview)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_7/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 7 (Algorithms)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_8/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 8 (Optimization)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tutorial_9/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tutorial 9 (Visualizations)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1475,9 +1590,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data.processing.export_solution_results_excel" class="md-nav__link">
+  <a href="#data.processing.export_solution_results" class="md-nav__link">
     <span class="md-ellipsis">
-      export_solution_results_excel
+      export_solution_results
     </span>
   </a>
   
@@ -6026,10 +6141,10 @@ datasets are derived from the <code>instance.parameters</code> dictionary and wr
 <div class="doc doc-object doc-function">
 
 
-<h2 id="data.processing.export_solution_results_excel" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">export_solution_results_excel</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">filepath</span><span class="p">)</span></code>
+<h2 id="data.processing.export_solution_results" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">export_solution_results</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">filepath</span><span class="p">)</span></code>
 
-<a href="#data.processing.export_solution_results_excel" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#data.processing.export_solution_results" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
@@ -6038,7 +6153,7 @@ datasets are derived from the <code>instance.parameters</code> dictionary and wr
 <p>This function generates an Excel file containing detailed outputs from a solved cadet-AFSC assignment instance,
 including objective values, cadet assignments, constraint violations, and other performance metrics. The resulting
 Excel workbook supports deep post-solution analysis and includes conditional formatting for visual clarity.</p>
-<h4 id="data.processing.export_solution_results_excel--parameters">Parameters<a class="headerlink" href="#data.processing.export_solution_results_excel--parameters" title="Permanent link">&para;</a></h4>
+<h4 id="data.processing.export_solution_results--parameters">Parameters<a class="headerlink" href="#data.processing.export_solution_results--parameters" title="Permanent link">&para;</a></h4>
 <ul>
 <li>
 <p>instance : Instance
@@ -6053,10 +6168,10 @@ Excel workbook supports deep post-solution analysis and includes conditional for
 <li>filepath : str
   Full path where the Excel file will be saved (e.g., <code>"output/solution_results.xlsx"</code>)</li>
 </ul>
-<h4 id="data.processing.export_solution_results_excel--returns">Returns<a class="headerlink" href="#data.processing.export_solution_results_excel--returns" title="Permanent link">&para;</a></h4>
+<h4 id="data.processing.export_solution_results--returns">Returns<a class="headerlink" href="#data.processing.export_solution_results--returns" title="Permanent link">&para;</a></h4>
 <p>None
   Writes an <code>.xlsx</code> file to disk containing multiple sheets of structured solution data.</p>
-<h4 id="data.processing.export_solution_results_excel--excel-output-includes">Excel Output Includes<a class="headerlink" href="#data.processing.export_solution_results_excel--excel-output-includes" title="Permanent link">&para;</a></h4>
+<h4 id="data.processing.export_solution_results--excel-output-includes">Excel Output Includes<a class="headerlink" href="#data.processing.export_solution_results--excel-output-includes" title="Permanent link">&para;</a></h4>
 <ul>
 <li>Main: High-level metrics, objective value, choice counts, and performance indicators</li>
 <li>Objective Measures: AFSC scores for each weighted objective</li>
@@ -6068,13 +6183,13 @@ Excel workbook supports deep post-solution analysis and includes conditional for
 <li>Castle Metrics (if applicable): Metrics for CASTLE-mode AFSCs</li>
 <li>Blocking Pairs (if present): Cadet-AFSC blocking violations</li>
 </ul>
-<h4 id="data.processing.export_solution_results_excel--notes">Notes<a class="headerlink" href="#data.processing.export_solution_results_excel--notes" title="Permanent link">&para;</a></h4>
+<h4 id="data.processing.export_solution_results--notes">Notes<a class="headerlink" href="#data.processing.export_solution_results--notes" title="Permanent link">&para;</a></h4>
 <ul>
 <li>Conditional formatting is applied to highlight preference rankings, merit scores, and match quality.</li>
 <li>The function handles presence or absence of optional components (e.g., base matching, training courses).</li>
 <li>Top 10 cadet choices and utilities are shown in the Solution tab for deeper preference analysis.</li>
 </ul>
-<h4 id="data.processing.export_solution_results_excel--see-also">See Also<a class="headerlink" href="#data.processing.export_solution_results_excel--see-also" title="Permanent link">&para;</a></h4>
+<h4 id="data.processing.export_solution_results--see-also">See Also<a class="headerlink" href="#data.processing.export_solution_results--see-also" title="Permanent link">&para;</a></h4>
 <ul>
 <li><a href="../../../afccp/reference/data/processing/#data.processing.draw_frame_border_outside"><code>draw_frame_border_outside</code></a></li>
 </ul>
@@ -6516,7 +6631,7 @@ Excel workbook supports deep post-solution analysis and includes conditional for
 <span class="normal">2084</span>
 <span class="normal">2085</span>
 <span class="normal">2086</span>
-<span class="normal">2087</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">export_solution_results_excel</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">filepath</span><span class="p">):</span>
+<span class="normal">2087</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">export_solution_results</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">filepath</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Export a comprehensive Excel workbook of solution results.</span>
 
