@@ -43,6 +43,21 @@ Get a basic understanding of how the solutions are processed in `afccp`.
 
 ---
 
+### ✅ [Tutorial 7: Algorithms](tutorial_7.md)
+This tutorial dives into the algorithms and meta-heuristics available to the `CadetCareerProblem` class.
+
+---
+
+### ✅ [Tutorial 8: Optimization](tutorial_8.md)
+Learn the different optimization models, along with some sensitivity analysis, available within this module.
+
+---
+
+### ✅ [Tutorial 9: Visualizations](tutorial_9.md)
+Explore the many kinds of visualizations available to the `CadetCareerProblem` class.
+
+---
+
 ## 🧠 Who Should Use This Guide?
 
 - **Cadet assignment modelers** looking to experiment with AFSC match logic  

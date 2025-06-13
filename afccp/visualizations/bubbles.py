@@ -356,9 +356,12 @@ class BubbleChart:
         # Number of rows in unmatched box
         self.b['n^urow'] = int(self.b['N^u'] / self.b['n^u'])
 
-        # Sort the AFSCs by 'n'
+        # Sort the AFSCs by 'n' (descending), then by AFSC name (ascending)
         n = np.array([self.b['n'][j] for j in self.b['J']])  # Convert dictionary to numpy array
-        indices = np.argsort(n)[::-1]  # Get list of indices that would sort n
+        afsc_names = np.array([self.b['afscs'][j] for j in self.b['J']])
+
+        # Use lexsort: secondary key goes first (name), then primary (negated size for descending)
+        indices = np.lexsort((afsc_names, -n))
         sorted_J = self.b['J'][indices]  # J Array sorted by n
         sorted_n = n[indices]  # n Array sorted by n
         self.b['J^sorted'] = {index: sorted_J[index] for index in range(self.b['M'])}  # Translate 'new j' to 'real j'
@@ -519,6 +522,10 @@ class BubbleChart:
         algorithms based on what the user wants to do.
         """
 
+        # Is there only one row?
+        max_y = np.max(np.array([self.b['y'][j] for j in self.b['J']]))
+        only_one_row = max_y <= 0.04
+
         # Loop through each AFSC to add certain elements
         self.b['afsc_name_text'] = {}
         self.b['c_boxes'] = {}
@@ -551,12 +558,13 @@ class BubbleChart:
                 # Are we on a bottom edge?
                 row = np.array([j_p for j_p, val in self.b['y'].items() if val == self.b['y'][j]])
                 x_coords = np.array([self.b['x'][j_p] for j_p in row])
-                if self.b['x'][j] == np.max(x_coords) and self.b['y'][j] <= self.b['y_val_to_pin']:
-                    x = self.b['x'][j] + (self.b['n'][j]) * self.b['s']  # We're at the right edge
-                    ha = 'right'
-                elif self.b['x'][j] == np.min(x_coords) and self.b['y'][j] <= self.b['y_val_to_pin']:
-                    x = self.b['x'][j]  # We're at the left edge
-                    ha = 'left'
+                if not only_one_row:
+                    if self.b['x'][j] == np.max(x_coords) and self.b['y'][j] <= self.b['y_val_to_pin']:
+                        x = self.b['x'][j] + (self.b['n'][j]) * self.b['s']  # We're at the right edge
+                        ha = 'right'
+                    elif self.b['x'][j] == np.min(x_coords) and self.b['y'][j] <= self.b['y_val_to_pin']:
+                        x = self.b['x'][j]  # We're at the left edge
+                        ha = 'left'
 
             # AFSC text
             self.b['afsc_name_text'][j] = self.ax.text(x, y, self.p['afscs'][j], fontsize=self.b['afsc_fontsize'][j],
@@ -700,8 +708,8 @@ class BubbleChart:
                 j_focus = np.where(self.p['afscs'] == self.mdl_p['afsc'])[0][0]
 
                 # Add "Unqualified" legend element if we have enough people ineligible for this AFSC
-                if len(self.p['I^E'][j_focus]) <= (self.p['N'] - 20):  # Might be handful of cadets on PRP or something
-                    legend_elements.append(
+                if len(self.p['I^E'][j_focus]) <= (self.p['N'] - 20) or (self.p['N'] < 200):
+                    legend_elements.append(  # Might be handful of cadets on PRP or something (why we decrement by 20)
                         Line2D([0], [0], marker='o', label=self.mdl_p['afsc'] + "\nUnqualified",
                                markerfacecolor=self.mdl_p['unfocused_color'],
                                markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'))
@@ -758,6 +766,31 @@ class BubbleChart:
                        markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black'),
                 Line2D([0], [0], marker='o', label="ROTC", markerfacecolor=self.b['rotc_bubble'],
                        markersize=self.mdl_p['b_legend_marker_size'], color='black', markeredgecolor='black')]
+
+        elif self.b['focus'] in ['AFSC Choice', 'AFSC Utility', 'Cadet Utility']:
+
+            # Draw the gradient bar
+            num_segments = len([val for val, _ in self.v_hex_dict.items()])
+            i = 0
+            x_tr, y_tr = 95, 45  # (x, y "top right")
+            for val, color in self.v_hex_dict.items():
+                x = x_tr - 51 + (i / num_segments) * 50
+                y = y_tr - 5
+                rect = patches.Rectangle((x, y), (1 / num_segments) * 50, 5, linewidth=0, edgecolor=None,
+                                         facecolor=color)
+                self.ax.add_patch(rect)
+                i += 1
+
+            # Border
+            self.ax.add_patch(patches.Rectangle((x_tr - 52, y_tr - 6), 52, 11, linewidth=2, edgecolor='white',
+                                                facecolor='none'))
+
+            # Add labels
+            self.ax.text(x_tr - 1, y_tr + 1, "0%", ha='right', va='bottom', fontsize=20, color='white')
+            self.ax.text(x_tr - 26, y_tr + 1, self.b['focus'], ha='center', va='bottom', fontsize=25, color='white')
+            self.ax.text(x_tr - 51, y_tr + 1, "100%", ha='left', va='bottom', fontsize=20, color='white')
+
+            return
 
         # Create legend
         leg = self.ax.legend(handles=legend_elements, edgecolor='white', loc=self.b['b_legend_loc'], facecolor='black',
@@ -1035,12 +1068,12 @@ class BubbleChart:
                 self.b['c_circles'][j][i].set_visible(True)
 
         elif self.b['focus'] == 'AFSC Choice':
-            choice = self.p['a_pref_matrix'][cadets, j]
+            choice = self.p['afsc_utility'][cadets, j]
 
             # Change the cadet circles to reflect the appropriate colors
             for i, cadet in enumerate(cadets):
 
-                value = round(1 - (choice[i] / self.p['num_eligible'][j]), 2)
+                value = round(choice[i], 2)
 
                 # Change circle color
                 color = self.v_hex_dict[value]

@@ -843,7 +843,7 @@ def calculate_additional_useful_metrics(solution, p, vp):
         solution['afsc_choice_counts'][afsc] = {}
         for cat, bound in cat_bound_dict.items():
 
-            if cat == 0.9:
+            if cat == '90-100%':
                 condition = (afsc_utilities >= bound) & (afsc_utilities <= bound + 0.1)
             else:
                 condition = (afsc_utilities >= bound) & (afsc_utilities < bound + 0.1)

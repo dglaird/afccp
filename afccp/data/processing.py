@@ -1649,7 +1649,7 @@ def export_additional_data(instance):
 
 
 # __________________________________________SOLUTION RESULTS HANDLING___________________________________________________
-def export_solution_results_excel(instance, filepath):
+def export_solution_results(instance, filepath):
     """
     Export a comprehensive Excel workbook of solution results.
 

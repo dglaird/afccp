@@ -48,6 +48,9 @@ nav:
       - Tutorial 4 (Value Parameters): user-guide/tutorial_4.md
       - Tutorial 5 (Data Methods): user-guide/tutorial_5.md
       - Tutorial 6 (Solutions Overview): user-guide/tutorial_6.md
+      - Tutorial 7 (Algorithms): user-guide/tutorial_7.md
+      - Tutorial 8 (Optimization): user-guide/tutorial_8.md
+      - Tutorial 9 (Visualizations): user-guide/tutorial_9.md
 
   - 🧠 Developer Guide: developer-guide.md
 

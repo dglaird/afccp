@@ -215,7 +215,7 @@ class AFSCsChart:
         # Y axis
         self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
         self.ax.set(ylim=(0, self.c["y_max"]))
-        if "y_ticks" in self.c:
+        if "y_ticks" in self.c and self.c['y_max'] > 50:
             self.ax.set_yticklabels(self.c['y_ticks'])
             self.ax.set_yticks(self.c['y_ticks'])
 
@@ -321,7 +321,7 @@ class AFSCsChart:
                 count_sum += count
 
             # Add the text
-            self.ax.text(index, self.c['total_count'][index] + 2, int(self.c['total_count'][index]),
+            self.ax.text(index, self.c['total_count'][index] + self.ip['bar_text_offset'], int(self.c['total_count'][index]),
                          fontsize=self.ip["text_size"], horizontalalignment='center')
 
         # DIY Colorbar
@@ -1032,7 +1032,7 @@ class AFSCsChart:
                                      zorder=3, fontsize=self.ip["bar_text_size"], horizontalalignment='center')
 
                 # Add the text and an outline
-                self.ax.text(index, self.c['total_count'][index] + 2, int(self.c['total_count'][index]),
+                self.ax.text(index, self.c['total_count'][index] + self.ip['bar_text_offset'], int(self.c['total_count'][index]),
                              fontsize=self.ip["text_size"], horizontalalignment='center')
                 self.ax.bar([index], self.c['total_count'][index], color="black", zorder=1, edgecolor="black")
 
@@ -1206,7 +1206,7 @@ class AFSCsChart:
                                          zorder=2, fontsize=self.ip["bar_text_size"], horizontalalignment='center')
 
                 # Add the text
-                self.ax.text(index, self.c['total_count'][index] + 2, int(self.c['total_count'][index]),
+                self.ax.text(index, self.c['total_count'][index] + self.ip['bar_text_offset'], int(self.c['total_count'][index]),
                              fontsize=self.ip["text_size"], horizontalalignment='center')
 
         else:  # Sorted Sized Bar Chart
@@ -1257,7 +1257,7 @@ class AFSCsChart:
                                  fontsize=self.ip["bar_text_size"], horizontalalignment='center')
 
                 # Add the text and an outline
-                self.ax.text(j, self.c['total_count'][j] + 2, round(measure[j], 2), fontsize=self.ip["text_size"],
+                self.ax.text(j, self.c['total_count'][j] + self.ip['bar_text_offset'], round(measure[j], 2), fontsize=self.ip["text_size"],
                              horizontalalignment='center')
 
     def results_demographic_proportion_chart(self):
@@ -1347,7 +1347,7 @@ class AFSCsChart:
                 self.ax.text(idx, 1.005, txt, verticalalignment='bottom', fontsize=self.ip["text_size"],
                              horizontalalignment='center')
             else:
-                self.ax.text(idx, solution['count'][j] + 2, txt, verticalalignment='bottom',
+                self.ax.text(idx, solution['count'][j] + self.ip['bar_text_offset'], txt, verticalalignment='bottom',
                              fontsize=self.ip["text_size"], horizontalalignment='center')
 
         # Plot the data
@@ -1574,7 +1574,7 @@ class AFSCsChart:
             for j in range(self.c['M']):
 
                 # Add the text
-                self.ax.text(j, measure[j] + 2, int(measure[j]),
+                self.ax.text(j, measure[j] + self.ip['bar_text_offset'], int(measure[j]),
                              fontsize=self.ip["text_size"], horizontalalignment='center')
 
                 # Determine which category the AFSC falls into
@@ -1665,7 +1665,6 @@ class AFSCsChart:
                         counts['mid_choices'][index] = solution['choice_counts']['TOTAL']['Next 3'][j]
                         counts['bottom_choices'][index] = solution['choice_counts']['TOTAL']['All Others'][j]
 
-
             else:
 
                 # Get the title
@@ -1746,7 +1745,7 @@ class AFSCsChart:
                                      fontsize=self.ip["bar_text_size"], horizontalalignment='center')
 
                 # Add the text
-                self.ax.text(index, self.c['total_count'][index] + 2, int(self.c['total_count'][index]),
+                self.ax.text(index, self.c['total_count'][index] + self.ip['bar_text_offset'], int(self.c['total_count'][index]),
                              fontsize=self.ip["text_size"], horizontalalignment='center')
 
         elif self.ip["version"] in ["dot", "bar"]:

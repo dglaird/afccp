@@ -170,7 +170,7 @@ def initialize_instance_functional_parameters(N):
         "afsc_rotation": None, "bar_color": "#3287cd", "alpha": 1, "legend_size": 25, "title_size": 25,
         "text_size": 15, 'text_bar_threshold': 400, 'dot_size': 35, 'legend_dot_size': 15, 'ncol': 1,
         "color_afsc_text_by_grp": True, "proportion_legend_size": 15, 'proportion_text_bar_threshold': 10,
-        "square_figsize": (11, 10), 'legend_fontsize': 15,
+        "square_figsize": (11, 10), 'legend_fontsize': 15, 'bar_text_offset': None,
 
         # AFSC Chart Elements
         "eligibility": True, "eligibility_limit": None, "skip_afscs": None, "all_afscs": True, "y_max": 1.1,
@@ -210,16 +210,15 @@ def initialize_instance_functional_parameters(N):
         "ch_top": 2.35, "ch_left": 0.59, "ch_height": 4.64, "ch_width": 8.82,
 
         # Subset of charts I actually really care about
-        "desired_charts": [("Combined Quota", "quantity_bar"), ("Norm Score", "quantity_bar_proportion"),
+        "desired_charts": [("Combined Quota", "quantity_bar"),
+                           ("Norm Score", "quantity_bar_proportion"),
                            ("Norm Score", "bar"),
-                           ("Utility", "quantity_bar_proportion"), ("Utility", "quantity_bar_choice"),
-                           ("Merit", "bar"), ("USAFA Proportion", "quantity_bar_proportion"),
+                           ("Norm Score", "quantity_bar_choice"),
+                           ("Utility", "quantity_bar_proportion"),
+                           ("Utility", "quantity_bar_choice"),
+                           ("Merit", "bar"),
+                           ("USAFA Proportion", "quantity_bar_proportion"),
                            ("USAFA Proportion", "preference_chart"),
-                           # ("Male", "preference_chart"),
-                           # ('Extra', 'Race Chart'),
-                           # ('Extra', 'Race Chart_proportion'), ('Extra', 'Ethnicity Chart'),
-                           # ('Extra', 'Ethnicity Chart_proportion'), ('Extra', 'Gender Chart'),
-                           # ('Extra', 'Gender Chart_proportion'),
                            ('Extra', 'SOC Chart'),
                            ('Extra', 'SOC Chart_proportion')],
 
@@ -415,6 +414,10 @@ def determine_afsc_plot_details(instance, results_chart=False):
     if mdl_p["objective"] is None:
         k = instance.value_parameters["K^A"][j][0]
         mdl_p["objective"] = instance.value_parameters['objectives'][k]
+
+    # Determine how high above the bars to put the text
+    if mdl_p['bar_text_offset'] is None:
+        mdl_p['bar_text_offset'] = p['pgl'].max() / 260
 
     # Figure out which solutions to show, what the colors/markers are going to be, and some error data
     if results_chart:

@@ -2623,7 +2623,7 @@ class CadetCareerProblem:
             print("Exporting solution", self.solution_name, "results to " + filepath + "...")
 
         # Export results
-        afccp.data.processing.export_solution_results_excel(self, filepath)
+        afccp.data.processing.export_solution_results(self, filepath)
 
         if printing:
             print("Done.")
@@ -2846,8 +2846,6 @@ class CadetCareerProblem:
 
         # Determine which chart to create
         if self.mdl_p["macro_chart_kind"] == "AFSC Chart":
-
-            print('wow')
 
             # Initialize the AFSC Chart object
             afsc_chart = afccp.visualizations.charts.AFSCsChart(self)
