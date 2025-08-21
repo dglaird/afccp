@@ -1,7 +1,7 @@
 # Visualizations 
 
 <p align="center">
-  <img src="/afccp/images/user-guide/pic67.png" width="800px">
+  <img src="/afccp/images/user-guide/pic67.png" width="400px">
 </p>
 
 I've created many visualizations for this problem to view the results from our solutions that we generate. 

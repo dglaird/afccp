@@ -1,3 +1,103 @@
+"""
+`afccp.data.generation.realistic`
+=================================
+
+Generates **realistic** AFCCP problem instances by learning from historical data and sampling
+with a conditional tabular GAN (CTGAN). This module prepares training datasets from past
+instances, trains/loads CTGAN models, samples synthetic cadets and AFSC utilities, and can
+augment an existing instance (e.g., 2026) with **OTS** candidates. It also rebuilds the
+derived AFCCP parameter structures needed by optimization models (preferences, utilities,
+eligibility/qual matrices, quotas, and rated OM datasets).
+
+What this module does
+---------------------
+- **AFSC facts & proportions (for policy generation)**
+  - `process_instances_into_afscs_data`: Builds an `afscs_data.csv` with AFSC list, accession groups,
+    “all-eligible” flags, USAFA/ROTC proportions, overall PGL proportions, and degree-tier strings.
+
+- **CTGAN training data assembly**
+
+  - `process_instances_into_ctgan_data`: Merges selected years (e.g., 2024/2025) into a single table of
+    features (SOC, CIP1/2, Merit, least‑desired AFSCs) plus per‑AFSC cadet/AFSC utilities.
+
+  - Handles 2024 column harmonization (e.g., `13S1S → USSF_{R/U}`, `11U → 18X`) and merges SOC‑segmented
+    AFSCs into generic columns via `fix_soc_afscs_to_generic`.
+
+- **Model training**
+
+  - `train_ctgan`: Detects metadata with SDV, enforces [0,1] constraints on Merit and all utility columns,
+    trains the CTGAN, and saves to `<support>/CTGAN_*.pkl`.
+
+- **Sampling realistic instances**
+
+  - `generate_ctgan_instance`: Loads a trained CTGAN and samples **N** cadets; optionally conditions on
+    pilot first‑choice composition (USAFA/ROTC) and sets degree qualification style (`degree_qual_type`).
+
+  - Re‑scales OM percentiles within SOC, builds cadet preference lists/matrices, AFSC utilities, and
+    rated OM datasets (USAFA/ROTC) consistent with AFCCP expectations.
+
+- **OTS augmentation pipeline**
+
+  - `augment_2026_data_with_ots`: Adds a large OTS cohort to an existing instance (e.g., `2026_0`) by
+    sampling with CTGAN and stitching the new cadets into all required CSVs (Cadets, Preferences, Utility,
+    Selected, AFSCs Preferences, Rated OM, etc.).
+
+  - Degree‑scarce AFSCs are boosted with targeted sampling:
+    `generate_data_with_degree_preference_fixes` → `extract_afsc_cip_sampling_information` →
+    `sample_cadets_for_degree_conditions` (+ KDE‑based utility samplers).
+
+  - Recomputes OM and AFSC rankings for OTS (`re_calculate_ots_om_and_afsc_rankings`), aligns volunteer flags
+    and degrees (`align_ots_preferences_and_degrees_somewhat`), rebuilds qual matrices and utilities
+    with eligibility rules (`construct_parameter_dictionary_and_augment_data`), and emits fully formed
+    dataframes via `construct_full_afsc_preferences_data`, `construct_full_cadets_data`, and `compile_new_dataframes`.
+
+Key outputs & file layout
+-------------------------
+- Writes training/derived data under `<support>/data/`:
+
+  - `afscs_data.csv` (AFSC facts/proportions)
+  - `ctgan_data.csv` (CTGAN training table)
+
+- Writes a trained model under `<support>/CTGAN_*.pkl`.
+
+- For instance augmentation, writes CSVs under `instances/<export_name>/4. Model Input/`.
+
+Important details & conventions
+-------------------------------
+- **SOC merging**: `fix_soc_afscs_to_generic` consolidates `11XX_{R/U}` → `11XX` and `USSF_{R/U}` → `USSF`
+  for training and downstream sampling while preserving least‑desired columns.
+- **Bounds**: Merit and all utility columns are constrained to `[0,1]` during CTGAN training.
+- **OM re-scaling**: Within‑SOC percentile normalization ensures comparable distributions for USAFA/ROTC.
+- **Eligibility coupling**: AFSC utilities are zeroed for ineligible/ non‑volunteer cases; missing but
+  eligible entries may be backfilled with OM (rated/USSF and NRL logic differs accordingly).
+- **Quotas**: PGL and SOC quotas are sampled from empirical proportions stored in `afscs_data.csv`,
+  then propagated to `quota_*` parameters.
+
+Minimal examples
+----------------
+- Train a model:
+    >>> process_instances_into_ctgan_data(['2024','2025'])
+    >>> train_ctgan(epochs=1000, name='CTGAN_Full')
+
+- Sample a synthetic instance:
+    >>> p = generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=True, degree_qual_type='Consistent')
+
+- Augment 2026 with OTS:
+    >>> augment_2026_data_with_ots(N=3000, import_name='2026_0', export_name='2026O')
+
+Dependencies
+------------
+- **SDV** (`sdv`): `CTGANSynthesizer`, `SingleTableMetadata`, `Condition`
+- **NumPy**, **Pandas**, **SciPy** (`gaussian_kde`) for sampling and table ops
+- AFCCP submodules: `globals`, `data.adjustments`, `data.preferences`, `data.values`, `data.support`
+
+See also
+--------
+- [`data.preferences`](../../../afccp/reference/data/preferences/#data.preferences)
+- [`data.adjustments`](../../../afccp/reference/data/adjustments/#data.adjustments)
+- [`data.values`](../../../afccp/reference/data/values/#data.values)
+- [`data.support`](../../../afccp/reference/data/support/#data.support)
+"""
 import random
 import numpy as np
 import pandas as pd
@@ -603,7 +703,83 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
 
 
 # _________________________________________OTS INTRODUCTION ANALYSIS____________________________________________________
-def augment_2026_data_with_ots(N: int=3000, import_name: str = '2026_0', export_name: str = '2026O'):
+def augment_2026_data_with_ots(N: int = 3000, import_name: str = '2026_0', export_name: str = '2026O'):
+    """
+    Augment a base instance with a synthetic OTS cohort and export a new, fully wired instance.
+
+    This pipeline loads the trained CTGAN model and historical CTGAN training table, samples **N**
+    realistic cadets (with extra emphasis on degree‑scarce AFSCs), converts them to OTS,
+    re-computes OM and AFSC utilities under AFCCP rules (eligibility & volunteer logic), and
+    stitches the new cohort into all downstream CSVs (Cadets, Preferences, Utilities, AFSC
+    Preferences, CASTLE input, etc.). The result is written to
+    `instances/{export_name}/4. Model Input/`.
+
+    Parameters
+    ----------
+    N : int, optional
+        Number of OTS cadets to generate (default 3000).
+    import_name : str, optional
+        Name of the *source* instance to copy/extend (e.g., `'2026_0'`).
+        Reads input CSVs from `instances/{import_name}/4. Model Input/`.
+    export_name : str, optional
+        Name of the *destination* instance to create (e.g., `'2026O'`).
+        Writes outputs to `instances/{export_name}/4. Model Input/`.
+
+    Workflow
+    --------
+    1) Load CTGAN training data (`<support>/data/ctgan_data.csv`) and AFSCs for the source instance.
+    2) Load CTGAN model (`<support>/CTGAN_Full.pkl`).
+    3) Targeted sampling for degree‑scarce AFSCs via
+       `generate_data_with_degree_preference_fixes` (with KDE utility bootstrapping), then
+       sample the remainder from the CTGAN.
+    4) Force SOC to `OTS`, re‑scale OM and blend AFSC utilities with OM / cadet utility using
+       `re_calculate_ots_om_and_afsc_rankings`.
+    5) Align volunteers and degree fields for OTS with `align_ots_preferences_and_degrees_somewhat`
+       (USSF turned off for OTS).
+    6) Build AFCCP parameter dict and eligibility‑aware AFSC utilities with
+       `construct_parameter_dictionary_and_augment_data` (zero for ineligible/non‑volunteer;
+       OM backfill where appropriate).
+    7) Rebuild AFSC preference rankings and matrices with
+       `construct_full_afsc_preferences_data`, and cadet‑side preferences/utilities with
+       `construct_full_cadets_data`.
+    8) Merge everything with existing source CSVs via `compile_new_dataframes` and export.
+
+    Files Read
+    ----------
+    - `<support>/data/ctgan_data.csv`
+    - `<support>/CTGAN_Full.pkl`
+    - `instances/{import_name}/4. Model Input/{import_name} AFSCs.csv`
+    - `instances/{import_name}/4. Model Input/{import_name} AFSCs Preferences.csv`
+    - `instances/{import_name}/4. Model Input/{import_name} Cadets.csv`
+    - `instances/{import_name}/4. Model Input/{import_name} Castle Input.csv`
+
+    Files Written (to `instances/{export_name}/4. Model Input/`)
+    ------------------------------------------------------------
+    - `{export_name} Cadets.csv`
+    - `{export_name} AFSCs Preferences.csv`
+    - `{export_name} AFSCs.csv` (copied base AFSCs, unchanged schema)
+    - `{export_name} Raw Data.csv` (the assembled OTS sampling table)
+    - `{export_name} Castle Input.csv`
+    - Plus augmented matrices produced by `compile_new_dataframes`
+      (e.g., Cadets Preferences, Cadets Utility, Cadets Selected, AFSCs Buckets, OTS Rated OM).
+
+    Returns
+    -------
+    None
+        Side‑effects only. Progress is printed to stdout; artifacts are saved to disk.
+
+    Notes
+    -----
+    - Assumes the CTGAN model is saved as `<support>/CTGAN_Full.pkl`.
+    - Assumes the source instance (`import_name`) contains the standard AFCCP CSVs under
+      `4. Model Input/` with 2026‑style schemas.
+    - OTS candidates are excluded from USSF by construction (`USSF Vol = False`, utilities set to 0).
+    - Rated OM for OTS is derived from OM where needed, filtered by eligibility.
+
+    Examples
+    --------
+    >>> augment_2026_data_with_ots(N=3000, import_name='2026_0', export_name='2026O')
+    """
 
     # Load in original data
     print('Loading in data...')
@@ -685,6 +861,49 @@ def augment_2026_data_with_ots(N: int=3000, import_name: str = '2026_0', export_
 
 
 def generate_data_with_degree_preference_fixes(model, full_data, afscs_df):
+    """
+    Generate synthetic cadet data for rare AFSCs, preserving degree distribution
+    preferences and realistic cadet/AFSC utilities.
+
+    This function focuses on AFSCs that are difficult to fill ("rare" AFSCs),
+    generating synthetic cadets in a way that matches observed degree patterns
+    (CIP1) from historical data. It uses
+    [`extract_afsc_cip_sampling_information`](../../../reference/data/generation/#data.generation.extract_afsc_cip_sampling_information)
+    to determine sampling quotas and conditions, and
+    [`sample_cadets_for_degree_conditions`](../../../reference/data/generation/#data.generation.sample_cadets_for_degree_conditions)
+    to produce matching synthetic records. Cadet and AFSC utility values are
+    then resampled for realism.
+
+    Parameters
+    ----------
+    model : object
+        A generative model instance (e.g., CTGAN) implementing
+        `sample_from_conditions(conditions)` to produce synthetic cadets.
+    full_data : pandas.DataFrame
+        Full dataset containing historical cadet and AFSC information.
+    afscs_df : pandas.DataFrame
+        DataFrame containing AFSC metadata, including 'OTS Target' values.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Synthetic dataset containing cadets for rare AFSCs with realistic
+        degree distributions and utility values.
+
+    Notes
+    -----
+    - Rare AFSC eligibility is hardcoded as a list of AFSC strings in this
+      function.
+    - Degree sampling is biased toward more common CIPs by cubic weighting
+      (proportions ∝ frequency³).
+    - Cadet and AFSC utilities are drawn from kernel density estimators
+      (KDEs) fitted on historical data.
+
+    See Also
+    --------
+    - [`extract_afsc_cip_sampling_information`](../../../afccp/reference/data/generation/#data.generation.extract_afsc_cip_sampling_information)
+    - [`sample_cadets_for_degree_conditions`](../../../afccp/reference/data/generation/#data.generation.sample_cadets_for_degree_conditions)
+    """
 
     # Filter dataframe to rare AFSCs (degree-wise)
     afscs_rare_eligible = ['13H', '32EXA', '32EXC', '32EXE', '32EXF',
@@ -712,6 +931,51 @@ def generate_data_with_degree_preference_fixes(model, full_data, afscs_df):
 
 
 def extract_afsc_cip_sampling_information(full_data, afscs_rare_eligible, afscs_rare_df):
+    """
+    Extract degree distribution and utility sampling information for rare AFSCs.
+
+    This function identifies cadets who have strong mutual preference with specific
+    rare AFSCs (both the AFSC ranks the cadet highly and the cadet ranks the AFSC
+    highly), determines the distribution of primary degrees (CIP1) for those cadets,
+    and constructs constraints to ensure proportional representation in generated
+    synthetic data. It also fits kernel density estimators (KDEs) to model cadet and
+    AFSC utility scores for each AFSC-degree combination.
+
+    Parameters
+    ----------
+    full_data : pandas.DataFrame
+        Full dataset containing cadet records with columns for degree codes (`CIP1`),
+        AFSC utilities (`<AFSC>_AFSC`), and cadet preferences (`<AFSC>_Cadet`).
+    afscs_rare_eligible : list of str
+        List of AFSC codes considered rare and eligible for targeted sampling.
+    afscs_rare_df : pandas.DataFrame or pandas.Series
+        Data structure mapping each AFSC to the number of cadets needed to meet
+        quotas for that AFSC.
+
+    Returns
+    -------
+    total_gen : int
+        Total number of synthetic cadets to generate across all rare AFSCs.
+    afsc_cip_data : dict
+        Mapping of `{afsc: pandas.Series}` where the Series index is degree codes
+        (CIP1) and values are the number of cadets to generate for each degree.
+    afsc_cip_conditions : dict
+        Mapping `{afsc: {cip: Condition}}` specifying generation constraints for each
+        AFSC-degree combination.
+    afsc_util_samplers : dict
+        Mapping `{afsc: callable}` returning AFSC utility samples for a given AFSC.
+    cadet_util_samplers : dict
+        Mapping `{afsc: callable}` returning cadet utility samples for a given AFSC.
+
+    Notes
+    -----
+    - Only cadets with mutual interest scores > 0.6 for a given AFSC are considered.
+    - Degree frequencies are cubed to overweight common degrees, then scaled to match
+      target generation counts using [`safe_round`](../../../reference/data/processing/#data.processing.safe_round).
+    - For AFSC `62EXE`, target counts are halved due to quota filling difficulty.
+    - Generation quotas are inflated by 40% or at least 3 extra cadets to ensure
+      adequate representation.
+    """
 
     afsc_cip_data = {}
     afsc_util_samplers = {}
@@ -751,10 +1015,67 @@ def extract_afsc_cip_sampling_information(full_data, afscs_rare_eligible, afscs_
     return total_gen, afsc_cip_data, afsc_cip_conditions, afsc_util_samplers, cadet_util_samplers
 
 
-def safe_round(data, decimals=0, axis=-1):
+def safe_round(data, decimals: int = 0, axis: int = -1):
     """
-    Round `data` to `decimals` decimals along `axis`, preserving the sum of each
-    slice (to `decimals`), using a "difference" style strategy.
+    Round values while preserving the sum along a given axis.
+
+    This function rounds `data` to `decimals` decimal places but adjusts a minimal
+    subset of elements so that the rounded values sum to the same (rounded) total
+    as the original, slice‑by‑slice along `axis`. It does this by distributing the
+    leftover rounding “units” to the entries whose fractional parts are most
+    favorable (largest magnitude residuals with the correct sign), using a stable
+    tie‑break so results are deterministic.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Input array to round. Must be numeric. (Other array‑likes are coerced;
+        behavior is only guaranteed for NumPy arrays.)
+    decimals : int, optional
+        Number of decimal places to keep (default 0).
+    axis : int, optional
+        Axis along which to preserve the slice sums (default -1). Each 1D slice
+        along this axis will have its rounded sum equal to the original sum
+        rounded to `decimals`.
+
+    Returns
+    -------
+    numpy.ndarray or same type as `data` when feasible
+        Rounded array with the same shape as `data`. If `data` is a NumPy array,
+        a NumPy array is returned. For some other types, the function attempts to
+        reconstruct the input type after rounding.
+
+    Notes
+    -----
+    - Let `S = sum(data, axis)` and `S_r = round(S, decimals)`. The output `y`
+      satisfies `sum(y, axis) == S_r` exactly (up to floating‑point representation).
+    - Within each slice, the adjustment is minimal in the sense that only the
+      elements with the largest compatible residuals are modified by ± one unit
+      in the scaled space (10**decimals).
+    - Time complexity is `O(n log n)` per slice due to sorting; memory usage is
+      linear in the slice size.
+    - This procedure does not enforce monotonicity or ordering of values.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> x = np.array([0.24, 0.24, 0.24, 0.24, 0.04])
+    >>> x.sum(), round(x.sum(), 2)
+    (1.0, 1.0)
+    >>> y = safe_round(x, decimals=1, axis=0)
+    >>> y
+    array([0.2, 0.2, 0.2, 0.2, 0.2])
+    >>> y.sum()
+    1.0
+
+    >>> X = np.array([[0.333, 0.333, 0.334],
+    ...               [0.125, 0.125, 0.750]])
+    >>> Y = safe_round(X, decimals=2, axis=1)
+    >>> Y
+    array([[0.33, 0.33, 0.34],
+           [0.12, 0.13, 0.75]])
+    >>> Y.sum(axis=1)
+    array([1.  , 1.  ])
     """
     data_type = type(data)
     constructor = {}
@@ -814,6 +1135,44 @@ def fit_kde_sampler(data):
 
 
 def sample_cadets_for_degree_conditions(model, total_gen, afscs_rare_eligible, afsc_cip_data, afsc_cip_conditions):
+    """
+    Generate synthetic cadets matching AFSC-degree sampling conditions.
+
+    Iterates over rare AFSCs and their associated degree quotas to generate
+    synthetic cadets using the provided generative model. For each AFSC-degree
+    combination, the function samples cadets that meet the degree condition
+    constraints, appending them to a cumulative dataset.
+
+    Parameters
+    ----------
+    model : object
+        A generative model instance (e.g., CTGAN) implementing
+        `sample_from_conditions(conditions)` to produce synthetic cadets.
+    total_gen : int
+        Total number of cadets to generate across all AFSC-degree combinations.
+    afscs_rare_eligible : list of str
+        List of AFSC codes considered rare and eligible for targeted generation.
+    afsc_cip_data : dict
+        Mapping `{afsc: pandas.Series}` where the Series index is degree codes (CIP1)
+        and values are the number of cadets to generate for each degree.
+    afsc_cip_conditions : dict
+        Mapping `{afsc: {cip: Condition}}` specifying generation constraints for each
+        AFSC-degree combination.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A concatenated dataset of synthetic cadets meeting all AFSC-degree constraints.
+
+    Notes
+    -----
+    - This function logs progress to the console, showing both the number and
+      percentage of cadets generated so far.
+    - Sampling order is AFSC-major, iterating over all degrees within each AFSC
+      before moving to the next AFSC.
+    - The `count` values in `afsc_cip_data` are expected to be integers or
+      convertible to integers.
+    """
 
     # Generate dataframe
     data = pd.DataFrame()

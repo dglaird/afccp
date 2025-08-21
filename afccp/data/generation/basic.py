@@ -1,3 +1,48 @@
+"""
+`afccp.data.generation.basic`
+=============================
+
+Provides foundational random instance and parameter generation functions for the AFCCP framework.
+This module is designed to simulate realistic cadet–AFSC assignment problem instances, including
+utility structures, quotas, preferences, and optional extensions (bases, training, CASTLE-level curves).
+
+Main Capabilities
+-----------------
+- **Instance generation** (`generate_random_instance`):
+  Creates randomized cadet/AFSC datasets with merit scores, quotas, eligibility tiers, and preference matrices.
+  Supports constraints such as "NRL only" generation or inclusion of extra base/training components.
+
+- **Value parameter generation** (`generate_random_value_parameters`):
+  Produces randomized Value-Focused Thinking (VFT) objective weights, targets, and value functions.
+  Uses AFCCP's `values` submodule to build piecewise-linear approximations of non-linear functions.
+
+- **Extra component generation** (`generate_extra_components`):
+  Adds bases, base capacities, training preferences, and course schedules for more complex problem variants.
+
+- **CASTLE integration** (`generate_realistic_castle_value_curves`):
+  Generates concave utility curves for CASTLE-level AFSC groupings to support strategic simulations.
+
+Dependencies
+------------
+- **afccp.data.preferences** — Builds cadet preference lists and utilities.
+- **afccp.data.adjustments** — Adds parameter set modifications for alignment with AFCCP models.
+- **afccp.data.values** — Creates weight functions and value function breakpoints.
+- **afccp.data.support** — Provides shared helper utilities for data preparation.
+- **numpy**, **random**, **datetime**, **string**, **copy** — For stochastic generation and data shaping.
+
+Use Cases
+---------
+- Rapid prototyping of AFCCP algorithms without relying on sensitive or incomplete real-world data.
+- Benchmarking and stress-testing optimization methods.
+- Building reproducible examples for tutorials, workshops, and documentation.
+
+See Also
+--------
+- [`data.preferences`](../../../afccp/reference/data/preferences/#data.preferences)
+- [`data.adjustments`](../../../afccp/reference/data/adjustments/#data.adjustments)
+- [`data.values`](../../../afccp/reference/data/values/#data.values)
+- [`data.support`](../../../afccp/reference/data/support/#data.support)
+"""
 import random
 import numpy as np
 import string
