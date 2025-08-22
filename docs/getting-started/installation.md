@@ -23,7 +23,7 @@ PyCharm, you can follow my [PyCharm Instructions](pycharm-instructions.md).
 ## 🌀 2. Clone the AFCCP Repository
 
 Use your terminal (Mac/Linux: Terminal, Windows: Anaconda Prompt or Git Bash). First navigate to your desired
-directory to clone this project. Personally, I have a folder called "Coding Projects" where I keep all of my python 
+directory to clone this project. I have a folder called "Coding Projects" where I keep all of my python 
 projects:
 
 ```bash
@@ -114,10 +114,8 @@ pip install -r requirements.txt
 
 ## 🛠 4. Run an Example
 
-Personally, I love PyCharm and will always recommend using it and so I will again refer you to my 
-[PyCharm Instructions](pycharm-instructions.md) to run all of this through that IDE. Ok, perhaps you're using the
-terminal and want to test the repo to make sure it works. You can run my example script "example.py" that is currently
-sitting in the root directory.
+Perhaps you're using the terminal and want to test the repo to make sure it works. You can run my example script 
+"example.py" that is currently sitting in the root directory.
 
 ```bash
 python example.py
