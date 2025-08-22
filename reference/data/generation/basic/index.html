@@ -1500,6 +1500,57 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#data.generation.basic--afccpdatagenerationbasic" class="md-nav__link">
+    <span class="md-ellipsis">
+      afccp.data.generation.basic
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="afccp.data.generation.basic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data.generation.basic--main-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Main Capabilities
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data.generation.basic--dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dependencies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data.generation.basic--use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data.generation.basic--see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#data.generation.basic.generate_random_instance" class="md-nav__link">
     <span class="md-ellipsis">
       generate_random_instance
@@ -1965,6 +2016,53 @@
 
     <div class="doc doc-contents first">
 
+        <h2 id="data.generation.basic--afccpdatagenerationbasic"><code>afccp.data.generation.basic</code><a class="headerlink" href="#data.generation.basic--afccpdatagenerationbasic" title="Permanent link">&para;</a></h2>
+<p>Provides foundational random instance and parameter generation functions for the AFCCP framework.
+This module is designed to simulate realistic cadet–AFSC assignment problem instances, including
+utility structures, quotas, preferences, and optional extensions (bases, training, CASTLE-level curves).</p>
+<h3 id="data.generation.basic--main-capabilities">Main Capabilities<a class="headerlink" href="#data.generation.basic--main-capabilities" title="Permanent link">&para;</a></h3>
+<ul>
+<li>
+<p><strong>Instance generation</strong> (<code>generate_random_instance</code>):
+  Creates randomized cadet/AFSC datasets with merit scores, quotas, eligibility tiers, and preference matrices.
+  Supports constraints such as "NRL only" generation or inclusion of extra base/training components.</p>
+</li>
+<li>
+<p><strong>Value parameter generation</strong> (<code>generate_random_value_parameters</code>):
+  Produces randomized Value-Focused Thinking (VFT) objective weights, targets, and value functions.
+  Uses AFCCP's <code>values</code> submodule to build piecewise-linear approximations of non-linear functions.</p>
+</li>
+<li>
+<p><strong>Extra component generation</strong> (<code>generate_extra_components</code>):
+  Adds bases, base capacities, training preferences, and course schedules for more complex problem variants.</p>
+</li>
+<li>
+<p><strong>CASTLE integration</strong> (<code>generate_realistic_castle_value_curves</code>):
+  Generates concave utility curves for CASTLE-level AFSC groupings to support strategic simulations.</p>
+</li>
+</ul>
+<h3 id="data.generation.basic--dependencies">Dependencies<a class="headerlink" href="#data.generation.basic--dependencies" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>afccp.data.preferences</strong> — Builds cadet preference lists and utilities.</li>
+<li><strong>afccp.data.adjustments</strong> — Adds parameter set modifications for alignment with AFCCP models.</li>
+<li><strong>afccp.data.values</strong> — Creates weight functions and value function breakpoints.</li>
+<li><strong>afccp.data.support</strong> — Provides shared helper utilities for data preparation.</li>
+<li><strong>numpy</strong>, <strong>random</strong>, <strong>datetime</strong>, <strong>string</strong>, <strong>copy</strong> — For stochastic generation and data shaping.</li>
+</ul>
+<h3 id="data.generation.basic--use-cases">Use Cases<a class="headerlink" href="#data.generation.basic--use-cases" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Rapid prototyping of AFCCP algorithms without relying on sensitive or incomplete real-world data.</li>
+<li>Benchmarking and stress-testing optimization methods.</li>
+<li>Building reproducible examples for tutorials, workshops, and documentation.</li>
+</ul>
+<h3 id="data.generation.basic--see-also">See Also<a class="headerlink" href="#data.generation.basic--see-also" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../../../afccp/reference/data/preferences/#data.preferences"><code>data.preferences</code></a></li>
+<li><a href="../../../afccp/reference/data/adjustments/#data.adjustments"><code>data.adjustments</code></a></li>
+<li><a href="../../../afccp/reference/data/values/#data.values"><code>data.values</code></a></li>
+<li><a href="../../../afccp/reference/data/support/#data.support"><code>data.support</code></a></li>
+</ul>
+
 
 
   <div class="doc doc-children">
@@ -2108,52 +2206,7 @@ input parameters. These parameters are then returned and can be used to solve th
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/basic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 18</span>
-<span class="normal"> 19</span>
-<span class="normal"> 20</span>
-<span class="normal"> 21</span>
-<span class="normal"> 22</span>
-<span class="normal"> 23</span>
-<span class="normal"> 24</span>
-<span class="normal"> 25</span>
-<span class="normal"> 26</span>
-<span class="normal"> 27</span>
-<span class="normal"> 28</span>
-<span class="normal"> 29</span>
-<span class="normal"> 30</span>
-<span class="normal"> 31</span>
-<span class="normal"> 32</span>
-<span class="normal"> 33</span>
-<span class="normal"> 34</span>
-<span class="normal"> 35</span>
-<span class="normal"> 36</span>
-<span class="normal"> 37</span>
-<span class="normal"> 38</span>
-<span class="normal"> 39</span>
-<span class="normal"> 40</span>
-<span class="normal"> 41</span>
-<span class="normal"> 42</span>
-<span class="normal"> 43</span>
-<span class="normal"> 44</span>
-<span class="normal"> 45</span>
-<span class="normal"> 46</span>
-<span class="normal"> 47</span>
-<span class="normal"> 48</span>
-<span class="normal"> 49</span>
-<span class="normal"> 50</span>
-<span class="normal"> 51</span>
-<span class="normal"> 52</span>
-<span class="normal"> 53</span>
-<span class="normal"> 54</span>
-<span class="normal"> 55</span>
-<span class="normal"> 56</span>
-<span class="normal"> 57</span>
-<span class="normal"> 58</span>
-<span class="normal"> 59</span>
-<span class="normal"> 60</span>
-<span class="normal"> 61</span>
-<span class="normal"> 62</span>
-<span class="normal"> 63</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 63</span>
 <span class="normal"> 64</span>
 <span class="normal"> 65</span>
 <span class="normal"> 66</span>
@@ -2358,7 +2411,52 @@ input parameters. These parameters are then returned and can be used to solve th
 <span class="normal">265</span>
 <span class="normal">266</span>
 <span class="normal">267</span>
-<span class="normal">268</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_random_instance</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">1600</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">P</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">S</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">generate_only_nrl</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">generate_extra</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span>
+<span class="normal">283</span>
+<span class="normal">284</span>
+<span class="normal">285</span>
+<span class="normal">286</span>
+<span class="normal">287</span>
+<span class="normal">288</span>
+<span class="normal">289</span>
+<span class="normal">290</span>
+<span class="normal">291</span>
+<span class="normal">292</span>
+<span class="normal">293</span>
+<span class="normal">294</span>
+<span class="normal">295</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span>
+<span class="normal">299</span>
+<span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_random_instance</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">1600</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">P</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">S</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">generate_only_nrl</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">generate_extra</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This procedure takes in the specified parameters (defined below) and then simulates new random &quot;fixed&quot; cadet/AFSC</span>
 <span class="sd">    input parameters. These parameters are then returned and can be used to solve the VFT model.</span>
@@ -2659,52 +2757,7 @@ num_breakpoints : int, optional
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/basic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">271</span>
-<span class="normal">272</span>
-<span class="normal">273</span>
-<span class="normal">274</span>
-<span class="normal">275</span>
-<span class="normal">276</span>
-<span class="normal">277</span>
-<span class="normal">278</span>
-<span class="normal">279</span>
-<span class="normal">280</span>
-<span class="normal">281</span>
-<span class="normal">282</span>
-<span class="normal">283</span>
-<span class="normal">284</span>
-<span class="normal">285</span>
-<span class="normal">286</span>
-<span class="normal">287</span>
-<span class="normal">288</span>
-<span class="normal">289</span>
-<span class="normal">290</span>
-<span class="normal">291</span>
-<span class="normal">292</span>
-<span class="normal">293</span>
-<span class="normal">294</span>
-<span class="normal">295</span>
-<span class="normal">296</span>
-<span class="normal">297</span>
-<span class="normal">298</span>
-<span class="normal">299</span>
-<span class="normal">300</span>
-<span class="normal">301</span>
-<span class="normal">302</span>
-<span class="normal">303</span>
-<span class="normal">304</span>
-<span class="normal">305</span>
-<span class="normal">306</span>
-<span class="normal">307</span>
-<span class="normal">308</span>
-<span class="normal">309</span>
-<span class="normal">310</span>
-<span class="normal">311</span>
-<span class="normal">312</span>
-<span class="normal">313</span>
-<span class="normal">314</span>
-<span class="normal">315</span>
-<span class="normal">316</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">316</span>
 <span class="normal">317</span>
 <span class="normal">318</span>
 <span class="normal">319</span>
@@ -2818,7 +2871,52 @@ num_breakpoints : int, optional
 <span class="normal">427</span>
 <span class="normal">428</span>
 <span class="normal">429</span>
-<span class="normal">430</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_random_value_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">24</span><span class="p">):</span>
+<span class="normal">430</span>
+<span class="normal">431</span>
+<span class="normal">432</span>
+<span class="normal">433</span>
+<span class="normal">434</span>
+<span class="normal">435</span>
+<span class="normal">436</span>
+<span class="normal">437</span>
+<span class="normal">438</span>
+<span class="normal">439</span>
+<span class="normal">440</span>
+<span class="normal">441</span>
+<span class="normal">442</span>
+<span class="normal">443</span>
+<span class="normal">444</span>
+<span class="normal">445</span>
+<span class="normal">446</span>
+<span class="normal">447</span>
+<span class="normal">448</span>
+<span class="normal">449</span>
+<span class="normal">450</span>
+<span class="normal">451</span>
+<span class="normal">452</span>
+<span class="normal">453</span>
+<span class="normal">454</span>
+<span class="normal">455</span>
+<span class="normal">456</span>
+<span class="normal">457</span>
+<span class="normal">458</span>
+<span class="normal">459</span>
+<span class="normal">460</span>
+<span class="normal">461</span>
+<span class="normal">462</span>
+<span class="normal">463</span>
+<span class="normal">464</span>
+<span class="normal">465</span>
+<span class="normal">466</span>
+<span class="normal">467</span>
+<span class="normal">468</span>
+<span class="normal">469</span>
+<span class="normal">470</span>
+<span class="normal">471</span>
+<span class="normal">472</span>
+<span class="normal">473</span>
+<span class="normal">474</span>
+<span class="normal">475</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_random_value_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">24</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate Random Value Parameters for a Cadet-AFSC Assignment Problem.</span>
 
@@ -3049,52 +3147,7 @@ num_breakpoints : int, optional
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/basic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">434</span>
-<span class="normal">435</span>
-<span class="normal">436</span>
-<span class="normal">437</span>
-<span class="normal">438</span>
-<span class="normal">439</span>
-<span class="normal">440</span>
-<span class="normal">441</span>
-<span class="normal">442</span>
-<span class="normal">443</span>
-<span class="normal">444</span>
-<span class="normal">445</span>
-<span class="normal">446</span>
-<span class="normal">447</span>
-<span class="normal">448</span>
-<span class="normal">449</span>
-<span class="normal">450</span>
-<span class="normal">451</span>
-<span class="normal">452</span>
-<span class="normal">453</span>
-<span class="normal">454</span>
-<span class="normal">455</span>
-<span class="normal">456</span>
-<span class="normal">457</span>
-<span class="normal">458</span>
-<span class="normal">459</span>
-<span class="normal">460</span>
-<span class="normal">461</span>
-<span class="normal">462</span>
-<span class="normal">463</span>
-<span class="normal">464</span>
-<span class="normal">465</span>
-<span class="normal">466</span>
-<span class="normal">467</span>
-<span class="normal">468</span>
-<span class="normal">469</span>
-<span class="normal">470</span>
-<span class="normal">471</span>
-<span class="normal">472</span>
-<span class="normal">473</span>
-<span class="normal">474</span>
-<span class="normal">475</span>
-<span class="normal">476</span>
-<span class="normal">477</span>
-<span class="normal">478</span>
-<span class="normal">479</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">479</span>
 <span class="normal">480</span>
 <span class="normal">481</span>
 <span class="normal">482</span>
@@ -3213,7 +3266,52 @@ num_breakpoints : int, optional
 <span class="normal">595</span>
 <span class="normal">596</span>
 <span class="normal">597</span>
-<span class="normal">598</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_extra_components</span><span class="p">(</span><span class="n">parameters</span><span class="p">):</span>
+<span class="normal">598</span>
+<span class="normal">599</span>
+<span class="normal">600</span>
+<span class="normal">601</span>
+<span class="normal">602</span>
+<span class="normal">603</span>
+<span class="normal">604</span>
+<span class="normal">605</span>
+<span class="normal">606</span>
+<span class="normal">607</span>
+<span class="normal">608</span>
+<span class="normal">609</span>
+<span class="normal">610</span>
+<span class="normal">611</span>
+<span class="normal">612</span>
+<span class="normal">613</span>
+<span class="normal">614</span>
+<span class="normal">615</span>
+<span class="normal">616</span>
+<span class="normal">617</span>
+<span class="normal">618</span>
+<span class="normal">619</span>
+<span class="normal">620</span>
+<span class="normal">621</span>
+<span class="normal">622</span>
+<span class="normal">623</span>
+<span class="normal">624</span>
+<span class="normal">625</span>
+<span class="normal">626</span>
+<span class="normal">627</span>
+<span class="normal">628</span>
+<span class="normal">629</span>
+<span class="normal">630</span>
+<span class="normal">631</span>
+<span class="normal">632</span>
+<span class="normal">633</span>
+<span class="normal">634</span>
+<span class="normal">635</span>
+<span class="normal">636</span>
+<span class="normal">637</span>
+<span class="normal">638</span>
+<span class="normal">639</span>
+<span class="normal">640</span>
+<span class="normal">641</span>
+<span class="normal">642</span>
+<span class="normal">643</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_extra_components</span><span class="p">(</span><span class="n">parameters</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    If we generate extra components (such as bases and IST) for the CadetCareerProblem instance</span>
 <span class="sd">    :param parameters: instance parameters</span>
@@ -3404,20 +3502,20 @@ num_breakpoints : int, optional
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/basic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">602</span>
-<span class="normal">603</span>
-<span class="normal">604</span>
-<span class="normal">605</span>
-<span class="normal">606</span>
-<span class="normal">607</span>
-<span class="normal">608</span>
-<span class="normal">609</span>
-<span class="normal">610</span>
-<span class="normal">611</span>
-<span class="normal">612</span>
-<span class="normal">613</span>
-<span class="normal">614</span>
-<span class="normal">615</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_concave_curve</span><span class="p">(</span><span class="n">num_points</span><span class="p">,</span> <span class="n">max_x</span><span class="p">):</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">647</span>
+<span class="normal">648</span>
+<span class="normal">649</span>
+<span class="normal">650</span>
+<span class="normal">651</span>
+<span class="normal">652</span>
+<span class="normal">653</span>
+<span class="normal">654</span>
+<span class="normal">655</span>
+<span class="normal">656</span>
+<span class="normal">657</span>
+<span class="normal">658</span>
+<span class="normal">659</span>
+<span class="normal">660</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_concave_curve</span><span class="p">(</span><span class="n">num_points</span><span class="p">,</span> <span class="n">max_x</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generates x and y coordinates for a concave function.</span>
 
@@ -3473,54 +3571,54 @@ optimization and modeling in the CASTLE simulation.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/basic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">618</span>
-<span class="normal">619</span>
-<span class="normal">620</span>
-<span class="normal">621</span>
-<span class="normal">622</span>
-<span class="normal">623</span>
-<span class="normal">624</span>
-<span class="normal">625</span>
-<span class="normal">626</span>
-<span class="normal">627</span>
-<span class="normal">628</span>
-<span class="normal">629</span>
-<span class="normal">630</span>
-<span class="normal">631</span>
-<span class="normal">632</span>
-<span class="normal">633</span>
-<span class="normal">634</span>
-<span class="normal">635</span>
-<span class="normal">636</span>
-<span class="normal">637</span>
-<span class="normal">638</span>
-<span class="normal">639</span>
-<span class="normal">640</span>
-<span class="normal">641</span>
-<span class="normal">642</span>
-<span class="normal">643</span>
-<span class="normal">644</span>
-<span class="normal">645</span>
-<span class="normal">646</span>
-<span class="normal">647</span>
-<span class="normal">648</span>
-<span class="normal">649</span>
-<span class="normal">650</span>
-<span class="normal">651</span>
-<span class="normal">652</span>
-<span class="normal">653</span>
-<span class="normal">654</span>
-<span class="normal">655</span>
-<span class="normal">656</span>
-<span class="normal">657</span>
-<span class="normal">658</span>
-<span class="normal">659</span>
-<span class="normal">660</span>
-<span class="normal">661</span>
-<span class="normal">662</span>
-<span class="normal">663</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">663</span>
 <span class="normal">664</span>
-<span class="normal">665</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_realistic_castle_value_curves</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
+<span class="normal">665</span>
+<span class="normal">666</span>
+<span class="normal">667</span>
+<span class="normal">668</span>
+<span class="normal">669</span>
+<span class="normal">670</span>
+<span class="normal">671</span>
+<span class="normal">672</span>
+<span class="normal">673</span>
+<span class="normal">674</span>
+<span class="normal">675</span>
+<span class="normal">676</span>
+<span class="normal">677</span>
+<span class="normal">678</span>
+<span class="normal">679</span>
+<span class="normal">680</span>
+<span class="normal">681</span>
+<span class="normal">682</span>
+<span class="normal">683</span>
+<span class="normal">684</span>
+<span class="normal">685</span>
+<span class="normal">686</span>
+<span class="normal">687</span>
+<span class="normal">688</span>
+<span class="normal">689</span>
+<span class="normal">690</span>
+<span class="normal">691</span>
+<span class="normal">692</span>
+<span class="normal">693</span>
+<span class="normal">694</span>
+<span class="normal">695</span>
+<span class="normal">696</span>
+<span class="normal">697</span>
+<span class="normal">698</span>
+<span class="normal">699</span>
+<span class="normal">700</span>
+<span class="normal">701</span>
+<span class="normal">702</span>
+<span class="normal">703</span>
+<span class="normal">704</span>
+<span class="normal">705</span>
+<span class="normal">706</span>
+<span class="normal">707</span>
+<span class="normal">708</span>
+<span class="normal">709</span>
+<span class="normal">710</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_realistic_castle_value_curves</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate Concave Value Curves for CASTLE AFSCs.</span>
 

@@ -1321,6 +1321,19 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1332,6 +1345,34 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#data--see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1888,7 +1929,83 @@
 
     <div class="doc doc-contents first">
 
-        <p>Test</p>
+        <p>The <code>data</code> module provides a robust framework for ingesting, transforming, and preparing datasets
+used throughout the Air Force Cadet Career Problem (AFCCP) workflow. It serves as the data backbone
+of the entire system, organizing all core inputs (cadet, AFSC, and parameter data) and enabling
+downstream optimization, evaluation, and visualization.</p>
+<p>The module is composed of six submodules, each handling a distinct category of functionality:</p>
+<ul>
+<li>
+<p><strong>adjustments</strong>:</p>
+</li>
+<li>
+<p>Provides tools to dynamically modify AFCCP data after loading.</p>
+</li>
+<li>Enables addition/removal of records, overrides to standard parameters, and data corrections.</li>
+<li>
+<p>Used for setting policy-like constraints (e.g., mandatory AFSC matches, special case cadets).</p>
+</li>
+<li>
+<p><strong>preferences</strong>:</p>
+</li>
+<li>
+<p>Constructs utility matrices and choice rankings for cadets.</p>
+</li>
+<li>Implements preference formulas and customizations for rated vs. non-rated pipelines.</li>
+<li>
+<p>Supports business-hour conversions, tier weighting, and preference smoothing.</p>
+</li>
+<li>
+<p><strong>processing</strong>:</p>
+</li>
+<li>
+<p>Handles raw data ingestion and conversion into AFCCP-compatible formats.</p>
+</li>
+<li>Includes import functions for cadets, AFSCs, matrices, and external policy data.</li>
+<li>
+<p>Validates data structures and resolves ID and naming consistency issues.</p>
+</li>
+<li>
+<p><strong>values</strong>:</p>
+</li>
+<li>
+<p>Houses the value parameters and weights used by scoring and optimization functions.</p>
+</li>
+<li>Loads, stores, and exports weights related to cadet utility, AFSC metrics, and fairness goals.</li>
+<li>
+<p>Includes VFT-style parameter managers for weighting different objectives.</p>
+</li>
+<li>
+<p><strong>support</strong>:</p>
+</li>
+<li>
+<p>Contains utility functions and helpers used across data submodules.</p>
+</li>
+<li>
+<p>Provides tools for CIP-to-AFSC tier logic, matrix reshaping, name formatting, and more.</p>
+</li>
+<li>
+<p><strong>generation</strong>:</p>
+</li>
+<li>
+<p>Offers synthetic data generation tools for testing AFCCP workflows.</p>
+</li>
+<li>Can simulate cadets, AFSCs, matrices, and full problem instances with controlled parameters.</li>
+<li>Useful for benchmarking, tutorial development, and automated testing.</li>
+</ul>
+<p>This module ensures that data entering the AFCCP pipeline is well-structured, customizable, and
+aligned with downstream model expectations. It separates concerns cleanly across ingestion,
+preparation, transformation, and preference modeling.</p>
+<h3 id="data--see-also">See Also<a class="headerlink" href="#data--see-also" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../../../afccp/reference/data/adjustments/#data.adjustments"><code>data.adjustments</code></a></li>
+<li><a href="../../../afccp/reference/data/preferences/#data.preferences"><code>data.preferences</code></a></li>
+<li><a href="../../../afccp/reference/data/processing/#data.processing"><code>data.processing</code></a></li>
+<li><a href="../../../afccp/reference/data/values/#data.values"><code>data.values</code></a></li>
+<li><a href="../../../afccp/reference/data/support/#data.support"><code>data.support</code></a></li>
+<li><a href="../../../afccp/reference/data/generation/#data.generation"><code>data.generation</code></a></li>
+<li><code>../../../reference/data/generation/#data.generation</code></li>
+</ul>
 
 
 
