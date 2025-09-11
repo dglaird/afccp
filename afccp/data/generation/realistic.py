@@ -462,6 +462,9 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
         if p['cip2'][i][0] == 'c':
             p['cip2'][i] = p['cip2'][i][1:]
 
+    # Create "SOC" variable
+    p['soc'] = np.array(['USAFA' if p['usafa'][i] == 1 else "ROTC" for i in p['I']])
+
     # Fix percentiles for USAFA and ROTC
     re_scaled_om = p['merit']
     for soc in ['usafa', 'rotc']:

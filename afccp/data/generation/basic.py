@@ -75,7 +75,7 @@ def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, ge
 
     # Initialize parameter dictionary
     # noinspection PyDictCreation
-    p = {'N': N, 'P': P, 'M': M, 'num_util': P, 'cadets': np.arange(N),
+    p = {'N': N, 'P': P, 'M': M, 'num_util': P, 'cadets': np.arange(N), 'I': np.arange(N), 'J': np.arange(M),
          'usafa': np.random.choice([0, 1], size=N, p=[2 / 3, 1 / 3]), 'merit': np.random.rand(N)}
 
     # Generate various features of the cadets
@@ -287,9 +287,6 @@ def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, ge
     utility = np.random.rand(N, M)  # random utility matrix
     max_util = np.max(utility, axis=1)
     p['utility'] = np.around(utility / np.array([[max_util[i]] for i in range(N)]), 2)
-    p['c_preferences'], p['c_utilities'] = afccp.data.preferences.get_utility_preferences(p)
-    p['c_preferences'] = p['c_preferences'][:, :P]
-    p['c_utilities'] = p['c_utilities'][:, :P]
 
     # Get cadet preferences
     p["c_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
@@ -301,6 +298,11 @@ def generate_random_instance(N=1600, M=32, P=6, S=6, generate_only_nrl=False, ge
         preferences = np.argsort(
             sorted_indices) + 1  # Add 1 to change from python index (at 0) to rank (start at 1)
         p["c_pref_matrix"][i, :] = preferences
+
+    # Create the "column data" preferences and utilities
+    p['c_preferences'], p['c_utilities'] = afccp.data.preferences.update_cadet_columns_from_matrices(p)
+    p['c_preferences'] = p['c_preferences'][:, :P]
+    p['c_utilities'] = p['c_utilities'][:, :P]
 
     # If we want to generate extra components to match with, we do so here
     if generate_extra:
@@ -478,9 +480,104 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
 # __________________________________________BASE & TRAINING ADDITIONS___________________________________________________
 def generate_extra_components(parameters):
     """
-    If we generate extra components (such as bases and IST) for the CadetCareerProblem instance
-    :param parameters: instance parameters
-    :return: updated parameters
+    Generate additional components (bases, training courses, and timing factors)
+    for a CadetCareerProblem instance.
+
+    This function augments the problem parameters with synthetic **bases** (locations),
+    **base capacities**, **cadet base preferences**, **training courses**, and
+    **training start distributions**. It also assigns weights to AFSC, base, and
+    training preferences, enabling richer downstream optimization scenarios.
+
+    Parameters
+    ----------
+    parameters : dict
+        The problem parameter dictionary for a `CadetCareerProblem` instance.
+        Must contain:
+        - `M` : int
+            Number of AFSCs.
+        - `N` : int
+            Number of cadets.
+        - `S` : int
+            Number of bases to generate.
+        - `pgl` : np.ndarray
+            PGL targets per AFSC.
+        - `acc_grp` : np.ndarray
+            Accession group labels per AFSC (e.g., "Rated", "USSF", "NRL").
+        - `usafa` : np.ndarray
+            Indicator for USAFA cadets.
+
+    Returns
+    -------
+    dict
+        Updated parameters dictionary with additional fields:
+        - `afsc_assign_base` : np.ndarray
+            Flags for AFSCs assigned to bases.
+        - `bases` : np.ndarray
+            Names of generated bases.
+        - `base_min`, `base_max` : np.ndarray
+            Min/max base capacities per AFSC.
+        - `base_preferences` : dict
+            Cadet-level base preference lists.
+        - `b_pref_matrix`, `base_utility` : np.ndarray
+            Matrices encoding cadet base preferences and utilities.
+        - `baseline_date` : datetime.date
+            Baseline date for training course scheduling.
+        - `training_preferences`, `training_threshold`, `base_threshold` : np.ndarray
+            Randomized cadet-level training/base thresholds and preferences.
+        - `weight_afsc`, `weight_base`, `weight_course` : np.ndarray
+            Weights for AFSC vs base vs course assignment importance.
+        - `training_start` : np.ndarray
+            Cadet training start dates (distribution differs for USAFA vs ROTC).
+        - `courses`, `course_start`, `course_min`, `course_max` : dict
+            Course identifiers, schedules, and capacities by AFSC.
+        - `T` : np.ndarray
+            Number of courses per AFSC.
+
+    Workflow
+    --------
+    1. **Base Assignment**
+        - Randomly selects which AFSCs require base-level assignments.
+        - Generates base names from Excel-style column naming (`A`, `B`, ..., `AA`, etc.).
+        - Distributes base capacities (`base_min`, `base_max`) across AFSCs.
+
+    1. **Cadet Base Preferences**
+        - Randomly assigns each cadet preferences over bases.
+        - Generates a preference matrix (`b_pref_matrix`) and base utilities (`base_utility`).
+
+    1. **Training Preferences**
+        - Creates training preference labels (`Early` vs `Late`) and thresholds.
+        - Allocates random weights for AFSC, base, and training course priorities.
+
+    1. **Training Start Dates**
+        - USAFA cadets start late May.
+        - ROTC cadets follow a spring/late graduation distribution.
+
+    1. **Training Courses**
+        - Generates course identifiers (random strings of letters).
+        - Randomizes start dates and max capacities.
+        - Computes `T`, the number of courses per AFSC.
+
+    Notes
+    -----
+    - `baseline_date` is set to **Jan 1 of the year after the current system year**.
+    - Weights are normalized per cadet to sum to 1.
+    - Utility values are randomized but ensure first-choice base has utility 1.0.
+
+    Examples
+    --------
+    ```python
+    p = {'M': 5, 'N': 100, 'S': 3,
+         'pgl': np.array([10, 20, 15, 30, 25]),
+         'acc_grp': np.array(["NRL", "Rated", "NRL", "USSF", "NRL"]),
+         'usafa': np.random.randint(0, 2, size=100)}
+    p = generate_extra_components(p)
+    p.keys()
+    ```
+
+    Example Output:
+    ```
+    dict_keys([... 'bases', 'base_preferences', 'training_start', 'courses', 'T' ...])
+    ```
     """
 
     # Shorthand

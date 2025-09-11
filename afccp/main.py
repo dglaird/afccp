@@ -201,7 +201,7 @@ class CadetCareerProblem:
             # Import the "Solutions" data dictionary
             self.solutions = afccp_dp.import_solutions_data(self.import_paths, self.parameters)
 
-        # This is a new problem instance that we're generating (Should be "Random", "Perfect", or "Realistic")
+        # This is a new problem instance that we're generating (Should be "Random" or "CTGAN")
         else:
 
             # Error Handling (Must be valid data generation parameter)
@@ -783,10 +783,6 @@ class CadetCareerProblem:
 
         Rated OM and interest data (legacy ROTC Rated Board Data) is essential (not the interest matrix, though) for
         modeling the Air Force’s Rated board process, allowing simulation and evaluation of Rated cadet assignments.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -3029,15 +3025,6 @@ class CadetCareerProblem:
 
             # Generate the slides to go with this
             self.generate_animation_slides(p_dict, printing)
-
-    def solve_cadet_board_model_direct(self, filepath):
-        """
-        This method runs the cadet board model directly from the parameters in the csv at the specified
-        filepath. We read and write back to this filepath
-        """
-
-        # Run function
-        afccp.solutions.optimization.solve_cadet_board_model_direct_from_board_parameters(self, filepath)
 
     # ________________________________________MISC VISUALIZATION SUPPORT________________________________________________
     def export_solution_iterations(self, printing=None):
