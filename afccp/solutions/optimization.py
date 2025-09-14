@@ -1,3 +1,64 @@
+"""
+This module contains all **Pyomo-based optimization model logic** used to solve the
+Air Force Cadet Career Problem (AFCCP), including the GUO (Global Utility Optimization),
+VFT (Value Focused Thinking), Goal Programming, and CASTLE hybrid models. It also includes
+support for infeasibility diagnostics, constraint logging, and solver configuration.
+
+Contents
+--------
+- **Model Construction**
+    - `assignment_model_build`: Builds the GUO or original AFPC assignment model.
+    - `vft_model_build`: Builds the VFT model using piecewise-linear value functions.
+    - `gp_model_build`: Constructs the Goal Programming (GP) model from Rebecca’s thesis.
+- **Shared Components**
+    - `common_optimization_handling`: Defines x-variable and shared constraints across models.
+    - `base_training_model_handling`: Adds base/training (IST) variables and constraints.
+    - `initialize_castle_value_curve_function_variables`: Adds CASTLE value function vars.
+    - `initialize_value_function_constraint_lists`: Initializes constraint lists for VFT/CASTLE.
+    - `add_objective_measure_constraint`: Adds measure constraints for constrained objectives.
+    - `add_objective_value_function_constraints`: Adds CASTLE/VFT value function constraints.
+    - `add_space_force_constraints`, `add_rated_alternates_constraints`: USSF- and rated-specific logic.
+- **Solving & Diagnostics**
+    - `solve_pyomo_model`: Unified wrapper to build, solve, and extract solutions from models.
+    - `build_solver`, `execute_solver`: Configures and runs the selected Pyomo solver.
+    - `handle_infeasible_model`, `log_constraint_violations_to_file`: Infeasibility diagnostics with LP parsing.
+    - `parse_lp_file`, `parse_lp_file_debug`: Extract constraint structures and detect modeling issues.
+- **Goal Programming Tools**
+    - `calculate_rewards_penalties`: Calculates normalized GP weights via pre-optimization.
+    - Handles weighted penalties/rewards (lambda/mu), satisfaction utilities, constraint-specific terms.
+- **Bubble Chart Placement**
+    - `bubble_chart_configuration_model`: Determines optimal (x, y) coordinates for AFSC bubble visuals.
+
+Workflow
+--------
+1. **Model Building**
+    - Determine objective type (`GUO`, `VFT`, `GP`, or `CASTLE` hybrid).
+    - Construct Pyomo model (`ConcreteModel`) with cadet-AFSC variables and constraints.
+    - Add base/training or CASTLE extensions depending on `mdl_p` settings.
+1. **Solving**
+    - Configure solver (Gurobi, CBC, IPOPT, etc.) and solve the model.
+    - Display solver progress bar (optional), enforce timeouts, and handle warm starts (VFT only).
+    - Extract `j_array`, `x`, and optional `b_array`, `c_array`, utility vectors, and warm start components.
+1. **Infeasibility Handling**
+    - On failure, write `.lp` file to `infeasibility_logs/`, generate constraint violation log.
+    - Parse LP file for known issues (free/unbounded vars, hard equalities, infeasible bounds).
+1. **CASTLE Integration**
+    - Apply piecewise value curves to constrained CASTLE AFSCs (`J^CASTLE`).
+    - Weight value curve and utility objective using `w^G` blending parameter.
+1. **Goal Programming**
+    - Penalize over-/under-achievement of constraints (e.g., ROTC quotas, merit, gender).
+    - Maximize satisfaction utilities (`S`) for cadets via lexicographic weighted objectives.
+    - Run multiple submodels to calibrate reward/penalty scales.
+
+See Also
+--------
+- [`solutions.handling`](../../../reference/solutions/handling/#solutions.handling):
+  Used for objective computation, constraint measures, and value evaluations.
+- [`solutions.algorithms`](../../../reference/solutions/algorithms/#solutions.algorithms):
+  Higher-level metaheuristics and solution workflows that invoke these optimization models.
+- [`data.preferences`](../../../reference/data/preferences/#data.preferences):
+  Provides eligible AFSC sets, alternate lists, and preference data structures used in modeling.
+"""
 import time
 import numpy as np
 import logging

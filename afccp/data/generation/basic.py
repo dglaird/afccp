@@ -38,10 +38,10 @@ Use Cases
 
 See Also
 --------
-- [`data.preferences`](../../../afccp/reference/data/preferences/#data.preferences)
-- [`data.adjustments`](../../../afccp/reference/data/adjustments/#data.adjustments)
-- [`data.values`](../../../afccp/reference/data/values/#data.values)
-- [`data.support`](../../../afccp/reference/data/support/#data.support)
+- [`data.preferences`](../../../../../afccp/reference/data/preferences/#data.preferences)
+- [`data.adjustments`](../../../../../afccp/reference/data/adjustments/#data.adjustments)
+- [`data.values`](../../../../../afccp/reference/data/values/#data.values)
+- [`data.support`](../../../../../afccp/reference/data/support/#data.support)
 """
 import random
 import numpy as np

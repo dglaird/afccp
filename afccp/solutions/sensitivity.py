@@ -1,3 +1,57 @@
+"""
+This module contains **sensitivity analysis tools** and **initial solution population functions**
+for optimization within the `afccp` framework. These tools are primarily used to evaluate how the
+model behaves under varying constraints and preference structures—especially within VFT, GUO, and
+assignment models—and are key to advanced solution diagnostics and "What-If" exploration.
+
+Contents
+--------
+- **Constraint Placement**
+    - `determine_model_constraints`: Iteratively activates AFSC-level constraints based on importance
+    until a feasible solution is found, logging objective values and failures.
+- **Initial Population for Genetic Algorithms**
+    - `populate_initial_ga_solutions_from_vft_model`: Seeds the GA with multiple VFT solutions by
+    varying cadet/AFSC weight emphasis or estimating quotas.
+    - `populate_initial_ga_solutions_from_assignment_model`: Same as above, but uses assignment model heuristics.
+- **What-If Analysis**
+    - `optimization_what_if_analysis`: Reads a `"What If List.csv"` and evaluates impact of various
+    constraint sets (e.g., top 10% cadets must receive first choice, USSF OM, AFOCD tiers).
+    - Stores results in `"What If Solutions.csv"` and exports full delta metrics for each objective.
+- **PGL Quota Sensitivity**
+    - `solve_pgl_capacity_sensitivity`: Iteratively adjusts `quota_max` values by identifying and lowering
+    the most overfilled AFSCs after each solution run.
+    - `generate_pgl_capacity_charts`: Builds "wack-a-mole"-style visualizations of PGL adjustments using gavel icons.
+    - `build_pgl_sensitivity_chart`: Creates individual chart snapshots with annotations for AFSCs whose
+    capacities were changed.
+
+Workflow
+--------
+1. **Constraint Iteration (determine_model_constraints)**
+    - Start with all constraints off (blank slate).
+    - Add AFSC constraints by descending priority (scaled weights).
+    - Skip constraints that are already satisfied.
+    - Record which constraints cause infeasibility, or objective failures.
+1. **GA Initialization**
+    - Generate `j_array` solutions via approximate VFT or assignment model using different weightings.
+    - Optionally iterate on estimated quotas to find balanced starting points.
+1. **What-If Evaluation**
+    - Modify constraints and value parameters as specified in `"What If List.csv"`.
+    - Run new solution and compare key metrics to the baseline.
+    - Export `What If Solutions.csv` and update original list with feasibility outcomes.
+1. **PGL Capacity Exploration**
+    - Solve baseline GUO or assignment model.
+    - Identify AFSCs that are overfilled, lower their `quota_max` in next iteration.
+    - Visualize changes using annotated matplotlib charts in `"PGL Sensitivity Analysis/Snapshots"`.
+
+See Also
+--------
+- [`solutions.optimization`](../../../reference/solutions/optimization/#solutions.optimization):
+  Core Pyomo model building and solver interface.
+- [`solutions.handling`](../../../reference/solutions/handling/#solutions.handling):
+  Functions to evaluate objective values, utility scores, and constraint satisfaction.
+- [`data.preferences`](../../../reference/data/preferences/#data.preferences):
+  Used to provide AFSC eligibility, preference tiering, and OM-based utility values.
+"""
 import copy
 import numpy as np
 import pandas as pd
@@ -10,6 +64,7 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import afccp.globals
 import afccp.solutions.handling
 import afccp.solutions.optimization
+
 
 # VFT Constraint Placing Algorithm
 def determine_model_constraints(instance):

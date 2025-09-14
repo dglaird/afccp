@@ -1,3 +1,49 @@
+"""
+This module implements the core **matching and optimization algorithms** for the
+Air Force Cadet Career Problem (AFCCP). It contains both deterministic assignment
+methods (e.g., Hospitals/Residents, rated board procedures) and meta-heuristic
+approaches (e.g., genetic algorithms) to explore feasible and optimal cadet–AFSC
+assignments under a variety of policy and quota conditions.
+
+Contents
+--------
+- **Matching Algorithms**
+    - `classic_hr`: Implements the Hospitals/Residents deferred acceptance algorithm.
+    - `rotc_rated_board_original`: Recreates the legacy ROTC Rated board assignment process.
+    - `soc_rated_matching_algorithm`: Source-of-commission (SOC) specific HR matching
+    with reserves and matched slots.
+    - `allocate_ots_candidates_original_method`: Adds OTS candidates into the status quo
+    one-market solution.
+- **Meta-Heuristic Algorithms**
+    - `vft_genetic_algorithm`: Evolves candidate solutions using a genetic algorithm
+    with Value-Focused Thinking objectives.
+    - `genetic_matching_algorithm`: Tunes AFSC capacities for the HR algorithm to
+    minimize blocking pairs.
+
+Workflow
+--------
+1. **Initialization**
+    - Load cadet and AFSC preferences, quotas, and capacities from the
+     `CadetCareerProblem` instance.
+    - Establish dictionaries for cadet proposals, AFSC acceptances, and reserves.
+1. **Assignment Algorithms**
+    - Apply Hospitals/Residents (HR) or rated-board logic to produce a feasible
+     cadet-to-AFSC assignment.
+    - Track iterations of proposals, matches, and rejections for debugging and
+     visualization (e.g., BubbleCharts).
+1. **Optimization Algorithms**
+    - Use genetic search to evolve solutions, balancing AFSC quotas, cadet utilities,
+     and blocking pair minimization.
+    - Support hybrid workflows where GA-produced capacities are re-validated through
+     HR-style deferred acceptance.
+
+See Also
+--------
+- [`afccp.solutions.handling`](../../../reference/solutions/handling/#solutions.handling):
+  Fitness functions, blocking pair evaluation, and solution utilities.
+- [`afccp.data.preferences`](../../../reference/data/preferences/#data.preferences):
+  Helpers for determining SOC-specific rated AFSCs and cadet preference matrices.
+"""
 import time
 import numpy as np
 import random

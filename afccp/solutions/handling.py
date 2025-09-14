@@ -1,3 +1,58 @@
+"""
+This module provides the core logic for **evaluating, validating, and comparing solutions**
+within the `afccp` framework. It includes comprehensive tools for computing cadet and AFSC value
+scores, applying VFT constraints, and generating solution diagnostics for use in optimization,
+genetic algorithms, and post-hoc analysis.
+
+Contents
+--------
+- **Solution Evaluation**
+    - `evaluate_solution`: Evaluate a proposed solution (matrix/vector) against AFCCP objectives.
+    - `fitness_function`: Calculate the scalar fitness score for use in meta-heuristics.
+- **Metrics and Constraint Evaluation**
+    - `calculate_objective_measure_matrix`: Compute objective measures across cadets/AFSCs.
+    - `calculate_failed_constraint_metrics`: Annotate constraint violations for debugging.
+    - `value_function`, `value_function_points`: Calculate piecewise linear VFT scores.
+- **Additional Metrics**
+    - `calculate_additional_useful_metrics`: Compute fairness, choice rank, gender/race equity, utility scores.
+    - `calculate_base_training_metrics`: Integrate base/training preference satisfaction.
+    - `calculate_castle_solution_metrics`: Evaluate CASTLE-specific value curves and GUO tradeoffs.
+    - `calculate_ots_specific_metrics`: Add OTS-specific merit and preference analytics.
+- **Stability and Comparison**
+    - `calculate_blocking_pairs`: Identify cadet–AFSC blocking pairs based on stable matching criteria.
+    - `compare_solutions`: Measure assignment similarity between two `j_array` vectors.
+    - `similarity_coordinates`: Use multidimensional scaling (MDS) to visualize solution clusters.
+- **Rated SOC Integration**
+    - `incorporate_rated_results_in_parameters`: Lock matched/reserved cadets from SOC rated algorithms.
+    - `augment_rated_algorithm_results`: Expand alternate lists and enforce USAFA/ROTC rated constraints.
+
+Workflow
+--------
+1. **Evaluation of a Solution**
+    - Construct `x`, `j_array`, and `afsc_array`.
+    - Calculate AFSC/cadet utility values and objective scores.
+    - Apply value functions and check for failed constraints.
+    - Compute global metrics: `z`, `z^gu`, blocking pairs, Simpson diversity, and match quality.
+1. **Constraint Handling**
+    - Differentiate between hard and soft constraints (AFSC value floors, cadet preference thresholds).
+    - Track failed constraints using `objective_constraint_fail` and `con_fail_dict`.
+1. **Post-Evaluation Analysis**
+    - Calculate Simpson indices (race/ethnicity), choice distributions, and demographic breakdowns.
+    - Decompose metrics by SOC, gender, service branch (USSF/USAF), and AFSC.
+1. **Solution Comparison**
+    - Visualize solution similarity with MDS or compute `compare_solutions` overlap %.
+    - Count and list blocking pairs to assess matching stability.
+1. **Integration with SOC-Rated Workflows**
+    - Lock rated matches/reserves and update alternate lists.
+    - Define alternate eligibility (hard/soft), preference sets, and blocking pair-safe configurations.
+
+See Also
+--------
+- [`afccp.solutions.algorithms`](../../../reference/solutions/algorithms/#solutions.algorithms):
+  Contains the matching and meta-heuristic algorithms whose outputs are evaluated here.
+- [`afccp.data.preferences`](../../../reference/data/preferences/#data.preferences):
+  Helper functions to compute cadet and AFSC preferences, including rated eligibility sets.
+"""
 import numpy as np
 import copy
 

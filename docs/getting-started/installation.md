@@ -63,7 +63,7 @@ You have two options:
 #### 1. Create a new environment:
 
 ```bash
-conda create -n afccp python=3.8 -y
+conda create -n afccp python=3.10 -y
 ```
 
 #### 2. Activate the environment:
@@ -98,7 +98,7 @@ pip install -r requirements.txt
 
 #### 5. Choose:
    - `New environment` (or Existing if you’ve already created one)
-   - Python version: **3.8**
+   - Python version: **3.10**
 
 #### 6. Once created, click **OK**, and PyCharm will create and set up the interpreter.
 
@@ -187,7 +187,7 @@ afccp/                 # Root directory
 ```
 
 For more information on the instance data structure used by afccp, please refer to the
-[Data](../afccp/reference/data/__init__.md) module.
+[Data](../../../../../afccp/reference/data) module.
 
 ---
 
