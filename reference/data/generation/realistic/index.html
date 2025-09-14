@@ -2168,10 +2168,10 @@ eligibility/qual matrices, quotas, and rated OM datasets).</p>
 </ul>
 <h3 id="data.generation.realistic--see-also">See also<a class="headerlink" href="#data.generation.realistic--see-also" title="Permanent link">&para;</a></h3>
 <ul>
-<li><a href="../../../afccp/reference/data/preferences/#data.preferences"><code>data.preferences</code></a></li>
-<li><a href="../../../afccp/reference/data/adjustments/#data.adjustments"><code>data.adjustments</code></a></li>
-<li><a href="../../../afccp/reference/data/values/#data.values"><code>data.values</code></a></li>
-<li><a href="../../../afccp/reference/data/support/#data.support"><code>data.support</code></a></li>
+<li><a href="../../../../../afccp/reference/data/preferences/#data.preferences"><code>data.preferences</code></a></li>
+<li><a href="../../../../../afccp/reference/data/adjustments/#data.adjustments"><code>data.adjustments</code></a></li>
+<li><a href="../../../../../afccp/reference/data/values/#data.values"><code>data.values</code></a></li>
+<li><a href="../../../../../afccp/reference/data/support/#data.support"><code>data.support</code></a></li>
 </ul>
 
 
@@ -2690,7 +2690,10 @@ instance using CTGAN that has been trained from a real class year of cadets</p>
 <span class="normal">699</span>
 <span class="normal">700</span>
 <span class="normal">701</span>
-<span class="normal">702</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_ctgan_instance</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">1600</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;CTGAN_Full&#39;</span><span class="p">,</span> <span class="n">pilot_condition</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">degree_qual_type</span><span class="o">=</span><span class="s1">&#39;Consistent&#39;</span><span class="p">):</span>
+<span class="normal">702</span>
+<span class="normal">703</span>
+<span class="normal">704</span>
+<span class="normal">705</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_ctgan_instance</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">1600</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;CTGAN_Full&#39;</span><span class="p">,</span> <span class="n">pilot_condition</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">degree_qual_type</span><span class="o">=</span><span class="s1">&#39;Consistent&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This procedure takes in the specified number of cadets and then generates a representative problem</span>
 <span class="sd">    instance using CTGAN that has been trained from a real class year of cadets</span>
@@ -2747,6 +2750,9 @@ instance using CTGAN that has been trained from a real class year of cadets</p>
             <span class="n">p</span><span class="p">[</span><span class="s1">&#39;cip1&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;cip1&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">:]</span>
         <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;cip2&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;c&#39;</span><span class="p">:</span>
             <span class="n">p</span><span class="p">[</span><span class="s1">&#39;cip2&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;cip2&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">:]</span>
+
+    <span class="c1"># Create &quot;SOC&quot; variable</span>
+    <span class="n">p</span><span class="p">[</span><span class="s1">&#39;soc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">&#39;USAFA&#39;</span> <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;usafa&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="s2">&quot;ROTC&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;I&#39;</span><span class="p">]])</span>
 
     <span class="c1"># Fix percentiles for USAFA and ROTC</span>
     <span class="n">re_scaled_om</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;merit&#39;</span><span class="p">]</span>
@@ -3077,10 +3083,7 @@ export_name : str, optional
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/realistic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">706</span>
-<span class="normal">707</span>
-<span class="normal">708</span>
-<span class="normal">709</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">709</span>
 <span class="normal">710</span>
 <span class="normal">711</span>
 <span class="normal">712</span>
@@ -3231,7 +3234,10 @@ export_name : str, optional
 <span class="normal">857</span>
 <span class="normal">858</span>
 <span class="normal">859</span>
-<span class="normal">860</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">augment_2026_data_with_ots</span><span class="p">(</span><span class="n">N</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3000</span><span class="p">,</span> <span class="n">import_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;2026_0&#39;</span><span class="p">,</span> <span class="n">export_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;2026O&#39;</span><span class="p">):</span>
+<span class="normal">860</span>
+<span class="normal">861</span>
+<span class="normal">862</span>
+<span class="normal">863</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">augment_2026_data_with_ots</span><span class="p">(</span><span class="n">N</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3000</span><span class="p">,</span> <span class="n">import_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;2026_0&#39;</span><span class="p">,</span> <span class="n">export_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;2026O&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Augment a base instance with a synthetic OTS cohort and export a new, fully wired instance.</span>
 
@@ -3442,10 +3448,7 @@ afscs_df : pandas.DataFrame
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/realistic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">863</span>
-<span class="normal">864</span>
-<span class="normal">865</span>
-<span class="normal">866</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">866</span>
 <span class="normal">867</span>
 <span class="normal">868</span>
 <span class="normal">869</span>
@@ -3509,7 +3512,10 @@ afscs_df : pandas.DataFrame
 <span class="normal">927</span>
 <span class="normal">928</span>
 <span class="normal">929</span>
-<span class="normal">930</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_data_with_degree_preference_fixes</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">full_data</span><span class="p">,</span> <span class="n">afscs_df</span><span class="p">):</span>
+<span class="normal">930</span>
+<span class="normal">931</span>
+<span class="normal">932</span>
+<span class="normal">933</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_data_with_degree_preference_fixes</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">full_data</span><span class="p">,</span> <span class="n">afscs_df</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate synthetic cadet data for rare AFSCs, preserving degree distribution</span>
 <span class="sd">    preferences and realistic cadet/AFSC utilities.</span>
@@ -3635,10 +3641,7 @@ cadet_util_samplers : dict
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/realistic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 933</span>
-<span class="normal"> 934</span>
-<span class="normal"> 935</span>
-<span class="normal"> 936</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 936</span>
 <span class="normal"> 937</span>
 <span class="normal"> 938</span>
 <span class="normal"> 939</span>
@@ -3717,7 +3720,10 @@ cadet_util_samplers : dict
 <span class="normal">1012</span>
 <span class="normal">1013</span>
 <span class="normal">1014</span>
-<span class="normal">1015</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">extract_afsc_cip_sampling_information</span><span class="p">(</span><span class="n">full_data</span><span class="p">,</span> <span class="n">afscs_rare_eligible</span><span class="p">,</span> <span class="n">afscs_rare_df</span><span class="p">):</span>
+<span class="normal">1015</span>
+<span class="normal">1016</span>
+<span class="normal">1017</span>
+<span class="normal">1018</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">extract_afsc_cip_sampling_information</span><span class="p">(</span><span class="n">full_data</span><span class="p">,</span> <span class="n">afscs_rare_eligible</span><span class="p">,</span> <span class="n">afscs_rare_df</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Extract degree distribution and utility sampling information for rare AFSCs.</span>
 
@@ -3877,10 +3883,7 @@ array([1.  , 1.  ])</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/realistic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1018</span>
-<span class="normal">1019</span>
-<span class="normal">1020</span>
-<span class="normal">1021</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1021</span>
 <span class="normal">1022</span>
 <span class="normal">1023</span>
 <span class="normal">1024</span>
@@ -3982,7 +3985,10 @@ array([1.  , 1.  ])</p>
 <span class="normal">1120</span>
 <span class="normal">1121</span>
 <span class="normal">1122</span>
-<span class="normal">1123</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">safe_round</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">decimals</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+<span class="normal">1123</span>
+<span class="normal">1124</span>
+<span class="normal">1125</span>
+<span class="normal">1126</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">safe_round</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">decimals</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Round values while preserving the sum along a given axis.</span>
 
@@ -4139,10 +4145,7 @@ afsc_cip_conditions : dict
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/realistic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1137</span>
-<span class="normal">1138</span>
-<span class="normal">1139</span>
-<span class="normal">1140</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1140</span>
 <span class="normal">1141</span>
 <span class="normal">1142</span>
 <span class="normal">1143</span>
@@ -4190,7 +4193,10 @@ afsc_cip_conditions : dict
 <span class="normal">1185</span>
 <span class="normal">1186</span>
 <span class="normal">1187</span>
-<span class="normal">1188</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">sample_cadets_for_degree_conditions</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">total_gen</span><span class="p">,</span> <span class="n">afscs_rare_eligible</span><span class="p">,</span> <span class="n">afsc_cip_data</span><span class="p">,</span> <span class="n">afsc_cip_conditions</span><span class="p">):</span>
+<span class="normal">1188</span>
+<span class="normal">1189</span>
+<span class="normal">1190</span>
+<span class="normal">1191</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">sample_cadets_for_degree_conditions</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">total_gen</span><span class="p">,</span> <span class="n">afscs_rare_eligible</span><span class="p">,</span> <span class="n">afsc_cip_data</span><span class="p">,</span> <span class="n">afsc_cip_conditions</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate synthetic cadets matching AFSC-degree sampling conditions.</span>
 

@@ -1994,7 +1994,11 @@ objective constraints, preference matrices, tier distributions, and utility mono
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1586</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1582</span>
+<span class="normal">1583</span>
+<span class="normal">1584</span>
+<span class="normal">1585</span>
+<span class="normal">1586</span>
 <span class="normal">1587</span>
 <span class="normal">1588</span>
 <span class="normal">1589</span>
@@ -2035,11 +2039,7 @@ objective constraints, preference matrices, tier distributions, and utility mono
 <span class="normal">1624</span>
 <span class="normal">1625</span>
 <span class="normal">1626</span>
-<span class="normal">1627</span>
-<span class="normal">1628</span>
-<span class="normal">1629</span>
-<span class="normal">1630</span>
-<span class="normal">1631</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">parameter_sanity_check</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="normal">1627</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">parameter_sanity_check</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Perform a Full Sanity Check on the Instance Parameters and Value Parameters.</span>
 
@@ -2138,7 +2138,11 @@ between derived structures (e.g., eligibility dictionaries and matrix representa
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1633</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1629</span>
+<span class="normal">1630</span>
+<span class="normal">1631</span>
+<span class="normal">1632</span>
+<span class="normal">1633</span>
 <span class="normal">1634</span>
 <span class="normal">1635</span>
 <span class="normal">1636</span>
@@ -2183,11 +2187,7 @@ between derived structures (e.g., eligibility dictionaries and matrix representa
 <span class="normal">1675</span>
 <span class="normal">1676</span>
 <span class="normal">1677</span>
-<span class="normal">1678</span>
-<span class="normal">1679</span>
-<span class="normal">1680</span>
-<span class="normal">1681</span>
-<span class="normal">1682</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">create_final_utility_matrix_from_new_formula</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1678</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">create_final_utility_matrix_from_new_formula</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Construct the Final Cadet Utility Matrix Using a New Weighted Formula.</span>
 
@@ -2284,7 +2284,11 @@ without making any changes.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1684</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1680</span>
+<span class="normal">1681</span>
+<span class="normal">1682</span>
+<span class="normal">1683</span>
+<span class="normal">1684</span>
 <span class="normal">1685</span>
 <span class="normal">1686</span>
 <span class="normal">1687</span>
@@ -2324,11 +2328,7 @@ without making any changes.</p>
 <span class="normal">1721</span>
 <span class="normal">1722</span>
 <span class="normal">1723</span>
-<span class="normal">1724</span>
-<span class="normal">1725</span>
-<span class="normal">1726</span>
-<span class="normal">1727</span>
-<span class="normal">1728</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">set_ots_must_matches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1724</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">set_ots_must_matches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Set OTS Cadet Must-Match Constraints Based on Order of Merit.</span>
 
@@ -2418,7 +2418,11 @@ or refreshing the matrix after modifying degree information.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1730</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1726</span>
+<span class="normal">1727</span>
+<span class="normal">1728</span>
+<span class="normal">1729</span>
+<span class="normal">1730</span>
 <span class="normal">1731</span>
 <span class="normal">1732</span>
 <span class="normal">1733</span>
@@ -2474,11 +2478,7 @@ or refreshing the matrix after modifying degree information.</p>
 <span class="normal">1783</span>
 <span class="normal">1784</span>
 <span class="normal">1785</span>
-<span class="normal">1786</span>
-<span class="normal">1787</span>
-<span class="normal">1788</span>
-<span class="normal">1789</span>
-<span class="normal">1790</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_qualification_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1786</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_qualification_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate or Update the Qualification Matrix Based on CIP Codes.</span>
 

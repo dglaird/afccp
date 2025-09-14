@@ -2005,7 +2005,11 @@ resulting solution. The goal is to find optimal solutions for the VFT problem.</
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2090</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2086</span>
+<span class="normal">2087</span>
+<span class="normal">2088</span>
+<span class="normal">2089</span>
+<span class="normal">2090</span>
 <span class="normal">2091</span>
 <span class="normal">2092</span>
 <span class="normal">2093</span>
@@ -2040,11 +2044,7 @@ resulting solution. The goal is to find optimal solutions for the VFT problem.</
 <span class="normal">2122</span>
 <span class="normal">2123</span>
 <span class="normal">2124</span>
-<span class="normal">2125</span>
-<span class="normal">2126</span>
-<span class="normal">2127</span>
-<span class="normal">2128</span>
-<span class="normal">2129</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_vft_pyomo_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2125</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_vft_pyomo_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Solve the VFT model using Pyomo, an optimization modeling library.</span>
 
@@ -2105,7 +2105,11 @@ resulting solution. The goal is to find optimal solutions for the VFT problem.</
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2131</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2127</span>
+<span class="normal">2128</span>
+<span class="normal">2129</span>
+<span class="normal">2130</span>
+<span class="normal">2131</span>
 <span class="normal">2132</span>
 <span class="normal">2133</span>
 <span class="normal">2134</span>
@@ -2123,11 +2127,7 @@ resulting solution. The goal is to find optimal solutions for the VFT problem.</
 <span class="normal">2146</span>
 <span class="normal">2147</span>
 <span class="normal">2148</span>
-<span class="normal">2149</span>
-<span class="normal">2150</span>
-<span class="normal">2151</span>
-<span class="normal">2152</span>
-<span class="normal">2153</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_original_pyomo_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2149</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_original_pyomo_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Solve the original AFPC model using pyomo</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2172,7 +2172,11 @@ from the AFSC and Cadet Utility matrices. This is the "GUO" model.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2155</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2151</span>
+<span class="normal">2152</span>
+<span class="normal">2153</span>
+<span class="normal">2154</span>
+<span class="normal">2155</span>
 <span class="normal">2156</span>
 <span class="normal">2157</span>
 <span class="normal">2158</span>
@@ -2198,11 +2202,7 @@ from the AFSC and Cadet Utility matrices. This is the "GUO" model.</p>
 <span class="normal">2178</span>
 <span class="normal">2179</span>
 <span class="normal">2180</span>
-<span class="normal">2181</span>
-<span class="normal">2182</span>
-<span class="normal">2183</span>
-<span class="normal">2184</span>
-<span class="normal">2185</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_guo_pyomo_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2181</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_guo_pyomo_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Solve the &quot;generalized assignment problem&quot; model with the new global utility matrix constructed</span>
 <span class="sd">    from the AFSC and Cadet Utility matrices. This is the &quot;GUO&quot; model.</span>
@@ -2254,7 +2254,11 @@ from the AFSC and Cadet Utility matrices. This is the "GUO" model.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2187</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2183</span>
+<span class="normal">2184</span>
+<span class="normal">2185</span>
+<span class="normal">2186</span>
+<span class="normal">2187</span>
 <span class="normal">2188</span>
 <span class="normal">2189</span>
 <span class="normal">2190</span>
@@ -2273,11 +2277,7 @@ from the AFSC and Cadet Utility matrices. This is the "GUO" model.</p>
 <span class="normal">2203</span>
 <span class="normal">2204</span>
 <span class="normal">2205</span>
-<span class="normal">2206</span>
-<span class="normal">2207</span>
-<span class="normal">2208</span>
-<span class="normal">2209</span>
-<span class="normal">2210</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_gp_pyomo_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2206</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_gp_pyomo_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Solve the Goal Programming Model (Created by Lt. Reynolds)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -2323,7 +2323,11 @@ We then evolve the solutions further using the GA.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2212</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2208</span>
+<span class="normal">2209</span>
+<span class="normal">2210</span>
+<span class="normal">2211</span>
+<span class="normal">2212</span>
 <span class="normal">2213</span>
 <span class="normal">2214</span>
 <span class="normal">2215</span>
@@ -2362,11 +2366,7 @@ We then evolve the solutions further using the GA.</p>
 <span class="normal">2248</span>
 <span class="normal">2249</span>
 <span class="normal">2250</span>
-<span class="normal">2251</span>
-<span class="normal">2252</span>
-<span class="normal">2253</span>
-<span class="normal">2254</span>
-<span class="normal">2255</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_vft_main_methodology</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2251</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">solve_vft_main_methodology</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This is the main method to solve the problem instance. We first determine an initial population of solutions.</span>
 <span class="sd">    We then evolve the solutions further using the GA.</span>
@@ -2433,7 +2433,11 @@ from there</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2258</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2254</span>
+<span class="normal">2255</span>
+<span class="normal">2256</span>
+<span class="normal">2257</span>
+<span class="normal">2258</span>
 <span class="normal">2259</span>
 <span class="normal">2260</span>
 <span class="normal">2261</span>
@@ -2499,11 +2503,7 @@ from there</p>
 <span class="normal">2321</span>
 <span class="normal">2322</span>
 <span class="normal">2323</span>
-<span class="normal">2324</span>
-<span class="normal">2325</span>
-<span class="normal">2326</span>
-<span class="normal">2327</span>
-<span class="normal">2328</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">vft_genetic_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2324</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">vft_genetic_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This is the genetic algorithm. The hyper-parameters to the algorithm can be tuned, and this is meant to be</span>
 <span class="sd">    solved in conjunction with the pyomo model solution. Use that as the initial solution, and then we evolve</span>
@@ -2595,7 +2595,11 @@ from there</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2330</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">2326</span>
+<span class="normal">2327</span>
+<span class="normal">2328</span>
+<span class="normal">2329</span>
+<span class="normal">2330</span>
 <span class="normal">2331</span>
 <span class="normal">2332</span>
 <span class="normal">2333</span>
@@ -2616,11 +2620,7 @@ from there</p>
 <span class="normal">2348</span>
 <span class="normal">2349</span>
 <span class="normal">2350</span>
-<span class="normal">2351</span>
-<span class="normal">2352</span>
-<span class="normal">2353</span>
-<span class="normal">2354</span>
-<span class="normal">2355</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">genetic_matching_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">2351</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">genetic_matching_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This method solves the problem instance using &quot;Genetic Matching Algorithm&quot;</span>
 <span class="sd">    &quot;&quot;&quot;</span>

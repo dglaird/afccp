@@ -1555,6 +1555,19 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1566,6 +1579,52 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#solutions--submodules" class="md-nav__link">
+    <span class="md-ellipsis">
+      Submodules
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solutions--typical-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      Typical Workflow
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solutions--see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1887,6 +1946,83 @@
 <a href="#solutions" class="headerlink" title="Permanent link">&para;</a></h1>
 
     <div class="doc doc-contents first">
+
+        <p>The <code>solutions</code> module provides the full infrastructure for solving cadet–AFSC matching problems in the
+AFCCP system. It includes a range of algorithms (HR, GA, GUO, etc.), constraint handling logic, Pyomo-based
+model construction and solver interfaces, and extensive support for sensitivity analysis and "what-if"
+scenarios.</p>
+<p>This module is central to the AFCCP ecosystem—it orchestrates the end-to-end optimization workflow:
+generating initial solutions, building and solving models, evaluating results, and exploring trade-offs
+through iterative constraints or shifting objectives.</p>
+<h3 id="solutions--submodules">Submodules<a class="headerlink" href="#solutions--submodules" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../../../afccp/reference/solutions/algorithms/#solutions.algorithms"><code>solutions.algorithms</code></a></strong>
+  Implements baseline and advanced matching algorithms including:<ul>
+<li>Classic and enhanced <strong>Hospital/Residents</strong> (HR) matching</li>
+<li><strong>GA/GMA</strong>: Genetic algorithms with cadet–AFSC crossover, mutation, and selection logic</li>
+<li><strong>Hybrid solutions</strong>: Merge utility-based models with HR/GMA results for feasible fallback options</li>
+</ul>
+</li>
+<li><strong><a href="../../../afccp/reference/solutions/handling/#solutions.handling"><code>solutions.handling</code></a></strong>
+  Provides tools for:<ul>
+<li><strong>Evaluating objective values</strong>: VFT scores, fairness metrics, quota and eligibility violations</li>
+<li><strong>Constraint diagnostics</strong>: Identifies which constraints were violated or binding</li>
+<li><strong>Preference reconstruction</strong>: Converts <code>j_array</code> solutions into readable cadet assignments</li>
+</ul>
+</li>
+<li><strong><a href="../../../afccp/reference/solutions/optimization/#solutions.optimization"><code>solutions.optimization</code></a></strong>
+  Contains the core <strong>Pyomo model</strong> logic and solver interfaces for:<ul>
+<li><strong>VFT models</strong> (exact and approximate)</li>
+<li><strong>GUO</strong> (Global Utility Optimization) and goal programming models</li>
+<li>Constraint injection, warm-starting, and solution persistence</li>
+<li>Full compatibility with real-world constraints like AFOCD tiers, base/training thresholds, and USAFA rules</li>
+</ul>
+</li>
+<li><strong><a href="../../../afccp/reference/solutions/sensitivity/#solutions.sensitivity"><code>solutions.sensitivity</code></a></strong>
+  Tools for <strong>constraint iteration</strong>, <strong>GA initialization</strong>, and <strong>what-if analysis</strong>, including:<ul>
+<li>Automated constraint relaxation workflows</li>
+<li>PGL capacity adjustment loops and visualizations</li>
+<li>"What If List.csv" batch simulation and delta metric reporting</li>
+</ul>
+</li>
+</ul>
+<h3 id="solutions--typical-workflow">Typical Workflow<a class="headerlink" href="#solutions--typical-workflow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Generate Initial Solution(s)</strong><ul>
+<li>Use <a href="../../../afccp/reference/solutions/algorithms/#solutions.algorithms"><code>algorithms</code></a> to run HR or GA on initial cadet–AFSC preferences</li>
+<li>Or pre-seed GA populations using VFT/Assignment heuristics from <code>sensitivity</code></li>
+</ul>
+</li>
+<li><strong>Build and Solve Optimization Model</strong><ul>
+<li>Construct VFT or GUO model in <a href="../../../afccp/reference/solutions/optimization/#solutions.optimization"><code>optimization</code></a></li>
+<li>Add constraints based on cadet thresholds, base/training requirements, or fairness tiers</li>
+</ul>
+</li>
+<li><strong>Evaluate Solution</strong><ul>
+<li>Use <a href="../../../afccp/reference/solutions/handling/#solutions.handling"><code>handling</code></a> to check feasibility, score each objective, and extract readable results</li>
+</ul>
+</li>
+<li><strong>Run Sensitivity Analysis</strong><ul>
+<li>Apply <code>sensitivity</code> to modify constraints, quotas, or preference structures</li>
+<li>Generate what-if metrics and comparative charts</li>
+</ul>
+</li>
+</ol>
+<h3 id="solutions--see-also">See Also<a class="headerlink" href="#solutions--see-also" title="Permanent link">&para;</a></h3>
+<ul>
+<li>
+<p><a href="../../../afccp/reference/data/preferences/#data.preferences"><code>data.preferences</code></a>:
+  Cadet/AFSC eligibility, tier data, and OM-based utility scores</p>
+</li>
+<li>
+<p><a href="../../../afccp/reference/data/values/#data.values"><code>data.values</code></a>:
+  Solver weight configurations for VFT and GUO objectives</p>
+</li>
+<li>
+<p><a href="../../../afccp/reference/main/#main.CadetCareerProblem"><code>CadetCareerProblem</code></a>:
+  Main interface to run all solution workflows via <code>.solve_*()</code> methods</p>
+</li>
+</ul>
 
 
 

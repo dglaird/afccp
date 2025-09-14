@@ -1935,63 +1935,41 @@ of the entire system, organizing all core inputs (cadet, AFSC, and parameter dat
 downstream optimization, evaluation, and visualization.</p>
 <p>The module is composed of six submodules, each handling a distinct category of functionality:</p>
 <ul>
-<li>
-<p><strong>adjustments</strong>:</p>
-</li>
-<li>
-<p>Provides tools to dynamically modify AFCCP data after loading.</p>
-</li>
+<li><strong>adjustments</strong>:<ul>
+<li>Provides tools to dynamically modify AFCCP data after loading.</li>
 <li>Enables addition/removal of records, overrides to standard parameters, and data corrections.</li>
-<li>
-<p>Used for setting policy-like constraints (e.g., mandatory AFSC matches, special case cadets).</p>
+<li>Used for setting policy-like constraints (e.g., mandatory AFSC matches, special case cadets).</li>
+</ul>
 </li>
-<li>
-<p><strong>preferences</strong>:</p>
-</li>
-<li>
-<p>Constructs utility matrices and choice rankings for cadets.</p>
-</li>
+<li><strong>preferences</strong>:<ul>
+<li>Constructs utility matrices and choice rankings for cadets.</li>
 <li>Implements preference formulas and customizations for rated vs. non-rated pipelines.</li>
-<li>
-<p>Supports business-hour conversions, tier weighting, and preference smoothing.</p>
+<li>Supports business-hour conversions, tier weighting, and preference smoothing.</li>
+</ul>
 </li>
-<li>
-<p><strong>processing</strong>:</p>
-</li>
-<li>
-<p>Handles raw data ingestion and conversion into AFCCP-compatible formats.</p>
-</li>
+<li><strong>processing</strong>:<ul>
+<li>Handles raw data ingestion and conversion into AFCCP-compatible formats.</li>
 <li>Includes import functions for cadets, AFSCs, matrices, and external policy data.</li>
-<li>
-<p>Validates data structures and resolves ID and naming consistency issues.</p>
+<li>Validates data structures and resolves ID and naming consistency issues.</li>
+</ul>
 </li>
-<li>
-<p><strong>values</strong>:</p>
-</li>
-<li>
-<p>Houses the value parameters and weights used by scoring and optimization functions.</p>
-</li>
+<li><strong>values</strong>:<ul>
+<li>Houses the value parameters and weights used by scoring and optimization functions.</li>
 <li>Loads, stores, and exports weights related to cadet utility, AFSC metrics, and fairness goals.</li>
-<li>
-<p>Includes VFT-style parameter managers for weighting different objectives.</p>
+<li>Includes VFT-style parameter managers for weighting different objectives.</li>
+</ul>
 </li>
-<li>
-<p><strong>support</strong>:</p>
+<li><strong>support</strong>:<ul>
+<li>Contains utility functions and helpers used across data submodules.</li>
+<li>Provides tools for CIP-to-AFSC tier logic, matrix reshaping, name formatting, and more.</li>
+</ul>
 </li>
-<li>
-<p>Contains utility functions and helpers used across data submodules.</p>
-</li>
-<li>
-<p>Provides tools for CIP-to-AFSC tier logic, matrix reshaping, name formatting, and more.</p>
-</li>
-<li>
-<p><strong>generation</strong>:</p>
-</li>
-<li>
-<p>Offers synthetic data generation tools for testing AFCCP workflows.</p>
-</li>
+<li><strong>generation</strong>:<ul>
+<li>Offers synthetic data generation tools for testing AFCCP workflows.</li>
 <li>Can simulate cadets, AFSCs, matrices, and full problem instances with controlled parameters.</li>
 <li>Useful for benchmarking, tutorial development, and automated testing.</li>
+</ul>
+</li>
 </ul>
 <p>This module ensures that data entering the AFCCP pipeline is well-structured, customizable, and
 aligned with downstream model expectations. It separates concerns cleanly across ingestion,
@@ -2004,7 +1982,6 @@ preparation, transformation, and preference modeling.</p>
 <li><a href="../../../afccp/reference/data/values/#data.values"><code>data.values</code></a></li>
 <li><a href="../../../afccp/reference/data/support/#data.support"><code>data.support</code></a></li>
 <li><a href="../../../afccp/reference/data/generation/#data.generation"><code>data.generation</code></a></li>
-<li><code>../../../reference/data/generation/#data.generation</code></li>
 </ul>
 
 

@@ -1994,7 +1994,11 @@ of the AFCCP model (e.g., CAVE, ALERT, MARKET).</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1793</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1789</span>
+<span class="normal">1790</span>
+<span class="normal">1791</span>
+<span class="normal">1792</span>
+<span class="normal">1793</span>
 <span class="normal">1794</span>
 <span class="normal">1795</span>
 <span class="normal">1796</span>
@@ -2031,11 +2035,7 @@ of the AFCCP model (e.g., CAVE, ALERT, MARKET).</p>
 <span class="normal">1827</span>
 <span class="normal">1828</span>
 <span class="normal">1829</span>
-<span class="normal">1830</span>
-<span class="normal">1831</span>
-<span class="normal">1832</span>
-<span class="normal">1833</span>
-<span class="normal">1834</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">set_value_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vp_name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1830</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">set_value_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vp_name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Set the Active Value Parameters for the Current Problem Instance.</span>
 
@@ -2127,7 +2127,11 @@ This method also updates the set of value parameters in the dictionary</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1836</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1832</span>
+<span class="normal">1833</span>
+<span class="normal">1834</span>
+<span class="normal">1835</span>
+<span class="normal">1836</span>
 <span class="normal">1837</span>
 <span class="normal">1838</span>
 <span class="normal">1839</span>
@@ -2141,11 +2145,7 @@ This method also updates the set of value parameters in the dictionary</p>
 <span class="normal">1847</span>
 <span class="normal">1848</span>
 <span class="normal">1849</span>
-<span class="normal">1850</span>
-<span class="normal">1851</span>
-<span class="normal">1852</span>
-<span class="normal">1853</span>
-<span class="normal">1854</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">update_value_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">24</span><span class="p">):</span>
+<span class="normal">1850</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">update_value_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">24</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Simple method to take the current set of value parameters and update their sets and subsets and all that.</span>
 <span class="sd">    This method also updates the set of value parameters in the dictionary</span>
@@ -2186,18 +2186,18 @@ weights and uses the AFSCs.csv dataset for the targets and constraints.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1856</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1852</span>
+<span class="normal">1853</span>
+<span class="normal">1854</span>
+<span class="normal">1855</span>
+<span class="normal">1856</span>
 <span class="normal">1857</span>
 <span class="normal">1858</span>
 <span class="normal">1859</span>
 <span class="normal">1860</span>
 <span class="normal">1861</span>
 <span class="normal">1862</span>
-<span class="normal">1863</span>
-<span class="normal">1864</span>
-<span class="normal">1865</span>
-<span class="normal">1866</span>
-<span class="normal">1867</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_afocd_value_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="normal">1863</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_afocd_value_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This method calculates the AFOCD value parameters using my own methodology on determining the</span>
 <span class="sd">    weights and uses the AFSCs.csv dataset for the targets and constraints.</span>
@@ -2231,7 +2231,11 @@ value parameter format</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1869</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1865</span>
+<span class="normal">1866</span>
+<span class="normal">1867</span>
+<span class="normal">1868</span>
+<span class="normal">1869</span>
 <span class="normal">1870</span>
 <span class="normal">1871</span>
 <span class="normal">1872</span>
@@ -2242,11 +2246,7 @@ value parameter format</p>
 <span class="normal">1877</span>
 <span class="normal">1878</span>
 <span class="normal">1879</span>
-<span class="normal">1880</span>
-<span class="normal">1881</span>
-<span class="normal">1882</span>
-<span class="normal">1883</span>
-<span class="normal">1884</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">export_value_parameters_as_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1880</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">export_value_parameters_as_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This method exports the current set of instance value parameters to a new excel file in the &quot;default&quot;</span>
 <span class="sd">    value parameter format</span>
@@ -2324,7 +2324,11 @@ value parameter format</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1886</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1882</span>
+<span class="normal">1883</span>
+<span class="normal">1884</span>
+<span class="normal">1885</span>
+<span class="normal">1886</span>
 <span class="normal">1887</span>
 <span class="normal">1888</span>
 <span class="normal">1889</span>
@@ -2357,11 +2361,7 @@ value parameter format</p>
 <span class="normal">1916</span>
 <span class="normal">1917</span>
 <span class="normal">1918</span>
-<span class="normal">1919</span>
-<span class="normal">1920</span>
-<span class="normal">1921</span>
-<span class="normal">1922</span>
-<span class="normal">1923</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">change_weight_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cadets</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1919</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">change_weight_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cadets</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Changes the weight function on either cadets or AFSCs</span>
 <span class="sd">    :param cadets: if this is for cadets (True) or AFSCs (False)</span>
@@ -2438,7 +2438,11 @@ specifications, making the instance ready for goal-based optimization.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1925</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1921</span>
+<span class="normal">1922</span>
+<span class="normal">1923</span>
+<span class="normal">1924</span>
+<span class="normal">1925</span>
 <span class="normal">1926</span>
 <span class="normal">1927</span>
 <span class="normal">1928</span>
@@ -2504,11 +2508,7 @@ specifications, making the instance ready for goal-based optimization.</p>
 <span class="normal">1988</span>
 <span class="normal">1989</span>
 <span class="normal">1990</span>
-<span class="normal">1991</span>
-<span class="normal">1992</span>
-<span class="normal">1993</span>
-<span class="normal">1994</span>
-<span class="normal">1995</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">vft_to_gp_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1991</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">vft_to_gp_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Translate VFT Model Parameters to *former* Lt Rebecca Reynold&#39;s Goal Programming Model Parameters.</span>
 
