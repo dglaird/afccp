@@ -73,9 +73,11 @@ class CadetCareerProblem:
     :param generate_only_nrl: Restrict AFSCs to NRLs only.
     :type generate_only_nrl: bool
     :param ctgan_model_name: Model to use for CTGAN generation.
-    :param ctgan_pilot_sampling: Condition sampling on pilot preferences in CTGAN.
     :type ctgan_model_name: str
+    :param ctgan_pilot_sampling: Condition sampling on pilot preferences in CTGAN.
     :type ctgan_pilot_sampling: bool
+    :param ctgan_rare_degree_sampling: Augment data to account for rarer degrees with AFSCs
+    :type ctgan_rare_degree_sampling: bool
     :param printing: Whether to print status updates.
     :type printing: bool
 
@@ -83,7 +85,8 @@ class CadetCareerProblem:
     """
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
                  num_value_function_breakpoints=None, N=1600, M=32, P=6, S=10, generate_extra_components=False,
-                 generate_only_nrl=False, ctgan_model_name='CTGAN_Full', ctgan_pilot_sampling=False, printing=True):
+                 generate_only_nrl=False, ctgan_model_name='CTGAN_Full', ctgan_pilot_sampling=False,
+                 ctgan_rare_degree_sampling=True, printing=True):
         """
         ___
         ### 📦 Attributes
@@ -260,7 +263,8 @@ class CadetCareerProblem:
                 # Generate a "CTGAN" problem instance
                 elif data_name == "CTGAN":
                     self.parameters = afccp.data.generation.generate_ctgan_instance(
-                        N, name=ctgan_model_name, pilot_condition=ctgan_pilot_sampling)
+                        N, name=ctgan_model_name, pilot_condition=ctgan_pilot_sampling,
+                        rare_degrees_adjust=ctgan_rare_degree_sampling)
 
                 # We don't have that type of data available to generate
                 else:

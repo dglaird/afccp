@@ -103,6 +103,7 @@ import numpy as np
 import pandas as pd
 import os
 import warnings
+import pickle
 warnings.filterwarnings('ignore')  # prevent red warnings from printing
 
 # afccp modules
@@ -353,6 +354,67 @@ def fix_soc_afscs_to_generic(df: pd.DataFrame, afscs: np.ndarray):
     return df[cols]
 
 
+class KDESampler:
+    def __init__(self, data=None, kde=None):
+        if kde is not None:
+            self.kde = kde
+        else:
+            self.kde = gaussian_kde(data, bw_method='scott')
+
+    def sample(self, n):
+        return np.clip(self.kde.resample(n).flatten(), 0, 1)
+
+    def save(self, path):
+        with open(path, 'wb') as f:
+            pickle.dump(self.kde, f)
+
+    @staticmethod
+    def load(path):
+        with open(path, 'rb') as f:
+            kde = pickle.load(f)
+        return KDESampler(kde=kde)
+
+
+def process_rare_afscs_degrees_data(full_data=None):
+
+    # Load in original data
+    if full_data is None:
+        print('Loading in data...')
+        filepath = afccp.globals.paths["support"] + 'data/ctgan_data.csv'
+        full_data = pd.read_csv(filepath)
+
+    # Create degree dataframe and KDE samplers for each rare AFSC
+    i = 0
+    deg_df = pd.DataFrame()
+    afscs_rare_eligible = ['13H', '32EXA', '32EXC', '32EXE', '32EXF',
+                           '32EXJ', '61C', '61D', '62EXC', '62EXE', '62EXH', '62EXI']
+    for afsc in afscs_rare_eligible:
+
+        # Filter the real data on people who wanted this AFSC, and the AFSC wanted them
+        conditions = (full_data[f'{afsc}_AFSC'] > 0.6) & (full_data[f'{afsc}_Cadet'] > 0.6)
+        columns = ['YEAR', 'CIP1', 'CIP2', 'Merit', 'SOC', f'{afsc}_Cadet', f'{afsc}_AFSC']
+
+        # Get the degrees of these people and save them to the degree proportions dataframe
+        d = full_data.loc[conditions][columns]['CIP1'].value_counts()
+        proportions = d ** 5 / (d ** 5).sum()
+        for degree, val in proportions.items():
+            deg_df.loc[i, 'AFSC'] = afsc
+            deg_df.loc[i, 'Degree'] = degree
+            deg_df.loc[i, 'Proportion'] = val
+            i += 1
+
+        # Save the KDE sampler functions for this AFSC (AFSC & Cadet Utility)
+        a_data = list(full_data.loc[conditions][columns][f'{afsc}_AFSC'])
+        sampler = KDESampler(a_data)
+        sampler.save(f"support/kde_samplers/{afsc}_AFSC_KDESampler.pkl")
+        c_data = list(full_data.loc[conditions][columns][f'{afsc}_Cadet'])
+        sampler = KDESampler(c_data)
+        sampler.save(f"support/kde_samplers/{afsc}_Cadet_KDESampler.pkl")
+
+    # Export rare AFSC-degree data
+    deg_df.to_csv('support/data/afscs_rare_eligibility.csv', index=False)
+
+
 # ____________________________________CTGAN MODEL TRAINING AND IMPLEMENTATION___________________________________________
 def train_ctgan(epochs=1000, printing=True, name='CTGAN_Full'):
     """
@@ -404,7 +466,8 @@ def train_ctgan(epochs=1000, printing=True, name='CTGAN_Full'):
         print("Model saved to", filepath)
 
 
-def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, degree_qual_type='Consistent'):
+def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, rare_degrees_adjust=True,
+                            degree_qual_type='Consistent'):
     """
     This procedure takes in the specified number of cadets and then generates a representative problem
     instance using CTGAN that has been trained from a real class year of cadets
@@ -419,70 +482,36 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
     filepath = afccp.globals.paths["support"] + name + '.pkl'
     model = CTGANSynthesizer.load(filepath)
 
-    # Split up the number of ROTC/USAFA cadets
-    N_usafa = round(np.random.triangular(0.25, 0.33, 0.4) * N)
-    N_rotc = N - N_usafa
-
-    # Pilot is by far the #1 desired career field, let's make sure this is represented here
-    N_usafa_pilots = round(np.random.triangular(0.3, 0.4, 0.43) * N_usafa)
-    N_usafa_generic = N_usafa - N_usafa_pilots
-    N_rotc_pilots = round(np.random.triangular(0.25, 0.3, 0.33) * N_rotc)
-    N_rotc_generic = N_rotc - N_rotc_pilots
-
-    # Condition the data generated to produce the right composition of pilot first choice preferences
-    usafa_pilot_first_choice = Condition(num_rows = N_usafa_pilots, column_values={'SOC': 'USAFA', '11XX_Cadet': 1})
-    usafa_generic_cadets = Condition(num_rows=N_usafa_generic, column_values={'SOC': 'USAFA'})
-    rotc_pilot_first_choice = Condition(num_rows=N_rotc_pilots, column_values={'SOC': 'ROTC', '11XX_Cadet': 1})
-    rotc_generic_cadets = Condition(num_rows=N_rotc_generic, column_values={'SOC': 'ROTC'})
-
-    # Sample data  (Sampling from conditions may take too long!)
-    if pilot_condition:
-        data = model.sample_from_conditions(conditions=[usafa_pilot_first_choice, usafa_generic_cadets,
-                                                        rotc_pilot_first_choice, rotc_generic_cadets])
-    else:
-        data = model.sample(N)
-
     # Load in AFSCs data
     filepath = afccp.globals.paths["support"] + 'data/afscs_data.csv'
     afscs_data = afccp.globals.import_csv_data(filepath)
 
-    # Get list of AFSCs
-    afscs = np.array(afscs_data['AFSC'])
+    # Initialize parameter dictionary (initially only AFSCs data)
+    afscs = np.array(afscs_data['AFSC'])  # List of AFSCs
+    p = {'afscs': afscs, 'M': len(afscs), 'acc_grp': np.array(afscs_data['Accessions Group']),
+         'Deg Tiers': np.array(afscs_data.loc[:, 'Deg Tier 1': 'Deg Tier 4']), 'P': len(afscs),
+         'J': np.arange(len(afscs)), 'num_util': 10, 'Qual Type': degree_qual_type,
 
-    # Initialize parameter dictionary
-    p = {'afscs': afscs, 'N': N, 'P': len(afscs), 'M': len(afscs), 'merit': np.array(data['Merit']),
-         'cadets': np.arange(N), 'usafa': np.array(data['SOC'] == 'USAFA') * 1,
-         'cip1': np.array(data['CIP1']), 'cip2': np.array(data['CIP2']), 'num_util': 10,  # 10 utilities taken
-         'rotc': np.array(data['SOC'] == 'ROTC'), 'I': np.arange(N), 'J': np.arange(len(afscs))}
-
-    # Clean up degree columns (remove the leading "c" I put there if it's there)
-    for i in p['I']:
-        if p['cip1'][i][0] == 'c':
-            p['cip1'][i] = p['cip1'][i][1:]
-        if p['cip2'][i][0] == 'c':
-            p['cip2'][i] = p['cip2'][i][1:]
-
-    # Create "SOC" variable
-    p['soc'] = np.array(['USAFA' if p['usafa'][i] == 1 else "ROTC" for i in p['I']])
-
-    # Fix percentiles for USAFA and ROTC
-    re_scaled_om = p['merit']
-    for soc in ['usafa', 'rotc']:
-        indices = np.where(p[soc])[0]  # Indices of these SOC-specific cadets
-        percentiles = p['merit'][indices]  # The percentiles of these cadets
-        N = len(percentiles)  # Number of cadets from this SOC
-        sorted_indices = np.argsort(percentiles)[::-1]  # Sort these percentiles (descending)
-        new_percentiles = (np.arange(N)) / (N - 1)  # New percentiles we want to replace these with
-        magic_indices = np.argsort(sorted_indices)  # Indices that let us put the new percentiles in right place
-        new_percentiles = new_percentiles[magic_indices]  # Put the new percentiles back in the right place
-        np.put(re_scaled_om, indices, new_percentiles)  # Put these new percentiles in combined SOC OM spot
-
-    # Replace merit
-    p['merit'] = re_scaled_om
+         # Some cadet data needed too
+         'N': N, 'cadets': np.arange(N), 'I': np.arange(N)}
 
     # Add AFSC features to parameters
-    p['acc_grp'] = np.array(afscs_data['Accessions Group'])
-    p['Deg Tiers'] = np.array(afscs_data.loc[:, 'Deg Tier 1': 'Deg Tier 4'])
+    p = generate_afscs_data(p, afscs_data)
+
+    # Generate the cadet data and add it to the parameters
+    data = generate_cadet_data(p, model, pilot_condition, rare_degrees_adjust)
+    p = initialize_cadet_parameters_in_dictionary(p, data)
+    p = determine_cadet_preference_information(p, data)
+    p = generate_afsc_eligibility_and_preferences_data(p, data)
+    p = generate_rated_om_matrices(p)
+
+    # Return parameters
+    return p
+
+
+def generate_afscs_data(p, afscs_data):
+
+    # Edit Deg Tiers null values to make string null
     p['Deg Tiers'][pd.isnull(p["Deg Tiers"])] = ''  # TODO
 
     # Determine AFSCs by Accessions Group
@@ -528,6 +557,26 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
     for param in ['quota_e', 'quota_d', 'quota_min', 'quota_max']:
         p[param] = p['pgl']
 
+    return p
+
+
+def generate_cadet_data(p, model, pilot_condition, rare_degrees_adjust=True):
+
+    # Sample the cadets to fill the AFSCs with rare degrees
+    if rare_degrees_adjust:
+        data_rare_degrees = sample_rare_afscs_degrees(model=model, p=p)
+    else:
+        data_rare_degrees = pd.DataFrame()  # Empty dataframe (don't care about it)
+
+    # Sample the majority of cadets
+    if pilot_condition:
+        data_all_else = sample_cadet_data_with_pilot_condition(N=p['N'] - len(data_rare_degrees), model=model)
+    else:
+        data_all_else = model.sample(p['N'] - len(data_rare_degrees))
+
+    # Combine majority cadets and rare degree cadets
+    data = pd.concat((data_rare_degrees, data_all_else), ignore_index=True)
+
     # Break up USSF and 11XX AFSC by SOC
     for afsc in ['USSF', '11XX']:
         for col in ['Cadet', 'AFSC']:
@@ -535,7 +584,124 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
                 data[f'{afsc}_{soc[0]}_{col}'] = 0
                 data.loc[data['SOC'] == soc, f'{afsc}_{soc[0]}_{col}'] = data.loc[data['SOC'] == soc, f'{afsc}_{col}']
 
-    c_pref_cols = [f'{afsc}_Cadet' for afsc in afscs]
+    return data
+
+
+def sample_rare_afscs_degrees(model, p):
+
+    # Load in rare AFSCs degree data
+    deg_df = pd.read_csv('support/data/afscs_rare_eligibility.csv').set_index(['AFSC', 'Degree'])
+    afscs_rare_eligible = np.array(deg_df.index.get_level_values('AFSC').unique())
+    afsc_util_samplers = {}
+    cadet_util_samplers = {}
+    for afsc in afscs_rare_eligible:
+        afsc_util_samplers[afsc] = KDESampler.load(f"support/kde_samplers/{afsc}_AFSC_KDESampler.pkl")
+        cadet_util_samplers[afsc] = KDESampler.load(f"support/kde_samplers/{afsc}_Cadet_KDESampler.pkl")
+
+    # Determine how many cadets to generate with these degrees (after AFSC generated data)
+    total_gen = 0
+    afsc_cip_conditions, afsc_cip_data = {}, {}
+    for afsc in afscs_rare_eligible:
+        afsc_cip_conditions[afsc], afsc_cip_data[afsc] = {}, {}
+        j = np.where(p['afscs'] == afsc)[0][0]
+        val = p['pgl'][j]
+        if afsc == '62EXE':  # We struggle to fill this quota!!
+            val = val / 2
+        num_gen = np.ceil(max(val * 1.4, val + 3))
+        proportions = deg_df.loc[afsc]['Proportion']
+        cip_data = pd.Series(safe_round(np.array(proportions) * num_gen), index=proportions.index)
+        cip_data = cip_data[cip_data > 0]
+        for cip, count in cip_data.items():
+            afsc_cip_data[afsc][cip] = int(count)
+            afsc_cip_conditions[afsc][cip] = Condition(num_rows=int(count), column_values={"CIP1": cip})
+            total_gen += count
+
+    # Generate cadets dataframe
+    data = pd.DataFrame()
+    i = 0
+    for afsc in afscs_rare_eligible:
+        for cip, count in afsc_cip_data[afsc].items():
+            print(f'{afsc} {cip}: {count}...')
+            df_gen = model.sample_from_conditions([afsc_cip_conditions[afsc][cip]])
+            data = pd.concat((data, df_gen), ignore_index=True)
+            i += count
+            print(f'\n{afsc} {cip}: ({int(i)}/{int(total_gen)}) {round((i / total_gen) * 100, 2)}% complete.')
+
+    # Modify the utilities for the cadet/AFSC pairs
+    i = 0
+    for afsc in afscs_rare_eligible:
+        for cip, count in afsc_cip_data[afsc].items():
+            data.loc[i:i + count - 1, f'{afsc}_Cadet'] = cadet_util_samplers[afsc].sample(count)
+            data.loc[i:i + count - 1, f'{afsc}_AFSC'] = afsc_util_samplers[afsc].sample(count)
+            i += count
+    return data
+
+
+def sample_cadet_data_with_pilot_condition(N, model):
+
+    # Split up the number of ROTC/USAFA cadets
+    N_usafa = round(np.random.triangular(0.25, 0.33, 0.4) * N)
+    N_rotc = N - N_usafa
+
+    # Pilot is by far the #1 desired career field, let's make sure this is represented here
+    N_usafa_pilots = round(np.random.triangular(0.3, 0.4, 0.43) * N_usafa)
+    N_usafa_generic = N_usafa - N_usafa_pilots
+    N_rotc_pilots = round(np.random.triangular(0.25, 0.3, 0.33) * N_rotc)
+    N_rotc_generic = N_rotc - N_rotc_pilots
+
+    # Condition the data generated to produce the right composition of pilot first choice preferences
+    usafa_pilot_first_choice = Condition(num_rows=N_usafa_pilots, column_values={'SOC': 'USAFA', '11XX_Cadet': 1})
+    usafa_generic_cadets = Condition(num_rows=N_usafa_generic, column_values={'SOC': 'USAFA'})
+    rotc_pilot_first_choice = Condition(num_rows=N_rotc_pilots, column_values={'SOC': 'ROTC', '11XX_Cadet': 1})
+    rotc_generic_cadets = Condition(num_rows=N_rotc_generic, column_values={'SOC': 'ROTC'})
+
+    # Sample data  (Sampling from conditions may take too long!)
+    data = model.sample_from_conditions(
+        conditions=[usafa_pilot_first_choice, usafa_generic_cadets, rotc_pilot_first_choice, rotc_generic_cadets])
+
+    return data
+
+
+def initialize_cadet_parameters_in_dictionary(p, data):
+
+    # Add cadet data features to parameter dictionary
+    p['merit'] = np.array(data['Merit'])
+    p['usafa'] = np.array(data['SOC'] == 'USAFA') * 1
+    p['rotc'] = np.array(data['SOC'] == 'ROTC') * 1
+    p['cip1'] = np.array(data['CIP1'])
+    p['cip2'] = np.array(data['CIP2'])
+
+    # Clean up degree columns (remove the leading "c" I put there if it's there)
+    for i in p['I']:
+        if p['cip1'][i][0] == 'c':
+            p['cip1'][i] = p['cip1'][i][1:]
+        if p['cip2'][i][0] == 'c':
+            p['cip2'][i] = p['cip2'][i][1:]
+
+    # Create "SOC" variable
+    p['soc'] = np.array(['USAFA' if p['usafa'][i] == 1 else "ROTC" for i in p['I']])
+
+    # Fix percentiles for USAFA and ROTC
+    re_scaled_om = p['merit']
+    for soc in ['usafa', 'rotc']:
+        indices = np.where(p[soc])[0]  # Indices of these SOC-specific cadets
+        percentiles = p['merit'][indices]  # The percentiles of these cadets
+        N = len(percentiles)  # Number of cadets from this SOC
+        sorted_indices = np.argsort(percentiles)[::-1]  # Sort these percentiles (descending)
+        new_percentiles = (np.arange(N)) / (N - 1)  # New percentiles we want to replace these with
+        magic_indices = np.argsort(sorted_indices)  # Indices that let us put the new percentiles in right place
+        new_percentiles = new_percentiles[magic_indices]  # Put the new percentiles back in the right place
+        np.put(re_scaled_om, indices, new_percentiles)  # Put these new percentiles in combined SOC OM spot
+
+    # Replace merit
+    p['merit'] = re_scaled_om
+
+    return p
+
+
+def determine_cadet_preference_information(p, data):
+
+    c_pref_cols = [f'{afsc}_Cadet' for afsc in p['afscs']]
     util_original = np.around(np.array(data[c_pref_cols]), 2)
 
     # Initialize cadet preference information
@@ -547,13 +713,6 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
 
     # Loop through each cadet to tweak their preferences
     for i in p['cadets']:
-
-        # Manually fix 62EXE preferencing from eligible cadets
-        ee_j = np.where(afscs == '62EXE')[0][0]
-        if '1410' in data.loc[i, 'CIP1'] or '1447' in data.loc[i, 'CIP1']:
-            if np.random.rand() > 0.6:
-                util_original[i, ee_j] = np.around(max(util_original[i, ee_j], min(1, np.random.normal(0.8, 0.18))),
-                                                   2)
 
         # Fix rated/USSF volunteer situation
         for acc_grp in ['Rated', 'USSF']:
@@ -570,22 +729,22 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
         # Was this the last choice AFSC? Remove from our lists
         ordered_list = np.argsort(util_original[i])[::-1]
         last_choice = data.loc[i, 'Last Choice']
-        if last_choice in afscs:
-            j = np.where(afscs == last_choice)[0][0]
+        if last_choice in p['afscs']:
+            j = np.where(p['afscs'] == last_choice)[0][0]
             ordered_list = ordered_list[ordered_list != j]
 
         # Add the "2nd least desired AFSC" to list
         second_last_choice = data.loc[i, '2nd-Last Choice']
         bottom = []
-        if second_last_choice in afscs and afsc != last_choice:  # Check if valid and not in bottom choices
-            j = np.where(afscs == second_last_choice)[0][0]  # Get index of AFSC
+        if second_last_choice in p['afscs'] and second_last_choice != last_choice:  # Check if valid and not in bottom choices
+            j = np.where(p['afscs'] == second_last_choice)[0][0]  # Get index of AFSC
             ordered_list = ordered_list[ordered_list != j]  # Remove index from preferences
             bottom.append(second_last_choice)  # Add it to the list of bottom choices
 
         # If it's a valid AFSC that isn't already in the bottom choices
         third_last_choice = data.loc[i, '3rd-Last Choice']  # Add the "3rd least desired AFSC" to list
-        if third_last_choice in afscs and afsc not in [last_choice, second_last_choice]:
-            j = np.where(afscs == third_last_choice)[0][0]  # Get index of AFSC
+        if third_last_choice in p['afscs'] and third_last_choice not in [last_choice, second_last_choice]:
+            j = np.where(p['afscs'] == third_last_choice)[0][0]  # Get index of AFSC
             ordered_list = ordered_list[
                 ordered_list != j]  # Reordered_list = np.argsort(util_original[i])[::-1]move index from preferences
             bottom.append(third_last_choice)  # Add it to the list of bottom choices
@@ -600,12 +759,22 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
         num_pref = 10 if np.random.rand() > 0.1 else int(np.random.triangular(11, 15, 26))
         p['c_utilities'][i] = util_original[i, ordered_list[:10]]
         p['cadet_preferences'][i] = ordered_list[:num_pref]
-        p['c_preferences'][i, :num_pref] = afscs[p['cadet_preferences'][i]]
+        p['c_preferences'][i, :num_pref] = p['afscs'][p['cadet_preferences'][i]]
         p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
         p['utility'][i, p['cadet_preferences'][i][:10]] = p['c_utilities'][i]
 
+    # Save least desired AFSC info
+    p['second_to_last_afscs'] = np.array(data['Second Least Desired AFSCs'])
+    p['last_afsc'] = np.array(data['Last Choice'])
+
+    # Save selected pref information
+    p['c_selected_matrix'] = (p['c_pref_matrix'] > 0) * 1
+    return p
+
+
+def generate_afsc_eligibility_and_preferences_data(p, data):
+
     # Get qual matrix information
-    p['Qual Type'] = degree_qual_type
     p = afccp.data.adjustments.gather_degree_tier_qual_matrix(cadets_df=None, parameters=p)
 
     # Get the qual matrix to know what people are eligible for
@@ -614,7 +783,7 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
     I_E = [np.where(eligible[:, j])[0] for j in p['J']]  # set of cadets that are eligible for AFSC j
 
     # Modify AFSC utilities based on eligibility
-    a_pref_cols = [f'{afsc}_AFSC' for afsc in afscs]
+    a_pref_cols = [f'{afsc}_AFSC' for afsc in p['afscs']]
     p['afsc_utility'] = np.around(np.array(data[a_pref_cols]), 2)
     for acc_grp in ['Rated', 'USSF']:
         for j in p['J^' + acc_grp]:
@@ -634,7 +803,6 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
 
     # Remove cadets from this AFSC's preferences if the cadet is not eligible
     for j in p['J^NRL']:
-
         # Get appropriate sets of cadets
         eligible_cadets = I_E[j]
         ineligible_cadets = np.where(ineligible[:, j])[0]
@@ -653,7 +821,6 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
     p['afsc_preferences'] = {}
     p['a_pref_matrix'] = np.zeros((p['N'], p['M'])).astype(int)
     for j in p['J']:
-
         # Sort the utilities to get the preference list
         utilities = p["afsc_utility"][:, j]
         ineligible_indices = np.where(utilities == 0)[0]
@@ -662,6 +829,11 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
 
         # Since 'afsc_preferences' is an array of AFSC indices, we can do this
         p['a_pref_matrix'][p['afsc_preferences'][j], j] = np.arange(1, len(p['afsc_preferences'][j]) + 1)
+
+    return p
+
+
+def generate_rated_om_matrices(p):
 
     # Needed information for rated OM matrices
     dataset_dict = {'rotc': 'rr_om_matrix', 'usafa': 'ur_om_matrix'}
@@ -700,8 +872,6 @@ def generate_ctgan_instance(N=1600, name='CTGAN_Full', pilot_condition=False, de
                     p[dataset_dict[soc]][row, col] = 0
                 else:
                     p[dataset_dict[soc]][row, col] = (max_rank - rank + 1) / max_rank
-
-    # Return parameters
     return p
 
 
