@@ -593,7 +593,7 @@ def generate_extra_components(parameters):
     # Determine which AFSCs we assign bases for
     p['afsc_assign_base'] = np.zeros(p['M']).astype(int)
     for j in range(p['M']):
-        if p['acc_grp'][j] != "Rated" and np.random.rand() > 0.3:
+        if p['acc_grp'][j] != "Rated" and np.random.rand() > 0.02:
             p['afsc_assign_base'][j] = 1
 
     # Name the bases according to the Excel columns (just a method of generating unique ordered letters)
@@ -604,11 +604,12 @@ def generate_extra_components(parameters):
     p['base_max'] = np.zeros((p['S'], p['M'])).astype(int)
     afscs_with_base_assignments = np.where(p['afsc_assign_base'])[0]
     for j in afscs_with_base_assignments:
-        total_max = p['pgl'][j] * 1.5
-        base_max = np.array([np.random.rand() for _ in range(p['S'])])
-        base_max = (base_max / np.sum(base_max)) * total_max
-        p['base_max'][:, j] = base_max.astype(int)
-        p['base_min'][:, j] = (base_max * 0.4).astype(int)
+        total_max = max(p['pgl'][j] * 3, p['pgl'][j] + 8)
+        # base_max = np.array([np.random.rand() for _ in range(p['S'])])
+        # base_max = (base_max / np.sum(base_max)) * total_max
+        base_max = np.array([1000 for _ in range(p['S'])])
+        p['base_max'][:, j] = np.ceil(base_max).astype(int)
+        p['base_min'][:, j] = np.floor(p['pgl'][j] * 0.2).astype(int)
 
     # Generate random cadet preferences for bases
     bases = copy.deepcopy(p['bases'])

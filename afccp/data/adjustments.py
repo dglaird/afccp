@@ -533,6 +533,10 @@ def parameter_sets_additions(parameters):
     if np.shape(p['utility']) == (p['N'], p['M']):
         p["utility"] = np.hstack((p["utility"], zeros_vector))
 
+    # Add SOC column
+    if "soc" not in p:
+        p['soc'] = np.array(['USAFA' if p['usafa'][i] == 1 else 'ROTC' for i in p['I']])
+
     # Merit
     if 'merit' in p:
         p['sum_merit'] = p['merit'].sum()  # should be close to N/2

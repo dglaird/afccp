@@ -667,22 +667,22 @@ class CadetCareerProblem:
         self.generate_rated_data()
 
         # Update qualification matrix from AFSC preferences (treating CFM lists as "gospel" except for Rated/USSF)
-        self.update_qualification_matrix_from_afsc_preferences()
+        self.update_qualification_matrix_from_afsc_preferences(printing=printing)
 
         # Removes ineligible cadets from all 3 matrices: degree qualifications, cadet preferences, AFSC preferences
         self.remove_ineligible_choices(printing=printing)
 
         # Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)
-        self.update_preference_matrices()  # 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preference lists need to omit gaps)
+        self.update_preference_matrices(printing=printing)  # 1, 4, 6, 7 -> 1, 2, 3, 4 (preference lists must omit gaps)
 
         # Force first choice utility values to be 100%
         self.update_first_choice_cadet_utility_to_one(printing=printing)
 
         # Convert AFSC preferences to percentiles (0 to 1)
-        self.convert_afsc_preferences_to_percentiles()  # 1, 2, 3, 4, 5 -> 1, 0.8, 0.6, 0.4, 0.2
+        self.convert_afsc_preferences_to_percentiles(printing=printing)  # 1, 2, 3, 4, 5 -> 1, 0.8, 0.6, 0.4, 0.2
 
         # The "cadet columns" are located in Cadets.csv and contain the utilities/preferences in order of preference
-        self.update_cadet_columns_from_matrices()  # We haven't touched "c_preferences" and "c_utilities" until now
+        self.update_cadet_columns_from_matrices(printing=printing)  # Haven't touched "c_preferences"/"c_utilities" yet
 
         # Update utility matrix from columns (and create final cadet utility matrix)
         self.update_cadet_utility_matrices_from_cadets_data(printing=printing)
@@ -691,7 +691,7 @@ class CadetCareerProblem:
         self.modify_rated_cadet_lists_based_on_eligibility(printing=printing)  # ...but not eligible for any rated AFSC
 
         # Generate fake (random) set of value parameters
-        self.generate_random_value_parameters()
+        self.generate_random_value_parameters(printing=printing)
 
         # Sanity check the parameters to make sure it all looks good! (No issues found.)
         self.parameter_sanity_check()

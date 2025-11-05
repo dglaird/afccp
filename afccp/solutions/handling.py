@@ -236,8 +236,13 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
 
     # Calculate blocking pairs
     if 'a_pref_matrix' in p:
-        solution['blocking_pairs'] = calculate_blocking_pairs(p, solution)
-        solution['num_blocking_pairs'] = len(solution['blocking_pairs'])
+        try:
+            solution['blocking_pairs'] = calculate_blocking_pairs(p, solution)
+            solution['num_blocking_pairs'] = len(solution['blocking_pairs'])
+        except:
+            solution['blocking_pairs'] = []
+            solution['num_blocking_pairs'] = np.nan
+            print("WARNING. Blocking pair calculation received an error (likely preference list eligibility issues)")
 
     # Print statement
     if printing:
@@ -738,16 +743,18 @@ def calculate_additional_useful_metrics(solution, p, vp):
 
     # Calculate weighted average AFSC choice (based on Norm Score)
     if 'Norm Score' in vp['objectives']:
+
+        # Calculate AFSC normalized index score (overall)
         k = np.where(vp['objectives'] == 'Norm Score')[0][0]
-
-        # Individual norm scores for each AFSC
-        solution['afsc_norm_score'] = solution['objective_measure'][:, k]
-
-        # Weighted average AFSC choice
-        weights = solution['count'] / np.sum(solution['count'])
+        solution['afsc_norm_score'] = solution['objective_measure'][:, k]  # Individual norm scores for each AFSC
+        weights = solution['count'] / np.sum(solution['count'])  # Weighted average AFSC choice
         solution['weighted_average_afsc_score'] = np.dot(weights, solution['afsc_norm_score'])
-        solution['weighted_average_nrl_afsc_score'] = np.dot(weights[p['J^NRL']] / np.sum(weights[p['J^NRL']]),
-                                                             solution['afsc_norm_score'][p['J^NRL']])
+
+        # Calculate AFSC score for each Accession's group
+        for acc_grp, _ in p['afscs_acc_grp'].items():
+            solution[f'weighted_average_{acc_grp.lower()}_afsc_score'] = \
+                np.dot(weights[p[f'J^{acc_grp}']] / np.sum(weights[p[f'J^{acc_grp}']]),
+                       solution['afsc_norm_score'][p[f'J^{acc_grp}']])
 
         # Space Force and Air Force differences
         if 'USSF' in p['afscs_acc_grp']:

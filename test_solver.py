@@ -14,7 +14,7 @@ model.obj = Objective(expr=3 * model.x + 4 * model.y, sense=maximize)
 model.constraint = Constraint(expr=model.x + 2 * model.y <= 8)
 
 # Solve with CBC
-solver = SolverFactory("cbc")
+solver = SolverFactory("gurobi")
 result = solver.solve(model, tee=True)
 
 # Print results
