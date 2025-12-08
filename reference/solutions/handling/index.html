@@ -2429,7 +2429,12 @@ genetic algorithms, and post-hoc analysis.</p>
 <span class="normal">272</span>
 <span class="normal">273</span>
 <span class="normal">274</span>
-<span class="normal">275</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">evaluate_solution</span><span class="p">(</span><span class="n">solution</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">,</span> <span class="n">approximate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">re_calculate_x</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">evaluate_solution</span><span class="p">(</span><span class="n">solution</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">,</span> <span class="n">approximate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">re_calculate_x</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Evaluate a solution (either a vector or a matrix) by calculating various metrics.</span>
 
@@ -2600,8 +2605,13 @@ genetic algorithms, and post-hoc analysis.</p>
 
     <span class="c1"># Calculate blocking pairs</span>
     <span class="k">if</span> <span class="s1">&#39;a_pref_matrix&#39;</span> <span class="ow">in</span> <span class="n">p</span><span class="p">:</span>
-        <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;blocking_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">calculate_blocking_pairs</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">solution</span><span class="p">)</span>
-        <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;num_blocking_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">solution</span><span class="p">[</span><span class="s1">&#39;blocking_pairs&#39;</span><span class="p">])</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;blocking_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">calculate_blocking_pairs</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">solution</span><span class="p">)</span>
+            <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;num_blocking_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">solution</span><span class="p">[</span><span class="s1">&#39;blocking_pairs&#39;</span><span class="p">])</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;blocking_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;num_blocking_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;WARNING. Blocking pair calculation received an error (likely preference list eligibility issues)&quot;</span><span class="p">)</span>
 
     <span class="c1"># Print statement</span>
     <span class="k">if</span> <span class="n">printing</span><span class="p">:</span>
@@ -2670,12 +2680,7 @@ genetic algorithms, and post-hoc analysis.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">278</span>
-<span class="normal">279</span>
-<span class="normal">280</span>
-<span class="normal">281</span>
-<span class="normal">282</span>
-<span class="normal">283</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">283</span>
 <span class="normal">284</span>
 <span class="normal">285</span>
 <span class="normal">286</span>
@@ -2759,7 +2764,12 @@ genetic algorithms, and post-hoc analysis.</p>
 <span class="normal">364</span>
 <span class="normal">365</span>
 <span class="normal">366</span>
-<span class="normal">367</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">fitness_function</span><span class="p">(</span><span class="n">chromosome</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">mp</span><span class="p">,</span> <span class="n">con_fail_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">367</span>
+<span class="normal">368</span>
+<span class="normal">369</span>
+<span class="normal">370</span>
+<span class="normal">371</span>
+<span class="normal">372</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">fitness_function</span><span class="p">(</span><span class="n">chromosome</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">mp</span><span class="p">,</span> <span class="n">con_fail_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Evaluates a chromosome (solution vector) and returns its fitness score.</span>
 
@@ -2894,12 +2904,7 @@ lower preference.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">370</span>
-<span class="normal">371</span>
-<span class="normal">372</span>
-<span class="normal">373</span>
-<span class="normal">374</span>
-<span class="normal">375</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">375</span>
 <span class="normal">376</span>
 <span class="normal">377</span>
 <span class="normal">378</span>
@@ -2986,7 +2991,12 @@ lower preference.</p>
 <span class="normal">459</span>
 <span class="normal">460</span>
 <span class="normal">461</span>
-<span class="normal">462</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_blocking_pairs</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">solution</span><span class="p">,</span> <span class="n">only_return_count</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">462</span>
+<span class="normal">463</span>
+<span class="normal">464</span>
+<span class="normal">465</span>
+<span class="normal">466</span>
+<span class="normal">467</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_blocking_pairs</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">solution</span><span class="p">,</span> <span class="n">only_return_count</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculate blocking pairs in a given solution.</span>
 
@@ -3110,12 +3120,7 @@ lower preference.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">466</span>
-<span class="normal">467</span>
-<span class="normal">468</span>
-<span class="normal">469</span>
-<span class="normal">470</span>
-<span class="normal">471</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">471</span>
 <span class="normal">472</span>
 <span class="normal">473</span>
 <span class="normal">474</span>
@@ -3140,7 +3145,12 @@ lower preference.</p>
 <span class="normal">493</span>
 <span class="normal">494</span>
 <span class="normal">495</span>
-<span class="normal">496</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">value_function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">f_a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="normal">496</span>
+<span class="normal">497</span>
+<span class="normal">498</span>
+<span class="normal">499</span>
+<span class="normal">500</span>
+<span class="normal">501</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">value_function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">f_a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculates the AFSC objective value based on the provided parameters.</span>
 
@@ -3255,16 +3265,16 @@ lower preference.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">499</span>
-<span class="normal">500</span>
-<span class="normal">501</span>
-<span class="normal">502</span>
-<span class="normal">503</span>
-<span class="normal">504</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">504</span>
 <span class="normal">505</span>
 <span class="normal">506</span>
 <span class="normal">507</span>
-<span class="normal">508</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">value_function_points</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fhat</span><span class="p">):</span>
+<span class="normal">508</span>
+<span class="normal">509</span>
+<span class="normal">510</span>
+<span class="normal">511</span>
+<span class="normal">512</span>
+<span class="normal">513</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">value_function_points</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fhat</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Takes the linear function parameters and returns the approximately non-linear coordinates</span>
 <span class="sd">    :param a: function breakpoints</span>
@@ -3317,12 +3327,7 @@ a range between 0 and 1, with 1 being the best possible score and 0 being the wo
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">511</span>
-<span class="normal">512</span>
-<span class="normal">513</span>
-<span class="normal">514</span>
-<span class="normal">515</span>
-<span class="normal">516</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">516</span>
 <span class="normal">517</span>
 <span class="normal">518</span>
 <span class="normal">519</span>
@@ -3366,7 +3371,12 @@ a range between 0 and 1, with 1 being the best possible score and 0 being the wo
 <span class="normal">557</span>
 <span class="normal">558</span>
 <span class="normal">559</span>
-<span class="normal">560</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_afsc_norm_score</span><span class="p">(</span><span class="n">cadets</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">560</span>
+<span class="normal">561</span>
+<span class="normal">562</span>
+<span class="normal">563</span>
+<span class="normal">564</span>
+<span class="normal">565</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_afsc_norm_score</span><span class="p">(</span><span class="n">cadets</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculate the Normalized Score for an AFSC assignment.</span>
 
@@ -3455,12 +3465,7 @@ best possible score and 0 being the worst.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">563</span>
-<span class="normal">564</span>
-<span class="normal">565</span>
-<span class="normal">566</span>
-<span class="normal">567</span>
-<span class="normal">568</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">568</span>
 <span class="normal">569</span>
 <span class="normal">570</span>
 <span class="normal">571</span>
@@ -3500,7 +3505,12 @@ best possible score and 0 being the worst.</p>
 <span class="normal">605</span>
 <span class="normal">606</span>
 <span class="normal">607</span>
-<span class="normal">608</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_afsc_norm_score_general</span><span class="p">(</span><span class="n">ranks</span><span class="p">,</span> <span class="n">achieved_ranks</span><span class="p">):</span>
+<span class="normal">608</span>
+<span class="normal">609</span>
+<span class="normal">610</span>
+<span class="normal">611</span>
+<span class="normal">612</span>
+<span class="normal">613</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_afsc_norm_score_general</span><span class="p">(</span><span class="n">ranks</span><span class="p">,</span> <span class="n">achieved_ranks</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculate the Normalized Score for an AFSC assignment using custom ranks.</span>
 
@@ -3576,12 +3586,7 @@ best possible score and 0 being the worst.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">611</span>
-<span class="normal">612</span>
-<span class="normal">613</span>
-<span class="normal">614</span>
-<span class="normal">615</span>
-<span class="normal">616</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">616</span>
 <span class="normal">617</span>
 <span class="normal">618</span>
 <span class="normal">619</span>
@@ -3895,7 +3900,14 @@ best possible score and 0 being the worst.</p>
 <span class="normal">927</span>
 <span class="normal">928</span>
 <span class="normal">929</span>
-<span class="normal">930</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_additional_useful_metrics</span><span class="p">(</span><span class="n">solution</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">):</span>
+<span class="normal">930</span>
+<span class="normal">931</span>
+<span class="normal">932</span>
+<span class="normal">933</span>
+<span class="normal">934</span>
+<span class="normal">935</span>
+<span class="normal">936</span>
+<span class="normal">937</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_additional_useful_metrics</span><span class="p">(</span><span class="n">solution</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Add additional components to the &quot;metrics&quot; dictionary based on the parameters and value parameters.</span>
 
@@ -4025,16 +4037,18 @@ best possible score and 0 being the worst.</p>
 
     <span class="c1"># Calculate weighted average AFSC choice (based on Norm Score)</span>
     <span class="k">if</span> <span class="s1">&#39;Norm Score&#39;</span> <span class="ow">in</span> <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;objectives&#39;</span><span class="p">]:</span>
+
+        <span class="c1"># Calculate AFSC normalized index score (overall)</span>
         <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">vp</span><span class="p">[</span><span class="s1">&#39;objectives&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Norm Score&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-
-        <span class="c1"># Individual norm scores for each AFSC</span>
-        <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;afsc_norm_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;objective_measure&#39;</span><span class="p">][:,</span> <span class="n">k</span><span class="p">]</span>
-
-        <span class="c1"># Weighted average AFSC choice</span>
-        <span class="n">weights</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">solution</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">])</span>
+        <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;afsc_norm_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;objective_measure&#39;</span><span class="p">][:,</span> <span class="n">k</span><span class="p">]</span>  <span class="c1"># Individual norm scores for each AFSC</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">solution</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">])</span>  <span class="c1"># Weighted average AFSC choice</span>
         <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;weighted_average_afsc_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;afsc_norm_score&#39;</span><span class="p">])</span>
-        <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;weighted_average_nrl_afsc_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">weights</span><span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;J^NRL&#39;</span><span class="p">]]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">weights</span><span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;J^NRL&#39;</span><span class="p">]]),</span>
-                                                             <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;afsc_norm_score&#39;</span><span class="p">][</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;J^NRL&#39;</span><span class="p">]])</span>
+
+        <span class="c1"># Calculate AFSC score for each Accession&#39;s group</span>
+        <span class="k">for</span> <span class="n">acc_grp</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;afscs_acc_grp&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">solution</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;weighted_average_</span><span class="si">{</span><span class="n">acc_grp</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s1">_afsc_score&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">weights</span><span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;J^</span><span class="si">{</span><span class="n">acc_grp</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">weights</span><span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;J^</span><span class="si">{</span><span class="n">acc_grp</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]]),</span>
+                       <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;afsc_norm_score&#39;</span><span class="p">][</span><span class="n">p</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;J^</span><span class="si">{</span><span class="n">acc_grp</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]])</span>
 
         <span class="c1"># Space Force and Air Force differences</span>
         <span class="k">if</span> <span class="s1">&#39;USSF&#39;</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;afscs_acc_grp&#39;</span><span class="p">]:</span>
@@ -4236,14 +4250,7 @@ best possible score and 0 being the worst.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">933</span>
-<span class="normal">934</span>
-<span class="normal">935</span>
-<span class="normal">936</span>
-<span class="normal">937</span>
-<span class="normal">938</span>
-<span class="normal">939</span>
-<span class="normal">940</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">940</span>
 <span class="normal">941</span>
 <span class="normal">942</span>
 <span class="normal">943</span>
@@ -4294,7 +4301,14 @@ best possible score and 0 being the worst.</p>
 <span class="normal">988</span>
 <span class="normal">989</span>
 <span class="normal">990</span>
-<span class="normal">991</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_base_training_metrics</span><span class="p">(</span><span class="n">solution</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">):</span>
+<span class="normal">991</span>
+<span class="normal">992</span>
+<span class="normal">993</span>
+<span class="normal">994</span>
+<span class="normal">995</span>
+<span class="normal">996</span>
+<span class="normal">997</span>
+<span class="normal">998</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_base_training_metrics</span><span class="p">(</span><span class="n">solution</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Add additional base/training components to the &quot;solution&quot; dictionary based on the parameters and value parameters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -4374,14 +4388,7 @@ best possible score and 0 being the worst.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 994</span>
-<span class="normal"> 995</span>
-<span class="normal"> 996</span>
-<span class="normal"> 997</span>
-<span class="normal"> 998</span>
-<span class="normal"> 999</span>
-<span class="normal">1000</span>
-<span class="normal">1001</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1001</span>
 <span class="normal">1002</span>
 <span class="normal">1003</span>
 <span class="normal">1004</span>
@@ -4404,7 +4411,14 @@ best possible score and 0 being the worst.</p>
 <span class="normal">1021</span>
 <span class="normal">1022</span>
 <span class="normal">1023</span>
-<span class="normal">1024</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_castle_solution_metrics</span><span class="p">(</span><span class="n">solution</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+<span class="normal">1024</span>
+<span class="normal">1025</span>
+<span class="normal">1026</span>
+<span class="normal">1027</span>
+<span class="normal">1028</span>
+<span class="normal">1029</span>
+<span class="normal">1030</span>
+<span class="normal">1031</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_castle_solution_metrics</span><span class="p">(</span><span class="n">solution</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Add CASTLE-specific solution metrics</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -4468,14 +4482,7 @@ best possible score and 0 being the worst.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1055</span>
-<span class="normal">1056</span>
-<span class="normal">1057</span>
-<span class="normal">1058</span>
-<span class="normal">1059</span>
-<span class="normal">1060</span>
-<span class="normal">1061</span>
-<span class="normal">1062</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1062</span>
 <span class="normal">1063</span>
 <span class="normal">1064</span>
 <span class="normal">1065</span>
@@ -4513,7 +4520,14 @@ best possible score and 0 being the worst.</p>
 <span class="normal">1097</span>
 <span class="normal">1098</span>
 <span class="normal">1099</span>
-<span class="normal">1100</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_objective_measure_chromosome</span><span class="p">(</span><span class="n">cadets</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">count</span><span class="p">):</span>
+<span class="normal">1100</span>
+<span class="normal">1101</span>
+<span class="normal">1102</span>
+<span class="normal">1103</span>
+<span class="normal">1104</span>
+<span class="normal">1105</span>
+<span class="normal">1106</span>
+<span class="normal">1107</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_objective_measure_chromosome</span><span class="p">(</span><span class="n">cadets</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">count</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculates the AFSC objective measure based on the provided parameters.</span>
 
@@ -4598,14 +4612,7 @@ best possible score and 0 being the worst.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1103</span>
-<span class="normal">1104</span>
-<span class="normal">1105</span>
-<span class="normal">1106</span>
-<span class="normal">1107</span>
-<span class="normal">1108</span>
-<span class="normal">1109</span>
-<span class="normal">1110</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1110</span>
 <span class="normal">1111</span>
 <span class="normal">1112</span>
 <span class="normal">1113</span>
@@ -4679,7 +4686,14 @@ best possible score and 0 being the worst.</p>
 <span class="normal">1181</span>
 <span class="normal">1182</span>
 <span class="normal">1183</span>
-<span class="normal">1184</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_objective_measure_matrix</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">approximate</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="normal">1184</span>
+<span class="normal">1185</span>
+<span class="normal">1186</span>
+<span class="normal">1187</span>
+<span class="normal">1188</span>
+<span class="normal">1189</span>
+<span class="normal">1190</span>
+<span class="normal">1191</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_objective_measure_matrix</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">approximate</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculates the AFSC objective measure based on the provided parameters.</span>
 
@@ -4793,14 +4807,7 @@ best possible score and 0 being the worst.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1188</span>
-<span class="normal">1189</span>
-<span class="normal">1190</span>
-<span class="normal">1191</span>
-<span class="normal">1192</span>
-<span class="normal">1193</span>
-<span class="normal">1194</span>
-<span class="normal">1195</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1195</span>
 <span class="normal">1196</span>
 <span class="normal">1197</span>
 <span class="normal">1198</span>
@@ -4844,7 +4851,14 @@ best possible score and 0 being the worst.</p>
 <span class="normal">1236</span>
 <span class="normal">1237</span>
 <span class="normal">1238</span>
-<span class="normal">1239</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_failed_constraint_metrics</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">solution</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">):</span>
+<span class="normal">1239</span>
+<span class="normal">1240</span>
+<span class="normal">1241</span>
+<span class="normal">1242</span>
+<span class="normal">1243</span>
+<span class="normal">1244</span>
+<span class="normal">1245</span>
+<span class="normal">1246</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">calculate_failed_constraint_metrics</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">solution</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculate failed constraint metrics for an AFSC objective and return the updated metrics dictionary.</span>
 
@@ -5046,14 +5060,7 @@ parameters, value parameters, and the constraint fail dictionary and determines 
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1242</span>
-<span class="normal">1243</span>
-<span class="normal">1244</span>
-<span class="normal">1245</span>
-<span class="normal">1246</span>
-<span class="normal">1247</span>
-<span class="normal">1248</span>
-<span class="normal">1249</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1249</span>
 <span class="normal">1250</span>
 <span class="normal">1251</span>
 <span class="normal">1252</span>
@@ -5105,7 +5112,14 @@ parameters, value parameters, and the constraint fail dictionary and determines 
 <span class="normal">1298</span>
 <span class="normal">1299</span>
 <span class="normal">1300</span>
-<span class="normal">1301</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">check_failed_constraint_chromosome</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">measure</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">con_fail_dict</span><span class="p">):</span>
+<span class="normal">1301</span>
+<span class="normal">1302</span>
+<span class="normal">1303</span>
+<span class="normal">1304</span>
+<span class="normal">1305</span>
+<span class="normal">1306</span>
+<span class="normal">1307</span>
+<span class="normal">1308</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">check_failed_constraint_chromosome</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">measure</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">con_fail_dict</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function takes in the AFSC index, objective index, AFSC objective measure, number of cadets assigned (count),</span>
 <span class="sd">    parameters, value parameters, and the constraint fail dictionary and determines if we&#39;ve failed the constraint or not.</span>
@@ -5202,14 +5216,7 @@ AFSCs assigned to cadets.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1305</span>
-<span class="normal">1306</span>
-<span class="normal">1307</span>
-<span class="normal">1308</span>
-<span class="normal">1309</span>
-<span class="normal">1310</span>
-<span class="normal">1311</span>
-<span class="normal">1312</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1312</span>
 <span class="normal">1313</span>
 <span class="normal">1314</span>
 <span class="normal">1315</span>
@@ -5230,7 +5237,14 @@ AFSCs assigned to cadets.</p>
 <span class="normal">1330</span>
 <span class="normal">1331</span>
 <span class="normal">1332</span>
-<span class="normal">1333</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">compare_solutions</span><span class="p">(</span><span class="n">baseline</span><span class="p">,</span> <span class="n">compared</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">1333</span>
+<span class="normal">1334</span>
+<span class="normal">1335</span>
+<span class="normal">1336</span>
+<span class="normal">1337</span>
+<span class="normal">1338</span>
+<span class="normal">1339</span>
+<span class="normal">1340</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">compare_solutions</span><span class="p">(</span><span class="n">baseline</span><span class="p">,</span> <span class="n">compared</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compare two solutions (in vector form) to the same problem and determine the similarity between them based on the</span>
 <span class="sd">    AFSCs assigned to cadets.</span>
@@ -5297,14 +5311,7 @@ how solutions relate to each other based on their similarities.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1336</span>
-<span class="normal">1337</span>
-<span class="normal">1338</span>
-<span class="normal">1339</span>
-<span class="normal">1340</span>
-<span class="normal">1341</span>
-<span class="normal">1342</span>
-<span class="normal">1343</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1343</span>
 <span class="normal">1344</span>
 <span class="normal">1345</span>
 <span class="normal">1346</span>
@@ -5336,7 +5343,14 @@ how solutions relate to each other based on their similarities.</p>
 <span class="normal">1372</span>
 <span class="normal">1373</span>
 <span class="normal">1374</span>
-<span class="normal">1375</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">similarity_coordinates</span><span class="p">(</span><span class="n">similarity_matrix</span><span class="p">):</span>
+<span class="normal">1375</span>
+<span class="normal">1376</span>
+<span class="normal">1377</span>
+<span class="normal">1378</span>
+<span class="normal">1379</span>
+<span class="normal">1380</span>
+<span class="normal">1381</span>
+<span class="normal">1382</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">similarity_coordinates</span><span class="p">(</span><span class="n">similarity_matrix</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Perform Multidimensional Scaling (MDS) on a similarity matrix to obtain coordinates</span>
 <span class="sd">    representing the solutions&#39; similarity relationships.</span>
@@ -5427,14 +5441,7 @@ facilitating further decision-making and analysis.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1379</span>
-<span class="normal">1380</span>
-<span class="normal">1381</span>
-<span class="normal">1382</span>
-<span class="normal">1383</span>
-<span class="normal">1384</span>
-<span class="normal">1385</span>
-<span class="normal">1386</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1386</span>
 <span class="normal">1387</span>
 <span class="normal">1388</span>
 <span class="normal">1389</span>
@@ -5545,7 +5552,14 @@ facilitating further decision-making and analysis.</p>
 <span class="normal">1494</span>
 <span class="normal">1495</span>
 <span class="normal">1496</span>
-<span class="normal">1497</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">incorporate_rated_results_in_parameters</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="normal">1497</span>
+<span class="normal">1498</span>
+<span class="normal">1499</span>
+<span class="normal">1500</span>
+<span class="normal">1501</span>
+<span class="normal">1502</span>
+<span class="normal">1503</span>
+<span class="normal">1504</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">incorporate_rated_results_in_parameters</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function extracts the results from the two Rated solutions (for both USAFA &amp; ROTC)</span>
 <span class="sd">    and incorporates them into the problem&#39;s parameters. It fixes cadets who were &quot;matched&quot; by the algorithm</span>
@@ -5708,14 +5722,7 @@ aids in further analysis and decision-making.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/solutions/handling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1500</span>
-<span class="normal">1501</span>
-<span class="normal">1502</span>
-<span class="normal">1503</span>
-<span class="normal">1504</span>
-<span class="normal">1505</span>
-<span class="normal">1506</span>
-<span class="normal">1507</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1507</span>
 <span class="normal">1508</span>
 <span class="normal">1509</span>
 <span class="normal">1510</span>
@@ -5945,7 +5952,14 @@ aids in further analysis and decision-making.</p>
 <span class="normal">1734</span>
 <span class="normal">1735</span>
 <span class="normal">1736</span>
-<span class="normal">1737</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">augment_rated_algorithm_results</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">soc</span><span class="o">=</span><span class="s1">&#39;rotc&#39;</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">num_additions_rotc_pilot</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+<span class="normal">1737</span>
+<span class="normal">1738</span>
+<span class="normal">1739</span>
+<span class="normal">1740</span>
+<span class="normal">1741</span>
+<span class="normal">1742</span>
+<span class="normal">1743</span>
+<span class="normal">1744</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">augment_rated_algorithm_results</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">soc</span><span class="o">=</span><span class="s1">&#39;rotc&#39;</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">num_additions_rotc_pilot</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Analyzes the results of the Rated SOC algorithm for a specific SOC (Source of Commissioning),</span>
 <span class="sd">    such as ROTC or USAFA, and augments the system&#39;s parameters. This analysis includes identifying</span>

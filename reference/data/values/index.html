@@ -2384,7 +2384,10 @@ printing : bool, optional
 <span class="normal">196</span>
 <span class="normal">197</span>
 <span class="normal">198</span>
-<span class="normal">199</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">value_parameters_sets_additions</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">value_parameters_sets_additions</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Enhances the `value_parameters` dictionary by adding derived sets and metadata required</span>
 <span class="sd">    for optimization and constraint evaluation in the cadet-AFSC matching problem.</span>
@@ -2487,7 +2490,10 @@ printing : bool, optional
             <span class="n">vp</span><span class="p">[</span><span class="s2">&quot;J^USAFA&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">vp</span><span class="p">[</span><span class="s2">&quot;J^USAFA&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 
     <span class="c1"># Set of objectives that seek to balance some cadet demographic</span>
-    <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;K^D&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;USAFA Proportion&#39;</span><span class="p">,</span> <span class="s1">&#39;Mandatory&#39;</span><span class="p">,</span> <span class="s1">&#39;Desired&#39;</span><span class="p">,</span> <span class="s1">&#39;Permitted&#39;</span><span class="p">,</span> <span class="s1">&#39;Tier 1&#39;</span><span class="p">,</span> <span class="s1">&#39;Tier 2&#39;</span><span class="p">,</span> <span class="s1">&#39;Tier 3&#39;</span><span class="p">,</span> <span class="s1">&#39;Tier 4&#39;</span><span class="p">]</span>
+    <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;K^D&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;USAFA Proportion&#39;</span><span class="p">,</span> <span class="s1">&#39;Mandatory&#39;</span><span class="p">,</span> <span class="s1">&#39;Desired&#39;</span><span class="p">,</span> <span class="s1">&#39;Permitted&#39;</span><span class="p">,</span> <span class="s1">&#39;Tier 1&#39;</span><span class="p">,</span> <span class="s1">&#39;Tier 2&#39;</span><span class="p">,</span> <span class="s1">&#39;Tier 3&#39;</span><span class="p">,</span> <span class="s1">&#39;Tier 4&#39;</span><span class="p">,</span>
+
+                 <span class="s1">&#39;Male&#39;</span><span class="p">,</span> <span class="s1">&#39;Minority&#39;</span>  <span class="c1"># This is here for legacy purposes!! (Was NEVER used in model and never will be)</span>
+                 <span class="p">]</span>
 
     <span class="c1"># Set of AFSCs for each objective:</span>
     <span class="n">vp</span><span class="p">[</span><span class="s1">&#39;J^A&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
@@ -2568,10 +2574,7 @@ a particular configuration of value weights, objectives, and constraints for cad
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">202</span>
-<span class="normal">203</span>
-<span class="normal">204</span>
-<span class="normal">205</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">205</span>
 <span class="normal">206</span>
 <span class="normal">207</span>
 <span class="normal">208</span>
@@ -2635,7 +2638,10 @@ a particular configuration of value weights, objectives, and constraints for cad
 <span class="normal">266</span>
 <span class="normal">267</span>
 <span class="normal">268</span>
-<span class="normal">269</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">model_value_parameters_to_defaults</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">filepath</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">model_value_parameters_to_defaults</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">filepath</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Export Instance Value Parameters to Excel Defaults File.</span>
 
@@ -2750,10 +2756,7 @@ updated_value_parameters = generate_afocd_value_parameters(instance.parameters, 
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">272</span>
-<span class="normal">273</span>
-<span class="normal">274</span>
-<span class="normal">275</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">275</span>
 <span class="normal">276</span>
 <span class="normal">277</span>
 <span class="normal">278</span>
@@ -2838,7 +2841,10 @@ updated_value_parameters = generate_afocd_value_parameters(instance.parameters, 
 <span class="normal">357</span>
 <span class="normal">358</span>
 <span class="normal">359</span>
-<span class="normal">360</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_afocd_value_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">default_value_parameters</span><span class="p">):</span>
+<span class="normal">360</span>
+<span class="normal">361</span>
+<span class="normal">362</span>
+<span class="normal">363</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_afocd_value_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">default_value_parameters</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate AFOCD-Based Value Parameters for AFSC Assignment.</span>
 
@@ -2979,10 +2985,7 @@ reinitialize the value parameter set entirely.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">363</span>
-<span class="normal">364</span>
-<span class="normal">365</span>
-<span class="normal">366</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">366</span>
 <span class="normal">367</span>
 <span class="normal">368</span>
 <span class="normal">369</span>
@@ -3081,7 +3084,10 @@ reinitialize the value parameter set entirely.</p>
 <span class="normal">462</span>
 <span class="normal">463</span>
 <span class="normal">464</span>
-<span class="normal">465</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">update_value_and_weight_functions</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">465</span>
+<span class="normal">466</span>
+<span class="normal">467</span>
+<span class="normal">468</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">update_value_and_weight_functions</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update Value and Weight Functions for the Current Value Parameter Set.</span>
 
@@ -3249,10 +3255,7 @@ A structured dictionary <code>vp</code> containing:</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">469</span>
-<span class="normal">470</span>
-<span class="normal">471</span>
-<span class="normal">472</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">472</span>
 <span class="normal">473</span>
 <span class="normal">474</span>
 <span class="normal">475</span>
@@ -3503,7 +3506,10 @@ A structured dictionary <code>vp</code> containing:</p>
 <span class="normal">720</span>
 <span class="normal">721</span>
 <span class="normal">722</span>
-<span class="normal">723</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_value_parameters_from_defaults</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">default_value_parameters</span><span class="p">,</span> <span class="n">generate_afsc_weights</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="normal">723</span>
+<span class="normal">724</span>
+<span class="normal">725</span>
+<span class="normal">726</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_value_parameters_from_defaults</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">default_value_parameters</span><span class="p">,</span> <span class="n">generate_afsc_weights</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                                             <span class="n">num_breakpoints</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generates structured value parameters for the assignment problem based on the factory defaults.</span>
@@ -3826,10 +3832,7 @@ A dictionary containing all default value parameter arrays and scalars:</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">726</span>
-<span class="normal">727</span>
-<span class="normal">728</span>
-<span class="normal">729</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">729</span>
 <span class="normal">730</span>
 <span class="normal">731</span>
 <span class="normal">732</span>
@@ -3913,7 +3916,10 @@ A dictionary containing all default value parameter arrays and scalars:</p>
 <span class="normal">810</span>
 <span class="normal">811</span>
 <span class="normal">812</span>
-<span class="normal">813</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">default_value_parameters_from_excel</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">813</span>
+<span class="normal">814</span>
+<span class="normal">815</span>
+<span class="normal">816</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">default_value_parameters_from_excel</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Loads the factory default value parameters from an Excel file into a structured dictionary.</span>
 
@@ -4022,10 +4028,7 @@ A dictionary containing all default value parameter arrays and scalars:</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">817</span>
-<span class="normal">818</span>
-<span class="normal">819</span>
-<span class="normal">820</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">820</span>
 <span class="normal">821</span>
 <span class="normal">822</span>
 <span class="normal">823</span>
@@ -4047,7 +4050,10 @@ A dictionary containing all default value parameter arrays and scalars:</p>
 <span class="normal">839</span>
 <span class="normal">840</span>
 <span class="normal">841</span>
-<span class="normal">842</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">cadet_weight_function</span><span class="p">(</span><span class="n">merit</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="s2">&quot;Curve_1&quot;</span><span class="p">):</span>
+<span class="normal">842</span>
+<span class="normal">843</span>
+<span class="normal">844</span>
+<span class="normal">845</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">cadet_weight_function</span><span class="p">(</span><span class="n">merit</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="s2">&quot;Curve_1&quot;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Take in a merit array and generate cadet weights depending on function specified</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -4094,10 +4100,7 @@ A dictionary containing all default value parameter arrays and scalars:</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">845</span>
-<span class="normal">846</span>
-<span class="normal">847</span>
-<span class="normal">848</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">848</span>
 <span class="normal">849</span>
 <span class="normal">850</span>
 <span class="normal">851</span>
@@ -4137,7 +4140,10 @@ A dictionary containing all default value parameter arrays and scalars:</p>
 <span class="normal">885</span>
 <span class="normal">886</span>
 <span class="normal">887</span>
-<span class="normal">888</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">afsc_weight_function</span><span class="p">(</span><span class="n">quota</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="s2">&quot;Curve&quot;</span><span class="p">):</span>
+<span class="normal">888</span>
+<span class="normal">889</span>
+<span class="normal">890</span>
+<span class="normal">891</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">afsc_weight_function</span><span class="p">(</span><span class="n">quota</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="s2">&quot;Curve&quot;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Take in an AFSC quota array and generate AFSC weights depending on function specified</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -4228,10 +4234,7 @@ A dictionary containing all default value parameter arrays and scalars:</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 892</span>
-<span class="normal"> 893</span>
-<span class="normal"> 894</span>
-<span class="normal"> 895</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 895</span>
 <span class="normal"> 896</span>
 <span class="normal"> 897</span>
 <span class="normal"> 898</span>
@@ -4388,7 +4391,10 @@ A dictionary containing all default value parameter arrays and scalars:</p>
 <span class="normal">1049</span>
 <span class="normal">1050</span>
 <span class="normal">1051</span>
-<span class="normal">1052</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">maximum</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">actual</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">multiplier</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">minimum</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">1052</span>
+<span class="normal">1053</span>
+<span class="normal">1054</span>
+<span class="normal">1055</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">create_segment_dict_from_string</span><span class="p">(</span><span class="n">vf_string</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">maximum</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">actual</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">multiplier</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">minimum</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Converts a value function string into a segment dictionary.</span>
 
@@ -4612,10 +4618,7 @@ spacing along the x-axis and derivative-based breakpoint spacing.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1055</span>
-<span class="normal">1056</span>
-<span class="normal">1057</span>
-<span class="normal">1058</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1058</span>
 <span class="normal">1059</span>
 <span class="normal">1060</span>
 <span class="normal">1061</span>
@@ -4773,7 +4776,10 @@ spacing along the x-axis and derivative-based breakpoint spacing.</p>
 <span class="normal">1213</span>
 <span class="normal">1214</span>
 <span class="normal">1215</span>
-<span class="normal">1216</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">derivative_locations</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">1216</span>
+<span class="normal">1217</span>
+<span class="normal">1218</span>
+<span class="normal">1219</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">value_function_builder</span><span class="p">(</span><span class="n">segment_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">derivative_locations</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Build Piecewise Linear Value Function from Exponential Segments.</span>
 
@@ -5058,10 +5064,7 @@ spacing along the x-axis and derivative-based breakpoint spacing.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1219</span>
-<span class="normal">1220</span>
-<span class="normal">1221</span>
-<span class="normal">1222</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1222</span>
 <span class="normal">1223</span>
 <span class="normal">1224</span>
 <span class="normal">1225</span>
@@ -5076,7 +5079,10 @@ spacing along the x-axis and derivative-based breakpoint spacing.</p>
 <span class="normal">1234</span>
 <span class="normal">1235</span>
 <span class="normal">1236</span>
-<span class="normal">1237</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">exponential_function</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x_i</span><span class="p">,</span> <span class="n">x_f</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">positive</span><span class="p">):</span>
+<span class="normal">1237</span>
+<span class="normal">1238</span>
+<span class="normal">1239</span>
+<span class="normal">1240</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">exponential_function</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x_i</span><span class="p">,</span> <span class="n">x_f</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">positive</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function returns the value obtained from the specified exponential value function</span>
 <span class="sd">    :param x: current x</span>
@@ -5206,10 +5212,7 @@ along a line segment</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1240</span>
-<span class="normal">1241</span>
-<span class="normal">1242</span>
-<span class="normal">1243</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1243</span>
 <span class="normal">1244</span>
 <span class="normal">1245</span>
 <span class="normal">1246</span>
@@ -5220,7 +5223,10 @@ along a line segment</p>
 <span class="normal">1251</span>
 <span class="normal">1252</span>
 <span class="normal">1253</span>
-<span class="normal">1254</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">derivative_function</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x_f</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">positive</span><span class="p">):</span>
+<span class="normal">1254</span>
+<span class="normal">1255</span>
+<span class="normal">1256</span>
+<span class="normal">1257</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">derivative_function</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x_f</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">positive</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function calculates the derivative of x for some point</span>
 <span class="sd">    along a line segment</span>
@@ -5345,10 +5351,7 @@ along a line segment</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1257</span>
-<span class="normal">1258</span>
-<span class="normal">1259</span>
-<span class="normal">1260</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1260</span>
 <span class="normal">1261</span>
 <span class="normal">1262</span>
 <span class="normal">1263</span>
@@ -5359,7 +5362,10 @@ along a line segment</p>
 <span class="normal">1268</span>
 <span class="normal">1269</span>
 <span class="normal">1270</span>
-<span class="normal">1271</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">inverse_derivative_function</span><span class="p">(</span><span class="n">y_prime</span><span class="p">,</span> <span class="n">x_f</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">positive</span><span class="p">):</span>
+<span class="normal">1271</span>
+<span class="normal">1272</span>
+<span class="normal">1273</span>
+<span class="normal">1274</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">inverse_derivative_function</span><span class="p">(</span><span class="n">y_prime</span><span class="p">,</span> <span class="n">x_f</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">positive</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function calculates the position of x based on its derivative</span>
 <span class="sd">    :param y_prime: first derivative of x</span>
@@ -5417,10 +5423,7 @@ the overall utility calculation but may clutter the optimization model.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1274</span>
-<span class="normal">1275</span>
-<span class="normal">1276</span>
-<span class="normal">1277</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1277</span>
 <span class="normal">1278</span>
 <span class="normal">1279</span>
 <span class="normal">1280</span>
@@ -5464,7 +5467,10 @@ the overall utility calculation but may clutter the optimization model.</p>
 <span class="normal">1318</span>
 <span class="normal">1319</span>
 <span class="normal">1320</span>
-<span class="normal">1321</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">condense_value_functions</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">):</span>
+<span class="normal">1321</span>
+<span class="normal">1322</span>
+<span class="normal">1323</span>
+<span class="normal">1324</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">condense_value_functions</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">value_parameters</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Remove Redundant Zero Segments in Value Functions.</span>
 
@@ -5555,10 +5561,7 @@ objective weights, constraints, value functions, and other relevant configuratio
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1325</span>
-<span class="normal">1326</span>
-<span class="normal">1327</span>
-<span class="normal">1328</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1328</span>
 <span class="normal">1329</span>
 <span class="normal">1330</span>
 <span class="normal">1331</span>
@@ -5659,7 +5662,10 @@ objective weights, constraints, value functions, and other relevant configuratio
 <span class="normal">1426</span>
 <span class="normal">1427</span>
 <span class="normal">1428</span>
-<span class="normal">1429</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">compare_value_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">vp1</span><span class="p">,</span> <span class="n">vp2</span><span class="p">,</span> <span class="n">vp1name</span><span class="p">,</span> <span class="n">vp2name</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">1429</span>
+<span class="normal">1430</span>
+<span class="normal">1431</span>
+<span class="normal">1432</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">compare_value_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">vp1</span><span class="p">,</span> <span class="n">vp2</span><span class="p">,</span> <span class="n">vp1name</span><span class="p">,</span> <span class="n">vp2name</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compare Two Sets of Value Parameters for Equality.</span>
 
@@ -5834,10 +5840,7 @@ A dictionary of goal programming model parameters with the following structure:<
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/values.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1433</span>
-<span class="normal">1434</span>
-<span class="normal">1435</span>
-<span class="normal">1436</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1436</span>
 <span class="normal">1437</span>
 <span class="normal">1438</span>
 <span class="normal">1439</span>
@@ -6002,7 +6005,10 @@ A dictionary of goal programming model parameters with the following structure:<
 <span class="normal">1598</span>
 <span class="normal">1599</span>
 <span class="normal">1600</span>
-<span class="normal">1601</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">translate_vft_to_gp_parameters</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
+<span class="normal">1601</span>
+<span class="normal">1602</span>
+<span class="normal">1603</span>
+<span class="normal">1604</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">translate_vft_to_gp_parameters</span><span class="p">(</span><span class="n">instance</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Translates VFT (Value-Focused Thinking) Parameters to Goal Programming (GP) Model Parameters.</span>
 

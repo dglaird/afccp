@@ -3463,7 +3463,8 @@ training preferences, enabling richer downstream optimization scenarios.</p>
 <span class="normal">737</span>
 <span class="normal">738</span>
 <span class="normal">739</span>
-<span class="normal">740</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_extra_components</span><span class="p">(</span><span class="n">parameters</span><span class="p">):</span>
+<span class="normal">740</span>
+<span class="normal">741</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_extra_components</span><span class="p">(</span><span class="n">parameters</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate additional components (bases, training courses, and timing factors)</span>
 <span class="sd">    for a CadetCareerProblem instance.</span>
@@ -3578,7 +3579,7 @@ training preferences, enabling richer downstream optimization scenarios.</p>
     <span class="c1"># Determine which AFSCs we assign bases for</span>
     <span class="n">p</span><span class="p">[</span><span class="s1">&#39;afsc_assign_base&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;M&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;M&#39;</span><span class="p">]):</span>
-        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;acc_grp&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;Rated&quot;</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">0.3</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;acc_grp&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;Rated&quot;</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">0.02</span><span class="p">:</span>
             <span class="n">p</span><span class="p">[</span><span class="s1">&#39;afsc_assign_base&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
 
     <span class="c1"># Name the bases according to the Excel columns (just a method of generating unique ordered letters)</span>
@@ -3589,11 +3590,12 @@ training preferences, enabling richer downstream optimization scenarios.</p>
     <span class="n">p</span><span class="p">[</span><span class="s1">&#39;base_max&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;S&#39;</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;M&#39;</span><span class="p">]))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
     <span class="n">afscs_with_base_assignments</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;afsc_assign_base&#39;</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
     <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">afscs_with_base_assignments</span><span class="p">:</span>
-        <span class="n">total_max</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;pgl&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="mf">1.5</span>
-        <span class="n">base_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;S&#39;</span><span class="p">])])</span>
-        <span class="n">base_max</span> <span class="o">=</span> <span class="p">(</span><span class="n">base_max</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">base_max</span><span class="p">))</span> <span class="o">*</span> <span class="n">total_max</span>
-        <span class="n">p</span><span class="p">[</span><span class="s1">&#39;base_max&#39;</span><span class="p">][:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">base_max</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
-        <span class="n">p</span><span class="p">[</span><span class="s1">&#39;base_min&#39;</span><span class="p">][:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">base_max</span> <span class="o">*</span> <span class="mf">0.4</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">total_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;pgl&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;pgl&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span>
+        <span class="c1"># base_max = np.array([np.random.rand() for _ in range(p[&#39;S&#39;])])</span>
+        <span class="c1"># base_max = (base_max / np.sum(base_max)) * total_max</span>
+        <span class="n">base_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1000</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;S&#39;</span><span class="p">])])</span>
+        <span class="n">p</span><span class="p">[</span><span class="s1">&#39;base_max&#39;</span><span class="p">][:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">base_max</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">p</span><span class="p">[</span><span class="s1">&#39;base_min&#39;</span><span class="p">][:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;pgl&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.2</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 
     <span class="c1"># Generate random cadet preferences for bases</span>
     <span class="n">bases</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bases&#39;</span><span class="p">])</span>
@@ -3749,8 +3751,7 @@ training preferences, enabling richer downstream optimization scenarios.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/basic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">744</span>
-<span class="normal">745</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">745</span>
 <span class="normal">746</span>
 <span class="normal">747</span>
 <span class="normal">748</span>
@@ -3762,7 +3763,8 @@ training preferences, enabling richer downstream optimization scenarios.</p>
 <span class="normal">754</span>
 <span class="normal">755</span>
 <span class="normal">756</span>
-<span class="normal">757</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_concave_curve</span><span class="p">(</span><span class="n">num_points</span><span class="p">,</span> <span class="n">max_x</span><span class="p">):</span>
+<span class="normal">757</span>
+<span class="normal">758</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_concave_curve</span><span class="p">(</span><span class="n">num_points</span><span class="p">,</span> <span class="n">max_x</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generates x and y coordinates for a concave function.</span>
 
@@ -3818,8 +3820,7 @@ optimization and modeling in the CASTLE simulation.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/data/generation/basic.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">760</span>
-<span class="normal">761</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">761</span>
 <span class="normal">762</span>
 <span class="normal">763</span>
 <span class="normal">764</span>
@@ -3865,7 +3866,8 @@ optimization and modeling in the CASTLE simulation.</p>
 <span class="normal">804</span>
 <span class="normal">805</span>
 <span class="normal">806</span>
-<span class="normal">807</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_realistic_castle_value_curves</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
+<span class="normal">807</span>
+<span class="normal">808</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_realistic_castle_value_curves</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate Concave Value Curves for CASTLE AFSCs.</span>
 

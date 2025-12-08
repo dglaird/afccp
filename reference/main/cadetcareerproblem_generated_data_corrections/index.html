@@ -2003,11 +2003,7 @@ updating qualification matrices, and ensuring valid preference and utility struc
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">621</span>
-<span class="normal">622</span>
-<span class="normal">623</span>
-<span class="normal">624</span>
-<span class="normal">625</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">625</span>
 <span class="normal">626</span>
 <span class="normal">627</span>
 <span class="normal">628</span>
@@ -2075,7 +2071,11 @@ updating qualification matrices, and ensuring valid preference and utility struc
 <span class="normal">690</span>
 <span class="normal">691</span>
 <span class="normal">692</span>
-<span class="normal">693</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">fix_generated_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">693</span>
+<span class="normal">694</span>
+<span class="normal">695</span>
+<span class="normal">696</span>
+<span class="normal">697</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">fix_generated_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Fix Generated Data Instance.</span>
 
@@ -2120,22 +2120,22 @@ updating qualification matrices, and ensuring valid preference and utility struc
     <span class="bp">self</span><span class="o">.</span><span class="n">generate_rated_data</span><span class="p">()</span>
 
     <span class="c1"># Update qualification matrix from AFSC preferences (treating CFM lists as &quot;gospel&quot; except for Rated/USSF)</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">update_qualification_matrix_from_afsc_preferences</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">update_qualification_matrix_from_afsc_preferences</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>
 
     <span class="c1"># Removes ineligible cadets from all 3 matrices: degree qualifications, cadet preferences, AFSC preferences</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">remove_ineligible_choices</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>
 
     <span class="c1"># Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">update_preference_matrices</span><span class="p">()</span>  <span class="c1"># 1, 2, 4, 6, 7 -&gt; 1, 2, 3, 4, 5 (preference lists need to omit gaps)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">update_preference_matrices</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>  <span class="c1"># 1, 4, 6, 7 -&gt; 1, 2, 3, 4 (preference lists must omit gaps)</span>
 
     <span class="c1"># Force first choice utility values to be 100%</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">update_first_choice_cadet_utility_to_one</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>
 
     <span class="c1"># Convert AFSC preferences to percentiles (0 to 1)</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">convert_afsc_preferences_to_percentiles</span><span class="p">()</span>  <span class="c1"># 1, 2, 3, 4, 5 -&gt; 1, 0.8, 0.6, 0.4, 0.2</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">convert_afsc_preferences_to_percentiles</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>  <span class="c1"># 1, 2, 3, 4, 5 -&gt; 1, 0.8, 0.6, 0.4, 0.2</span>
 
     <span class="c1"># The &quot;cadet columns&quot; are located in Cadets.csv and contain the utilities/preferences in order of preference</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">update_cadet_columns_from_matrices</span><span class="p">()</span>  <span class="c1"># We haven&#39;t touched &quot;c_preferences&quot; and &quot;c_utilities&quot; until now</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">update_cadet_columns_from_matrices</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>  <span class="c1"># Haven&#39;t touched &quot;c_preferences&quot;/&quot;c_utilities&quot; yet</span>
 
     <span class="c1"># Update utility matrix from columns (and create final cadet utility matrix)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">update_cadet_utility_matrices_from_cadets_data</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>
@@ -2144,7 +2144,7 @@ updating qualification matrices, and ensuring valid preference and utility struc
     <span class="bp">self</span><span class="o">.</span><span class="n">modify_rated_cadet_lists_based_on_eligibility</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>  <span class="c1"># ...but not eligible for any rated AFSC</span>
 
     <span class="c1"># Generate fake (random) set of value parameters</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">generate_random_value_parameters</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">generate_random_value_parameters</span><span class="p">(</span><span class="n">printing</span><span class="o">=</span><span class="n">printing</span><span class="p">)</span>
 
     <span class="c1"># Sanity check the parameters to make sure it all looks good! (No issues found.)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">parameter_sanity_check</span><span class="p">()</span>
@@ -2201,11 +2201,7 @@ also converts the cadet utility matrix (<code>cadet_utility</code>) into the <co
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">695</span>
-<span class="normal">696</span>
-<span class="normal">697</span>
-<span class="normal">698</span>
-<span class="normal">699</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">699</span>
 <span class="normal">700</span>
 <span class="normal">701</span>
 <span class="normal">702</span>
@@ -2246,7 +2242,11 @@ also converts the cadet utility matrix (<code>cadet_utility</code>) into the <co
 <span class="normal">737</span>
 <span class="normal">738</span>
 <span class="normal">739</span>
-<span class="normal">740</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">convert_utilities_to_preferences</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cadets_as_well</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">740</span>
+<span class="normal">741</span>
+<span class="normal">742</span>
+<span class="normal">743</span>
+<span class="normal">744</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">convert_utilities_to_preferences</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cadets_as_well</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Converts utility matrices to ordinal preference matrices.</span>
 
@@ -2336,11 +2336,7 @@ Updates the <code>parameters</code> attribute of the current <code>CadetCareerPr
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">742</span>
-<span class="normal">743</span>
-<span class="normal">744</span>
-<span class="normal">745</span>
-<span class="normal">746</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">746</span>
 <span class="normal">747</span>
 <span class="normal">748</span>
 <span class="normal">749</span>
@@ -2369,7 +2365,11 @@ Updates the <code>parameters</code> attribute of the current <code>CadetCareerPr
 <span class="normal">772</span>
 <span class="normal">773</span>
 <span class="normal">774</span>
-<span class="normal">775</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_fake_afsc_preferences</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fix_cadet_eligibility</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="normal">775</span>
+<span class="normal">776</span>
+<span class="normal">777</span>
+<span class="normal">778</span>
+<span class="normal">779</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_fake_afsc_preferences</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fix_cadet_eligibility</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate Simulated AFSC Preferences using certain known parameters.</span>
 
@@ -2446,11 +2446,7 @@ The method updates the internal <code>self.parameters</code> dictionary in-place
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">777</span>
-<span class="normal">778</span>
-<span class="normal">779</span>
-<span class="normal">780</span>
-<span class="normal">781</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">781</span>
 <span class="normal">782</span>
 <span class="normal">783</span>
 <span class="normal">784</span>
@@ -2481,7 +2477,11 @@ The method updates the internal <code>self.parameters</code> dictionary in-place
 <span class="normal">809</span>
 <span class="normal">810</span>
 <span class="normal">811</span>
-<span class="normal">812</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_rated_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="normal">812</span>
+<span class="normal">813</span>
+<span class="normal">814</span>
+<span class="normal">815</span>
+<span class="normal">816</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_rated_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate Simulated Rated Board Data for USAFA and ROTC Cadets.</span>
 
@@ -2562,11 +2562,7 @@ printing (bool, optional): Whether to print progress information. Defaults to th
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">814</span>
-<span class="normal">815</span>
-<span class="normal">816</span>
-<span class="normal">817</span>
-<span class="normal">818</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">818</span>
 <span class="normal">819</span>
 <span class="normal">820</span>
 <span class="normal">821</span>
@@ -2627,7 +2623,11 @@ printing (bool, optional): Whether to print progress information. Defaults to th
 <span class="normal">876</span>
 <span class="normal">877</span>
 <span class="normal">878</span>
-<span class="normal">879</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_random_value_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">vp_weight</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">879</span>
+<span class="normal">880</span>
+<span class="normal">881</span>
+<span class="normal">882</span>
+<span class="normal">883</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_random_value_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">vp_weight</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">printing</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate Random Value Parameters for Assignment Problem.</span>
 
@@ -2732,11 +2732,7 @@ CASTLE sustainment simulations.</p>
 
             <details class="quote">
               <summary>Source code in <code>afccp/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">881</span>
-<span class="normal">882</span>
-<span class="normal">883</span>
-<span class="normal">884</span>
-<span class="normal">885</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">885</span>
 <span class="normal">886</span>
 <span class="normal">887</span>
 <span class="normal">888</span>
@@ -2769,7 +2765,11 @@ CASTLE sustainment simulations.</p>
 <span class="normal">915</span>
 <span class="normal">916</span>
 <span class="normal">917</span>
-<span class="normal">918</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_example_castle_value_curves</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
+<span class="normal">918</span>
+<span class="normal">919</span>
+<span class="normal">920</span>
+<span class="normal">921</span>
+<span class="normal">922</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_example_castle_value_curves</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_breakpoints</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate and Store Example CASTLE Value Curves.</span>
 
