@@ -193,7 +193,7 @@ to and including the rated AFSC they're reserved for. This ensures that the cade
 the rated AFSC is reserved for them.
 
 ```python
-# Cadet 3 must receive either AFSC 0 (R1), 2 (R3), or 3 (R4) -> R4 is reserved for them
+# Cadet 12 must receive either AFSC 2 (R3), 0 (R1), or 1 (R2) -> R2 is reserved for them
 print("'J^Reserved':", instance.parameters['J^Reserved'])
 ```
 ??? note "💻 Console Output"

@@ -681,7 +681,8 @@ def more_parameter_additions(parameters):
     if 'acc_grp' in p:
         for acc_grp in ['Rated', 'USSF', 'NRL']:
             p['J^' + acc_grp] = np.where(p['acc_grp'] == acc_grp)[0]
-            p['afscs_acc_grp'][acc_grp] = p['afscs'][p['J^' + acc_grp]]
+            if len(p['J^' + acc_grp]) > 0:
+                p['afscs_acc_grp'][acc_grp] = p['afscs'][p['J^' + acc_grp]]
     else:  # Previously, we've only assigned NRL cadets so we assume that's what we're dealing with here
         p['acc_grp'] = np.array(['NRL' for _ in p['J']])
         p['afscs_acc_grp']['NRL'] = p['afscs']

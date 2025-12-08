@@ -937,6 +937,46 @@ def modify_rated_cadet_lists_based_on_eligibility(parameters, printing=True):
     return p
 
 
+def update_preference_data_using_cadets_columns_csv_as_truth(parameters):
+
+    # Shorthand
+    p = parameters
+
+    for i in p['I']:
+
+        # Extract new indices of AFSC preferences
+        indices = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in p['c_preferences'][i] if afsc in p['afscs']])
+
+        # Temp re-setting
+        p['c_pref_matrix'][i] = np.zeros(p['M'])
+
+        # Replace cadet preferences and utilities
+        p['cadet_preferences'][i] = indices
+        p['c_pref_matrix'][i, indices] = np.arange(1, len(indices) + 1)
+
+    # Adjust preferences based on eligibility
+    p = remove_ineligible_cadet_choices(p, printing=True)
+    p['num_cadet_choices'] = np.array([len(p['cadet_preferences'][i]) for i in p['I']])
+
+    # Update utility matrices!
+    p = update_cadet_utility_matrices(p)
+
+    # Update the columns (in case there's an issue with the utilities not matching
+    p['c_preferences'], p['c_utilities'] = update_cadet_columns_from_matrices(p)
+
+    # Modify the rated OM datasets to reflect new rankings with different eligibility
+    rated_cadets = np.where(p['afsc_utility'][:, p['J^Rated']].sum(axis=1) > 0)[0]
+    p['Rated Cadets'] = {}
+    p['Rated Cadet Index Dict'] = {}
+    for soc in p['SOCs']:
+        p['Rated Cadets'][soc] = np.intersect1d(p[f'I^{soc.upper()}'], rated_cadets)
+        p['Rated Cadet Index Dict'][soc] = {i: idx for idx, i in enumerate(p["Rated Cadets"][soc])}
+        p[f'{soc[0]}r_om_matrix'] = p['afsc_utility'][p['Rated Cadets'][soc]][:, p['J^Rated']]
+    p = modify_rated_cadet_lists_based_on_eligibility(p)
+
+    return p
+
+
 # ____________________________________________________AUXILIARY FUNCTIONS_______________________________________________
 def determine_soc_rated_afscs(soc, all_rated_afscs):
     """

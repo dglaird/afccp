@@ -1789,6 +1789,18 @@ class CadetCareerProblem:
         parameters = afccp.data.adjustments.parameter_sets_additions(parameters)
         self.parameters = copy.deepcopy(parameters)
 
+    def update_preference_data_using_cadets_columns_csv_as_truth(self, printing=None):
+
+        if printing is None:
+            printing = self.printing
+
+        if printing:
+            print('Updating preference data using cadet columns data as truth (assuming you are editing "Cadets.csv" '
+                  'and want to adjust ALL tangentially related preference/eligibility data...')
+
+        self.parameters = afccp.data.preferences.update_preference_data_using_cadets_columns_csv_as_truth(
+            self.parameters)
+
     # ___________________________________________VALUE PARAMETER SPECIFICATION__________________________________________
     def set_value_parameters(self, vp_name=None):
         """
