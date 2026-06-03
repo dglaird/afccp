@@ -85,7 +85,8 @@ class CadetCareerProblem:
     """
     def __init__(self, data_name="Random", data_version="Default", degree_qual_type="Consistent",
                  num_value_function_breakpoints=None, N=1600, M=32, P=6, S=10, generate_extra_components=False,
-                 generate_only_nrl=False, ctgan_model_name='CTGAN_Full', ctgan_pilot_sampling=False,
+                 generate_only_nrl=False, ctgan_model_name='CTGAN_Full', ctgan_pilot_sampling=True,
+                 ussf_sampling_method=True, include_ots=False,
                  ctgan_rare_degree_sampling=True, printing=True):
         """
         ___
@@ -188,7 +189,7 @@ class CadetCareerProblem:
                 self.parameters = import_function(self.import_paths, self.parameters)  # Python is nice like that...
 
             # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
-            self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+            self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters, printing=False)
 
             # Import the "Goal Programming" dataframe (from Lt Rebecca Reynold's thesis)
             if "Goal Programming" in self.import_paths:
@@ -263,8 +264,14 @@ class CadetCareerProblem:
                 # Generate a "CTGAN" problem instance
                 elif data_name == "CTGAN":
                     self.parameters = afccp.data.generation.generate_ctgan_instance(
-                        N, name=ctgan_model_name, pilot_condition=ctgan_pilot_sampling,
-                        rare_degrees_adjust=ctgan_rare_degree_sampling)
+                        N, name=ctgan_model_name, pilot_condition=ctgan_pilot_sampling, printing=printing,
+                        rare_degrees_adjust=ctgan_rare_degree_sampling, ussf_sampling=ussf_sampling_method,
+                        include_ots=include_ots)
+
+                    # Add extra components!
+                    if generate_extra_components:
+                        self.parameters = afccp.data.generation.augment_instance_with_base_training_components(
+                            self.parameters, printing=self.printing)
 
                 # We don't have that type of data available to generate
                 else:
@@ -272,7 +279,7 @@ class CadetCareerProblem:
                                                                  " data.")
 
             # Additional sets and subsets of cadets/AFSCs need to be loaded into the instance parameters
-            self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+            self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters, printing=printing)
 
         # Initialize more "functional" parameters
         self.mdl_p = afccp.data.support.initialize_instance_functional_parameters(
@@ -372,20 +379,35 @@ class CadetCareerProblem:
             self.solutions = {}
 
         # Determine solution name
-        if self.solution['method'] not in self.solutions:
-            solution_name = self.solution['method']
+        if 'name' in self.solution:
+            solution_name = self.solution['name']
         else:
-            count = 2
-            solution_name = self.solution['method'] + '_' + str(count)
-            while solution_name in self.solutions:
-                count += 1
+            if self.solution['method'] not in self.solutions:
+                solution_name = self.solution['method']
+            else:
+                count = 2
                 solution_name = self.solution['method'] + '_' + str(count)
+                while solution_name in self.solutions:
+                    count += 1
+                    solution_name = self.solution['method'] + '_' + str(count)
 
         # Check if this solution is a new solution
         new = True
         for s_name in self.solutions:
             p_i = afccp.solutions.handling.compare_solutions(self.solutions[s_name]['j_array'],
                                                              self.solution['j_array'])
+
+            # If we have bases/courses in the solution- it's gotta all be the same!
+            if 'b_array' in self.solution.keys():
+                if 'b_array' in self.solutions[s_name].keys():
+
+                    # If we have bases in both solutions- they have to be unique across all arrays
+                    p_i *= afccp.solutions.handling.compare_solutions(
+                        self.solutions[s_name]['b_array'], self.solution['b_array'])
+                    p_i *= afccp.solutions.handling.compare_solutions(
+                        self.solutions[s_name]['course_array'], self.solution['course_array'])
+                else:
+                    p_i = 0  # The new solution has bases, this one doesn't so it's different
 
             # Set the name of this solution to be the name of its equivalent that is already in the dictionary
             if p_i == 1:
@@ -922,7 +944,8 @@ class CadetCareerProblem:
         self.parameters['castle_q'] = q
 
     # ____________________________________________MAIN DATA CORRECTIONS_________________________________________________
-    def make_all_initial_real_instance_modifications(self, printing=None, vp_defaults_filename=None):
+    def make_all_initial_real_instance_modifications(self, printing=None, vp_defaults_filename=None,
+                                                     remove_choice_printing=False):
         """
         Perform All Initial Modifications for Real Data Instances.
 
@@ -957,7 +980,7 @@ class CadetCareerProblem:
         self.fill_remaining_afsc_choices(printing=printing)
 
         # Removes ineligible cadets from all 3 matrices: degree qualifications, cadet preferences, AFSC preferences
-        self.remove_ineligible_choices(printing=printing)
+        self.remove_ineligible_choices(printing=remove_choice_printing)
 
         # Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)
         self.update_preference_matrices(printing=printing)  # 1, 2, 4, 6, 7 -> 1, 2, 3, 4, 5 (preferences omit gaps)
@@ -973,7 +996,7 @@ class CadetCareerProblem:
             printing=printing)  # We haven't touched "c_preferences" and "c_utilities" until now
 
         # Update utility matrix from columns (and create final cadet utility matrix)
-        self.update_cadet_utility_matrices_from_cadets_data(printing=printing)
+        self.update_cadet_utility_matrices_from_cadets_data(printing=printing, run_extra_again=True)
 
         # Modify rated eligibility by SOC, removing cadets that are on "Rated Cadets" list...
         self.modify_rated_cadet_lists_based_on_eligibility(printing=printing)  # ...but not eligible for any rated AFSC
@@ -1063,7 +1086,10 @@ class CadetCareerProblem:
         elif "Perfect" in self.data_name:
             filename = "Value_Parameters_Defaults_Perfect.xlsx"
         else:
-            filename = "Value_Parameters_Defaults_Generated.xlsx"
+            if 'ots' in self.parameters['SOCs']:
+                filename = "Value_Parameters_Defaults_Generated_OTS.xlsx"
+            else:
+                filename = "Value_Parameters_Defaults_Generated.xlsx"
         filepath = folder_path + filename
 
         # Module shorthand
@@ -1189,6 +1215,21 @@ class CadetCareerProblem:
         # Loop through each AFSC
         for j, afsc in enumerate(p['afscs'][:p['M']]):
 
+            # Check SOC-specific AFSC situations
+            soc_dict = {'U': 'usafa', 'R': 'rotc', 'O': 'ots'}
+            if '_R' in afsc or '_U' in afsc or '_O' in afsc:
+                letter = afsc.split('_')[1]  # determine SOC
+                soc = soc_dict[letter]
+                cadets_not_soc = np.array([i for i in p['I'] if i not in p[f'{soc}_cadets']])
+                eligible_cadets_afsc = np.where(p['a_pref_matrix'][:, j] > 0)[0]
+                incorrect_cadets = np.intersect1d(cadets_not_soc, eligible_cadets_afsc)
+                if len(incorrect_cadets) > 0:
+                    print(j, "AFSC '" + afsc + "' has", len(incorrect_cadets),
+                          "eligible cadets from other SOCs according to the AFSC preference "
+                          f"matrix but this is a SOC-specific AFSC ({soc}). These cadets should "
+                          f"not be eligible for this AFSC. They will be removed.")
+                    self.parameters['a_pref_matrix'][incorrect_cadets, j] = 0
+
             # Eligible & Ineligible cadets based on the CFM preference lists
             preference_eligible_cadets = np.where(p['a_pref_matrix'][:, j] > 0)[0]
             preference_ineligible_cadets = np.where(p['a_pref_matrix'][:, j] == 0)[0]
@@ -1214,8 +1255,8 @@ class CadetCareerProblem:
                     else:
                         val = "I" + str(p['t_count'][j] + 1)
                         if printing:
-                            print(j, "AFSC '" + afsc + "' doesn't have an ineligible tier in the Deg Tiers section"
-                                                    " of the AFSCs.csv file. Please add one.")
+                            print(j, "AFSC '" + afsc + "' doesn't have an ineligible tier in the Deg Tiers "
+                                                       "section of the AFSCs.csv file. Please add one.")
 
                     # Update qual matrix if needed
                     if len(preference_ineligible_cadets) > 0 and printing:
@@ -1506,7 +1547,7 @@ class CadetCareerProblem:
         self.parameters['c_preferences'], self.parameters['c_utilities'] = \
             afccp.data.preferences.update_cadet_columns_from_matrices(self.parameters)
 
-    def update_cadet_utility_matrices_from_cadets_data(self, printing=None):
+    def update_cadet_utility_matrices_from_cadets_data(self, printing=None, run_extra_again=False):
         """
         Update Cadet Utility Matrices from Cadets Data.
 
@@ -1548,7 +1589,8 @@ class CadetCareerProblem:
 
         # Update parameters
         self.parameters = afccp.data.preferences.update_cadet_utility_matrices(self.parameters)
-        self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
+        self.parameters = afccp.data.adjustments.parameter_sets_additions(
+            self.parameters, run_extra_again, printing=printing)
 
     def modify_rated_cadet_lists_based_on_eligibility(self, printing=None):
         """
@@ -1852,6 +1894,8 @@ class CadetCareerProblem:
         :param num_breakpoints: Number of breakpoints to use when building the value functions
         """
 
+        self._error_checking(test='Value Parameters')
+
         # Update the value functions and cadet/AFSC weights
         self.value_parameters = afccp.data.values.update_value_and_weight_functions(self, num_breakpoints)
 
@@ -2092,6 +2136,37 @@ class CadetCareerProblem:
 
         # Get the solution we need
         solution = afccp.solutions.algorithms.classic_hr(self, printing=printing)
+
+        # Determine what to do with the solution
+        self._solution_handling(solution)
+
+        return solution
+
+    def post_guo_base_ist_assignment_algorithm(self, p_dict={}, printing=None):
+
+        self._error_checking('Solution')
+        if printing is None:
+            printing = self.printing
+
+        # Reset instance model parameters
+        self._reset_functional_parameters(p_dict)
+
+        # Create a copy of the current solution
+        solution = copy.deepcopy(self.solution)
+
+        # Make sure we have base/course components
+        if 'b_array' not in solution.keys() or 'c_array' not in solution.keys():
+            raise ValueError(f"Error. We don't have base/course solution arrays with solution '{solution['name']}'.")
+
+        # Run the Algorithms to fill out the remaining assignments
+        solution['method'] = 'Post-GUO B,C Fill'
+        solution['name'] += ', ' + solution['method']
+        if printing:
+            print(f"Running the post-GUO base/IST assignment algorithm. Solution to generate: '{solution['name']}'.")
+        solution = afccp.solutions.algorithms.assign_remaining_bases(self, solution=solution)
+        solution = afccp.solutions.algorithms.assign_remaining_courses(self, solution=solution)
+        solution = afccp.solutions.optimization.build_and_solve_upt_assignment_model(
+            self, solution=solution, printing=printing)
 
         # Determine what to do with the solution
         self._solution_handling(solution)
@@ -2834,6 +2909,23 @@ class CadetCareerProblem:
 
         # Build the chart
         afccp.visualizations.charts.CadetUtilityGraph(self)
+
+    def display_cadet_individual_profile_slides(self, p_dict={}, printing=None):
+        """
+        Builds the cadet utility graph for a particular cadet
+        """
+
+        # Print statement
+        if printing is None:
+            printing = self.printing
+        if printing:
+            print(f"Saving cadet '{self.mdl_p['cadet']}' profile slides...")
+
+        # Adjust instance plot parameters
+        self._reset_functional_parameters(p_dict)
+
+        # Build the slides
+        afccp.visualizations.slides.generate_cadet_profile_slides(self)
 
     def display_results_graph(self, p_dict={}, printing=None):
         """

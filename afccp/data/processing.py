@@ -121,7 +121,7 @@ def initialize_file_information(data_name: str, data_version: str):
                                         "Cadets Utility (Final)", "AFSCs", "AFSCs Preferences", "AFSCs Utility",
                                         "Value Parameters", "Goal Programming", "ROTC Rated Interest",
                                         "ROTC Rated OM", "USAFA Rated OM", "OTS Rated OM",
-                                        "Bases", "Bases Preferences",
+                                        "Bases", "Bases Preferences", 'UPT Preferences',
                                         "Bases Utility", "Courses", "Cadets Selected", "AFSCs Buckets",
                                         'Castle Input'],
                         "Analysis & Results": ["Solutions", "Base Solutions", "Course Solutions"]}
@@ -273,8 +273,8 @@ def import_afscs_data(import_filepaths: dict, parameters: dict) -> dict:
                                   "OTS Target": "ots_quota",
                                   "PGL Target": "pgl", "Estimated": "quota_e",
                                   "Desired": "quota_d", "Min": "quota_min", "Max": "quota_max",
-                                  'Max (Bubbles)': 'max_bubbles',
-                                  "Assign Base": 'afsc_assign_base', 'Num Courses': 'T'}
+                                  'Max (Bubbles)': 'max_bubbles', 'Max Assigned (Bubbles)': 'max_assigned',
+                                  'Training AFSC': 'tau', 'Base & IST Status': 'base_ist_status'}
 
     # Loop through each column in the 'AFSCs' dataframe to put it into the p dictionary
     for col in afscs_df.columns:
@@ -857,10 +857,13 @@ def import_solutions_data(import_filepaths, parameters):
 
         # Loop through each solution in this dataframe and add the base assignments
         for solution_name in solution_names:
-            base_solution = np.array(solutions_df[solution_name])
-            solutions[solution_name]['base_array'] = base_solution
-            solutions[solution_name]['b_array'] = np.array(
-                [np.where(p['bases'] == base)[0][0] if base in base_solution else p['S'] for base in base_solution])
+
+            # We only add the bases if we have an AFSC solution of the same name (in case I delete the AFSC solution)
+            if solution_name in solutions.keys():
+                base_solution = np.array(solutions_df[solution_name])
+                solutions[solution_name]['base_array'] = base_solution
+                solutions[solution_name]['b_array'] = np.array(
+                    [np.where(p['bases'] == base)[0][0] if base in base_solution else p['S'] for base in base_solution])
 
     # If we have this extra component
     if 'Course Solutions' in import_filepaths:
@@ -871,23 +874,28 @@ def import_solutions_data(import_filepaths, parameters):
 
         # Loop through each solution in this dataframe and add the course assignments
         for solution_name in solution_names:
-            course_solution = np.array(solutions_df[solution_name])
-            solutions[solution_name]['course_array'] = course_solution
-            c_array = []
-            for i, course in enumerate(course_solution):
-                found = False
-                for j in range(p['M']):
-                    if course in p['courses'][j]:
-                        c = np.where(p['courses'][j] == course)[0][0]
-                        c_array.append((j, c))
-                        found = True
-                        break
 
-                # This shouldn't happen!
-                if not found:
-                    print("Course '" + str(course) + "' not valid for cadet", i)
-                    c_array.append((0, 0))
-            solutions[solution_name]['c_array'] = np.array(c_array)
+            # We only add the courses if we have an AFSC solution of the same name (in case I delete the AFSC solution)
+            if solution_name in solutions.keys():
+                course_solution = np.array(solutions_df[solution_name])
+                solutions[solution_name]['course_array'] = course_solution
+                c_array = []
+                for i, course in enumerate(course_solution):
+                    found = False
+                    for t in p['T']:
+                        if course in p['courses'][t]:
+                            c = np.where(p['courses'][t] == course)[0][0]
+                            c_array.append((t, c))
+                            found = True
+                            break
+
+                    if not found:
+                        j = solutions[solution_name]['j_array'][i]
+                        if p['tau'][j] in p['T']:
+                            c_array.append((t, 100))
+                        else:
+                            c_array.append(('', 100))
+                solutions[solution_name]['c_array'] = np.array(c_array)
 
     # Return the dictionary of solutions
     return solutions
@@ -952,34 +960,38 @@ def import_additional_data(import_filepaths, parameters):
 
     # Loop through the potential additional dataframes and import them if we have them
     datasets = {}
-    for dataset in ["Bases", "Bases Preferences", "Bases Utility", "Courses", "Castle Input"]:
+    for dataset in ["Bases", "Bases Preferences", "Bases Utility", "Courses", "Castle Input", 'UPT Preferences']:
 
         # If we have the dataset, import it
         if dataset in import_filepaths:
             datasets[dataset] = afccp.globals.import_csv_data(import_filepaths[dataset])
 
-    # First and last AFSC (for collecting matrices from dataframes)
-    afsc_1, afsc_M = p["afscs"][0], p["afscs"][p["M"] - 1]
-
     # Extract data from "Bases.csv" if applicable
     if "Bases" in datasets:
         p['bases'] = np.array(datasets["Bases"]["Base"])  # Set of bases (names)
         p['S'] = len(p['bases'])  # Number of bases (S for "Station")
-        p['base_min'] = np.array(datasets['Bases'].loc[:, afsc_1 + " Min": afsc_M + " Min"])  # Minimum base # by AFSC
-        p['base_max'] = np.array(datasets['Bases'].loc[:, afsc_1 + " Max": afsc_M + " Max"])  # Maximum base # by AFSC
+        p['afscs_bases'] = [col.replace(' Min', '') for col in datasets["Bases"].columns if 'Min' in col]
 
-    # Extract data from "Base Preferences.csv" and "Base Utility.csv" if applicable
-    for parameter, dataset in {'b_pref_matrix': 'Bases Preferences', 'base_utility': 'Bases Utility'}.items():
-        if dataset in datasets:
-            base_1, base_S = p['bases'][0], p['bases'][p['S'] - 1]
-            p[parameter] = np.array(datasets[dataset].loc[:, base_1: base_S])
+        # Extract min/max quantities for each AFSC-Base
+        p['base_min'] = np.zeros((p['S'], p['M']))
+        p['base_max'] = np.zeros((p['S'], p['M']))
+        for j, afsc in enumerate(p['afscs']):
+            if afsc in p['afscs_bases']:
+                p['base_min'][:, j] = datasets['Bases'][f'{afsc} Min']
+                p['base_max'][:, j] = datasets['Bases'][f'{afsc} Max']
+
+        # Extract data from "Base Preferences.csv" and "Base Utility.csv" if applicable
+        for parameter, dataset in {'b_pref_matrix': 'Bases Preferences', 'base_utility': 'Bases Utility'}.items():
+            if dataset in datasets:
+                base_1, base_S = p['bases'][0], p['bases'][p['S'] - 1]
+                p[parameter] = np.array(datasets[dataset].loc[:, base_1: base_S])
 
     # Extract data from "Courses.csv" if applicable
     if "Courses" in datasets:
+        df = datasets['Courses']
 
-        # Need a dictionary of indices of courses that apply to each AFSC
-        afscs = np.array(datasets["Courses"]["AFSC"])
-        afsc_courses = {j: np.where(afscs == p['afscs'][j])[0] for j in range(p['M'])}
+        # Get unique training AFSCs
+        p['T'] = np.unique(df['AFSC'])
 
         # Dictionary to translate parameter names to column names
         column_translation = {"Course": 'courses', 'Start Date': 'course_start', 'Min': 'course_min',
@@ -987,8 +999,21 @@ def import_additional_data(import_filepaths, parameters):
 
         # Get each parameter from the columns of this dataset
         for col, param in column_translation.items():
-            arr = np.array(datasets['Courses'][col])  # Convert dataframe column to numpy array
-            p[param] = {j: arr[afsc_courses[j]] for j in range(p['M'])}
+            p[param] = {}
+            for t in p['T']:  # Loop through each training AFSC to extract its info
+                p[param][t] = np.array(df.loc[df['AFSC'] == t][col])
+
+        # Number of courses per training AFSC
+        p['Q'] = {t: len(p['courses'][t]) for t in p['T']}
+        p['num_courses_full'] = np.zeros(p['M'])
+        for j in range(p['M']):
+            t = p['tau'][j]  # tau: J -> T mapping!! tau(j) = t returns training AFSC 't' from regular AFSC 'j'
+            if t in p['T']:  # Might not map to a training AFSC! # TODO: Validate assumption in sanity check...
+                p['num_courses_full'][j] = p['Q'][t]  # TODO: ...(training AFSCs should be valid across all sources)
+
+    # Extract UPT preferences from "UPT Preferences.csv" if applicable
+    if "UPT Preferences" in datasets:
+        p['upt_preferences_df'] = datasets['UPT Preferences']
 
     # Extract data from "Castle Input.csv" if applicable
     if "Castle Input" in datasets:
@@ -1082,8 +1107,9 @@ def export_afscs_data(instance):
                                   "usafa_quota": "USAFA Target", "rotc_quota": "ROTC Target", 'ots_quota': 'OTS Target',
                                   "pgl": "PGL Target", "quota_e": "Estimated",
                                   "quota_d": "Desired", "quota_min": "Min", "quota_max": "Max",
-                                  'max_bubbles': 'Max (Bubbles)',
-                                  "afsc_assign_base": 'Assign Base', 'T': 'Num Courses',
+                                  'max_bubbles': 'Max (Bubbles)', 'max_assigned': 'Max Assigned (Bubbles)',
+                                  "tau": 'Training AFSC', 'base_ist_status': 'Base & IST Status',
+                                  'num_courses_full': 'Num Courses',
                                   'usafa_eligible_count': 'USAFA Eligible', 'rotc_eligible_count': 'ROTC Eligible',
                                   'ots_eligible_count': "OTS Eligible"}
 
@@ -1614,20 +1640,25 @@ def export_additional_data(instance):
     if 'courses' in p:
 
         # Dictionary to translate parameter names to column names
-        column_translation = {"Course": 'courses', 'Start Date': 'course_start', 'Min': 'course_min', 'Max': 'course_max'}
+        column_translation = {"Course": 'courses', 'Start Date': 'course_start', 'Min': 'course_min',
+                              'Max': 'course_max'}
 
         # Initialize dictionary of new columns
-        new_cols = {'AFSC': [p['afscs'][j] for j in p['J'] for _ in range(p['T'][j])]}
+        new_cols = {'AFSC': [t for t in p['T'] for _ in range(p['Q'][t])]}
 
         # Create each column for this dataset
         for col, param in column_translation.items():
-            new_cols[col] = [p[param][j][c] for j in p['J'] for c in range(p['T'][j])]
+            new_cols[col] = [p[param][t][c] for t in p['T'] for c in range(p['Q'][t])]
 
         # Create dataframe
         df = pd.DataFrame(new_cols)
 
         # Export the dataframe
         df.to_csv(instance.export_paths['Courses'], index=False)
+
+    # Export UPT preferences data if applicable
+    if 'upt_preferences_df' in p:
+        p['upt_preferences_df'].to_csv(instance.export_paths['UPT Preferences'], index=False)
 
     # Export Castle AFSCs data
     if 'castle_afscs_arr' in p:
@@ -1736,7 +1767,10 @@ def export_solution_results(instance, filepath):
     obj_format = workbook.add_format({'bold': True, 'font_color': 'black', 'bg_color': 'yellow',
                                       'font_size': 14, 'font_name': 'Calibri', 'align': 'center',
                                       'valign': 'vcenter', 'border_color': 'black', 'border': 1})
-    worksheet.merge_range("C6:D6", round(solution['z'], 4), obj_format)
+    try:  # Sometimes the VFT model has an error with the objective value calculations!
+        worksheet.merge_range("C6:D6", round(solution['z'], 4), obj_format)
+    except:
+        pass
 
     # Other cells
     cell_format = workbook.add_format({'bold': False, 'font_color': 'black', 'bg_color': 'white',
@@ -1819,10 +1853,13 @@ def export_solution_results(instance, filepath):
                 pass
 
     # VFT Metrics
-    worksheet.write('C4', round(solution['cadets_overall_value'], 4), cell_format)
-    worksheet.write('C5', round(solution['afscs_overall_value'], 4), cell_format)
-    worksheet.write('D4', round(vp['cadets_overall_weight'], 4), cell_format)
-    worksheet.write('D5', round(vp['afscs_overall_weight'], 4), cell_format)
+    try:  # Sometimes the VFT model has an error with the objective value calculations!
+        worksheet.write('C4', round(solution['cadets_overall_value'], 4), cell_format)
+        worksheet.write('C5', round(solution['afscs_overall_value'], 4), cell_format)
+        worksheet.write('D4', round(vp['cadets_overall_weight'], 4), cell_format)
+        worksheet.write('D5', round(vp['afscs_overall_weight'], 4), cell_format)
+    except:
+        pass
 
     # Draw bigger borders
     draw_frame_border_outside(workbook, worksheet, 1, 1, 5, 3, color='black', width=2)

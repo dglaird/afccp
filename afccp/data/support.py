@@ -117,6 +117,8 @@ def initialize_instance_functional_parameters(N):
 
         # Base/Training Parameters
         'BIG M': 100, 'solve_extra_components': False,
+        'upt_base_course': {'VANCE': 'VH', 'COLUMBUS': 'CO', 'LAUGHLIN': 'LJ'}, 'upt_base_course_util_band': 0.2,
+        'upt_monotonic_courses': False,
 
         # VFT Model Parameters
         "pyomo_constraint_based": True, "constraint_tolerance": 0.95, "warm_start": None, "init_from_X": False,
@@ -276,6 +278,10 @@ def initialize_instance_functional_parameters(N):
         # Utility Chart Colors
         "Utility Ascribed": "#4793AF", "Normalized Rank": "#FFC470", "Not Bottom 3": "#DD5746",
         "Not Last Choice": "#8B322C",
+
+        # State Utility Chart Colors
+        'state_utility_afsc': '#5490f0', 'state_utility_base': '#7db84d', 'state_utility_course': '#b39349',
+        'base_utility_bar': '#5490f0',
 
         # PGL Charts
         "pgl": "#5490f0", "surplus": "#eef09e", "failed_pgl": "#f25d50",
@@ -791,14 +797,14 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
 
                 # Rated Career Fields
                 if afsc in ["11U", "11XX", "12XX", "13B", "18X", "92T0", "92T1", "92T2", "92T3",
-                            "11XX_R", "11XX_U", "11XX_O", "USSF", "USSF_U", "USSF_R"]:
+                            "11XX_R", "11XX_U", "11XX_O", "USSF", "USSF_U", "USSF_R", "USSF_O"]:
                     qual[d][i, j] = "P1"
 
                 # Aerospace Physiologist
                 elif afsc == '13H':  # Proportions/Degrees Updated Oct '23
-                    if cip in ['302701', '260912', '310505', '260908', '260707', '260403']:
+                    if cip[:4] in ['3027', '3105', '2607']:  # Updated Apr '26
                         qual[d][i, j] = 'M1'
-                    elif cip in ['290402', '261501', '422813'] or cip[:4] in ['2609']:
+                    elif cip[:4] in ['2609', '2904', '4228'] or cip in ['143501']:  # Updated Apr '26
                         qual[d][i, j] = 'P2'
                     else:
                         qual[d][i, j] = 'I3'
@@ -835,7 +841,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                 elif afsc == '14F':
                     m_list4 = ['3017', '4201', '4227', '4511']
                     d_list4 = ['5214', '3023', '3026']
-                    p_list4 = ['4509', '4502', '3025', '0901']
+                    p_list4 = ['4509', '4502', '3025', '0901', '2805', '2806', '4506']  # Added Apr '26
+
                     if cip[:4] in m_list4:
                         qual[d][i, j] = 'M1'
                     elif cip[:4] in d_list4 or cip in ["090902", "090903", "090907"]:
@@ -863,33 +870,38 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                     m_list4 = ['1437', '1435', '3070', '3030', '3008']
                     if cip[:4] in m_list4 or cip[:2] == '27' or cip == '110102':
                         qual[d][i, j] = 'M1'
-                    elif cip in ['110804', '450603'] or cip[:4] in ['1427', '1107', '3039', '3049']:
+
+                    elif cip in ['110804', '050603'] or cip[:4] in ['1427', '1107', '3039', '3049']:  # Modified Apr '26
                         qual[d][i, j] = 'D2'
-                    elif (cip[:2] == '14' and cip != '140102') or cip[:4] in ['4008', '4506', '2611', '3071', '5213']:
+
+                    elif (cip[:2] == '14' and cip != '140102') or cip[:4] in ['4008', '4506', '2611', '3071', '5213', '4506']:
                         qual[d][i, j] = 'P3'
                     else:
                         qual[d][i, j] = 'I4'
 
-                # Weather and Environmental Sciences (Current a/o Apr '24 AFOCD)
+                # Weather and Environmental Sciences (Current a/o Apr '26 AFOCD)
                 elif afsc == '15W':
                     if cip[:4] == '4004':
                         qual[d][i, j] = 'M1'
-                    elif cip in ['270301', '270303', '270304', '303501', '303001', '140802',
-                                 '303801', '141201', '141301', '400601', '400605', '400607', '400801', '400805',
-                                 '400806', '400807', '400809']:
-                        qual[d][i, j] = 'P2'
-                    elif cip[:2] in ['40'] or cip in ['040999', '030104', '110102', '110101', '110803', '110201',
-                                                      '110701', '110802', '110104', '110804']:
-                        qual[d][i, j] = 'P3'
+
+                    elif cip in ['400601', '400607', '400605', '303501',
+                                 '303801', '270301', '270303', '270304',
+                                 '030104', '450601'] or cip[:4] in ['3050']:
+                        qual[d][i, j] = 'D2'
+
+                    elif cip in ['521304', '110102'] or cip[:4] in ['3006']:
+                        qual[d][i, j] = 'D3'
 
                     else:
-                        qual[d][i, j] = 'I4'
+                        qual[d][i, j] = 'P4'
 
-                # Cyberspace Operations
+                # Cyberspace Operations  # Modified Apr '26
                 elif afsc in ['17D', '17S', '17X', '17S1S']:
-                    m_list6 = ['150303', '151202', '290207', '303001', '307001', '270103', '270303', '270304']
-                    d_list4 = ['1503', '1504', '1508', '1512', '1514', '4008', '4005']
-                    if cip[:4] in ['3008', '3016', '5212'] or cip in m_list6 or \
+                    m_list6 = ['141201', '143501', '144101',
+                               '150303', '151202', '290207', '303001', '307001', '270103', '270303', '270304']
+                    d_list4 = ['1503', '1504', '1508', '1512', '1514', '4008', '4005', '1437']
+
+                    if cip[:4] in ['1409', '1410' ,'3008', '3016', '5212'] or cip in m_list6 or \
                             (cip[:2] == '11' and cip[:4] not in ['1103', '1106']) or (
                             cip[:2] == '14' and cip != '140102'):
                         qual[d][i, j] = 'M1'
@@ -909,13 +921,13 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                         qual[d][i, j] = 'P3'
 
                 # Munitions and Missile Maintenance
-                elif afsc == '21M':  # Proportions Updated Oct '23
+                elif afsc == '21M':  # Modified Apr '26
                     d_list4 = ['1107', '1101', '1110', '5202', '5206', '5213']
                     d_list2 = ['27', '40']
 
                     # Added "Data Processing" (no CIPs in AFOCD, and others are already captured in other tiers)
                     d_list6 = ['290407', '290408', '151501', '520409', "110301"]
-                    if cip[:2] == "14":
+                    if cip[:2] == "14" or cip[:4] in ['1402', '1423', '1427', '1435', '1441']:
                         qual[d][i, j] = 'D1'
                     elif cip[:2] in d_list2 or cip[:4] in d_list4 or cip in d_list6:
                         qual[d][i, j] = 'D2'
@@ -964,9 +976,9 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                     else:
                         qual[d][i, j] = 'I2'
 
-                # Civil Engineering: Electrical Engineer  *added 1447 per CFM conversation 2 Jun '23
+                # Civil Engineering: Electrical Engineer # Modified Apr '26
                 elif afsc == '32EXE':
-                    if cip[:4] in ['1410', '1447']:
+                    if cip[:4] in ['1410'] or cip in ['144701']:
                         qual[d][i, j] = 'M1'
                     else:
                         qual[d][i, j] = 'I2'
@@ -978,12 +990,12 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                     else:
                         qual[d][i, j] = 'I2'
 
-                # Civil Engineering: General Engineer  *Updated AFOCD a/o 30 Apr '23 w/further adjustments a/o 2 Jun '23
+                # Civil Engineering: General Engineer  *Updated AFOCD a/o Apr '26
                 elif afsc == '32EXG':
                     if cip[:4] in ['1408', '1410'] or cip in ['140401', '141401', '141901', '143301', '143501',
                                                               '144701']:
                         qual[d][i, j] = 'M1'
-                    elif cip in ["140701"] or cip[:4] in ["1405", "1425", "1402", "5220", '1510']:  # added 1510
+                    elif cip in ["140701", '151001'] or cip[:4] in ["1405", "1425", "1402", "5220"]:  # added 1510
                         qual[d][i, j] = 'D2'  # FY23 added a desired tier to 32EXG!
                     else:
                         qual[d][i, j] = 'I3'
@@ -1058,19 +1070,24 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
 
                 # Developmental Engineering: Computer Systems Engineer
                 elif afsc in ['62EXC', '62E1C1S']:  # Updated Oct '24
-                    if cip[:4] == '1409':
-                        qual[d][i, j] = 'M1'
-                    elif cip[:4] == '1101' or cip == '110701':
-                        qual[d][i, j] = 'D2'
-                    else:
-                        qual[d][i, j] = 'I3'
-
-                # Developmental Engineering: Electrical/Electronic Engineer
-                elif afsc in ['62EXE', '62E1E1S']:
-                    if cip[:4] in ['1410', '1447']:
+                    if cip[:4] in ['1409', '1447']:
                         qual[d][i, j] = 'M1'
                     else:
                         qual[d][i, j] = 'I2'
+
+                # Developmental Engineering: Electrical/Electronic Engineer  # Updated Apr '26
+                elif afsc in ['62EXE', '62E1E1S']:
+                    if cip[:4] in ['1410', '1447', '1409']:
+                        qual[d][i, j] = 'M1'
+
+                    elif cip in ['140201', '140202', '144101', '141901', '141201', '400810', '270301', '140101', '140103']:
+                        qual[d][i, j] = 'D2'
+
+                    elif cip in ['400404', '400801', '270101', '270503', '141301', '142701', '401101', '270304', '141101']:
+                        qual[d][i, j] = 'P3'
+
+                    else:
+                        qual[d][i, j] = 'I4'
 
                 # Developmental Engineering: Flight Test Engineer
                 elif afsc == '62EXF':
@@ -1080,9 +1097,8 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                         qual[d][i, j] = 'I2'
 
                 # Developmental Engineering: Project/General Engineer
-                elif afsc in ['62EXG', '62E1G1S']:  # Updated Oct '24
-                    if cip[:2] == '14' and cip not in ['140102', '141001', '144701'] and cip[:4] not in ["1437",
-                                                                                                         "1408"]:
+                elif afsc in ['62EXG', '62E1G1S']:  # Updated Apr '26
+                    if cip[:2] == '14' and cip not in ['140102'] and cip[:4] not in ["1437"]:
                         qual[d][i, j] = 'M1'
                     else:
                         qual[d][i, j] = 'I2'
@@ -1117,15 +1133,22 @@ def cip_to_qual_tiers(afscs, cip1, cip2=None, cip3=None, business_hours=None, tr
                             qual[d][i, j] = 'P3'
 
                 # Contracting
-                elif afsc == '64P':
+                elif afsc == '64P':  # Updated Apr '26
                     d_list2 = ['28', '44', '54', '16', '23', '05', '42']
                     if cip[:2] == "52":
                         qual[d][i, j] = 'D1'
+
                     elif cip[:2] in ['14', '15', '26', '27', '29', '40', '41']:
                         qual[d][i, j] = 'D2'
-                    elif cip[:2] in d_list2 or (cip[:2] == '45' and cip[:4] != '4506') or \
+
+                    # elif cip[:2] in d_list2 or (cip[:2] == '45' and cip[:4] != '4506') or \
+                    #         cip[:4] in ['2200', '2202'] or cip == '220101':
+                    #     qual[d][i, j] = 'D3'
+
+                    elif cip[:2] in d_list2 or (cip[:2] == '45') or \
                             cip[:4] in ['2200', '2202'] or cip == '220101':
                         qual[d][i, j] = 'D3'
+
                     else:
                         qual[d][i, j] = 'P4'
 

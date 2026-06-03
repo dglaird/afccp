@@ -910,15 +910,9 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
 
     # Solve Model
     start_time = time.perf_counter()
+    # check_bad_values(p, mdl_p)
     model = execute_solver(model, solver, mdl_p)
     solve_time = round(time.perf_counter() - start_time, 2)
-
-    # # Log infeasibility
-    # if (results.solver.status != SolverStatus.ok) or (
-    #         results.solver.termination_condition == TerminationCondition.infeasible):
-    #     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    #     folder_path = f"{instance.export_paths['Analysis & Results']}infeasibility_logs {timestamp}"
-    #     handle_infeasible_model(model, results, output_dir=folder_path)
 
     # Goal Programming Model specific actions
     if model_name == "GP":
@@ -1026,56 +1020,90 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             This nested function obtains the base/training variable components from the pyomo model
             """
 
-            solution['b_array'] = np.zeros(p['N']).astype(int)
-            solution['c_array'] = np.array([(0, 0) for _ in p['I']])
+            solution['b_array'] = np.array([100 for _ in p['I']])
+            solution['c_array'] = np.array([('', 100) for _ in p['I']])
             solution['base_array'] = np.array([" " * 100 for _ in p['I']])
             solution['course_array'] = np.array([" " * 100 for _ in p['I']])
-            solution['v'] = np.zeros((p['N'], p['S'])).astype(int)
-            solution['q'] = np.zeros((p['N'], p['M'], max(p['T']))).astype(int)
+            solution['v'] = np.zeros((p['N'], p['M'], p['S'])).astype(int)
+            solution['q'] = {i: {t: {c: 0 for c in p['C^E'][i][t]} for t in p['T^E'][i]} for i in p['I^T']}
             solution['cadet_value (Pyomo)'] = np.zeros(p['N'])
             solution['v_integer'], solution['q_integer'] = True, True
 
             # Loop through each cadet to determine what base they're assigned to
             for i in p['I']:
+
+                # Can't be matched to a base
+                if i not in p['I^B']:
+                    solution['base_array'][i] = ""
+                    solution['b_array'][i] = p['S']
+                    continue
+
+                # If they are in our set (I^B), we check it
                 found = False
-                for b in p['B^E'][i]:
-                    solution['v'][i, b] = model.v[i, b].value
-                    try:
-                        if round(solution['v'][i, b]):
-                            solution['b_array'][i] = int(b)
-                            found = True
+                for j in p['J^BP'][i]:
+                    for b in p['B^E-B^A'][i][j]:
+                        solution['v'][i, j, b] = model.v[i, j, b].value
+                        try:
+                            if round(solution['v'][i, j, b]):
+                                solution['b_array'][i] = b
+                                found = True
 
-                        if 0.01 < solution['v'][i, b] < 0.99:
-                            warm_start['v_integer'] = False
-                    except:
-                        raise ValueError("Solution didn't come out right, likely model is infeasible.")
+                            if 0.01 < solution['v'][i, j, b] < 0.99:
+                                solution['v_integer'] = False
+                        except:
+                            raise ValueError("Solution didn't come out right, likely model is infeasible.")
 
-                if found:
+                    if found:
+                        break
+                if found:  # Add the name of the base!
                     solution['base_array'][i] = p['bases'][solution['b_array'][i]]
+
                 else:  # Not matched to a base
                     solution['base_array'][i] = ""
                     solution['b_array'][i] = p['S']
 
             # Loop through each cadet to determine what course they're assigned to
             for i in p['I']:
+
+                # Can't be matched to a course
+                if i not in p['I^T']:
+                    j = solution['j_array'][i]
+                    if j in p['J']:
+                        t = p['tau'][j]
+                    else:
+                        t = ''
+                    solution['course_array'][i] = ""
+                    solution['c_array'][i] = (t, 100)
+                    continue
+
                 found = False
-                for j in p['J^E'][i]:
-                    for c in p['C^E'][i][j]:
-                        solution['q'][i, j, c] = model.q[i, j, c].value
+                for t in p['T^E'][i]:
+                    for c in p['C^E'][i][t]:
+                        solution['q'][i][t][c] = model.q[i, t, c].value
                         try:
-                            if round(solution['q'][i, j, c]):
-                                solution['c_array'][i] = (j, c)
+                            if round(solution['q'][i][t][c]):
+                                solution['c_array'][i] = (t, c)
                                 found = True
 
-                            if 0.01 < solution['q'][i, j, c] < 0.99:
-                                warm_start['q_integer'] = False
+                            if 0.01 < solution['q'][i][t][c] < 0.99:
+                                solution['q_integer'] = False
                         except:
                             raise ValueError("Solution didn't come out right, likely model is infeasible.")
 
+                    if found:
+                        break
                 if found:
-                    solution['course_array'][i] = p['courses'][solution['c_array'][i][0]][solution['c_array'][i][1]]
+                    t = solution['c_array'][i][0]
+                    c = int(solution['c_array'][i][1])  # Need to convert to int because the tuple makes it a str
+                    solution['course_array'][i] = p['courses'][t][c]
                 else:  # Not matched to a course
-                    print('Cadet', i, 'not matched to a course for some reason. Something went wrong.')
+                    j = solution['j_array'][i]
+                    if j in p['J']:
+                        t = p['tau'][j]
+                    else:
+                        t = ''
+                    solution['course_array'][i] = ""
+                    solution['c_array'][i] = (t, 100)
 
             # Loop through each cadet to get their value from pyomo
             for i in p['I']:
@@ -1249,6 +1277,26 @@ def execute_solver(model, solver, mdl_p):
             thread.join()
 
     return model
+
+
+def check_bad_values(p, mdl_p):
+    print("Checking for NaN/Inf in parameters...\n")
+
+    # Check nested dicts
+    def recursive_check(obj, name):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                recursive_check(v, f"{name}[{k}]")
+        elif isinstance(obj, (float, np.floating)):
+            if np.isnan(obj) or np.isinf(obj):
+                print("BAD:", name, obj)
+
+    recursive_check(p, "p")
+
+    for k, v in mdl_p.items():
+        if isinstance(v, (float, np.floating)):
+            if np.isnan(v) or np.isinf(v):
+                print("BAD mdl_p:", k, v)
 
 
 # _________________________________________CASTLE MARKET MODEL COMPONENTS_______________________________________________
@@ -1743,9 +1791,11 @@ def base_training_model_handling(m, p, mdl_p):
     Note: The given ConcreteModel (m) is modified in-place and returned for further use.
     """
 
-    # Define the v and q-variables
-    m.v = Var(((i, b) for i in p['I'] for b in p['B^E'][i]), within=Binary)
-    m.q = Var(((i, j, c) for i in p['I'] for j in p['J^E'][i] for c in p['C^E'][i][j]), within=Binary)
+    # v: Base Assignment
+    m.v = Var(((i, j, b) for i in p['I^B'] for j in p['J^BP'][i] for b in p['B^E-B^A'][i][j]), within=Binary)
+
+    # q: IST Course Assignment
+    m.q = Var(((i, t, c) for i in p['I^T'] for t in p['T^E'][i] for c in p['C^E'][i][t]), within=Binary)
 
     # Define the new cadet value variable
     m.cadet_value = Var((i for i in p['I']), within=NonNegativeReals, bounds=(0, 1))
@@ -1755,52 +1805,249 @@ def base_training_model_handling(m, p, mdl_p):
     for i in p['I']:
         for d in p['D'][i]:
 
-            # Calculate auxiliary variables for AFSC, base, course utility outcomes
-            u = {
-                'A': (1 / p['u^S'][i][d]) * np.sum(p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^State'][i][d]),
-                'C': np.sum(np.sum(
-                    p['course_utility'][i][j][c] * m.q[i, j, c] for c in p['C^E'][i][j]) for j in p['J^State'][i][d])
-            }
-
-            # Weighted sum of cadet utilities in each area depends on if bases are involved
-            if len(p['B^State'][i][d]) > 0:
-                u['B'] = np.sum(p['base_utility'][i, b] * m.v[i, b] for b in p['B^State'][i][d])
-                weighted_sum = p['w^A'][i][d] * u['A'] + p['w^B'][i][d] * u['B'] + p['w^C'][i][d] * u['C']
+            # Fix for states with 0 utility (avoid inf error)
+            if p['u^S'][i][d] == 0:
+                u = {'A': 0}
+                weighted_sum = 0
             else:
-                weighted_sum = p['w^A'][i][d] * u['A'] + p['w^C'][i][d] * u['C']
+                # Auxiliary variables for AFSC, base, course utility outcomes (Initialize only AFSC utility
+                u = {'A': (1 / p['u^S'][i][d]) * sum(p['cadet_utility'][i, j] * m.x[i, j] for j in p['J^State'][i][d])}
+                weighted_sum = p['w^A'][i][d] * u['A']
+
+            # Add base utility to the term if applicable
+            if p['w^B'][i][d] > 0:
+                u['B'] = sum(sum(
+                    p['base_utility'][i, b] * m.v[i, j, b] for b in p['B^E-B^A'][i][j]) for j in p['J^State'][i][d])
+                weighted_sum += p['w^B'][i][d] * u['B']
+
+            # Add course utility to the term if applicable
+            if p['w^C'][i][d] > 0:
+                u['C'] = sum(sum(
+                    p['course_utility'][i][t][c] * m.q[i, t, c] for c in p['C^E'][i][t]) for t in p['T^State'][i][d])
+                weighted_sum += p['w^C'][i][d] * u['C']
 
             # This is the base/course state cadet value constraint. It ensures cadet_value will be the right value
-            m.bc_cadet_value_constraints.add(expr=m.cadet_value[i] <= p['u^S'][i][d] * weighted_sum +
-                                                  mdl_p['BIG M'] * (1 - np.sum(m.x[i, j] for j in p['J^State'][i][d])))
+            m.bc_cadet_value_constraints.add(expr=m.cadet_value[i] <= p['u^S'][i][d] * weighted_sum + mdl_p['BIG M'] *
+                                                  (1 - sum(m.x[i, j] for j in p['J^State'][i][d])))
 
     # Cadet Base Constraints. If a cadet is assigned to a base, it has to be one that the AFSC is located at
     m.bc_cadet_base_constraints = ConstraintList()
-    for i in p['I']:
-        m.bc_cadet_base_constraints.add(expr=np.sum(m.v[i, b] for b in p['B^E'][i]) ==
-                                             np.sum(m.x[i, j] for j in np.intersect1d(p['J^E'][i], p['J^B'])))
-        for j in np.intersect1d(p['J^B'], p['J^E'][i]):
-            m.bc_cadet_base_constraints.add(expr=m.x[i, j] <= np.sum(m.v[i, b] for b in p['B^A'][j]))
+    for i in p['I^B']:
+        for j in p['J^BP'][i]:
+            m.bc_cadet_base_constraints.add(expr=sum(m.v[i, j, b] for b in p['B^E-B^A'][i][j]) <= m.x[i, j])
 
-    # Cadet Course Constraints. Cadets have to be assigned to a course for their designated AFSC
+    # Cadet Course Constraints. If a cadet is assigned to a course, it has to be valid for them
     m.bc_cadet_course_constraints = ConstraintList()
-    for i in p['I']:
-        for j in p['J^E'][i]:
-            m.bc_cadet_course_constraints.add(expr=m.x[i, j] == np.sum(m.q[i, j, c] for c in p['C^E'][i][j]))
+    for i in p['I^T']:
+        m.bc_cadet_course_constraints.add(  # Cadets can only be assigned to one course at most
+            expr=sum(sum(m.q[i, t, c] for c in p['C^E'][i][t]) for t in p['T^E'][i]) <= 1)
+        for t in p['T^E'][i]:
+            for c in p['C^E'][i][t]:
+                m.bc_cadet_course_constraints.add(  # If matched to a course, must be matched to AFSC that offers it
+                    expr=m.q[i, t, c] <= sum(m.x[i, j] for j in np.intersect1d(p['J^G'][t], p['J^E'][i])))
 
     # Base Capacity Constraints. A base/AFSC pair cannot exceed its capacity
     m.bc_base_capacity_constraints = ConstraintList()
     for j in p['J^B']:
         for b in p['B^A'][j]:
-            m.bc_base_capacity_constraints.add(expr=np.sum(m.v[i, b] for i in p['I^E'][j]) <= p['hi^B'][j][b])
-            m.bc_base_capacity_constraints.add(expr=np.sum(m.v[i, b] for i in p['I^E'][j]) >= p['lo^B'][j][b])
+            if p['hi^B'][j][b] > 0 and len(p['I^BA'][j][b]) > 0:
+                m.bc_base_capacity_constraints.add(
+                    expr=sum(m.v[i, j, b] for i in p['I^BA'][j][b]) <= p['hi^B'][j][b])
+            if p['lo^B'][j][b] > 0 and len(p['I^BA'][j][b]) > 0:
+                m.bc_base_capacity_constraints.add(
+                    expr=sum(m.v[i, j, b] for i in p['I^BA'][j][b]) >= p['lo^B'][j][b])
 
     # Course Capacity Constraints. A course/AFSC pair cannot exceed its capacity
     m.bc_course_capacity_constraints = ConstraintList()
-    for j in p['J']:
-        for c in p['C'][j]:
-            m.bc_course_capacity_constraints.add(expr=np.sum(m.q[i, j, c] for i in p['I^A'][j][c]) <= p['hi^C'][j][c])
-            m.bc_course_capacity_constraints.add(expr=np.sum(m.q[i, j, c] for i in p['I^A'][j][c]) >= p['lo^C'][j][c])
+    for t in p['T']:
+        for c in p['C'][t]:
+            if p['hi^C'][t][c] > 0 and len(p['I^A'][t][c]) > 0:
+                m.bc_course_capacity_constraints.add(
+                    expr=sum(m.q[i, t, c] for i in p['I^A'][t][c]) <= p['hi^C'][t][c])
+            if p['lo^C'][t][c] > 0 and len(p['I^A'][t][c]) > 0:
+                m.bc_course_capacity_constraints.add(
+                    expr=sum(m.q[i, t, c] for i in p['I^A'][t][c]) >= p['lo^C'][t][c])
 
+    return m
+
+
+def build_and_solve_upt_assignment_model(instance, solution, printing=False):
+
+    # Shorthand
+    p = instance.parameters
+    mdl_p = instance.mdl_p
+    vp = instance.value_parameters
+
+    # -----------------------------------------
+    # Pre-process
+    # -----------------------------------------
+    q = upt_assignment_model_pre_process(p, mdl_p, solution)
+
+    # -----------------------------------------
+    # Build model
+    # -----------------------------------------
+    if printing:
+        print('Building UPT Assignment model...')
+    m = upt_assignment_modeL_build(p, q, vp, mdl_p)
+
+    # -----------------------------------------
+    # Solve the model
+    # -----------------------------------------
+    solver = build_solver(model_name='UPT Assignment', mdl_p=mdl_p, printing=printing)
+    start_time = time.perf_counter()
+    m = execute_solver(m, solver, mdl_p)
+    solve_time = round(time.perf_counter() - start_time, 2)
+
+    # -----------------------------------------
+    # Load solution back
+    # -----------------------------------------
+    base_b_dict = {base: np.where(p['bases'] == base)[0][0] for base in q['bases']}
+    for i in q['I^Pilots']:
+
+        # Find chosen course
+        for c in q['u^UPT'][i]:
+            if m.x[i, c].value > 0.5:
+
+                # Update course assignment
+                solution['c_array'][i] = (q['t'], c)
+                solution['course_array'][i] = p['courses'][q['t']][c]
+
+                # Determine base from course
+                for base in q['bases']:
+                    if c in q['C^UPT'][base]:
+                        solution['b_array'][i] = base_b_dict[base]
+                        solution['base_array'][i] = base
+                        break
+                break
+
+    if printing:
+        timestamp = datetime.datetime.now().strftime('%B %d %Y %r')
+        print(f"Model solved in {solve_time} seconds at {timestamp}.")
+    return solution
+
+
+def upt_assignment_model_pre_process(p, mdl_p, solution):
+
+    # Construct model parameter dictionary 'q' used solely for the UPT assignment model
+    q = {'bases': list(mdl_p['upt_base_course'].keys())}
+
+    # Extract pilot cadets and AFSCs (11XX_R/11XX_U)
+    pilot_j = [j for j in p['J'] if p['base_ist_status'][j] == 'UPT Base & IST']
+    q['I^Pilots'] = np.array([i for i in p['I'] if solution['j_array'][i] in pilot_j])
+    q['t'] = p['tau'][pilot_j[0]]  # Get the UPT "t"
+
+    # Break out courses by UPT base
+    courses = {}
+    q['C^UPT'] = {}
+    for base, letters in mdl_p['upt_base_course'].items():
+        courses[base] = np.array([course for course in p['courses'][q['t']] if letters in course])
+        q['C^UPT'][base] = np.array([np.where(p['courses'][q['t']] == course)[0][0] for course in courses[base]])
+
+    # Construct UPT utility information
+    band = mdl_p['upt_base_course_util_band']  # Parameter for controlling how much start times affect assignment
+    q['u^UPT'] = {i: {} for i in q['I^Pilots']}
+    for i in q['I^Pilots']:
+        pref_row = p['upt_preferences_df'].loc[p['upt_preferences_df']['Cadet'] == i].iloc[0]
+        base_rank = {base: pref_row[base] for base in q['bases']}
+        for base in q['bases']:
+            rank = base_rank[base]
+
+            if rank == 1:
+                floor = 0.8
+            elif rank == 2:
+                floor = 0.4
+            else:
+                floor = 0.0
+
+            # Sorted list of courses this cadet can take at this base
+            courses_cadet = np.intersect1d(p['C^E'][i][q['t']], q['C^UPT'][base])
+            n = len(courses_cadet)
+            for idx, c in enumerate(courses_cadet):
+                theta = idx / (n - 1) if n > 1 else 0
+                if p['training_preferences'][i] == 'Early':
+                    util = floor + band * (1 - theta)
+                elif p['training_preferences'][i] == 'Late':
+                    util = floor + band * theta
+                else:
+                    util = floor
+                q['u^UPT'][i][c] = util
+
+    # Construct base capacity limits
+    base_capacity = {base: sum(p['hi^C'][q['t']][c] for c in q['C^UPT'][base]) for base in q['bases']}
+    total_capacity = sum(base_capacity.values())
+    alpha = {base: capacity / total_capacity for base, capacity in base_capacity.items()}
+    q['N'] = len(q['I^Pilots'])
+    delta = 0.05
+    q['upt_base_bounds'] = {}
+    for base in alpha:
+        target = alpha[base] * q['N']
+        q['upt_base_bounds'][base] = (
+            int((1 - delta) * target),
+            int((1 + delta) * target)
+        )
+    return q
+
+
+def upt_assignment_modeL_build(p, q, vp, mdl_p):
+
+    m = ConcreteModel()
+
+    # -----------------------------------------
+    # Decision Variables
+    # -----------------------------------------
+    x_index = [(i, c) for i in q['I^Pilots'] for c in q['u^UPT'][i]]
+    m.x = Var(x_index, within=Binary)
+
+    # -----------------------------------------
+    # Objective (Weighted Utility)
+    # -----------------------------------------
+    def obj_rule(m):
+        return sum(vp['cadet_weight'][i] * q['u^UPT'][i][c] * m.x[i, c] for (i, c) in x_index)
+    m.obj = Objective(rule=obj_rule, sense=maximize)
+
+    # -----------------------------------------
+    # Each cadet exactly one course
+    # -----------------------------------------
+    m.one_course = ConstraintList()
+    for i in q['I^Pilots']:
+        m.one_course.add(sum(m.x[i, c] for c in q['u^UPT'][i]) == 1)
+
+    # -----------------------------------------
+    # Course capacity constraints
+    # -----------------------------------------
+    m.course_capacity = ConstraintList()
+    for c in p['C'][q['t']]:
+        assigned = [m.x[i, c] for i in q['I^Pilots'] if c in q['u^UPT'][i]]
+        if len(assigned) == 0:
+            continue
+        m.course_capacity.add(sum(assigned) <= p['hi^C'][q['t']][c])
+        if p['lo^C'][q['t']][c] > 0:
+            m.course_capacity.add(sum(assigned) >= p['lo^C'][q['t']][c])
+
+    # -----------------------------------------
+    # Base proportion constraints
+    # -----------------------------------------
+    m.base_balance = ConstraintList()
+    for base in q['bases']:
+        assigned = [m.x[i, c] for i in q['I^Pilots'] for c in q['C^UPT'][base] if c in q['u^UPT'][i]]
+        if len(assigned) == 0:
+            continue
+        lo_b, hi_b = q['upt_base_bounds'][base]
+        m.base_balance.add(sum(assigned) <= hi_b)
+        m.base_balance.add(sum(assigned) >= lo_b)
+
+    # -----------------------------------------
+    # Monotonic (Left-Fill) Constraints
+    # -----------------------------------------
+    if mdl_p['upt_monotonic_courses']:
+        m.monotonic = ConstraintList()
+        for base in q['bases']:
+            for k in range(len(q['C^UPT'][base]) - 1):
+                c1 = q['C^UPT'][base][k]
+                c2 = q['C^UPT'][base][k + 1]
+                y1 = sum(m.x[i, c1] for i in q['I^Pilots'] if c1 in q['u^UPT'][i])
+                y2 = sum(m.x[i, c2] for i in q['I^Pilots'] if c2 in q['u^UPT'][i])
+                m.monotonic.add(y2 <= y1)
     return m
 
 

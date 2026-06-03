@@ -148,69 +148,8 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             solution['total_failed_constraints'] += 1
             solution["failed_constraints"].append("Cadet " + str(p['cadets'][i]) + " Value")
 
-    # Variables used to help verify that cadets are receiving the AFSCs they need to if specified
-    num_fixed_correctly = 0
-    num_reserved_correctly = 0
-
-    # Get the AFSC solution (Modified to support "unmatched" cadets)
-    solution["num_unmatched"] = 0
-    solution['afsc_array'] = np.array([" " * 10 for _ in p['I']])
-    for i in p['I']:
-        j = np.where(x[i, :])[0]
-        if len(j) != 0:
-            j = int(j[0])
-        else:
-            solution["num_unmatched"] += 1
-            j = p['M']  # Last index (*)
-        solution['afsc_array'][i] = p['afscs'][j]
-
-        # Check if this AFSC was "fixed" for this cadet
-        if i in p['J^Fixed']:
-            if j == p['J^Fixed'][i]:
-                num_fixed_correctly += 1
-
-        # Check if this AFSC was reserved for this cadet
-        if i in p['J^Reserved']:
-            if j in p['J^Reserved'][i]:
-                num_reserved_correctly += 1
-
-    # Alternate list situation
-    if 'J^Preferred [usafa]' in p:
-        solution['num_alternates_allowed'] = 0  # Number of cadets on alternate lists
-        solution['num_successful_alternates'] = 0  # Number of cadets on alternate lists that don't form blocking pairs
-
-        # Loop through each SOC and rated AFSC
-        for soc in p['SOCs']:
-
-            # Did we not run the algorithm for this specific SOC?
-            if f'J^Preferred [{soc}]' not in p:
-                continue
-
-            # Loop through each rated AFSC
-            for j in p['J^Rated']:
-
-                # Loop through each cadet on this SOC's rated AFSC's list
-                for i in p['I^Alternate [' + soc + ']'][j]:
-                    solution['num_alternates_allowed'] += 1
-
-                    # Check the blocking pair constraint for this rated AFSC and cadet pair
-                    not_blocking_pair = p[soc + '_quota'][j] * (1 - np.sum(
-                        x[i, j_p] for j_p in p['J^Preferred [' + soc + ']'][j][i])) <= np.sum(
-                        x[i_p, j] for i_p in p['I^Preferred [' + soc + ']'][j][i])
-                    if not_blocking_pair:
-                        solution['num_successful_alternates'] += 1
-
-        solution['alternate_list_metric'] = str(solution['num_successful_alternates']) + " / " + \
-                                            str(solution['num_alternates_allowed'])
-
-    else:
-        solution['alternate_list_metric'] = "0 / 0"  # Not applicable here
-
-    # Verification that AFSCs are being assigned properly to work with J^Fixed and J^Reserved
-    num_fixed_needed = len(p['J^Fixed'].keys())
-    num_reserved_needed = len(p['J^Reserved'].keys())
-    solution['cadets_fixed_correctly'] = str(num_fixed_needed) + ' / ' + str(num_fixed_needed)
-    solution['cadets_reserved_correctly'] = str(num_reserved_correctly) + ' / ' + str(num_reserved_needed)
+    # Calculate the SOC algorithm reserve/matches metrics!
+    solution = calculate_soc_algorithm_metrics(x, solution, p)
 
     # Define overall metrics
     solution['cadets_overall_value'] = np.dot(vp['cadet_weight'][solution['I^Match']],
@@ -257,9 +196,6 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         print_str += "\nMeasured " + model_type + " VFT objective value: " + str(round(solution['z'], 4))
         if 'z^gu' in solution:
             print_str += ".\nGlobal Utility Score: " + str(round(solution['z^gu'], 4))
-        print_str += ". " + solution['cadets_fixed_correctly'] + ' AFSCs fixed. ' + \
-                     solution['cadets_reserved_correctly'] + ' AFSCs reserved'
-        print_str += ". " + solution['alternate_list_metric'] + ' alternate list scenarios respected'
         if 'z^CASTLE' in solution:
             print_str += f".\nCASTLE GUO Score: {solution['z^CASTLE']}. " \
                          f"Value Curve Score: {solution['z^CASTLE (Values)']}"
@@ -268,6 +204,18 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
         print_str += ". Unmatched cadets: " + str(solution["num_unmatched"])
         print_str += f".\nMatched cadets: {solution['Num Matched']}/{p['N']}. N^Match: {p['N^Match']}"
         print_str += ". Ineligible cadets: " + str(solution['num_ineligible']) + ".\n"
+
+        # SOC algorithm metric reports
+        print_str += solution['cadets_fixed_correctly'] + ' AFSCs fixed. ' + \
+                     solution['cadets_reserved_correctly'] + ' AFSCs reserved'
+        print_str += ". " + solution['alternate_list_metric'] + ' alternate list scenarios respected.\n'
+        soc_metrics = ['alternate_list_breaks', 'fixed_list_breaks', 'reserved_list_breaks']
+        for metric in soc_metrics:
+            if metric in solution:
+                if len(solution[metric]) > 0:
+                    word = metric.split('_')[0]
+                    print_str += f"Cadet/AFSC pairs breaking the {word} list: {solution[metric]}.\n"
+
         if 'matched_out_of_must_match' in solution:
             print_str += f'{solution["matched_out_of_must_match"]} OTS "must-matches" accessed.\n'
         if 'ots' in p['SOCs']:
@@ -957,26 +905,27 @@ def calculate_base_training_metrics(solution, p, vp):
 
     # Loop through each cadet to load in their values to each of the above
     for i, j in enumerate(solution['j_array']):
-        b, c = solution['b_array'][i], solution['c_array'][i][1]
+        b, c = solution['b_array'][i], int(solution['c_array'][i][1])
+        t = p['tau'][j]
 
         # Determine what state this cadet achieved
         d = [d for d in p['D'][i] if j in p['J^State'][i][d]][0]
         solution['cadet_state_achieved'][i] = d
 
-        # Base-components depend on base outcome
-        if b != p['S']:
+        # Extract base information if it's there
+        solution['base_weight_used'][i] = p['w^B'][i][d]
+        if b in p['B']:
             solution['base_choice'][i] = p['b_pref_matrix'][i, b]
             solution['base_utility_achieved'][i] = p['base_utility'][i, b]
-            solution['base_weight_used'][i] = p['w^B'][i][d]
-        else:
-            solution['base_choice'][i] = 0
-            solution['base_utility_achieved'][i] = 0
-            solution['base_weight_used'][i] = 0
 
-        # Load other components
-        solution['course_utility_achieved'][i] = p['course_utility'][i][j][c]
-        solution['afsc_weight_used'][i] = p['w^A'][i][d]
+        # Extract course information if it's there
         solution['course_weight_used'][i] = p['w^C'][i][d]
+        if t in p['T']:
+            if c in p['C'][t]:
+                solution['course_utility_achieved'][i] = p['course_utility'][i][t][c]
+
+        # AFSC/Overall information
+        solution['afsc_weight_used'][i] = p['w^A'][i][d]
         solution['state_utility_used'][i] = p['u^S'][i][d]
 
         # Calculate Cadet Value
@@ -1054,6 +1003,84 @@ def calculate_ots_specific_metrics(solution, p):
         np.around(np.mean(solution['afsc_utility_achieved'][solution['I^Match-OTS']]), 3)
     solution['OTS Average Cadet Utility'] = \
         np.around(np.mean(solution['cadet_utility_achieved'][solution['I^Match-OTS']]), 3)
+
+    return solution
+
+
+def calculate_soc_algorithm_metrics(x, solution, p):
+
+    # Variables used to help verify that cadets are receiving the AFSCs they need to if specified
+    num_fixed_correctly = 0
+    num_reserved_correctly = 0
+
+    # Get the AFSC solution (Modified to support "unmatched" cadets)
+    solution["num_unmatched"] = 0
+    solution['afsc_array'] = np.array([" " * 10 for _ in p['I']])
+    solution['fixed_list_breaks'] = []
+    solution['reserved_list_breaks'] = []
+    for i in p['I']:
+        j = np.where(x[i, :])[0]
+        if len(j) != 0:
+            j = int(j[0])
+        else:
+            solution["num_unmatched"] += 1
+            j = p['M']  # Last index (*)
+        solution['afsc_array'][i] = p['afscs'][j]
+
+        # Check if this AFSC was "fixed" for this cadet
+        if i in p['J^Fixed']:
+            if j == p['J^Fixed'][i]:
+                num_fixed_correctly += 1
+            else:
+                solution['fixed_list_breaks'].append((i, p['afscs'][j]))
+
+        # Check if this AFSC was reserved for this cadet
+        if i in p['J^Reserved']:
+            if j in p['J^Reserved'][i]:
+                num_reserved_correctly += 1
+            else:
+                solution['reserved_list_breaks'].append((i, p['afscs'][j]))
+
+    # Alternate list situation
+    if 'J^Preferred [usafa]' in p:
+        solution['alternate_list_breaks'] = []  # The cadet, afsc pairs that we didn't meet
+        solution['num_alternates_allowed'] = 0  # Number of cadets on alternate lists
+        solution['num_successful_alternates'] = 0  # Number of cadets on alternate lists that don't form blocking pairs
+
+        # Loop through each SOC and rated AFSC
+        for soc in p['SOCs']:
+
+            # Did we not run the algorithm for this specific SOC?
+            if f'J^Preferred [{soc}]' not in p:
+                continue
+
+            # Loop through each rated AFSC
+            for j in p['J^Rated']:
+
+                # Loop through each cadet on this SOC's rated AFSC's list
+                for i in p['I^Alternate [' + soc + ']'][j]:
+                    solution['num_alternates_allowed'] += 1
+
+                    # Check the blocking pair constraint for this rated AFSC and cadet pair
+                    not_blocking_pair = p[soc + '_quota'][j] * (1 - np.sum(
+                        x[i, j_p] for j_p in p['J^Preferred [' + soc + ']'][j][i])) <= np.sum(
+                        x[i_p, j] for i_p in p['I^Preferred [' + soc + ']'][j][i])
+                    if not_blocking_pair:
+                        solution['num_successful_alternates'] += 1
+                    else:
+                        solution['alternate_list_breaks'].append((i, p['afscs'][j]))
+
+        solution['alternate_list_metric'] = str(solution['num_successful_alternates']) + " / " + \
+                                            str(solution['num_alternates_allowed'])
+
+    else:
+        solution['alternate_list_metric'] = "0 / 0"  # Not applicable here
+
+    # Verification that AFSCs are being assigned properly to work with J^Fixed and J^Reserved
+    num_fixed_needed = len(p['J^Fixed'].keys())
+    num_reserved_needed = len(p['J^Reserved'].keys())
+    solution['cadets_fixed_correctly'] = str(num_fixed_correctly) + ' / ' + str(num_fixed_needed)
+    solution['cadets_reserved_correctly'] = str(num_reserved_correctly) + ' / ' + str(num_reserved_needed)
 
     return solution
 

@@ -134,12 +134,14 @@ class BubbleChart:
         # All the cadets!
         else:
             self.b['cadets'] = self.p['I']
-            if 'max_bubbles' in self.p:
+            if 'max_bubbles' in self.p:  # This parameter controls how many white surplus spaces we should account for
                 self.b['max_afsc'] = self.p['max_bubbles']
             else:
                 self.b['max_afsc'] = self.p['quota_max']
             self.b['min_afsc'] = self.p['pgl']
             self.soc = 'both'
+            if 'max_assigned' in self.p:  # This parameter controls how many bubbles (cadets) we should have space for
+                self.b['max_assigned'] = self.p['max_assigned']
 
         # Correct cadet parameters
         self.b['N'] = len(self.b['cadets'])
@@ -303,40 +305,40 @@ class BubbleChart:
             # Maximum number of cadets assigned to each AFSC across solutions
             self.b['max_assigned'] = {j: 0 for j in self.b["J"]}
 
-            # Subset of cadets assigned to the AFSC in each solution
-            self.b['counts'] = {}
-            self.b['cadets_matched'] = {}
+        # Subset of cadets assigned to the AFSC in each solution
+        self.b['counts'] = {}
+        self.b['cadets_matched'] = {}
 
-            # Loop through each solution (iteration)
-            for s in self.b['solutions']:
+        # Loop through each solution (iteration)
+        for s in self.b['solutions']:
 
-                self.b['cadets_matched'][s], self.b['counts'][s] = {}, {}
+            self.b['cadets_matched'][s], self.b['counts'][s] = {}, {}
+
+            # Proposal iterations
+            if 'iterations' in self.solution:
+                if 'proposals' in self.solution['iterations']:
+                    self.b['cadets_proposing'][s] = {}
+
+            # Loop through each AFSC
+            for j in self.b['J']:
+
+                # The cadets that were matched have to be taken from the cadets we're showing too
+                all_cadets_matched = np.where(self.b['solutions'][s] == j)[0]  # cadets assigned to this AFSC
+                self.b['cadets_matched'][s][j] = np.intersect1d(all_cadets_matched, self.b['cadets'])
+                self.b['counts'][s][j] = len(self.b['cadets_matched'][s][j])  # number of cadets assigned to AFSC
+                max_count = self.b['counts'][s][j]
 
                 # Proposal iterations
                 if 'iterations' in self.solution:
                     if 'proposals' in self.solution['iterations']:
-                        self.b['cadets_proposing'][s] = {}
+                        self.b['cadets_proposing'][s][j] = \
+                            np.where(self.solution['iterations']['proposals'][s] == j)[0]
+                        proposal_counts = len(self.b['cadets_proposing'][s][j])  # number of proposing cadets
+                        max_count = max(self.b['counts'][s][j], proposal_counts)
 
-                # Loop through each AFSC
-                for j in self.b['J']:
-
-                    # The cadets that were matched have to be taken from the cadets we're showing too
-                    all_cadets_matched = np.where(self.b['solutions'][s] == j)[0]  # cadets assigned to this AFSC
-                    self.b['cadets_matched'][s][j] = np.intersect1d(all_cadets_matched, self.b['cadets'])
-                    self.b['counts'][s][j] = len(self.b['cadets_matched'][s][j])  # number of cadets assigned to AFSC
-                    max_count = self.b['counts'][s][j]
-
-                    # Proposal iterations
-                    if 'iterations' in self.solution:
-                        if 'proposals' in self.solution['iterations']:
-                            self.b['cadets_proposing'][s][j] = \
-                                np.where(self.solution['iterations']['proposals'][s] == j)[0]
-                            proposal_counts = len(self.b['cadets_proposing'][s][j])  # number of proposing cadets
-                            max_count = max(self.b['counts'][s][j], proposal_counts)
-
-                    # Update maximum number of cadets assigned if necessary
-                    if max_count > self.b['max_assigned'][j]:
-                        self.b['max_assigned'][j] = max_count
+                # Update maximum number of cadets assigned if necessary
+                if max_count > self.b['max_assigned'][j]:
+                    self.b['max_assigned'][j] = max_count
 
         # Get number of unassigned cadets at the end of the iterations
         if 'last_s' in self.b:  # cadets left unmatched

@@ -861,6 +861,10 @@ def update_cadet_utility_matrices(parameters):
     else:
         p = create_new_cadet_utility_matrix(p)
 
+    # Create the base_utility matrix if needed
+    if 'bases' in p and 'base_utility' not in p:
+        p = create_base_utility_matrix(p)
+
     return p
 
 
@@ -1214,6 +1218,23 @@ def create_final_cadet_utility_matrix_from_new_formula(parameters):
             p['cadet_utility'][i, j] = 0.05*a + 0.05*b + 0.9*(0.3*c*x + 0.7*d*y)
 
     # Return parameters
+    return p
+
+
+def create_base_utility_matrix(parameters):
+
+    # Shorthand
+    p = parameters
+
+    # Create base utility matrix
+    p['base_utility'] = np.zeros((p['N'], p['S']))
+    for i in p['I']:
+
+        # Linear utilities: 1 down to 1/n
+        n = len(p['base_preferences'][i])
+        utilities = np.linspace(1, 1 / n, n)
+        p['base_utility'][i, p['base_preferences'][i]] = utilities
+
     return p
 
 

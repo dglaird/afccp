@@ -4,6 +4,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.lines as mlines
 import numpy as np
 import copy
+import datetime
 
 # Set matplotlib default font to Times New Roman
 import matplotlib as mpl
@@ -1808,7 +1809,7 @@ class AFSCsChart:
 
 
 class CadetUtilityGraph:
-    def __init__(self, instance):
+    def __init__(self, instance, cadet=None, overwrite_save=False):
         """
 
         :param instance:
@@ -1828,7 +1829,9 @@ class CadetUtilityGraph:
         self.path = instance.export_paths["Analysis & Results"] + "Data Charts/"
 
         # Shorthand
-        i, p = self.ip['cadet'], self.parameters
+        if cadet is None:
+            cadet = self.ip['cadet']
+        i, p = cadet, self.parameters
         J = p['cadet_preferences'][i]
         afscs, M = p['afscs'][J], len(J)
 
@@ -1955,9 +1958,600 @@ class CadetUtilityGraph:
 
         # Save the chart
         self.ip['filename'] = self.ip['title']
-        if self.ip['save']:
+        if self.ip['save'] and not overwrite_save:
             self.fig.savefig(self.path + self.ip["filename"])
             print("Saved", self.ip["filename"], "Chart to " + self.path + ".")
+
+
+class CadetStateUtilityGraph:
+    def __init__(self, instance, cadet=None, overwrite_save=False):
+
+        # --------------------------------------------------
+        # Load parameters (match CadetUtilityGraph style)
+        # --------------------------------------------------
+
+        self.parameters = instance.parameters
+        self.ip = instance.mdl_p
+        self.data_name = instance.data_name
+
+        self.fig, self.ax = plt.subplots(
+            figsize=self.ip['figsize'],
+            facecolor=self.ip['facecolor'],
+            tight_layout=True,
+            dpi=self.ip['dpi']
+        )
+
+        self.path = instance.export_paths["Analysis & Results"] + "Data Charts/"
+
+        if cadet is None:
+            cadet = self.ip['cadet']
+
+        i = cadet
+        p = self.parameters
+
+        J = p['cadet_preferences'][i]
+        afsc_labels = p['afscs'][J]
+        M = len(J)
+
+        total_util = p['cadet_utility'][i, J]
+
+        # --------------------------------------------------
+        # Build stacked components using YOUR state logic
+        # --------------------------------------------------
+
+        afsc_part = []
+        base_part = []
+        course_part = []
+        states = []
+
+        for j in J:
+
+            # --- Determine state dynamically ---
+            state = None
+            for d in p['D'][i]:
+                if j in p['J^State'][i][d]:
+                    state = d
+                    break
+
+            if state is None:
+                raise ValueError(
+                    f'Error. AFSC {p["afscs"][j]} not found in any state for cadet {i}.'
+                )
+
+            states.append(state)
+
+            wA = p['w^A'][i][state]
+            wB = p['w^B'][i][state]
+            wC = p['w^C'][i][state]
+
+            U = p['cadet_utility'][i, j]
+
+            afsc_part.append(U * wA)
+            base_part.append(U * wB)
+            course_part.append(U * wC)
+
+        afsc_part = np.array(afsc_part)
+        base_part = np.array(base_part)
+        course_part = np.array(course_part)
+
+        x = np.arange(M)
+        bottom = np.zeros(M)
+
+        # --------------------------------------------------
+        # Colors (use mdl_p palette)
+        # --------------------------------------------------
+
+        color_afsc = self.ip['bar_colors']["state_utility_afsc"]
+        color_base = self.ip['bar_colors']["state_utility_base"]
+        color_course = self.ip['bar_colors']["state_utility_course"]
+
+        self.ax.bar(x, afsc_part, color=color_afsc, edgecolor='black', label="AFSC")
+        bottom += afsc_part
+
+        self.ax.bar(x, base_part, bottom=bottom,
+                    color=color_base, edgecolor='black', label="Base")
+        bottom += base_part
+
+        self.ax.bar(x, course_part, bottom=bottom,
+                    color=color_course, edgecolor='black', label="Course")
+
+        # --------------------------------------------------
+        # Total Utility Labels (percent above bar)
+        # --------------------------------------------------
+
+        for idx in range(M):
+            U = total_util[idx]
+            self.ax.text(
+                idx,
+                U + 0.01,
+                f"{round(U * 100, 1)}%",
+                fontsize=self.ip["bar_text_size"],
+                horizontalalignment='center'
+            )
+
+        # --------------------------------------------------
+        # Show component weights inside bars
+        # --------------------------------------------------
+
+        for idx, j in enumerate(J):
+
+            if total_util[idx] == 0:
+                continue
+
+            state = states[idx]
+            wA = round(p['w^A'][i][state], 2)
+            wB = round(p['w^B'][i][state], 2)
+            wC = round(p['w^C'][i][state], 2)
+
+            # AFSC section
+            if afsc_part[idx] > 0.03:
+                self.ax.text(
+                    idx,
+                    afsc_part[idx] / 2,
+                    str(wA),
+                    fontsize=self.ip["bar_text_size"] - 2,
+                    ha='center', va='center'
+                )
+
+            # Base section
+            if base_part[idx] > 0.03:
+                self.ax.text(
+                    idx,
+                    afsc_part[idx] + base_part[idx] / 2,
+                    str(wB),
+                    fontsize=self.ip["bar_text_size"] - 2,
+                    ha='center', va='center'
+                )
+
+            # Course section
+            if course_part[idx] > 0.03:
+                self.ax.text(
+                    idx,
+                    afsc_part[idx] + base_part[idx] + course_part[idx] / 2,
+                    str(wC),
+                    fontsize=self.ip["bar_text_size"] - 2,
+                    ha='center', va='center'
+                )
+
+        # --------------------------------------------------
+        # State Grouping — contiguous blocks only
+        # --------------------------------------------------
+
+        group_start = 0
+        current_state = states[0]
+
+        for idx in range(1, M + 1):
+
+            if idx == M or states[idx] != current_state:
+
+                group_end = idx - 1
+                midpoint = (group_start + group_end) / 2
+
+                # Divider line
+                if idx != M:
+                    self.ax.axvline(idx - 0.5,
+                                    linestyle='--',
+                                    color='gray',
+                                    linewidth=1)
+
+                # State label
+                self.ax.text(
+                    midpoint,
+                    1.08,
+                    f"State {current_state}",
+                    ha='center',
+                    fontsize=self.ip['text_size'],
+                    fontweight='bold'
+                )
+
+                if idx < M:
+                    group_start = idx
+                    current_state = states[idx]
+
+        # --------------------------------------------------
+        # Axis formatting (match existing style)
+        # --------------------------------------------------
+
+        self.ax.set_ylabel("Utility")
+        self.ax.yaxis.label.set_size(self.ip['label_size'])
+
+        self.ax.set_xlabel("AFSCs")
+        self.ax.xaxis.label.set_size(self.ip['label_size'])
+
+        # Color AFSC tick labels by accession group
+        if self.ip["color_afsc_text_by_grp"]:
+            afsc_colors = [
+                self.ip['bar_colors'][p['acc_grp'][j]]
+                for j in J
+            ]
+        else:
+            afsc_colors = ["black"] * M
+
+        self.ax.set_xticks(x)
+        self.ax.set_xticklabels(
+            afsc_labels,
+            rotation=self.ip['afsc_rotation'],
+            fontsize=self.ip['afsc_tick_size']
+        )
+
+        for idx, tick in enumerate(self.ax.get_xticklabels()):
+            tick.set_color(afsc_colors[idx])
+
+        self.ax.set_yticks([0, .2, .4, .6, .8, 1])
+        self.ax.set_yticklabels(['0%', '20%', '40%', '60%', '80%', '100%'])
+        self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
+
+        self.ax.set_xlim(-0.8, M - 0.2)
+        self.ax.set_ylim(0, 1.15)
+        if self.ip["add_legend_afsc_chart"]:
+            legend = self.ax.legend(
+                edgecolor='black',
+                fontsize=self.ip['legend_size'],
+                loc='center right',  # inside right side
+                frameon=True,
+                borderpad=0.4,
+                handlelength=1.2
+            )
+
+            # Make legend slightly transparent so it doesn't block bars
+            legend.get_frame().set_alpha(0.9)
+
+        # Title
+        self.ip['title'] = f'Cadet "{i}" State-Decomposed Utility'
+        if self.ip['display_title']:
+            self.fig.suptitle(self.ip['title'], fontsize=self.ip['title_size'])
+
+        if self.ip['save'] and not overwrite_save:
+            self.fig.savefig(self.path + self.ip["title"])
+
+
+class CadetBaseUtilityGraph:
+    def __init__(self, instance, cadet=None, overwrite_save=False):
+
+        # --------------------------------------------------
+        # Load parameters (match your other charts)
+        # --------------------------------------------------
+
+        self.parameters = instance.parameters
+        self.ip = instance.mdl_p
+        self.data_name = instance.data_name
+
+        self.fig, self.ax = plt.subplots(
+            figsize=self.ip['figsize'],
+            facecolor=self.ip['facecolor'],
+            tight_layout=True,
+            dpi=self.ip['dpi']
+        )
+
+        self.path = instance.export_paths["Analysis & Results"] + "Data Charts/"
+
+        if cadet is None:
+            cadet = self.ip['cadet']
+
+        i = cadet
+        p = self.parameters
+
+        # --------------------------------------------------
+        # Get ordered base preferences
+        # --------------------------------------------------
+
+        B = p['base_preferences'][i]  # ordered base indices
+        base_labels = p['bases'][B]
+        M = len(B)
+
+        # Base utility values
+        utilities = np.array([p['base_utility'][i][b] for b in B])
+
+        x = np.arange(M)
+
+        # --------------------------------------------------
+        # Plot bars
+        # --------------------------------------------------
+
+        color_base = self.ip['bar_colors']["base_utility_bar"]
+
+        self.ax.bar(
+            x,
+            utilities,
+            color=color_base,
+            edgecolor='black'
+        )
+
+        # --------------------------------------------------
+        # Percent labels above bars
+        # --------------------------------------------------
+
+        for idx in range(M):
+            U = utilities[idx]
+            self.ax.text(
+                idx,
+                U + 0.01,
+                f"{round(U * 100, 1)}%",
+                fontsize=self.ip["bar_text_size"],
+                horizontalalignment='center'
+            )
+
+        # --------------------------------------------------
+        # Axis formatting (mirror your AFSC charts)
+        # --------------------------------------------------
+
+        self.ax.set_ylabel("Utility")
+        self.ax.yaxis.label.set_size(self.ip['label_size'])
+
+        self.ax.set_xlabel("Bases")
+        self.ax.xaxis.label.set_size(self.ip['label_size'])
+
+        # Rotate base labels (long names)
+        self.ax.set_xticks(x)
+        self.ax.set_xticklabels(
+            base_labels,
+            rotation=20,  # rotated for readability
+            ha='right',
+            fontsize=self.ip['afsc_tick_size'] * 0.7
+        )
+
+        self.ax.set_xlim(-0.8, M - 0.2)
+        self.ax.set_ylim(0, 1.05)
+
+        self.ax.set_yticks([0, .2, .4, .6, .8, 1])
+        self.ax.set_yticklabels(['0%', '20%', '40%', '60%', '80%', '100%'])
+        self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
+
+        # --------------------------------------------------
+        # Title
+        # --------------------------------------------------
+
+        self.ip['title'] = f'Cadet "{i}" Base Utility Chart'
+        if self.ip['display_title']:
+            self.fig.suptitle(self.ip['title'], fontsize=self.ip['title_size'])
+
+        # --------------------------------------------------
+        # Save
+        # --------------------------------------------------
+
+        if self.ip['save'] and not overwrite_save:
+            self.fig.savefig(self.path + self.ip["title"])
+
+
+class CadetCourseUtilityGraph:
+    def __init__(self, instance, cadet=None, overwrite_save=False):
+
+        # --------------------------------------------------
+        # Load parameters
+        # --------------------------------------------------
+
+        self.parameters = instance.parameters
+        self.ip = instance.mdl_p
+        self.data_name = instance.data_name
+
+        self.fig, self.ax = plt.subplots(
+            figsize=self.ip['figsize'],
+            facecolor=self.ip['facecolor'],
+            tight_layout=True,
+            dpi=self.ip['dpi']
+        )
+
+        self.path = instance.export_paths["Analysis & Results"] + "Data Charts/"
+
+        if cadet is None:
+            cadet = self.ip['cadet']
+
+        i = cadet
+        p = self.parameters
+        J = p['cadet_preferences'][i]
+        M = len(J)
+
+        x_positions = np.arange(M)
+
+        # --------------------------------------------------
+        # Track global best/worst course dates
+        # --------------------------------------------------
+
+        global_min_date = None
+        global_max_date = None
+
+        # --------------------------------------------------
+        # Plot each AFSC’s course utilities
+        # --------------------------------------------------
+
+        for idx, j in enumerate(J):
+
+            t = p['tau'][j]
+
+            if t not in p['course_utility'][i]:
+                continue
+
+            course_dict = p['course_utility'][i][t]
+            if len(course_dict) == 0:
+                continue
+
+            courses = sorted(course_dict.keys())
+            utilities = np.array([course_dict[c] for c in courses])
+
+            # Track earliest & latest start dates
+            for c in courses:
+                start_date = p['course_start'][t][c]
+                if global_min_date is None or start_date < global_min_date:
+                    global_min_date = start_date
+                if global_max_date is None or start_date > global_max_date:
+                    global_max_date = start_date
+
+            # Vertical dotted guide line
+            self.ax.plot(
+                [idx] * len(utilities),
+                utilities,
+                linestyle=':',
+                linewidth=1.2
+            )
+
+            # Smaller dots
+            self.ax.scatter(
+                [idx] * len(utilities),
+                utilities,
+                s=28,
+                edgecolor='black',
+                zorder=3
+            )
+
+            # --------------------------------------------------
+            # Label ONLY min and max utility courses
+            # --------------------------------------------------
+
+            if len(utilities) > 0:
+
+                min_idx = np.argmin(utilities)
+                max_idx = np.argmax(utilities)
+
+                min_c = courses[min_idx]
+                min_u = utilities[min_idx]
+
+                max_c = courses[max_idx]
+                max_u = utilities[max_idx]
+
+                # Label lowest utility
+                self.ax.text(
+                    idx + 0.09,
+                    min_u,
+                    str(min_c),
+                    fontsize=self.ip["bar_text_size"] - 2,
+                    verticalalignment='center',
+                    horizontalalignment='left'
+                )
+
+                # Label highest utility
+                if max_idx != min_idx:
+                    self.ax.text(
+                        idx + 0.09,
+                        max_u,
+                        str(max_c),
+                        fontsize=self.ip["bar_text_size"] - 2,
+                        verticalalignment='center',
+                        horizontalalignment='left'
+                    )
+
+        # --------------------------------------------------
+        # Axis formatting
+        # --------------------------------------------------
+
+        afsc_labels = p['afscs'][J]
+
+        self.ax.set_ylabel("Course Utility")
+        self.ax.yaxis.label.set_size(self.ip['label_size'])
+
+        self.ax.set_xlabel("AFSCs")
+        self.ax.xaxis.label.set_size(self.ip['label_size'])
+
+        self.ax.set_xticks(x_positions)
+        self.ax.set_xticklabels(
+            afsc_labels,
+            rotation=self.ip['afsc_rotation'],
+            fontsize=self.ip['afsc_tick_size']
+        )
+
+        self.ax.set_xlim(-0.8, M - 0.2)
+        self.ax.set_ylim(0, 1.05)
+
+        self.ax.set_yticks([0, .25, .5, .75, 1])
+        self.ax.set_yticklabels(['0%', '25%', '50%', '75%', '100%'])
+        self.ax.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
+
+        # Color AFSC labels if desired
+        if self.ip.get("color_afsc_text_by_grp", False):
+            afsc_colors = [
+                self.ip['bar_colors'][p['acc_grp'][j]]
+                for j in J
+            ]
+        else:
+            afsc_colors = ["black"] * M
+
+        for index, xtick in enumerate(self.ax.get_xticklabels()):
+            xtick.set_color(afsc_colors[index])
+
+        # --------------------------------------------------
+        # Secondary Right Axis — Date Mapping (CORRECT)
+        # --------------------------------------------------
+
+        if len(J) > 0:
+
+            ax2 = self.ax.twinx()
+            ax2.set_ylim(self.ax.get_ylim())
+
+            # Get cadet start date
+            cadet_start = p['training_start'][i]
+
+            # Compute global wait bounds exactly as in parameter builder
+            all_waits = []
+
+            for j in J:
+                t = p['tau'][j]
+                if t in p['course_days_cadet'][i]:
+                    all_waits.extend(p['course_days_cadet'][i][t].values())
+
+            if len(all_waits) == 0:
+                return
+
+            min_wait = min(all_waits)
+            max_wait = max(all_waits)
+            denom = max_wait - min_wait if max_wait != min_wait else 1
+
+            pref = p['training_preferences'][i]
+
+            utility_ticks = np.array([1.0, 0.75, 0.5, 0.25, 0.0])
+            date_labels = []
+
+            for u in utility_ticks:
+
+                if pref == "Early":
+                    wait_days = min_wait + (1 - u) * denom
+                else:  # Late
+                    wait_days = min_wait + u * denom
+
+                tick_date = cadet_start + datetime.timedelta(days=int(wait_days))
+                date_labels.append(tick_date.strftime("%Y-%m-%d"))
+
+            ax2.set_yticks(utility_ticks)
+            ax2.set_yticklabels(date_labels)
+            ax2.tick_params(axis='y', labelsize=self.ip['yaxis_tick_size'])
+
+            # --------------------------------------------------
+            # Horizontal utility ↔ date guide lines
+            # --------------------------------------------------
+
+            utility_ticks = [1.0, 0.75, 0.5, 0.25, 0.0]
+
+            for u in utility_ticks:
+                self.ax.hlines(
+                    y=u,
+                    xmin=self.ax.get_xlim()[0],
+                    xmax=self.ax.get_xlim()[1],
+                    linestyles='--',
+                    linewidth=0.9,
+                    alpha=0.6,
+                    color='grey',
+                    zorder=0
+                )
+
+            ax2.set_ylabel("Course Start Date")
+            ax2.yaxis.label.set_size(self.ip['label_size'])
+
+        # --------------------------------------------------
+        # Title
+        # --------------------------------------------------
+
+        self.ip['title'] = f'Cadet "{i}" Course Utility Chart'
+
+        if self.ip['display_title']:
+            self.fig.suptitle(
+                self.ip['title'],
+                fontsize=self.ip['title_size']
+            )
+
+        # --------------------------------------------------
+        # Save
+        # --------------------------------------------------
+
+        if self.ip['save'] and not overwrite_save:
+            self.fig.savefig(self.path + self.ip["title"])
 
 
 class AccessionsGroupChart:

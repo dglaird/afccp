@@ -1085,3 +1085,123 @@ def genetic_matching_algorithm(instance, printing=False):
     return population[0]
 
 
+# Base/IST algorithms
+def assign_remaining_bases(instance, solution):
+
+    # Shorthand
+    p = instance.parameters
+
+    # Cadets assigned to bases
+    cadets_pre_assigned = np.array([i for i, b in enumerate(solution['b_array']) if b in p['B']])
+
+    # Loop through each AFSC that assigns bases
+    for j in p['J^B']:
+        cadets = solution['cadets_assigned'][j]  # Cadets matched to this AFSC
+        capacities = copy.deepcopy(p['hi^B'][j])
+
+        # Subtract the cadets already assigned to bases from capacities
+        for i in np.intersect1d(cadets, cadets_pre_assigned):
+            b = solution['b_array'][i]
+            capacities[b] -= 1
+
+        # Sort the cadets by order of merit
+        cadets_sorted = sorted(cadets, key=lambda i: p['merit'][i], reverse=True)
+
+        # Keep a list of cadets unmatched based on preferences to match after
+        unmatched = []
+
+        # Loop through all assigned cadets in order of merit to assign bases
+        for i in cadets_sorted:
+            if i in cadets_pre_assigned:
+                continue  # Skip pre-assigned cadets
+
+            # Match them to a base in their preferences if possible!
+            bases_applicable = [b for b in p['base_preferences'][i] if b in p['B^A'][j]]
+            matched = False
+            for b in bases_applicable:
+                if capacities[b] > 0:
+                    solution['b_array'][i] = b
+                    solution['base_array'][i] = p['bases'][b]
+                    capacities[b] -= 1
+                    matched = True
+                    break
+
+            # If we couldn't match the cadet to a base they preferred, we will have to non-vol them.
+            if not matched:
+                unmatched.append(i)
+
+        # Loop through each base to match non-vols
+        idx = 0  # Index for each unmatched cadet
+        for b in p['B^A'][j]:
+            while capacities[b] > 0 and idx < len(unmatched):
+                i = unmatched[idx]
+                solution['b_array'][i] = b
+                solution['base_array'][i] = p['bases'][b]
+                capacities[b] -= 1
+                idx += 1
+
+            # We've assigned all the cadets
+            if idx >= len(unmatched):
+                break
+
+    # Loop through each AFSC that has a fixed base and assign the fixed base
+    afscs_fixed_base = [j for j in p['J'] if p['base_ist_status'][j] == 'Fixed Base, Opt IST']
+    for j in afscs_fixed_base:
+        b = np.where(p['base_max'][:, j] == 1000)[0][0]  # The fixed base is the one that has a 1000 capacity
+        solution['b_array'][solution['cadets_assigned'][j]] = b
+        solution['base_array'][solution['cadets_assigned'][j]] = p['bases'][b]
+
+    return solution
+
+
+def assign_remaining_courses(instance, solution):
+
+    # Shorthand
+    p = instance.parameters
+
+    # Cadets already assigned to courses
+    cadets_pre_assigned = np.array(
+        [i for i, course in enumerate(solution['course_array']) if course in p['all_courses']])
+
+    # Loop through each training AFSC
+    for t in p['T']:
+
+        # Cadets matched to this training AFSC
+        cadets = [i for j in p['J^G'][t] for i in solution['cadets_assigned'][j]]
+        capacities = copy.deepcopy(p['hi^C'][t])
+
+        # Subtract the cadets already assigned to courses from capacities
+        for i in np.intersect1d(cadets, cadets_pre_assigned):
+            c = int(solution['c_array'][i][1])
+            capacities[c] -= 1
+
+        # Sort the cadets by order of merit
+        cadets_sorted = sorted(cadets, key=lambda i: p['merit'][i], reverse=True)
+
+        # Break up cadets according to preferences
+        early_cadets = [i for i in cadets_sorted if p['training_preferences'][i] == 'Early']
+        late_cadets = [i for i in cadets_sorted if p['training_preferences'][i] == 'Late']
+        other_cadets = [i for i in cadets_sorted if p['training_preferences'][i] not in ['Early', 'Late']]
+
+        # Assign early cadets first, then late cadets, then everyone else
+        cadet_sets = {'Early': early_cadets, 'Late': late_cadets, 'Other': other_cadets}
+        for st, cadets_in_set in cadet_sets.items():
+            for i in cadets_in_set:
+                if i in cadets_pre_assigned:
+                    continue  # Skip pre-assigned cadets
+
+                # Get the ordered set of courses for the cadet
+                if st == 'Late':  # If the cadet prefers late courses, reverse the order
+                    eligible_courses = p['C^E'][i][t][::-1]
+                else:
+                    eligible_courses = p['C^E'][i][t]
+
+                # Assign a course to the cadet in order of preference
+                for c in eligible_courses:
+                    if capacities[c] > 0:
+                        solution['c_array'][i] = (t, c)
+                        solution['course_array'][i] = p['courses'][t][c]
+                        capacities[c] -= 1
+                        break
+
+    return solution
