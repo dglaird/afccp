@@ -751,8 +751,8 @@ def initialize_cadet_parameters_in_dictionary(p, data):
     p['merit'] = np.array(data['Merit'])
     for soc in p['SOCs']:
         p[soc] = np.array(data['SOC'] == soc.upper()) * 1
-    p['cip1'] = np.array(data['CIP1'])
-    p['cip2'] = np.array(data['CIP2'])
+    p['cip1'] = np.array(data['CIP1']).astype(str)
+    p['cip2'] = np.array(data['CIP2']).astype(str)
 
     # Clean up degree columns (remove the leading "c" I put there if it's there)
     for i in p['I']:
