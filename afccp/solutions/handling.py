@@ -905,6 +905,10 @@ def calculate_base_training_metrics(solution, p, vp):
 
     # Loop through each cadet to load in their values to each of the above
     for i, j in enumerate(solution['j_array']):
+
+        # If this candidate was not matched to an AFSC, don't calculate any metrics! They get nothing!
+        if p['afscs'][j] == '*':
+            continue
         b, c = solution['b_array'][i], int(solution['c_array'][i][1])
         t = p['tau'][j]
 
@@ -941,7 +945,7 @@ def calculate_base_training_metrics(solution, p, vp):
                     vp['afscs_overall_weight'] * solution['afscs_overall_value']
 
     # Calculate adjusted Z value (GUO)
-    solution['z^gu'] = (1 / p['N']) * vp['afscs_overall_weight'] * np.sum(solution['afsc_utility_achieved']) + \
+    solution['z^gu'] = (1 / p['N^Match']) * vp['afscs_overall_weight'] * np.sum(solution['afsc_utility_achieved']) + \
                        vp['cadets_overall_weight'] * solution['cadets_overall_value']
 
     return solution

@@ -90,7 +90,7 @@ Additionally, since AFPC/DSYA is now tasked with matching all cadets (not just N
 designation in the future, so we may go back to just one "Merit" column.
 
 The "Assigned" column contains the AFSCs that may be fixed for certain cadets. Perhaps some cadets were rolled over 
-from the previous AFSC and had already been awarded an AFSC. In those cases, we want to count them within our 
+from the previous classification cycle and had already been awarded an AFSC. In those cases, we want to count them within our 
 calculations but don't want to change their assigned AFSC. Again, since this is generated data, it does not play 
 much of a role.
 

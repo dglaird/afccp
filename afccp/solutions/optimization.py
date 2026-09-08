@@ -278,7 +278,7 @@ def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
         # Base/Training model objective function
         def objective_function(m):
             return vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * m.cadet_value[i] for i in p['I']) + \
-                   1 / p['N'] * vp['afscs_overall_weight'] * np.sum(
+                   1 / p['N^Match'] * vp['afscs_overall_weight'] * np.sum(
                 np.sum(p['afsc_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
 
     else:  # If not, we solve the "AFSC-only" assignment problem model
@@ -451,7 +451,7 @@ def add_x_variable_one_afsc_constraints(m, p, mdl_p):
                 m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) <= 1)
                 continue  # Next!
 
-        # This cadet must receive one and only one AFSC
+        # This cadet must receive one and only one AFSC (ROTC/USAFA)
         m.one_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^E'][i]) == 1)
 
     return m
@@ -1888,7 +1888,7 @@ def build_and_solve_upt_assignment_model(instance, solution, printing=False):
     # -----------------------------------------
     if printing:
         print('Building UPT Assignment model...')
-    m = upt_assignment_modeL_build(p, q, vp, mdl_p)
+    m = upt_assignment_model_build(p, q, vp, mdl_p)
 
     # -----------------------------------------
     # Solve the model
@@ -1988,7 +1988,7 @@ def upt_assignment_model_pre_process(p, mdl_p, solution):
     return q
 
 
-def upt_assignment_modeL_build(p, q, vp, mdl_p):
+def upt_assignment_model_build(p, q, vp, mdl_p):
 
     m = ConcreteModel()
 

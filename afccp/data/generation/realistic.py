@@ -542,7 +542,10 @@ def generate_afscs_data(p, afscs_data):
     pgl_prop = np.array(afscs_data['PGL Proportion'])
 
     # Total targets needed to distribute
-    total_targets = int(p['N'] * min(0.94, np.random.normal(0.92, 0.08)))
+    if 'ots' in p['SOCs']:  # Many OTS candidates will not make it!
+        total_targets = int(p['N'] * min(0.75, np.random.normal(0.72, 0.08)))
+    else:
+        total_targets = int(p['N'] * min(0.94, np.random.normal(0.92, 0.08)))
 
     # PGL targets
     p['pgl'] = np.zeros(p['M']).astype(int)
@@ -574,7 +577,7 @@ def generate_afscs_data(p, afscs_data):
             p['ots_quota'][j] = p['pgl'][j] - p['rotc_quota'][j] - p['usafa_quota'][j]
         else:
 
-            p['rotc_quota'][j] = int(prop * p['pgl'][j])
+            p['rotc_quota'][j] = int(calc_soc_props['rotc'] * p['pgl'][j])
             p['usafa_quota'][j] = p['pgl'][j] - p['rotc_quota'][j]
 
     # Initialize the other pieces of information here
@@ -614,7 +617,7 @@ def generate_cadet_data(p, model, pilot_condition, rare_degrees_adjust=True, uss
     if pilot_condition:
         if printing:
             print('\nSampling remaining cadets (using pilot sampling method)...')
-        data_all_else = sample_cadet_data_with_pilot_condition(N=p['N'] - n_generated, model=model)
+        data_all_else = sample_cadet_data_with_pilot_condition(N=p['N'] - n_generated, model=model, p=p)
     else:
         if printing:
             print('Sampling remaining cadets...')
@@ -698,13 +701,14 @@ def sample_rare_afscs_degrees(model, p):
     return data
 
 
-def sample_cadet_data_with_pilot_condition(N, model):
+def sample_cadet_data_with_pilot_condition(N, model, p):
 
     # Split up the number of ROTC/USAFA cadets
     N_usafa = round(np.random.triangular(0.25, 0.33, 0.4) * N)
     N_rotc = N - N_usafa
 
     # Pilot is by far the #1 desired career field, let's make sure this is represented here
+
     N_usafa_pilots = round(np.random.triangular(0.35, 0.4, 0.43) * N_usafa)
     N_usafa_generic = N_usafa - N_usafa_pilots
     N_rotc_pilots = round(np.random.triangular(0.27, 0.3, 0.33) * N_rotc)
@@ -726,13 +730,14 @@ def sample_cadet_data_with_pilot_condition(N, model):
 def sample_ussf_cadets_condition(p, model):
 
     conditions = []
-    for soc in p['SOCs']:
-        for j in p['J^USSF']:  # This only works if "USSF" is the only "USSF" AFSC....confusing ;)
-            soc_targets = p[f'{soc.lower()}_quota'][j]
-            N = int(0.9 * soc_targets)  # We're only going to do this for 90% of the targets. The other 10% will be
-            # made up from other cadet sampling methods
-            conditions.append(Condition(num_rows=N,
-                                        column_values={'SOC': soc.upper(), 'USSF_Cadet': 1, 'USSF Vol': 1}))
+    for soc in p['SOCs']:  # This only works if "USSF" is the only "USSF" AFSC....confusing ;)
+        afsc = f'USSF_{soc[0].upper()}'
+        j = np.where(p['afscs'] == afsc)[0][0]
+        soc_targets = p[f'{soc.lower()}_quota'][j]
+        N = int(0.9 * soc_targets)  # We're only going to do this for 90% of the targets. The other 10% will be
+        # made up from other cadet sampling methods
+        conditions.append(Condition(num_rows=N,
+                                    column_values={'SOC': soc.upper(), 'USSF_Cadet': 1, 'USSF Vol': 1}))
 
     # Sample data
     data = model.sample_from_conditions(conditions=conditions)
@@ -2195,12 +2200,12 @@ def generate_courses_afsc_status_data(p, next_year):
             iterating = True
             while iterating:
                 new_df = generate_courses_for_fy(
-                    learned_data=learned_course_data[t], fy=next_year, afsc=t, seat_scalar=1, n_fys=2)
+                    learned_data=learned_course_data[t], fy=next_year, afsc=t, seat_scalar=1, n_fys=3)
                 if len(new_df) > 70:
                     iterating = False
         else:
             new_df = generate_courses_for_fy(
-                learned_data=learned_course_data[t], fy=next_year, afsc=t, seat_scalar=1, n_fys=2)
+                learned_data=learned_course_data[t], fy=next_year, afsc=t, seat_scalar=1, n_fys=3)
         df = pd.concat((df, new_df))
     df['Course'] = df['Training Class']
     df['Min'] = 0
@@ -2239,9 +2244,9 @@ def generate_upt_preferences_df(p):
     }
     rows = []
 
-    # UPT qualified cadets
+    # UPT qualified cadets  (Had to modify this to make UPT prefs for all rated cadets- issue with pilot specific prefs)
     pilot_j = [j for j in p['J'] if p['base_ist_status'][j] == 'UPT Base & IST']
-    cadets = [i for i in range(p['N']) if np.sum(p['c_pref_matrix'][i, pilot_j]) > 0]
+    cadets = [i for i in range(p['N']) if np.sum(p['c_pref_matrix'][i, p['J^Rated']]) > 0]
 
     # Generate preferences for cadets
     rng = np.random.default_rng()

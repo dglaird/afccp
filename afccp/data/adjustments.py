@@ -443,8 +443,28 @@ def parameter_sanity_check(instance):
                          f"This will be infeasible (assuming standard rated/SOC algorithms) since "
                          f"we do not have enough {soc.upper()} rated cadets to fill slots.")
 
+    # Run through the base/training checks
+    if "bases" in p:
+        issue = base_training_checks(p, issue)
+
     # Print statement
     print('Done,', issue, "issues found.")
+
+
+def base_training_checks(p, issue):
+
+    # Check if we have UPT preferences for all the pilot-qualified cadets
+    pilot_j = [j for j in p['J'] if p['base_ist_status'][j] == 'UPT Base & IST']
+    cadets = np.array([])
+    for j in pilot_j:
+        cadets = np.union1d(cadets, p['I^E'][j])
+    upt_prefs_cadets = np.array(p['upt_preferences_df']['Cadet'])
+    cadets_without_prefs = [int(i) for i in cadets if i not in upt_prefs_cadets]
+    if len(cadets_without_prefs) > 0:
+        issue += 1
+        print(issue, f"ISSUE: Missing UPT preferences for {len(cadets_without_prefs)} pilot-qualified cadets. "
+                     f"These are cadets: {cadets_without_prefs}")
+    return issue
 
 
 # _____________________________________________________DATA ADJUSTMENTS_________________________________________________
@@ -1580,7 +1600,10 @@ def _add_course_and_capacity_parameters(p, debug_i=None):
     # Get pilot training AFSC
     # ------------------------------------------------------------
     pilot_j = [j for j in p['J'] if p['base_ist_status'][j] == 'UPT Base & IST']
-    pilot_t = p['tau'][pilot_j[0]]
+    if len(pilot_j) > 0:  # Putting this fix in here for randomly generated data that doesn't use pilot
+        pilot_t = p['tau'][pilot_j[0]]
+    else:
+        pilot_t = ''
 
     # ------------------------------------------------------------
     # Main Loop
@@ -1608,7 +1631,11 @@ def _add_course_and_capacity_parameters(p, debug_i=None):
 
         all_waits = []
 
-        T_E_with_pilot = np.union1d(p['T^E'][i], np.array([pilot_t]))
+        # Putting this fix in here for randomly generated data that doesn't use pilot
+        if pilot_t != '':
+            T_E_with_pilot = np.union1d(p['T^E'][i], np.array([pilot_t]))
+        else:
+            T_E_with_pilot = copy.deepcopy(p['T^E'][i])
 
         for t in T_E_with_pilot:
 

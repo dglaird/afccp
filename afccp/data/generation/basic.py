@@ -596,6 +596,20 @@ def generate_extra_components(parameters):
         if p['acc_grp'][j] != "Rated" and np.random.rand() > 0.02:
             p['afsc_assign_base'][j] = 1
 
+    # Assign extra AFSC/base/IST information
+    p['T'] = copy.deepcopy(p['afscs'][:p['M']])  # Training AFSCs are the same as regular AFSCs for random data
+    p['tau'] = copy.deepcopy(p['afscs'][:p['M']])  # Training AFSCs are the same as regular AFSCs for random data
+
+    # Get Base/IST Info. No UPT scenarios in random data
+    p['base_ist_status'] = np.array([" " * 20 for _ in range(p['M'])])
+    for j in range(p['M']):
+        if p['acc_grp'][j] == 'NRL':
+            p['base_ist_status'][j] = 'Opt Base, Opt IST'
+        elif p['acc_grp'][j] == 'Rated':
+            p['base_ist_status'][j] = 'Fixed Base, Opt IST'
+        else:  # USSF
+            p['base_ist_status'][j] = 'No Base, No IST'
+
     # Name the bases according to the Excel columns (just a method of generating unique ordered letters)
     p['bases'] = np.array(["Base " + excel_columns[b] for b in range(p['S'])])
 
@@ -609,7 +623,7 @@ def generate_extra_components(parameters):
         # base_max = (base_max / np.sum(base_max)) * total_max
         base_max = np.array([1000 for _ in range(p['S'])])
         p['base_max'][:, j] = np.ceil(base_max).astype(int)
-        p['base_min'][:, j] = np.floor(p['pgl'][j] * 0.2).astype(int)
+        # p['base_min'][:, j] = np.floor(p['pgl'][j] * 0.2).astype(int)
 
     # Generate random cadet preferences for bases
     bases = copy.deepcopy(p['bases'])
@@ -637,8 +651,8 @@ def generate_extra_components(parameters):
         [random.choices(['Early', 'Late'], weights=[0.9, 0.1])[0] for _ in range(p['N'])])
 
     # Generate base/training "thresholds" for when these preferences kick in (based on preferences for AFSCs)
-    p['training_threshold'] = np.array([np.random.choice(np.arange(p['M'] + 1)) for _ in range(p['N'])])
-    p['base_threshold'] = np.array([np.random.choice(np.arange(p['M'] + 1)) for _ in range(p['N'])])
+    p['training_threshold'] = np.array([np.random.choice(np.arange(p['M']) + 1) for _ in range(p['N'])])
+    p['base_threshold'] = np.array([np.random.choice(np.arange(p['M']) + 1) for _ in range(p['N'])])
 
     # Generate weights for AFSCs, bases, and courses
     p['weight_afsc'], p['weight_base'], p['weight_course'] = np.zeros(p['N']), np.zeros(p['N']), np.zeros(p['N'])
@@ -693,7 +707,7 @@ def generate_extra_components(parameters):
     # Generate training courses for each AFSC
     p['courses'], p['course_start'], p['course_min'], p['course_max'] = {}, {}, {}, {}
     p['course_count'] = np.zeros(p['M'])
-    for j in range(p['M']):
+    for j, t in enumerate(p['T']):  # This only works cause t => j for random data instances!!!
 
         # Determine total number of training slots to divide up
         total_max = p['pgl'][j] * 1.5
@@ -712,30 +726,35 @@ def generate_extra_components(parameters):
 
         # Course minimums and maximums
         random_nums = np.random.rand(T)
-        p['course_max'][j] = np.around(total_max * (random_nums / np.sum(random_nums))).astype(int)
-        p['course_min'][j] = np.zeros(T).astype(int)
+        p['course_max'][t] = np.around(total_max * (random_nums / np.sum(random_nums))).astype(int)
+        p['course_min'][t] = np.zeros(T).astype(int)
 
         # Generate course specific information
-        p['courses'][j], p['course_start'][j] = [], []
+        p['courses'][t], p['course_start'][t] = [], []
         current_date = p['baseline_date'] + datetime.timedelta(int(np.random.triangular(30*5, 30*9, 30*11)))
         for _ in range(T):
 
             # Course names (random strings of letters)
             num_letters = random.choice(np.arange(4, 10))
-            p['courses'][j].append(''.join(random.choices(alphabet, k=num_letters)))
+            p['courses'][t].append(''.join(random.choices(alphabet, k=num_letters)))
 
             # Course start date
-            p['course_start'][j].append(current_date)
+            p['course_start'][t].append(current_date)
 
             # Get next course start date
             current_date += datetime.timedelta(int(np.random.triangular(30, 30*4, 30*6)))
 
         # Convert to numpy arrays
         for param in ['courses', 'course_start', 'course_max', 'course_min']:
-            p[param][j] = np.array(p[param][j])
+            p[param][t] = np.array(p[param][t])
 
-    # Number of training courses per AFSC
-    p['T'] = np.array([len(p['courses'][j]) for j in range(p['M'])])
+    # Number of courses per training AFSC
+    p['Q'] = {t: len(p['courses'][t]) for t in p['T']}
+    p['num_courses_full'] = np.zeros(p['M'])
+    for j in range(p['M']):
+        t = p['tau'][j]  # tau: J -> T mapping!! tau(j) = t returns training AFSC 't' from regular AFSC 'j'
+        if t in p['T']:  # Might not map to a training AFSC! # TODO: Validate assumption in sanity check...
+            p['num_courses_full'][j] = p['Q'][t]  # TODO: ...(training AFSCs should be valid across all sources)
 
     # Return updated parameters
     return p

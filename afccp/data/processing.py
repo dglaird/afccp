@@ -891,7 +891,9 @@ def import_solutions_data(import_filepaths, parameters):
 
                     if not found:
                         j = solutions[solution_name]['j_array'][i]
-                        if p['tau'][j] in p['T']:
+                        if p['afscs'][j] == '*':
+                            c_array.append(('', 100))
+                        elif p['tau'][j] in p['T']:
                             c_array.append((t, 100))
                         else:
                             c_array.append(('', 100))
@@ -1927,7 +1929,7 @@ def export_solution_results(instance, filepath):
 
         # Solution Dataframe
         df = pd.DataFrame({'Cadet': p['cadets']})
-        df['USAFA'] = p['usafa']
+        df['SOC'] = p['soc']
         df['Merit'] = p['merit']
         df["Matched AFSC"] = solution['afsc_array']
         if "base_array" in solution:
@@ -2066,27 +2068,31 @@ def export_solution_results(instance, filepath):
             # Convert the dataframe to an XlsxWriter Excel object.
             df.to_excel(writer, sheet_name='X', index=False)
 
-        # Base Matrix
-        if 'v' in solution:
-            df = pd.DataFrame({'Cadet': p['cadets']})
-            df[instance.solution_name] = instance.solution['base_array']
-            for b, base in enumerate(p['bases'][:p['S']]):
-                df[base] = instance.solution['v'][:, b]
-
-            # Convert the dataframe to an XlsxWriter Excel object.
-            df.to_excel(writer, sheet_name='V', index=False)
-
-        # Training Matrix
-        if 'q' in solution:
-
-            df = pd.DataFrame({'Cadet': p['cadets']})
-            df[instance.solution_name] = instance.solution['course_array']
-            for j, afsc in enumerate(p['afscs'][:p['M']]):
-                for c, course in enumerate(p['courses'][j]):
-                    df[afsc + "-" + course] = instance.solution['q'][:, j, c]
-
-            # Convert the dataframe to an XlsxWriter Excel object.
-            df.to_excel(writer, sheet_name='Q', index=False)
+        # Commented out cause there are issues here and I don't think I'll ever need this
+        # # Base Matrix
+        # if 'v' in solution:
+        #     df = pd.DataFrame({'Cadet': p['cadets']})
+        #     df[instance.solution_name] = instance.solution['base_array']
+        #     for b, base in enumerate(p['bases'][:p['S']]):
+        #         df[base] = instance.solution['v'][:, b]
+        #     for t, afsc in enumerate(p['afscs'][:p['M']]):
+        #         for c, course in enumerate(p['courses'][j]):
+        #             df[afsc + "-" + course] = instance.solution['q'][:, j, c]
+        #
+        #     # Convert the dataframe to an XlsxWriter Excel object.
+        #     df.to_excel(writer, sheet_name='V', index=False)
+        #
+        # # Training Matrix
+        # if 'q' in solution:
+        #
+        #     df = pd.DataFrame({'Cadet': p['cadets']})
+        #     df[instance.solution_name] = instance.solution['course_array']
+        #     for j, afsc in enumerate(p['afscs'][:p['M']]):
+        #         for c, course in enumerate(p['courses'][j]):
+        #             df[afsc + "-" + course] = instance.solution['q'][:, j, c]
+        #
+        #     # Convert the dataframe to an XlsxWriter Excel object.
+        #     df.to_excel(writer, sheet_name='Q', index=False)
 
         # Value Function Matrices
         if 'lambda' in solution:
