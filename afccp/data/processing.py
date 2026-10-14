@@ -1979,6 +1979,19 @@ def export_solution_results(instance, filepath):
                     j = p['cadet_preferences'][i][choice]
                     df['Utility ' + str(choice + 1)][i] = p['cadet_utility'][i, j]
 
+        # Clear assignment statistics for unmatched cadets
+        unmatched_mask = df['Matched AFSC'].eq('*')
+
+        # Preserve identifying information and original cadet preferences
+        preserve_cols = (
+                ['Cadet', 'SOC', 'Merit', 'Matched AFSC']
+                + [col for col in df.columns if col.startswith(('Choice ', 'Utility ')) or col.endswith(' Rank')]
+        )
+
+        # Clear all other columns for unmatched cadets
+        cols_to_clear = df.columns.difference(preserve_cols)
+        df.loc[unmatched_mask, cols_to_clear] = np.nan
+
         # Convert the dataframe to an XlsxWriter Excel object.
         df.to_excel(writer, sheet_name='Solution', index=False, startrow=1, header=False)
 

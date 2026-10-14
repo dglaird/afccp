@@ -386,6 +386,11 @@ def fill_remaining_preferences(parameters):
     # Loop through all cadets
     for i in p['I']:
 
+        # Skip OTS!
+        if 'ots' in p['SOCs']:
+            if i in p['I^OTS']:
+                continue
+
         # Loop through all "indifferent" AFSCs that they are eligible for
         pref_num = len(p['cadet_preferences'][i]) + 1
         for j in p['J']:
