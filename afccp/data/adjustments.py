@@ -152,8 +152,8 @@ def parameter_sanity_check(instance):
                       " cadets in both sets. \nCFM list but not qual cadets:", cfm_not_qual,
                       "\nQual but not CFM list cadets:", qual_not_cfm)
 
-            # Make sure that all eligibility pairs line up
-            if 'c_pref_matrix' in p:
+            # Make sure that all eligibility pairs line up (if we care about cadet preferences matching)
+            if 'c_pref_matrix' in p and instance.remove_cadet_choices_eligibility:
 
                 for i, cadet in enumerate(p['cadets']):
 
@@ -343,7 +343,7 @@ def parameter_sanity_check(instance):
             # If this cadet does not have any preferences, we skip them (must be an OTS candidate)
             if len(p['cadet_preferences'][i]) == 0:
                 issue += 1
-                print(issue, f"WARNING: Cadet {i} has no preferences and is therefore eligible for nothing.")
+                print(issue, f"WARNING: Cadet {i} has no preferences.")
                 continue
 
             # Make sure "utility" array is monotonically decreasing and the "cadet_utility" array is strictly decreasing
@@ -839,6 +839,7 @@ def more_parameter_additions(parameters):
         for i in p['I']:
             p['J^Selected'][i] = np.where(p['c_selected_matrix'][i])[0]
             p['J^Selected-E'][i] = np.intersect1d(p['J^E'][i], p['J^Selected'][i])
+        p['num_choices_selected'] = np.array(len(p['J^Selected'][i]) for i in p['I'])
 
     # Incorporate "Must Match" information for OTS
     if 'must_match' in p:
@@ -870,6 +871,15 @@ def more_parameter_additions(parameters):
             p['J^Last Choice'][i] = p['M']  # Unmatched AFSC (*)
             if p['last_afsc'][i] in p['afscs']:
                 p['J^Last Choice'][i] = np.where(p['afscs'] == p['last_afsc'][i])[0][0]
+
+    # Add in ineligible AFSC information
+    p['Ineligible AFSC Preferences'] = np.array(
+        [', '.join([p['afscs'][j] for j in p['cadet_preferences'][i] if j not in p['J^E'][i]]) for i in p['I']])
+    p['first_eligible_choice'] = np.array([
+        next((index + 1 for index, j in enumerate(p['cadet_preferences'][i])
+              if j in p['J^E'][i]), 0)
+        for i in p['I']
+    ])
 
     return p
 

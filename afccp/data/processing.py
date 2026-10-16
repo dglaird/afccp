@@ -1200,7 +1200,10 @@ def export_cadets_data(instance):
                                    'race': 'Race', "ethnicity": "Ethnicity", 'asc1': 'ASC1', 'asc2': 'ASC2',
                                    'stem': 'STEM', 'cip1': 'CIP1', 'cip2': 'CIP2', 'merit': 'Merit',
                                    'merit_all': 'Real Merit', 'last_afsc': 'Least Desired AFSC',
-                                   'second_to_last_afscs': 'Second Least Desired AFSCs'}
+                                   'second_to_last_afscs': 'Second Least Desired AFSCs',
+                                   'num_choices_selected': '# Selected Preferences',
+                                   'Ineligible AFSC Preferences': 'Ineligible AFSC Preferences',
+                                   'first_eligible_choice': 'First Eligible Choice #'}
 
     # Loop through each parameter in the translation dictionary to get "Cadets" dataframe column counterpart
     cadets_columns = {}

@@ -376,11 +376,24 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     cadets = p['Rated Cadets'][soc]
     N = len(cadets)
 
-    # "REAL" first choice of the cadet
-    first_choice = {i: p['cadet_preferences'][i][0] for i in cadets}
+    # First eligible AFSC for each cadet
+    first_choice = {
+        i: next((j for j in p['cadet_preferences'][i] if j in p['J^E'][i]), None)
+        for i in cadets
+    }
+
+    exhausted_cadets = []  # Will contain the cadets that have exhausted (been rejected by) all of their preferences
 
     # Dictionary to keep track of what AFSC choice in their list the cadets are proposing to
     cadet_proposal_choice = {i: 0 for i in cadets}  # Initially all propose to their top Rated preference!
+
+    # Modify rated choices based on eligibility
+    rated_choices = copy.deepcopy(p['Rated Choices'][soc])
+    for i in cadets:
+        rated_choices[i] = [j for j in rated_choices[i] if i in p['afsc_preferences'][j]]
+        if len(rated_choices[i]) == 0:
+            exhausted_cadets.append(i)  # The cadet isn't eligible for any rated AFSCs
+            cadet_proposal_choice[i] = p['M']
 
     # Initialize solution dictionary for all 3 solutions (reserves, matches, combined)
     solution_reserves = {'cadets_solved_for': soc.upper() + ' Rated', 'afscs_solved_for': 'Rated',
@@ -399,13 +412,12 @@ def soc_rated_matching_algorithm(instance, soc='usafa', printing=True):
     # Begin the simple Hospital/Residents Algorithm
     total_rejections = {j: 0 for j in rated_J}  # Number of rejections for each AFSC
     total_matched = {j: 0 for j in rated_J}  # Number of accepted cadets for each AFSC
-    exhausted_cadets = []  # Will contain the cadets that have exhausted (been rejected by) all of their preferences
     iteration = 0  # First iteration of the algorithm
     while sum([total_matched[j] for j in rated_J]) + len(exhausted_cadets) < N:  # Stopping conditions
 
         # Cadets propose to their top choice that hasn't been rejected
-        proposals = {i: p['Rated Choices'][
-            soc][i][cadet_proposal_choice[i]] if i not in exhausted_cadets else p['M'] for i in cadets}
+        proposals = {
+            i: rated_choices[i][cadet_proposal_choice[i]] if i not in exhausted_cadets else p['M'] for i in cadets}
         proposal_array = np.array([proposals[i] if i in cadets else p['M'] for i in p['I']])
         counts = {p['afscs'][j]: len(np.where(proposal_array == j)[0]) for j in rated_J}
 
@@ -558,7 +570,9 @@ def allocate_ots_candidates_original_method(instance, printing=False):
         # Loop through each AFSC in order of the candidate's preferences
         choice = 0
         for j in p['cadet_preferences'][i]:
-            if j not in p['J^Selected'][i]:  # This AFSC has to be one that the cadet selected
+
+            # This AFSC has to be one that the candidate selected and is eligible for
+            if j not in p['J^E'][i] or j not in p['J^Selected'][i]:
                 continue
             else:
                 choice += 1

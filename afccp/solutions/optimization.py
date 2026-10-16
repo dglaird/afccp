@@ -375,7 +375,8 @@ def common_optimization_handling(m, p, vp, mdl_p):
     # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
     m.reserved_afsc_constraints = ConstraintList()
     for i in p['J^Reserved']:
-        m.reserved_afsc_constraints.add(expr=np.sum(m.x[i, j] for j in p['J^Reserved'][i]) == 1)
+        m.reserved_afsc_constraints.add(
+            expr=np.sum(m.x[i, j] for j in np.intersect1d(p['J^Reserved'][i], p['J^E'][i])) == 1)
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if mdl_p["USAFA-Constrained AFSCs"] is not None:
@@ -594,7 +595,8 @@ def add_rated_alternates_constraints(m, p, mdl_p):
             for i in p['I^Alternate [' + soc + ']'][j]:  # "j_p"/"i_p" indicate j/i "prime" or (')
 
                 # Did this cadet (i) receive a more preferred AFSC than this one (j)?
-                matched_better = np.sum(m.x[i, j_p] for j_p in p['J^Preferred [' + soc + ']'][j][i])
+                matched_better = np.sum(m.x[i, j_p] for j_p in np.intersect1d(
+                    p['J^Preferred [' + soc + ']'][j][i], p['J^E'][i]))
 
                 # How many cadets matched to this AFSC (j) that are more preferred to the AFSC than this cadet (i)?
                 better_cadet_count = np.sum(m.x[i_p, j] for i_p in p['I^Preferred [' + soc + ']'][j][i])

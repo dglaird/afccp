@@ -87,6 +87,7 @@ class CadetCareerProblem:
                  num_value_function_breakpoints=None, N=1600, M=32, P=6, S=10, generate_extra_components=False,
                  generate_only_nrl=False, ctgan_model_name='CTGAN_Full', ctgan_pilot_sampling=True,
                  ussf_sampling_method=True, include_ots=False,
+                 remove_cadet_choices_eligibility=False,
                  ctgan_rare_degree_sampling=True, printing=True):
         """
         ___
@@ -284,7 +285,10 @@ class CadetCareerProblem:
         # Initialize more "functional" parameters
         self.mdl_p = afccp.data.support.initialize_instance_functional_parameters(
             self.parameters["N"])
-        self._reset_functional_parameters()
+
+        # This model-instance parameter decides if we remove cadet choices based on eligibility or not.
+        # Note: Can ONLY run full HR algorithm when this is True. Standard One Market practice should leave this False.
+        self.remove_cadet_choices_eligibility = remove_cadet_choices_eligibility
 
         if self.printing:
             print("Instance '" + self.data_name + "' initialized.")
@@ -980,6 +984,7 @@ class CadetCareerProblem:
         self.fill_remaining_afsc_choices(printing=printing)
 
         # Removes ineligible cadets from all 3 matrices: degree qualifications, cadet preferences, AFSC preferences
+        # Note: only removes the cadets' preferences if self.remove_cadet_choices_eligibility == True
         self.remove_ineligible_choices(printing=remove_choice_printing)
 
         # Take the preferences dictionaries and update the matrices from them (using cadet/AFSC indices)
@@ -1380,7 +1385,8 @@ class CadetCareerProblem:
             print("Removing ineligible cadets based on any of the three eligibility sources "
                   "(c_pref_matrix, a_pref_matrix, qual)...")
 
-        self.parameters = afccp.data.preferences.remove_ineligible_cadet_choices(self.parameters, printing=printing)
+        self.parameters = afccp.data.preferences.remove_ineligible_cadet_choices(
+            self.parameters, remove_cadet_choice_too=self.remove_cadet_choices_eligibility, printing=printing)
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
     def update_preference_matrices(self, printing=None):
@@ -1460,7 +1466,7 @@ class CadetCareerProblem:
             print('Updating cadet first choice utility value to 100%...')
 
         # Update "utility" matrix
-        self.parameters['utility'] = afccp.data.preferences.update_first_choice_cadet_utility_to_one(
+        self.parameters = afccp.data.preferences.update_first_choice_cadet_utility_to_one(
             self.parameters, printing=printing)
 
     def convert_afsc_preferences_to_percentiles(self, printing=None):

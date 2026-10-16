@@ -393,7 +393,7 @@ def fill_remaining_preferences(parameters):
 
         # Loop through all "indifferent" AFSCs that they are eligible for
         pref_num = len(p['cadet_preferences'][i]) + 1
-        for j in p['J']:
+        for j in p['J^E'][i]:
 
             # The AFSC is not in the cadet's preferences and it's not in the bottom choices
             if j not in p['cadet_preferences'][i] and \
@@ -413,7 +413,7 @@ def fill_remaining_preferences(parameters):
     return p
 
 
-def remove_ineligible_cadet_choices(parameters, printing=False):
+def remove_ineligible_cadet_choices(parameters, remove_cadet_choice_too, printing=False):
     """
     Clean Ineligible Cadet-AFSC Preference Pairings.
 
@@ -460,9 +460,8 @@ def remove_ineligible_cadet_choices(parameters, printing=False):
             if i not in p['I^E'][j]:
 
                 # AFSC is currently in the cadet's preference list
-                if p['c_pref_matrix'][i, j] != 0:
+                if p['c_pref_matrix'][i, j] != 0 and remove_cadet_choice_too:
                     p['c_pref_matrix'][i, j] = 0
-                    num_removals += 1
                     lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' not eligible for ' + afsc +
                                  ' based on degree qualification matrix but the AFSC was in the cadet preference list. '
                                  'c_pref_matrix position (' + str(i) + ", " + str(j) + ') set to 0.')
@@ -470,11 +469,10 @@ def remove_ineligible_cadet_choices(parameters, printing=False):
                 # Cadet is currently in the AFSC's preference list
                 if p['a_pref_matrix'][i, j] != 0:
                     p['a_pref_matrix'][i, j] = 0
-                    num_removals += 1
                     lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' not eligible for ' + afsc +
                                  ' based on degree qualification matrix but the cadet was in the AFSC preference list. '
                                  'a_pref_matrix position (' + str(i) + ", " + str(j) + ') set to 0.')
-
+                num_removals += 1
             # Cadet is currently eligible based on degree qualification matrix
             else:
 
@@ -488,9 +486,8 @@ def remove_ineligible_cadet_choices(parameters, printing=False):
                 if p['a_pref_matrix'][i, j] == 0:
 
                     # The AFSC is in the cadet's preference list
-                    if p['c_pref_matrix'][i, j] != 0:
+                    if p['c_pref_matrix'][i, j] != 0 and remove_cadet_choice_too:
                         p['c_pref_matrix'][i, j] = 0
-                        num_removals += 1
                         lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' eligible for ' + afsc +
                                      ' based on degree qualification matrix but the cadet was not in the AFSC preference list. '
                                      'c_pref_matrix position (' + str(i) + ", " + str(j) +
@@ -498,7 +495,6 @@ def remove_ineligible_cadet_choices(parameters, printing=False):
 
                     # The AFSC is not in the cadet's preference list
                     else:
-                        num_removals += 1
                         lines.append('Edit ' + str(num_removals) + ': Cadet ' + str(i) + ' eligible for ' + afsc +
                                      ' based on degree qualification matrix but the cadet/afsc pairing was in neither '
                                      'matrix (a_pref_matrix or c_pref_matrix). Both a_pref_matrix and c_pref_matrix '
@@ -506,6 +502,7 @@ def remove_ineligible_cadet_choices(parameters, printing=False):
                                                                              'adjusted to ' + val + ".")
 
                     # Force ineligibility in the qual matrix as well
+                    num_removals += 1
                     p['qual'][i, j] = val
                     p['eligible'][i, j] = 0
                     p['ineligible'][i, j] = 0
@@ -646,24 +643,40 @@ def update_first_choice_cadet_utility_to_one(parameters, printing=True):
     # Shorthand
     p = parameters
 
-    # Loop through each cadet and make their first choice AFSC have a utility of 1
-    fixed_cadets = []
+    # Create first choice eligible column
+    p['first_eligible_choice'] = np.zeros(p['N'])
+    num_not_eligible_first_choice = 0
+    num_first_eligible_choice_not_1 = 0
+
+    # Loop through each cadet and make their first eligible choice AFSC have a utility of 1
     for i in p['I']:
 
-        # If this cadet does not have any preferences, we skip them (must be an OTS candidate)
+        # If this cadet does not have any preferences, we skip them
         if len(p['cadet_preferences'][i]) == 0:
             continue
 
-        # Fix the first choice
-        if p['utility'][i, p['cadet_preferences'][i][0]] != 1:
-            p['utility'][i, p['cadet_preferences'][i][0]] = 1
-            fixed_cadets.append(i)
+        # Loop through cadets' choices to find first eligible preference
+        for index, j in enumerate(p['cadet_preferences'][i]):
+            if j in p['J^E'][i]:  # Is the cadet eligible for this AFSC?
+                current_util = p['utility'][i, p['cadet_preferences'][i][0]]
+
+                if index != 0:  # This is not the cadet's real first choice
+                    num_not_eligible_first_choice += 1
+                if current_util != 1:  # The reported utility on this AFSC is not 100%
+                    num_first_eligible_choice_not_1 += 1
+                    p['utility'][i, p['cadet_preferences'][i][0]] = 1
+                p['first_eligible_choice'][i] = index + 1  # capture the choice # of first eligible AFSC preference
+                break  # Exit the loop!
+            else:  # If they're not eligible for this AFSC, we make sure it has a util value of 1 to ensure monotonicity
+                p['utility'][i, p['cadet_preferences'][i][0]] = 1
 
     if printing:
-        print_str = f'Fixed {len(fixed_cadets)} first choice cadet utility values to 100%.\nCadets: {fixed_cadets}'
+        print_str = f'There are {num_not_eligible_first_choice} cadets not eligible for their first choice AFSC. ' \
+                    f'\nWe modified {num_first_eligible_choice_not_1} utility values to ensure the cadets first ' \
+                    f'eligible AFSC has a utility value of 100%.'
         print(print_str)
 
-    return p['utility']
+    return p
 
 
 def convert_afsc_preferences_to_percentiles(parameters):
