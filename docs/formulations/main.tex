@@ -1,0 +1,296 @@
+\documentclass{article}
+
+% Packages
+\usepackage{geometry}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}
+\usepackage[acronym, toc,shortcuts]{glossaries}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{bm}
+\usepackage{breqn}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage{listings}
+\usepackage{silence} \WarningFilter{fixltx2e}{}
+\usepackage{stringstrings}
+\usepackage{titlecaps}
+\usepackage{cleveref} % for \Cref, etc.
+\usepackage{textcomp}
+\usepackage{siunitx} % for using scientific notation for numbers, can include units easily and "x10^6" etc.
+\usepackage[section]{placeins}
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{adjustbox}
+\usepackage{graphicx}
+%\usepackage{underscore}
+\usepackage{array}
+\usepackage{bm}
+\usepackage{subfig}
+\usepackage{float}
+\title{One Market Optimization Model Formulation}
+\author{Griffen Laird}
+\date{May 2025}
+
+\newcommand{\f}{\textit{f}\hspace{0.01in}}
+\newcommand{\F}{\textit{F}\hspace{0.01in}}
+\newcommand{\bi}{{\textbf{\textit{}}}}
+
+\geometry{
+    left=1in,
+    right=1in,
+    top=1.25in,
+    bottom=1in}
+
+\algtext*{EndWhile}% Remove "end while" text
+\algtext*{EndIf}% Remove "end if" text
+\algtext*{EndFor}% Remove "end for" text
+
+\begin{document}
+
+\maketitle
+
+% \section{Sets}
+
+% 
+\renewcommand{\arraystretch}{1.3}
+\centering
+\begin{tabular}{p{0.14\linewidth}p{0.66\linewidth}}  % >{\centering\arraybackslash}
+    \multicolumn{2}{l}{\textbf{Sets and Indices}}\\
+    \hline
+        $i \in \mathcal{I}$ & the set of all cadets \\
+        $j \in \mathcal{J}$ & the set of all AFSCs \\
+        $\mathcal{I}^{\text{C}} \subseteq \mathcal{I}$ & the set of cadets with constrained minimum values \\
+        $\mathcal{I}^{E}_j \subseteq \mathcal{I}$ & the set of cadets that are eligible for AFSC $j$ \\
+        $\mathcal{J}^{E}_i \subseteq \mathcal{J}$ & the set of AFSCs for which cadet $i$ is eligible \\
+        $\mathcal{I}^{U1} \subseteq \mathcal{I}$ & the set of all USAFA Cadets\\
+        $\mathcal{I}^{R2} \subseteq \mathcal{I}$ & the set of all ROTC Cadets\\
+        $\mathcal{I}^R \subseteq \mathcal{I}$ & the set of all rated-eligible cadets \\
+        $\mathcal{J}^R \subseteq \mathcal{J}$ & the set of all rated AFSCs \\
+        $\mathcal{I}^{F}_j \subseteq \mathcal{I}$ & the set of cadets with reserved slots for AFSC $j$ (Algorithms 1, 2)\\
+        $\mathcal{J}^{F}_i \subseteq \mathcal{J}$ & the set of AFSCs that cadet $i$ MUST be assigned to (Algorithms 1, 2)\\
+        $\mathcal{I}^{A}_j \subseteq \mathcal{I}^E_j$ & the set of all cadets on AFSC $j$'s alternate list\\
+        $\mathcal{I}^{P}_{ji} \subseteq \mathcal{I}^E_j$ & the set of all cadets that are more preferred by AFSC $j$ than cadet $i$\\
+        $\mathcal{J}^{P}_{ji} \subseteq \mathcal{J}^E_i$ & the set of all AFSCs that are more preferred by cadet $i$ than AFSC $j$\\
+    
+\end{tabular}
+
+\newpage
+\centering
+\begin{tabular}{p{0.1\linewidth}p{0.57\linewidth}}
+    \multicolumn{2}{l}{\textbf{Parameters}} \\
+    \hline
+        $m_i$ & graduating order of merit (OM) percentile of cadet $i$ \\
+        $q^-_j$ & minimum number of cadets that can be assigned to AFSC $j$\\
+        $q^+_j$ & maximum number of cadets that can be assigned to AFSC $j$\\
+        $q^{U1}_j$ & number of USAFA cadets that must be assigned to AFSC $j$\\
+        $q^{R2}_j$ & number of ROTC cadets that must be assigned to AFSC $j$\\
+        $u^{C}_{ij}$ & utility that cadet $i$ receives from being assigned to AFSC $j$ \\
+        $u^{A}_{ij}$ & utility that AFSC $j$ receives from cadet $i$ being assigned to it \\
+        $w^C$ & overall weight on cadets relative to AFSCs\\
+        $u^{G}_{ij}$ & ``global" utility between cadet $i$ and AFSC $j$ \\
+        & $w^C u^C_{ij} + (1 - w^C)u^A_{ij}$\\
+    \multicolumn{2}{l}{\textbf{Decision Variables}} \\
+    \hline
+        $\bm{x}_{ij}$ & 1 if cadet $i$ is assigned to AFSC $j$, and 0 otherwise \\
+        & \\
+    \multicolumn{2}{l}{\textbf{Formulation}}\\
+    \hline
+    &\\
+\end{tabular}
+
+\vspace{-20pt}
+\begin{subequations}
+    \begin{flalign}
+        \mbox{maximize}\hspace{0.25in} & \displaystyle\sum_{i \in \mathcal{I}} \displaystyle\sum_{j \in \mathcal{J}^{E}_i} u^{G}_{ij} \cdot \bm{{x}}_{ij}\label{eqn:vft_obj_fn}\\
+        \mbox{subject to}\hspace{0.25in} & \bm{x}_{ij} \in \{0,1\}  \ \ \ \forall i \in \mathcal{I}, \ j \in \mathcal{J}^{E}_i\label{eqn:vft_xbinary}\\
+        & \sum_{j \in \mathcal{J}^{E}_i} \textbf{\textit{x}}_{ij} \ = \ 1 \ \ \ \forall i \in \mathcal{I} \label{eqn:vft_one_afsc} \\
+        & \displaystyle\sum_{i \in \mathcal{I}^{E}_j} \bm{x}_{ij} \geq q^{-}_j \ \ \ \forall j \in \mathcal{J}\label{eqn:vft_min_obj_value}\\
+        & \displaystyle\sum_{i \in \mathcal{I}^{E}_j} \bm{x}_{ij} \leq q^{+}_j \ \ \ \forall j \in \mathcal{J}\label{eqn:vft_min_obj_value}\\
+        & \displaystyle\sum_{i \in \mathcal{I}^{E}_j \cap \mathcal{I}^{U1}} \bm{x}_{ij} = q^{U1}_j \ \ \ \forall j \in \mathcal{J}^R\label{eqn:vft_min_obj_value}\\
+        & \displaystyle\sum_{i \in \mathcal{I}^{E}_j \cap \mathcal{I}^{R2}_j} \bm{x}_{ij} = q^{R2}_j \ \ \ \forall j \in \mathcal{J}^R\label{eqn:vft_min_obj_value}\\
+        & \bm{x}_{ij} \ = \ 1 \ \ \ \forall j \in \mathcal{J}^R, \ i \in \mathcal{I}^{M}_j \\
+         & \sum_{j \in \mathcal{J}^{F}_i} \bm{x}_{ij} \ = \ 1 \ \ \ \forall i \in \bigcup_{\substack{j\in \mathcal{J}^R}}\mathcal{I}^{F}_{j}\\
+    & q^{U1}_j \cdot (1 - \sum_{j' \in \mathcal{J}^{P}_{ji}} \bm{x}_{ij'}) \ \leq \ \sum_{i' \in \mathcal{I}^{P}_{ji}\cap \mathcal{I}^{U1}} \bm{x}_{i'j} \ \ \ \forall j \in \mathcal{J}^{R}, \ i \in \mathcal{I}^{A}_j \cap \mathcal{I}^{U1}\\
+    & q^{R2}_j \cdot (1 - \sum_{j' \in \mathcal{J}^{P}_{ji}} \bm{x}_{ij'}) \ \leq \ \sum_{i' \in \mathcal{I}^{P}_{ji}\cap \mathcal{I}^{R2}} \bm{x}_{i'j} \ \ \ \forall j \in \mathcal{J}^{R}, \ i \in \mathcal{I}^{A}_j \cap \mathcal{I}^{R2}
+    \end{flalign}
+\end{subequations}
+
+\begin{algorithm}
+\caption{Source of Commissioning (SOC) Rated Board Algorithm (USAFA Example)}
+\begin{algorithmic}[1]
+
+    \State Initialize:
+    \State \hspace{0.42cm} $M^{R} \leftarrow \emptyset$ (empty set: rated cadet/AFSC matched pair)
+    \State \hspace{0.42cm} $E^{R} \leftarrow \emptyset$ (empty set:
+    cadets that have exhausted all preferences and cannot be matched)
+    \State Input:
+    \State \hspace{0.42cm} $\mathcal{I}^{R} \cap \mathcal{I}^{U1}$ all rated eligible USAFA cadets and their rated preferences
+    \State \hspace{0.42cm} $\mathcal{J}^{R} \ $ all rated AFSCs and their preferences (for USAFA cadets only)
+    \State \hspace{0.42cm} $q^{U1}_j$ USAFA quota for AFSC $j \in \mathcal{J}^R$ 
+    \State Output:
+    \State \hspace{0.42cm} $\mathcal{I}^{M}_j \ $ set of all cadets matched to AFSC $j$
+    \State \hspace{0.42cm} $\mathcal{I}^{F}_j \ $ set of all cadets reserved for AFSC $j$
+    \State \hspace{0.42cm} $\mathcal{J}^{F}_i \ $ set of AFSCs cadet $i$ must be assigned to (reserved)
+    \While{$\lvert M^{R} \rvert + \lvert E^{R} \rvert < \lvert \mathcal{I}^{R} \cap \mathcal{I}^{U1} \rvert$}
+        \State $M^{R} \leftarrow \emptyset$ (reset matches)
+        \For{AFSC $j \in \mathcal{J}^R$}
+            \State $count \leftarrow 0$ (number of matches this iteration)
+            \For{cadet $i \in \mathcal{I}^E_j \cap \mathcal{I}^{U1} \setminus E^{R}$ (in order of AFSC $j$'s preference)}
+                \State $j' \leftarrow$ cadet $i$'s most preferred, non-rejected AFSC
+                \If{$j' = j$ and $count < q^{U1}_j$}
+                    \State $M^{R} \leftarrow M^R \cup \{ (i, j)\}$
+                    \State $count \leftarrow count + 1$
+                \ElsIf{$j' = j$ and $count = q^{U1}_j$}
+                    \State AFSC $j$ reject cadet $i$
+                    \If{cadet $i$ rejected by all preferred rated AFSCs}
+                        \State $E^R \leftarrow E^R \cup \{ (i) \}$
+                    \EndIf
+                \EndIf
+            \EndFor
+        \EndFor
+    \EndWhile
+    
+    \For{cadet, AFSC $(i, j) \in M^R$}
+        \If{AFSC $j$ is cadet $i$'s \textbf{\textit{true}} most preferred AFSC}
+            \State $\mathcal{I}^{M}_j \leftarrow \mathcal{I}^{M}_j \cup \{(i)\}$, $\bm{x}_{ij}$ is fixed at 1 in optimization model
+        \Else
+            \State $\mathcal{I}^{F}_j \leftarrow$ $\mathcal{I}^{F}_j \cup \{ (i) \}$, cadet $i$ added to set of cadets reserved to AFSC $j$
+            \State $\mathcal{J}^{F}_i \leftarrow$ set of cadet $i$'s more preferred AFSCs up to and including AFSC $j$
+        \EndIf
+    \EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+\caption{Source of Commissioning (SOC) Rated Alternates Algorithm (USAFA Example)}
+\begin{algorithmic}[1]
+
+    \State Input:
+    \State \hspace{0.42cm} $\mathcal{I}^{R} \cap \mathcal{I}^{U1}$ all rated eligible USAFA cadets and their rated preferences
+    \State \hspace{0.42cm} $\mathcal{J}^{R} \ $ all rated AFSCs and their preferences (for USAFA cadets only)
+    \State \hspace{0.42cm} $\mathcal{I}^{F}_j \cap \mathcal{I}^{U1} \ $ USAFA cadets currently reserved to rated AFSC $j$
+    \State \hspace{0.42cm} $\mathcal{I}^{M}_j \cap \mathcal{I}^{U1} \ $ USAFA cadets currently matched to rated AFSC $j$
+    \State Output:
+    \State \hspace{0.42cm} $\mathcal{I}^{A}_j$ cadets on rated AFSC $j$'s ``alternate list"
+    \State \hspace{0.42cm} $\mathcal{I}^{F}_j \ $ *updated* cadets reserved for rated AFSC $j$
+    \State \hspace{0.42cm} $\mathcal{I}^{M}_j \ $ *updated* cadets matched to rated AFSC $j$
+    \State $iterating \ = \ True$
+    \While{$iterating$}
+        \For{AFSC $j \in \mathcal{J}^R$}
+            \State Obtain $\mathcal{I}^{F}_j \cap \mathcal{I}^{U1}$ and $\mathcal{I}^{M}_j \cap \mathcal{I}^{U1}$
+            \State $n^A = \lvert \mathcal{I}^{F}_j \cap \mathcal{I}^{U1} \rvert$ (number of alternates is based on number of reserved slots)
+            \State $\mathcal{I}^{A}_j \leftarrow \emptyset$ (start with empty set of cadets on this iteration)
+            \For{cadet $i \in \mathcal{I}^E_j \cap \mathcal{I}^{U1} \setminus \bigcup_{\substack{j'\in J}}\mathcal{I}^{M}_{j'}$ (in order of AFSC $j$'s preference)}
+                \If{cadet $i$ not reserved for AFSC $j$ or something better}
+                    \If{$\lvert \mathcal{I}^{A}_j \rvert \ < \ n^A$ (under alternate slot capacity)}
+                        \State $\mathcal{I}^{A}_j \leftarrow \mathcal{I}^{A}_j \cup \{ (i)\}$
+                    \EndIf
+                \EndIf
+            \EndFor
+        \EndFor
+
+        \For{AFSC $j \in \mathcal{J}^R$}
+            \For{cadet $i \in \mathcal{I}^{F}_j$ (in order of AFSC $j$'s preference)}
+                \If{$i$ must be matched to $j$ (it's an inevitable match)}
+                    \State $\mathcal{I}^{F}_j \leftarrow \mathcal{I}^{F}_j \setminus \{ (i) \}$
+                    \State $\mathcal{I}^{M}_j \leftarrow \mathcal{I}^{M}_j \cup \{ (i) \}$
+                \EndIf
+            \EndFor
+        \EndFor
+
+        \If{$\mathcal{I}^{A}_j$ stops changing between iterations}
+            \State $iterating \ = \ False$
+        \EndIf
+    \EndWhile
+
+\end{algorithmic}
+\end{algorithm}
+
+
+\newpage
+\centering
+\begin{tabular}{p{0.15\linewidth}p{0.65\linewidth}}  % >{\centering\arraybackslash}
+    \multicolumn{2}{l}{\textbf{Base/Training Sets and Indices}}\\
+    \hline
+        $b \in \mathcal{B}$ & the set of all bases \\
+        $c \in \mathcal{C}_j$ & the set of all training courses for AFSC $j$ \\
+        $d \in \mathcal{D}_i$ & the set of all AFSC outcome states that cadet $i$ has designated\\
+        $\mathcal{J}^{State}_{id} \subseteq \mathcal{J}^E_i$ & the set of AFSCs that, if assigned, would put cadet $i$ into state $d$\\
+        $\mathcal{J}^{B} \subseteq \mathcal{J}$ & the set of AFSCs that have bases that need to be assigned\\
+        $\mathcal{B}^A_j \subseteq \mathcal{B}$ & the set of bases that AFSC $j$ may assign cadets to\\
+        $\mathcal{B}^E_i \subseteq \mathcal{B}$ & the set of bases that cadet $i$ may be assigned to (based on $\mathcal{J}^E_i$)\\
+        $\mathcal{B}^{State}_{id} \subseteq \mathcal{B}^E_i$ & the set of all bases that cadet $i$ can be assigned to in state $d$ based on its set of AFSCs ($\mathcal{J}^{State}_{id}$)\\
+        $\mathcal{C}^E_{ij} \subseteq \mathcal{C}_j$ & the set of courses that cadet $i$ is available to take with AFSC $j$\\
+        $\mathcal{I}^A_{jc} \subseteq \mathcal{I}^E_j$ & the set of cadets that are available to take course $c$ with AFSC $j$
+
+    \\[5pt]
+    \multicolumn{2}{l}{\textbf{Base/Training Parameters}}\\
+    \hline
+        $base\textunderscore utility_{ib}$ & the utility value that cadet $i$ has placed on base $b$ \\
+        $course\textunderscore utility_{ijc}$ & the utility value that cadet $i$ has for AFSC $j$'s course $c$ (calculated) \\
+        $w^A_{id}$ & the weight that cadet $i$ has on AFSCs in state $d$\\
+        $w^B_{id}$ & the weight that cadet $i$ has on bases in state $d$\\
+        $w^C_{id}$ & the weight that cadet $i$ has on courses in state $d$\\
+        $u^S_{id}$ & the maximum utility that cadet $i$ receives from state $d$\\
+        $M$ & sufficiently large number (big M)\\
+        $lo^B_{jb}$, $hi^B_{jb}$ & the minimum and maximum number of cadets, respectfully, that are to be assigned to base $b$ for AFSC $j$\\
+        $lo^C_{jc}$, $hi^C_{jc}$ & the minimum and maximum number of cadets, respectfully, that are to be assigned to course $c$ for AFSC $j$\\
+
+    \\[5pt]
+    \multicolumn{2}{l}{\textbf{Base/Training Decision Variables}}\\
+    \hline
+        $\bm{v}_{ib}$ & 1 if cadet $i$ is assigned to base $b$, and 0 otherwise  \\
+        $\bm{q}_{ijc}$ & 1 if cadet $i$ is assigned to AFSC $j$'s course $c$, and 0 otherwise  \\
+        $\textbf{\textit{cadet\textunderscore value}}_i$ & the value that cadet $i$ receives from their assignment outcome (revised variable for use in VFT/GUO models)\\
+
+    \\[5pt]
+    \multicolumn{2}{l}{\textbf{Base/Training Auxiliary Variables}}\\
+    \hline
+        $\bm{u}^{A}_{id}$ & the utility that cadet $i$ receives from their assigned AFSC in state $d$\\
+        & \; \; \; \; $\dfrac{1}{u^S_{id}} \cdot \displaystyle\sum_{j \in \mathcal{J}^{State}_{id}} cadet\textunderscore utility_{ij} \cdot \bm{x}_{ij}$\\
+        $\bm{u}^{B}_{id}$ & the utility that cadet $i$ receives from their assigned base in state $d$\\
+        & \; \; \; \; $\displaystyle\sum_{b \in \mathcal{B}^{State}_{id}} base\textunderscore utility_{ib} \cdot \bm{v}_{ib}$\\
+        $\bm{u}^{C}_{id}$ & the utility that cadet $i$ receives from their assigned course in state $d$\\
+        & \; \; \; \; $\displaystyle\sum_{j \in \mathcal{J}^{State}_{id}} \sum_{c \in \mathcal{C}^E_{ij}} course\textunderscore utility_{ijc} \cdot \bm{q}_{ijc}$\\
+    \\[5pt]
+\end{tabular}
+
+\newpage
+\centering
+\begin{tabular}{p{0.15\linewidth}p{0.65\linewidth}}  % >{\centering\arraybackslash}
+    \multicolumn{2}{l}{\textbf{Base/Training Objective Function Revision}}\\
+    \hline
+    $\bm{Z}^{GUO}$ & revised objective function variable for the GUO model\\
+    & \; \; \; \; $cadets\textunderscore overall\textunderscore weight \cdot \displaystyle\sum_{i \in \mathcal{I}} cadet \textunderscore weight_i \cdot \textbf{\textit{cadet\textunderscore value}}_i \ + \ $\\
+    & \; \; \; \; $\frac{1}{N} \cdot a\f scs\textunderscore overall\textunderscore weight \cdot \displaystyle\sum_{i \in \mathcal{I}} \displaystyle\sum_{j \in \mathcal{J}^E_i} a\f sc\textunderscore utility_{ij} \cdot \bm{x}_{ij} $\\
+\\[5pt]
+\end{tabular}
+\centering
+\begin{tabular}{p{0.3\linewidth}p{0.5\linewidth}}
+    \multicolumn{2}{l}{\textbf{Base/Training Constraints}}\\
+    \hline
+    &\\
+\end{tabular}
+\vspace{-20pt}
+\begin{subequations}
+    \begin{flalign}
+        \textbf{\textit{cadet\textunderscore value}}_i \ \leq \ u^S_{id} (w^A_{id} \bm{u}^{A}_{id} + w^B_{id} \bm{u}^{B}_{id} + w^C_{id} \bm{u}^{C}_{id}) + M(1 - \displaystyle\sum_{j \in \mathcal{J}^{State}_{id}} \bm{x}_{ij}) \ \ \ \forall i \in \mathcal{I}, \ d \in \mathcal{D}_{i}\\
+        \displaystyle\sum_{b \in \mathcal{B}^E_i} \bm{v}_{ib} \ = \ \displaystyle\sum_{j \in \mathcal{J}^B \cap \mathcal{J}^E_i} \bm{x}_{ij} \ \ \ \forall i \in \mathcal{I}\\
+        \bm{x}_{ij} \ \leq \ \displaystyle\sum_{b \in \mathcal{B}^A_j} \bm{v}_{ib} \ \ \ \forall i \in \mathcal{I}, \ j \in \mathcal{J}^{B} \cap \mathcal{J}^E_i\\
+        \bm{x}_{ij} \ = \ \displaystyle\sum_{c \in \mathcal{C}^E_{ij}} \bm{q}_{ijc} \ \ \ \forall i \in \mathcal{I}, \ j \in \mathcal{J}^E_i\\
+        lo^B_{jb} \ \leq \ \sum_{i \in \mathcal{I}^E_j} \bm{v}_{ib} \ \leq \ hi^B_{jb} \ \ \ \forall j \in \mathcal{J}^B, \ b \in \mathcal{B}^A_j\\
+        lo^C_{jc} \ \leq \ \sum_{i \in \mathcal{I}^A_{jc}} \bm{q}_{ijc} \ \leq \ hi^C_{jc} \ \ \ \forall j \in \mathcal{J}, \ c \in \mathcal{C}_j\\
+        0 \ \leq \ \textbf{\textit{cadet\textunderscore value}}_i \ \leq \ 1 \ \ \ \forall i \in \mathcal{I}\\
+        \bm{v}_{ib} \ \in \{0, 1\} \ \ \ \forall i \in \mathcal{I}, \ b \in \mathcal{B}^E_i\\
+        \bm{q}_{ijc} \ \in \{0, 1\} \ \ \ \forall i \in \mathcal{I}, \ j \in \mathcal{J}^E_i, \ c \in \mathcal{C}^E_{ij}
+    \end{flalign}
+\end{subequations}
+
+\begin{tabular}{p{0.3\linewidth}p{0.5\linewidth}}
+    & $\mathcal{J}^E_2 = \{ B, D, E\}$\\
+    & $\mathcal{I}^E_{j=C} = \{ 1, 3, 4, 6\}$\\
+    & $\bm{x}_{1B} = 1$\\
+    & $j=$``$18X$", $i=12$\\
+    & $\mathcal{J}^P_{ji} = \{$11XX, 12XX$\}$
+\end{tabular}
+\end{document}

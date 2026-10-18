@@ -48,15 +48,16 @@ else:
     use_pyomo = False
     print("Pyomo module unavailable.")
 
-# Only import sdv if we have the package installed!
+# Only import SDV if the package is installed.
 global use_sdv
-if spec := importlib.util.find_spec("sdv"):
+if importlib.util.find_spec("sdv"):
+    print("Importing SDV...", flush=True)
     import sdv
     use_sdv = True
-    print("SDV module found.")
+    print("SDV module found.", flush=True)
 else:
     use_sdv = False
-    print("SDV module unavailable.")
+    print("SDV module unavailable.", flush=True)
 
 # Only import sklearn.manifold if we have the package installed!
 global use_manifold
@@ -117,8 +118,105 @@ def import_data(filepath, sheet_name=None, specify_engine=True):
 
     return df
 
+
 def import_csv_data(filepath):
     """
     My own import statement in case I change the way I import data later
     """
     return pd.read_csv(filepath)  #, encoding='latin-1')
+
+
+# One Market Model Feature Registry
+#
+# Centralized definitions of all modeling features,
+# constraints, and priorities supported by AFCCP.
+MODEL_FEATURES = {
+
+    # ____________________________________ TIER 1 ____________________________________
+
+    # AFSC Production
+    "meet_afsc_pgl": {
+        "name": "Meet AFSC PGL Targets",
+        "priority": "Tier 1",
+        "description": "Enforce AFSC production targets.",
+        "default": False
+    },
+
+    # Rated Assignments
+    "meet_rated_pgl": {
+        "name": "Meet Rated PGL Targets",
+        "priority": "Tier 1",
+        "description": "Enforce rated production targets.",
+        "default": False
+    },
+
+    "meet_rated_soc_pgl": {
+            "name": "Meet Rated SOC PGL Targets",
+            "priority": "Tier 2",  # Maybe this changes to just Tier 3 or something
+            "description": "Enforce rated production targets by SOC.",
+            "default": False
+        },
+
+    "rated_stability_soc": {
+        "name": "Rated Stability by SOC",
+        "priority": "Tier 1",
+        "description": "Enforce rated matching stability by commissioning source using Algorithms 1/2. "
+                       "These are the 'Matched/Reserves/Alternates' information gained from Algorithm 1/2.",
+        "default": False
+    },
+
+    # ____________________________________ TIER 2 ____________________________________
+
+    # Space Force
+    "ussf_om_balance": {
+        "name": "USSF Order of Merit Balance",
+        "priority": "Tier 2",
+        "description": "Enforce order of merit balancing for USSF.",
+        "default": False,
+        "threshold": 0.02  # Target is 50% +- {threshold}
+    },
+
+    # TODO: Implement this feature
+    "ussf_degree_targets": {
+        "name": "USSF Degree Targets",
+        "priority": "Tier 2",
+        "description": "Ensure USSF receives desired degree proportion breakouts.",
+        "default": False
+    },
+
+    # USAFA Support AFSCs
+    "usafa_support_cap": {
+        "name": "USAFA Support AFSC Cap",
+        "priority": "Tier 2",
+        "description": "Limit USAFA cadets assigned to designated support AFSCs.",
+        "default": False,
+        "percent_cap": 0.05,
+        "constrained_afscs": ['35P', '38F', '64P', '65F']
+
+    },
+
+    # Reward High OM
+    "high_om_receive_preference": {
+        "name": "High OM Receive Preferred AFSCs",
+        "priority": "Tier 2",
+        "description": "Ensure higher performing cadets (by OM) receive a preferred AFSC.",
+        "default": False,
+        "percentile_cutoff": 0.1,
+        "preference_number": 3,
+    },
+
+    # CASTLE
+    "castle_curves_utilized": {
+        "name": "Utilize CASTLE Value Input",
+        "priority": "Tier 2",
+        "description": "Allocate surplus cadets intelligently based on needs of DAF using CASTLE.",
+        "default": False
+    }
+}
+
+
+def initialize_feature_checklist():
+    return {
+        feature: details.get("default", False)
+        for feature, details in MODEL_FEATURES.items()
+    }

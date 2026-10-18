@@ -380,7 +380,8 @@ def common_optimization_handling(m, p, vp, mdl_p):
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if mdl_p["USAFA-Constrained AFSCs"] is not None:
-        cap = 0.05 * mdl_p["real_usafa_n"]  # Total number of graduating USAFA cadets
+        num_usafa = len(p['usafa_cadets'])
+        cap = np.ceil(mdl_p['usafa_support_afsc_cap'] * num_usafa)
 
         # Convert list of AFSC names to list of AFSC indices
         constrained_afscs = [np.where(p['afscs'] == afsc)[0][0] for afsc in mdl_p["USAFA-Constrained AFSCs"]]
@@ -910,11 +911,16 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
     # Determine how the solver is called here
     solver = build_solver(model_name, mdl_p, printing)
 
-    # Solve Model
-    start_time = time.perf_counter()
-    # check_bad_values(p, mdl_p)
+    # Solve model and capture times
+    start_time = datetime.datetime.now().astimezone()
+    start_counter = time.perf_counter()
     model = execute_solver(model, solver, mdl_p)
-    solve_time = round(time.perf_counter() - start_time, 2)
+    finish_time = datetime.datetime.now().astimezone()
+    solve_time = round(time.perf_counter() - start_counter, 2)
+
+    # Convert timestamps to strings for JSON serialization
+    start_time = start_time.strftime('%b %d, %Y at %-I:%M:%S %p %Z')
+    finish_time = finish_time.strftime('%b %d, %Y at %-I:%M:%S %p %Z')
 
     # Goal Programming Model specific actions
     if model_name == "GP":
@@ -961,7 +967,8 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
 
             # Get solution
             solution = {"method": model_name, "j_array": np.zeros(p['N']).astype(int), "x": np.zeros((p['N'], p['M'])),
-                        'solve_time': solve_time, 'x_integer': True}
+                        'solve_time': solve_time, 'x_integer': True,
+                        'metadata': {'start_time': start_time, 'finish_time': finish_time, 'solve_time': solve_time}}
 
             # Loop through each cadet to determine what AFSC they're assigned
             for i in p['I']:
@@ -1014,6 +1021,7 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
 
             # Get objective value
             solution['pyomo_obj_value'] = round(model.objective(), 4)
+            solution['metadata']['pyomo_obj_value'] = round(model.objective(), 4)
             return solution
 
         # Obtain base/training solution components from the model

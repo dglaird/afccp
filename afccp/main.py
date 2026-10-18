@@ -8,6 +8,10 @@ import pandas as pd
 import numpy as np
 import datetime
 import copy
+import json
+import pickle
+
+from pathlib import Path
 
 # afccp modules
 import afccp.globals
@@ -19,8 +23,10 @@ import afccp.data.support
 import afccp.data.values
 import afccp.solutions.algorithms
 import afccp.solutions.handling
+import afccp.solutions.features
 import afccp.visualizations.bubbles
 import afccp.visualizations.charts
+
 
 # Import optimization models if pyomo is installed
 if afccp.globals.use_pyomo:
@@ -158,6 +164,7 @@ class CadetCareerProblem:
         self.vp_dict = None  # Dictionary of value_parameters (set of sets)
         self.solution, self.solution_name = None, None  # Dictionary of solution elements (and the name)
         self.solutions = None  # Dictionary of solutions and their main attributes (x, j_array, afsc_array, etc.)
+        self.pyomo_model = None  # The current pyomo model in use
 
         # Parameters from *former* Lt Rebecca Reynold's thesis
         self.gp_parameters, self.gp_df = None, None
@@ -203,8 +210,9 @@ class CadetCareerProblem:
             self.vp_dict = afccp_dp.import_value_parameters_data(self.import_paths, self.parameters,
                                                                  num_value_function_breakpoints)
 
-            # Import the "Solutions" data dictionary
+            # Import the "Solutions" data dictionary and metadata (if it exists)
             self.solutions = afccp_dp.import_solutions_data(self.import_paths, self.parameters)
+            self._import_solution_metadata()
 
         # This is a new problem instance that we're generating (Should be "Random" or "CTGAN")
         else:
@@ -286,6 +294,10 @@ class CadetCareerProblem:
         self.mdl_p = afccp.data.support.initialize_instance_functional_parameters(
             self.parameters["N"])
 
+        # Model feature definitions and checklist initialization
+        self.model_features = afccp.globals.MODEL_FEATURES
+        self.feature_checklist = afccp.globals.initialize_feature_checklist()
+
         # This model-instance parameter decides if we remove cadet choices based on eligibility or not.
         # Note: Can ONLY run full HR algorithm when this is True. Standard One Market practice should leave this False.
         self.remove_cadet_choices_eligibility = remove_cadet_choices_eligibility
@@ -294,7 +306,7 @@ class CadetCareerProblem:
             print("Instance '" + self.data_name + "' initialized.")
 
     # _____________________________________________PRIVATE METHODS______________________________________________________
-    def _reset_functional_parameters(self, p_dict={}):
+    def _update_functional_parameters(self, p_dict={}, reset=False):
         """
         Resets the instance functional parameters and updates them with the new values from p_dict.
 
@@ -313,11 +325,12 @@ class CadetCareerProblem:
 
         Example usage:
             instance = CadetCareerProblem()
-            instance._reset_functional_parameters({'bar_color': 'blue', 'title_size': 18})
+            instance._update_functional_parameters({'bar_color': 'blue', 'title_size': 18})
         """
 
         # Reset plot parameters and model parameters
-        self.mdl_p = afccp.data.support.initialize_instance_functional_parameters(self.parameters["N"])
+        if reset:
+            self.mdl_p = afccp.data.support.initialize_instance_functional_parameters(self.parameters["N"])
 
         # Update plot parameters and model parameters
         for key in p_dict:
@@ -490,10 +503,44 @@ class CadetCareerProblem:
         This method is used to manage solution folders for organizing analysis and result files.
         """
 
-        # Make solution folder if it doesn't already exist
-        folder_path = self.export_paths['Analysis & Results'] + self.solution_name
-        if self.solution_name not in os.listdir(self.export_paths['Analysis & Results']):
-            os.mkdir(folder_path)
+        # Only do this if there is a solution activated
+        if self.solution is None:
+            return
+
+        # Create solution folder if needed
+        folder_path = os.path.join(self.export_paths['Analysis & Results'], self.solution_name)
+        os.makedirs(folder_path, exist_ok=True)
+
+        # Export metadata
+        if 'metadata' in self.solution:
+            metadata_path = os.path.join(folder_path, 'metadata.json')
+
+            # Convert NumPy arrays/scalars into JSON-compatible Python types
+            def json_serializer(obj):
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                if isinstance(obj, np.generic):
+                    return obj.item()
+                return str(obj)
+
+            with open(metadata_path, 'w') as f:
+                json.dump(self.solution['metadata'], f, indent=4, default=json_serializer)
+
+        # Export pyomo model
+        if hasattr(self, 'pyomo_model') and self.pyomo_model is not None:
+            model_path = os.path.join(folder_path, 'pyomo_model.pkl')
+
+            try:
+                with open(model_path, 'wb') as f:
+                    pickle.dump(self.pyomo_model, f, protocol=pickle.HIGHEST_PROTOCOL)
+                print(f"Pyomo model successfully exported to: {model_path}")
+
+            except Exception as e:
+
+                # Remove incomplete pickle file if serialization fails
+                if os.path.exists(model_path):
+                    os.remove(model_path)
+                print(f"Warning: Could not export Pyomo model: {type(e).__name__}: {e}")
 
         # Return list of files in the solution folder
         return os.listdir(folder_path)
@@ -601,8 +648,8 @@ class CadetCareerProblem:
         # Error Checking
         self._error_checking("Solution")
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
 
         # Cadets/AFSCs solved for is by default "All"
         if "cadets_solved_for" not in self.solution:
@@ -646,6 +693,38 @@ class CadetCareerProblem:
 
             # Create solution folder if necessary
             self._manage_solution_folder()
+
+    def _import_solution_metadata(self):
+        """
+        Import saved metadata for existing solutions.
+
+        Searches each solution's folder within the 'Analysis & Results' directory
+        for a metadata.json file. If found, loads the metadata and attaches it
+        to the corresponding entry in self.solutions.
+
+        Solutions without saved metadata are left unchanged.
+        """
+        if not self.solutions:
+            return
+
+        # Import solutions metadata
+        for solution_name, solution in self.solutions.items():
+
+            # Construct the expected metadata filepath
+            metadata_path = os.path.join(
+                self.export_paths['Analysis & Results'],
+                solution_name,
+                'metadata.json'
+            )
+
+            # Import metadata if the file exists
+            if os.path.isfile(metadata_path):
+                try:
+                    with open(metadata_path, 'r') as f:
+                        solution['metadata'] = json.load(f)
+
+                except (OSError, json.JSONDecodeError) as e:
+                    pass
 
     # ________________________________________GENERATED DATA CORRECTIONS________________________________________________
     def fix_generated_data(self, printing=None):
@@ -2020,8 +2099,8 @@ class CadetCareerProblem:
         if printing:
             print('Translating VFT model parameters to Goal Programming Model parameters...')
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Get basic parameters (May or may not include penalty/reward parameters
         self.gp_parameters = afccp.data.values.translate_vft_to_gp_parameters(self)
@@ -2067,8 +2146,8 @@ class CadetCareerProblem:
         if printing:
             print('Generating random solution...')
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Generate solution
         solution = {'method': 'Random',
@@ -2083,8 +2162,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Get the solution we need
         solution = afccp.solutions.algorithms.rotc_rated_board_original(self, printing=printing)
@@ -2098,8 +2177,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Get the solution we need
         solution = afccp.solutions.algorithms.allocate_ots_candidates_original_method(self, printing=printing)
@@ -2117,8 +2196,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Get the solution and solution iterations we need
         combined, reserves, matches = afccp.solutions.algorithms.soc_rated_matching_algorithm(
@@ -2137,8 +2216,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Get the solution we need
         solution = afccp.solutions.algorithms.classic_hr(self, printing=printing)
@@ -2154,8 +2233,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Create a copy of the current solution
         solution = copy.deepcopy(self.solution)
@@ -2179,7 +2258,116 @@ class CadetCareerProblem:
 
         return solution
 
+    # ____________________________________ONE MARKET (GUO) FEATURE IMPLEMENTATION_______________________________________
+    def resolve_feature_checklist(self, printing=None):
+        """
+        Synchronize model features with legacy parameters and
+        generate a consolidated feature resolution report.
+        """
+        if printing is None:
+            printing = self.printing
+
+        # Define feature resolvers (execution order matters)
+        feature_resolvers = [
+            afccp.solutions.features.resolve_meet_afsc_pgl_feature,
+            afccp.solutions.features.resolve_meet_rated_pgl_feature,
+            afccp.solutions.features.resolve_meet_rated_soc_pgl_feature,
+            afccp.solutions.features.resolve_rated_stability_soc_feature,
+            afccp.solutions.features.resolve_ussf_om_balance_feature,
+            afccp.solutions.features.resolve_usafa_support_cap_feature,
+        ]
+
+        # Resolve features and collect reports
+        reports = [resolver(self) for resolver in feature_resolvers]
+
+        # Construct consolidated report
+        separator = "=" * 80
+
+        self.feature_resolution_report = (
+                f"\n{separator}\n"
+                f"{'MODEL FEATURE RESOLUTION REPORT':^80}\n"
+                f"{separator}\n\n"
+                + "\n\n".join(reports)
+                + f"\n\n{separator}\n"
+                  f"{'FEATURE RESOLUTION COMPLETE':^80}\n"
+                  f"{separator}\n"
+        )
+
+        # Print report
+        if printing:
+            print(self.feature_resolution_report)
+            print(self.feature_checklist)
+
+    def get_feature_metadata(self):
+        """
+        Return the final resolved feature configuration for solution metadata.
+        """
+
+        p, mdl_p = self.parameters, self.mdl_p
+
+        return {
+            'meet_afsc_pgl': {
+                'active': self.feature_checklist['meet_afsc_pgl']
+            },
+            'meet_rated_pgl': {
+                'active': self.feature_checklist['meet_rated_pgl']
+            },
+            'meet_rated_soc_pgl': {
+                'active': self.feature_checklist['meet_rated_soc_pgl']
+            },
+            'ussf_om_balance': {
+                'active': self.feature_checklist['ussf_om_balance'],
+                'threshold': mdl_p['ussf_merit_bound']
+            },
+            'usafa_support_cap': {
+                'active': self.feature_checklist['usafa_support_cap'],
+                'constrained_afscs': list(mdl_p['USAFA-Constrained AFSCs'] or []),
+                'percent_cap': mdl_p['usafa_support_afsc_cap']
+            },
+            'rated_stability_soc': {
+                'active': self.feature_checklist['rated_stability_soc']
+            }
+        }
+
     # _____________________________________________OPTIMIZATION MODELS__________________________________________________
+    def solve_guo_pyomo_model(self, p_dict={}, printing=None):
+        """
+        Solve the "generalized assignment problem" model with the new global utility matrix constructed
+        from the AFSC and Cadet Utility matrices. This is the "GUO" model.
+        """
+        # One little "switch" to get the new assignment model objective function
+        p_dict['assignment_model_obj'] = "Global Utility"
+
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
+
+        # Error handling
+        self._error_checking("Pyomo Model")
+        if printing is None:
+            printing = self.printing
+
+        # Determine solution method
+        if self.mdl_p['solution_method'] is None:
+            solution_method = 'GUO'
+        else:
+            solution_method = self.mdl_p['solution_method']
+
+        # Resolve the model features for One Market!
+        self.resolve_feature_checklist(printing)
+
+        # Build the model and then solve it
+        self.pyomo_model = afccp.solutions.optimization.assignment_model_build(self, printing=printing)
+        solution = afccp.solutions.optimization.solve_pyomo_model(self, self.pyomo_model, solution_method, printing=printing)
+
+        # Save the metadata features!
+        solution['metadata']['features'] = copy.deepcopy(self.get_feature_metadata())
+
+        # Determine what to do with the solution
+        self._solution_handling(solution)
+
+        # Return the solution
+        return solution
+
     def solve_vft_pyomo_model(self, p_dict={}, printing=None):
         """
         Solve the VFT model using Pyomo, an optimization modeling library.
@@ -2208,8 +2396,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Build the model and then solve it
         model, q = afccp.solutions.optimization.vft_model_build(self, printing=printing)
@@ -2232,44 +2420,12 @@ class CadetCareerProblem:
         # One little "switch" to get the original model objective function
         p_dict['assignment_model_obj'] = "Original Utility"
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Build the model and then solve it
         model = afccp.solutions.optimization.assignment_model_build(self, printing=printing)
         solution = afccp.solutions.optimization.solve_pyomo_model(self, model, "Original", printing=printing)
-
-        # Determine what to do with the solution
-        self._solution_handling(solution)
-
-        # Return the solution
-        return solution
-
-    def solve_guo_pyomo_model(self, p_dict={}, printing=None):
-        """
-        Solve the "generalized assignment problem" model with the new global utility matrix constructed
-        from the AFSC and Cadet Utility matrices. This is the "GUO" model.
-        """
-        # One little "switch" to get the new assignment model objective function
-        p_dict['assignment_model_obj'] = "Global Utility"
-
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
-
-        # Error handling
-        self._error_checking("Pyomo Model")
-        if printing is None:
-            printing = self.printing
-
-        # Determine solution method
-        if self.mdl_p['solution_method'] is None:
-            solution_method = 'GUO'
-        else:
-            solution_method = self.mdl_p['solution_method']
-
-        # Build the model and then solve it
-        model = afccp.solutions.optimization.assignment_model_build(self, printing=printing)
-        solution = afccp.solutions.optimization.solve_pyomo_model(self, model, solution_method, printing=printing)
 
         # Determine what to do with the solution
         self._solution_handling(solution)
@@ -2285,8 +2441,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Convert VFT parameters to Goal Programming ("gp") parameters
         if self.gp_parameters is None:
@@ -2311,8 +2467,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Determine population for the genetic algorithm
         if self.mdl_p['population_generation_model'] == 'Assignment':
@@ -2358,8 +2514,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Dictionary of failed constraints across all solutions (phased out since we're using APM as initial population)
         con_fail_dict = None
@@ -2427,8 +2583,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # Force solution iteration collection to be turned off
         self.mdl_p['collect_solution_iterations'] = False
@@ -2547,8 +2703,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         self.parameters = afccp.solutions.handling.incorporate_rated_results_in_parameters(
             self, printing=printing)
@@ -2694,6 +2850,10 @@ class CadetCareerProblem:
         if "Goal Programming" in datasets and self.gp_df is not None:
             self.gp_df.to_csv(self.export_paths["Goal Programming"], index=False)
 
+        # Create solution folder if necessary
+        if 'Solutions' in datasets and self.solution is not None:
+            self._manage_solution_folder()
+
     def export_solution_results(self, printing=None):
         """
         This function exports the metrics for one solution back to excel for review
@@ -2732,7 +2892,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self)
 
         # Initialize the AFSC Chart object
@@ -2777,8 +2937,8 @@ class CadetCareerProblem:
         # Shorthand
         p, vp = self.parameters, self.value_parameters
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self)
         ip = self.mdl_p  # More shorthand
 
@@ -2821,8 +2981,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self)
 
         # Make the folder
@@ -2911,7 +3071,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
 
         # Build the chart
         afccp.visualizations.charts.CadetUtilityGraph(self)
@@ -2928,7 +3088,7 @@ class CadetCareerProblem:
             print(f"Saving cadet '{self.mdl_p['cadet']}' profile slides...")
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
 
         # Build the slides
         afccp.visualizations.slides.generate_cadet_profile_slides(self)
@@ -2943,7 +3103,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Error handling
@@ -2983,7 +3143,7 @@ class CadetCareerProblem:
             print("Generating results slides...")
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self._error_checking('Solution')
 
         # Call the function to generate the slides
@@ -3011,7 +3171,7 @@ class CadetCareerProblem:
                              " put all charts you'd like to compile into a slide-deck in this folder.")
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self._error_checking('Solutions')
 
         # Call the function to generate the slides
@@ -3067,7 +3227,7 @@ class CadetCareerProblem:
             os.mkdir(self.export_paths['Analysis & Results'] + 'Comparison Charts')
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self._error_checking('Solutions')
 
         # Save all solution comparison charts to the "Comparison Charts" folder
@@ -3100,7 +3260,7 @@ class CadetCareerProblem:
             print("Creating cadet utility histogram...")
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Evaluate the solutions to get metrics
@@ -3299,7 +3459,7 @@ class CadetCareerProblem:
             print("Creating solution similarity plot...")
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Import similarity matrix
@@ -3331,8 +3491,8 @@ class CadetCareerProblem:
         """
         self._error_checking("Pyomo Model")
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         # If no constraints are turned on right now...
         if np.sum(self.value_parameters["constraint_type"]) == 0:
@@ -3368,8 +3528,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         if printing:
             print("Conducting pareto analysis on problem...")
@@ -3431,9 +3591,9 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
+        # Update model functional parameters (mdl_p from p_dict)
         p_dict['solve_castle_guo'] = True  # Just in case we didn't put that in ;)
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict)
 
         if printing:
             print("Conducting CASTLE-MARKET pareto analysis on problem...")
@@ -3500,8 +3660,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         if printing:
             print("Conducting 'final' pareto analysis on problem...")
@@ -3579,8 +3739,8 @@ class CadetCareerProblem:
         if printing is None:
             printing = self.printing
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         if printing:
             print("Conducting 'utility' pareto analysis on problem...")
@@ -3688,8 +3848,8 @@ class CadetCareerProblem:
 
         self._error_checking("Pyomo Model")
 
-        # Reset instance model parameters
-        self._reset_functional_parameters(p_dict)
+        # Update model functional parameters (mdl_p from p_dict)
+        self._update_functional_parameters(p_dict)
 
         if "What If List.csv" not in os.listdir(self.export_paths['Analysis & Results']):
             raise ValueError("Error. File 'What If List.csv' required for this analysis. It needs to be located"
@@ -3712,7 +3872,7 @@ class CadetCareerProblem:
         self._error_checking("Pyomo Model")
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Run the function
@@ -3727,7 +3887,7 @@ class CadetCareerProblem:
             printing = self.printing
 
         # Adjust instance plot parameters
-        self._reset_functional_parameters(p_dict)
+        self._update_functional_parameters(p_dict, reset=True)
         self.mdl_p = afccp.data.support.determine_afsc_plot_details(self, results_chart=True)
 
         # Run the function

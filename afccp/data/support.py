@@ -111,9 +111,9 @@ def initialize_instance_functional_parameters(N):
         'pyomo_tee': False,
 
         # Additional Constraints/Modeling
-        "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.03, 'ussf_soc_pgl_constraint': False,
+        "assignment_model_obj": "Global Utility", 'ussf_merit_bound': 0.02, 'ussf_soc_pgl_constraint': False,
         'ussf_soc_pgl_constraint_bound': 0.01, 'USSF OM': False,
-        'USAFA-Constrained AFSCs': None,
+        'USAFA-Constrained AFSCs': None, 'usafa_support_afsc_cap': 0.05,
 
         # Base/Training Parameters
         'BIG M': 100, 'solve_extra_components': False,
