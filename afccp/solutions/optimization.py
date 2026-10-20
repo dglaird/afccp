@@ -314,34 +314,85 @@ def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
 
 def common_optimization_handling(m, p, vp, mdl_p):
     """
-    Adds optimization model components common to *main* optimization models like VFT and the generalized assignment
-    problem models.
+    Add common decision variables and constraints to the main optimization models.
 
-    Parameters:
-    m (ConcreteModel): The Pyomo ConcreteModel instance to which the optimization model components will be added.
-    p (dict): A dictionary containing problem-specific data, including cadet, AFSC, base, course, utility, and weight
-             information.
-    vp (dict): A dictionary containing value-specific parameters and information.
-    mdl_p (dict): A dictionary containing model-specific parameters and configurations.
+    This function constructs the binary cadet-AFSC assignment variables and applies
+    constraints shared by the primary optimization formulations, including VFT and
+    generalized assignment models.
 
-    Returns:
-    ConcreteModel: The modified Pyomo ConcreteModel instance with added optimization model components.
+    Parameters
+    ----------
+    m : pyomo.environ.ConcreteModel
+        Pyomo optimization model to modify.
 
-    Notes:
-    - This function extends the given Pyomo ConcreteModel (m) by adding optimization model components common to
-      various main optimization models.
-    - The parameters include:
-        - m: The Pyomo ConcreteModel instance to be extended.
-        - p: A dictionary containing various problem-specific data, such as cadet information, AFSCs, bases, courses,
-             utility values, and weights.
-        - vp: A dictionary containing value-specific parameters and information.
-        - mdl_p: A dictionary containing model-specific parameters and configurations.
-    - The added optimization model components include binary variables (x), constraints for cadet AFSC assignment,
-      cadet value constraints, constraints for fixed variables, reserved AFSC constraints, and constraints for
-      AFSC cadet percentages, among others.
-    - Additional constraints handle special cases like alternate list rated addition, 5% cap on total percentage of
-      USAFA cadets allowed in certain AFSCs, USSF SOC PGL constraint, and USSF OM constraint.
-    - The given ConcreteModel (m) is modified in-place and returned for further use.
+    p : dict
+        Problem parameters containing cadet and AFSC sets, eligibility information,
+        resolved individual constraints, rated-alternate information, and accession
+        requirements.
+
+    vp : dict
+        Value parameters used by the optimization formulation.
+
+    mdl_p : dict
+        Model configuration parameters controlling optional constraints and
+        assignment policies.
+
+    Returns
+    -------
+    pyomo.environ.ConcreteModel
+        Updated optimization model containing the common variables and constraints.
+
+    Model Components
+    ----------------
+    Assignment Variables:
+        Creates binary assignment variables x[i,j] for eligible cadet-AFSC pairs.
+
+    Assignment Requirements:
+        Applies cadet assignment requirements through the existing
+        add_x_variable_one_afsc_constraints() function, including special handling
+        for OTS candidates.
+
+    Rated Alternate Constraints:
+        Incorporates rated alternate-list constraints when enabled and available.
+
+    Individual Cadet Constraints:
+        Enforces the resolved allowable AFSC sets in p['J^Constrained'].
+
+        - A single allowable AFSC fixes the corresponding assignment variable to 1.
+        - Multiple allowable AFSCs require assignment to exactly one of those AFSCs.
+        - Unconstrained cadets retain their normal assignment flexibility.
+
+        These restrictions are resolved before model construction by
+        resolve_individual_cadet_constraints().
+
+        Manual restrictions are authoritative and supersede other individual
+        constraint methods. Otherwise, applicable restrictions are intersected
+        and filtered for eligibility during resolution.
+
+        The original rated matching and reservation dictionaries, J^Fixed and
+        J^Reserved, are not directly enforced here.
+
+    Additional Constraints:
+        - USAFA support AFSC percentage cap, when configured.
+        - Space Force assignment and Order of Merit requirements.
+        - OTS accession capacity restrictions, when applicable.
+
+    Raises
+    ------
+    ValueError
+        If individual cadet constraints have not been resolved, a constrained
+        cadet has no allowable AFSCs, or a required assignment variable does
+        not exist in the model.
+
+    Notes
+    -----
+    - Assignment variables are created only for eligible cadet-AFSC pairs.
+    - The function modifies the supplied Pyomo model in place.
+    - Individual cadet constraints must be resolved and validated before
+      calling this function.
+    - The legacy component name 'reserved_afsc_constraints' is retained
+      for compatibility, although it now represents all resolved individual
+      cadet restrictions.
     """
 
     # Define the x-variable
@@ -351,32 +402,39 @@ def common_optimization_handling(m, p, vp, mdl_p):
     m.one_afsc_constraints = ConstraintList()  # ...except for OTS candidates- there is a lot of nuance there!
     m = add_x_variable_one_afsc_constraints(m, p, mdl_p)  # Modify the "one_afsc_constraints" list for each cadet
 
-    # Cadets may sometimes be constrained to be part of one "Accessions Group" (probably just USSF)
-    m.acc_grp_constraints = ConstraintList()
-    if 'acc_grp_constraint' in p:
-        for acc_grp in p['afscs_acc_grp']:
-            for i in p['I^' + acc_grp]:
-                m.acc_grp_constraints.add(
-                    expr=np.sum(m.x[i, j] for j in p['J^' + acc_grp] if j in p['J^E'][i]) == 1)
-
-    # Cadet value constraint (Could work on any optimization model)
-    m.min_cadet_value_constraints = ConstraintList()
-    for i in vp['I^C']:  # "J^Top_Choice is set of AFSCs at or above designated utility value (typically top 3)
-        m.min_cadet_value_constraints.add(expr=np.sum(m.x[i, j] for j in vp['J^Top_Choice'][i]) == 1)
-
     # "AlTERNATE LIST" Rated Addition
     if mdl_p['rated_alternates'] and 'J^Preferred [usafa]' in p:  # If [usafa] version is here, [rotc] will be too
         m = add_rated_alternates_constraints(m, p, mdl_p)
 
-    # Fixing variables if necessary
-    for i in p['J^Fixed']:
-        m.x[i, p['J^Fixed'][i]].fix(1)
+    # Verify that individual cadet constraints have been resolved before model construction
+    if 'I^Constrained' not in p or 'J^Constrained' not in p:
+        raise ValueError("Individual cadet constraints have not been resolved. "
+                         "Run resolve_individual_cadet_constraints() before constructing the optimization model.")
 
-    # Cadets with reserved AFSC slots get constrained so that the "worst" choice they can get is their reserved AFSC
-    m.reserved_afsc_constraints = ConstraintList()
-    for i in p['J^Reserved']:
-        m.reserved_afsc_constraints.add(
-            expr=np.sum(m.x[i, j] for j in np.intersect1d(p['J^Reserved'][i], p['J^E'][i])) == 1)
+    # Apply resolved constraints, including authoritative manual overrides
+    m.reserved_afsc_constraints = ConstraintList()  # Legacy name retained for compatibility
+    for i in p['I^Constrained']:
+        allowed_afscs = np.asarray(p['J^Constrained'][i], dtype=int)
+
+        # Every constrained cadet must have at least one allowable AFSC
+        if len(allowed_afscs) == 0:
+            raise ValueError(f"Cadet {i} has no allowable AFSCs after constraint resolution.")
+
+        # Verify that every constrained AFSC has a corresponding optimization variable
+        invalid_afscs = [j for j in allowed_afscs if (i, j) not in m.x]
+        if invalid_afscs:
+            afsc_names = [str(p['afscs'][j]) if 0 <= j < p['M'] else str(j) for j in invalid_afscs]
+            raise ValueError(f"Cadet {i} is constrained to AFSC(s) without valid optimization variables: "
+                             f"{', '.join(afsc_names)}.")
+
+        # Single allowable AFSC: Fix the corresponding assignment variable
+        if len(allowed_afscs) == 1:
+            j = allowed_afscs[0]
+            m.x[i, j].fix(1)
+
+        # Multiple allowable AFSCs: Require assignment to exactly one
+        else:
+            m.reserved_afsc_constraints.add(expr=sum(m.x[i, j] for j in allowed_afscs) == 1)
 
     # 5% cap on total percentage of USAFA cadets allowed into certain AFSCs
     if mdl_p["USAFA-Constrained AFSCs"] is not None:
@@ -506,6 +564,7 @@ def add_space_force_constraints(m, p, mdl_p):
     return m
 
 
+# TODO: Verify new system works here with J^Constrained and whatnot
 def add_rated_alternates_constraints(m, p, mdl_p):
 
     # Initialize list of blocking pairs constraints for alternate lists

@@ -593,24 +593,6 @@ def parameter_sets_additions(parameters, run_extra_again=False, printing=False):
     p["J^Fixed"] = {}
     p["J^Reserved"] = {}
 
-    # If we have the "Assigned" column in Cadets.csv, we can check to see if anyone is "fixed" in this solution
-    if "assigned" in p:
-
-        for i, afsc in enumerate(p["assigned"]):
-            j = np.where(p["afscs"] == afsc)[0]  # AFSC index
-
-            # Check if the cadet is actually assigned an AFSC already (it's not blank)
-            if len(j) != 0:
-                j = int(j[0])  # Actual index
-
-                # Check if the cadet is assigned to an AFSC they're not eligible for
-                if j not in p["J^E"][i]:
-                    cadet = str(p['cadets'][i])
-                    raise ValueError("Cadet " + cadet + " assigned to '" +
-                                     afsc + "' but is not eligible for it. Adjust the qualification matrix!")
-                else:
-                    p["J^Fixed"][i] = j
-
     # Cadet preference/rated cadet set additions
     p = more_parameter_additions(p)
 
@@ -721,15 +703,6 @@ def more_parameter_additions(parameters):
         p['acc_grp'] = np.array(['NRL' for _ in p['J']])
         p['afscs_acc_grp']['NRL'] = p['afscs']
         p['J^NRL'] = p['J']
-
-    # If we have the "Accessions Group" column in Cadets.csv, we can check to see if anyone is fixed to a group here
-    if 'acc_grp_constraint' in p:
-
-        # Loop through each Accession group and get the cadets that are constrained to be in this "group"
-        for acc_grp in p['afscs_acc_grp']:  # This should really only ever apply to USSF, but we're generalizing it
-
-            # Constrained cadets for each Accession group (don't confuse with I^*acc_grp* in the "solutions" dictionary!)
-            p['I^' + acc_grp] = np.where(p['acc_grp_constraint'] == acc_grp)[0]
 
     # PGL Totals per SOC for USSF
     if 'USSF' in p['afscs_acc_grp']:
@@ -1109,6 +1082,375 @@ def gather_degree_tier_qual_matrix(cadets_df, parameters):
     # Save qual matrix and return the instance p
     p["qual"] = qual
     return p
+
+
+# Constrained AFSCs Resolution Functions
+def collect_individual_constraint_methods(parameters):
+    """
+    Collect individual cadet AFSC restrictions from all active constraint methods.
+
+    Sources
+    -------
+    Manual:
+        Imported from 'manually_constrained_afscs' as comma-delimited AFSC names.
+
+    High OM:
+        Imported from 'J^High OM Constrained AFSCs', populated by the
+        High OM Receive Preference feature.
+
+    Rated Matched:
+        Imported from 'J^Fixed', containing cadet-to-AFSC assignments.
+
+    Rated Reserved:
+        Imported from 'J^Reserved', containing allowable AFSC indices.
+        The final AFSC in the reservation list identifies the reserved slot.
+
+    Each method is preserved independently in 'J^Constraint Methods'.
+    No intersections or manual overrides are applied at this stage.
+
+    Parameters
+    ----------
+    parameters : dict
+        Problem parameters after feature resolution and rated incorporation.
+
+    Returns
+    -------
+    dict
+        Updated parameters containing 'J^Constraint Methods'.
+
+    Notes
+    -----
+    - AFSC names are translated to integer indices using 'afscs'.
+    - Invalid manual AFSC names are retained as validation issues.
+    - Rated matched and reserved dictionaries are assumed to contain only
+      rated-algorithm restrictions.
+    - The collection is rebuilt from scratch on every invocation.
+    """
+
+    # ___________________________________________________INITIALIZATION_________________________________________________
+    p = parameters
+    methods = {}
+    issues = []
+    afsc_lookup = {str(afsc): int(j) for j, afsc in enumerate(p['afscs'][:p['M']])}
+
+    # Helper to register individual constraint methods
+    def add_method(i, method, afsc_indices):
+        i = int(i)
+        if i < 0 or i >= p['N']:
+            issues.append(f"Invalid cadet index {i} for method '{method}'.")
+            return
+        methods.setdefault(i, {})[method] = np.asarray(afsc_indices, dtype=int).flatten()
+
+    # __________________________________________________MANUAL CONSTRAINTS______________________________________________
+    manual_values = p.get('manually_constrained_afscs', np.full(p['N'], '', dtype=object))
+    if len(manual_values) != p['N']:
+        raise ValueError("Manual AFSC constraint array length does not match N.")
+
+    for i, value in enumerate(manual_values):
+
+        # Skip empty values, including NaN values from CSV imports
+        if value is None or (isinstance(value, (float, np.floating)) and np.isnan(value)):
+            continue
+
+        afsc_names = [afsc.strip() for afsc in str(value).split(',') if afsc.strip()]
+
+        if not afsc_names:
+            continue
+
+        # Preserve invalid AFSCs as issues rather than silently discarding them
+        invalid_afscs = [afsc for afsc in afsc_names if afsc not in afsc_lookup]
+        if invalid_afscs:
+            issues.append(f"Cadet {i} - Manual: Unknown AFSC(s): {', '.join(invalid_afscs)}")
+            continue
+
+        add_method(i, 'Manual', [afsc_lookup[afsc] for afsc in afsc_names])
+
+    # ______________________________________________HIGH OM CONSTRAINTS_________________________________________________
+    if p.get('high_om_preference', False):
+
+        preference_number = p.get('high_om_preference_number', 3)
+        method_name = f'Top {preference_number} Choice'
+
+        for i, afsc_indices in p.get('J^High OM Constrained AFSCs', {}).items():
+            add_method(i, method_name, afsc_indices)
+
+    # ___________________________________________RATED MATCHED CONSTRAINTS______________________________________________
+    for i, j in p.get('J^Fixed', {}).items():
+
+        j = int(j)
+
+        if not 0 <= j < p['M']:
+            issues.append(f"Cadet {i} - Rated Matched: Invalid AFSC index {j}.")
+            continue
+
+        method_name = f'Rated Matched to {p["afscs"][j]}'
+        add_method(i, method_name, [j])
+
+    # ___________________________________________RATED RESERVED CONSTRAINTS_____________________________________________
+    for i, afsc_indices in p.get('J^Reserved', {}).items():
+
+        afsc_indices = np.asarray(afsc_indices, dtype=int).flatten()
+
+        if len(afsc_indices) == 0:
+            issues.append(f"Cadet {i} - Rated Reserved: Empty reservation list.")
+            continue
+
+        # The last AFSC identifies the rated slot being reserved
+        j_reserved = int(afsc_indices[-1])
+
+        if not 0 <= j_reserved < p['M']:
+            issues.append(f"Cadet {i} - Rated Reserved: Invalid reserved AFSC index {j_reserved}.")
+            continue
+
+        method_name = f'Rated Reserved for {p["afscs"][j_reserved]}'
+        add_method(i, method_name, afsc_indices)
+
+    # ________________________________________________UPDATE PARAMETERS_________________________________________________
+    p['J^Constraint Methods'] = methods
+    p['Individual Constraint Issues'] = issues
+    return p
+
+
+def resolve_individual_constraint_methods(parameters):
+    """
+    Resolve all collected individual cadet AFSC constraints.
+
+    Resolution Rules
+    ----------------
+    1. Manual constraints are authoritative and supersede all other methods.
+    2. Without Manual, all applicable method AFSC sets are intersected.
+    3. Ineligible AFSCs are automatically removed from nonmanual restrictions.
+    4. Ineligible manually constrained AFSCs are preserved and flagged during validation.
+    5. Every applicable method is retained in the method description.
+    6. Cadets without constraints are omitted from 'J^Constrained'.
+    7. Empty intersections or eligibility-filtered sets are preserved for validation.
+
+    Parameters
+    ----------
+    parameters : dict
+        Problem parameters containing 'J^Constraint Methods'.
+
+    Returns
+    -------
+    dict
+        Updated parameters containing:
+        - J^Constrained
+        - constraint_methods
+        - constrained_afscs
+        - I^Constrained
+        - I^Manual Override
+        - Individual Constraint Filtered AFSCs
+
+    Notes
+    -----
+    The function reconstructs all resolved constraints from their original
+    method restrictions on every invocation.
+
+    Manual restrictions are never modified by eligibility filtering. For
+    nonmanual restrictions, only eligible AFSCs are retained in the final
+    allowable AFSC set.
+    """
+
+    # ___________________________________________________INITIALIZATION_________________________________________________
+
+    p = parameters
+    methods = p['J^Constraint Methods']
+
+    constrained = {}
+    constraint_methods = np.full(p['N'], '', dtype=object)
+    constrained_afscs = np.full(p['N'], '', dtype=object)
+    manual_overrides = []
+    filtered_afscs = {}
+
+    # ______________________________________________RESOLVE INDIVIDUAL CADETS___________________________________________
+    for i, cadet_methods in methods.items():
+
+        # Preserve all applicable methods in their original collection order
+        constraint_methods[i] = ', '.join(cadet_methods.keys())
+
+        # Manual constraints supersede every other method
+        if 'Manual' in cadet_methods:
+            resolved = set(cadet_methods['Manual'])
+
+            if len(cadet_methods) > 1:
+                manual_overrides.append(i)
+
+        # Otherwise, intersect all applicable method restrictions
+        else:
+            method_sets = [set(indices) for indices in cadet_methods.values()]
+            resolved = set.intersection(*method_sets) if method_sets else set()
+
+            # Remove ineligible AFSCs from nonmanual restrictions
+            eligible = set(p['J^E'][i])
+            ineligible = resolved - eligible
+
+            if ineligible:
+                filtered_afscs[i] = np.asarray(sorted(ineligible), dtype=int)
+
+            resolved &= eligible
+
+        # Preserve the cadet's original preference order where possible
+        preference_order = list(p['cadet_preferences'][i])
+        ordered = [j for j in preference_order if j in resolved]
+        ordered.extend(sorted(resolved - set(ordered)))
+
+        # Store final allowable AFSC indices
+        constrained[i] = np.asarray(ordered, dtype=int)
+
+        # Store CSV-ready AFSC names
+        constrained_afscs[i] = ', '.join(str(p['afscs'][j]) for j in ordered if 0 <= j < p['M'])
+
+    # ________________________________________________UPDATE PARAMETERS_________________________________________________
+    p['J^Constrained'] = constrained
+    p['constraint_methods'] = constraint_methods
+    p['constrained_afscs'] = constrained_afscs
+
+    p['I^Constrained'] = np.asarray(sorted(constrained), dtype=int)
+    p['I^Manual Override'] = np.asarray(manual_overrides, dtype=int)
+    p['Individual Constraint Filtered AFSCs'] = filtered_afscs
+
+    return p
+
+
+def validate_individual_cadet_constraints(parameters):
+    """
+    Validate resolved individual cadet AFSC restrictions and generate a report.
+
+    Checks
+    ------
+    - Invalid AFSC names or indices from collected methods.
+    - Empty allowable AFSC sets caused by conflicting restrictions.
+    - Empty allowable AFSC sets after eligibility filtering.
+    - Final AFSCs outside the model's valid AFSC index range.
+    - Ineligible manually constrained AFSCs.
+
+    Nonmanual ineligible AFSCs are removed during resolution and do not
+    constitute validation errors unless no allowable AFSCs remain.
+
+    Manual overrides are intentional and reported informationally.
+
+    Parameters
+    ----------
+    parameters : dict
+        Problem parameters containing resolved constraint structures.
+
+    Returns
+    -------
+    str
+        Standardized, color-coded constraint resolution report.
+
+    Raises
+    ------
+    ValueError
+        If one or more invalid constraints are detected.
+    """
+
+    # ___________________________________________________INITIALIZATION_________________________________________________
+
+    p = parameters
+    methods = p['J^Constraint Methods']
+    constrained = p['J^Constrained']
+    filtered_afscs = p.get('Individual Constraint Filtered AFSCs', {})
+    issues = list(p.get('Individual Constraint Issues', []))
+
+    colors = {'ACTIVE': '\033[92m', 'INACTIVE': '\033[90m',
+              'ERROR': '\033[91m', 'VALID': '\033[92m'}
+    color = lambda status: f"{colors.get(status, '')}{status}\033[0m"
+    status_line = lambda label, status: f"    {label}: {color(status)}"
+
+    # ___________________________________________________VALIDATE CONSTRAINTS_________________________________________________
+
+    for i, afsc_indices in constrained.items():
+
+        cadet = str(p['cadets'][i]) if 'cadets' in p else str(i)
+        method_names = ', '.join(methods[i])
+
+        # Empty allowable AFSC set
+        if len(afsc_indices) == 0:
+
+            if i in filtered_afscs:
+                issues.append(
+                    f"Cadet {cadet}: No eligible AFSCs remain after resolving "
+                    f"[{method_names}] and applying eligibility restrictions."
+                )
+            else:
+                issues.append(
+                    f"Cadet {cadet}: No allowable AFSCs after resolving [{method_names}]."
+                )
+
+            continue
+
+        # Invalid AFSC indices
+        invalid = [int(j) for j in afsc_indices if not 0 <= int(j) < p['M']]
+
+        if invalid:
+            issues.append(f"Cadet {cadet}: Invalid AFSC indices: {invalid}.")
+            continue
+
+        # Manual AFSC eligibility conflicts are errors
+        if 'Manual' in methods[i]:
+            ineligible = [int(j) for j in afsc_indices if j not in p['J^E'][i]]
+
+            if ineligible:
+                afsc_names = ', '.join(str(p['afscs'][j]) for j in ineligible)
+                issues.append(
+                    f"Cadet {cadet}: Manually constrained to ineligible AFSC(s): {afsc_names}."
+                )
+
+        # Nonmanual restrictions should already have been eligibility-filtered
+        else:
+            ineligible = [int(j) for j in afsc_indices if j not in p['J^E'][i]]
+
+            if ineligible:
+                afsc_names = ', '.join(str(p['afscs'][j]) for j in ineligible)
+                issues.append(
+                    f"Cadet {cadet}: Ineligible AFSC(s) remain after filtering: {afsc_names}."
+                )
+
+    # ___________________________________________________CONSTRUCT REPORT_________________________________________________
+
+    num_constrained = len(constrained)
+    num_manual = sum('Manual' in m for m in methods.values())
+    num_high_om = sum(any(name.startswith('Top ') and name.endswith(' Choice') for name in m) for m in methods.values())
+    num_matched = sum(any(name.startswith('Rated Matched to ') for name in m) for m in methods.values())
+    num_reserved = sum(any(name.startswith('Rated Reserved for ') for name in m) for m in methods.values())
+    num_overrides = len(p['I^Manual Override'])
+
+    num_filtered_cadets = len(filtered_afscs)
+    num_filtered_afscs = sum(len(indices) for indices in filtered_afscs.values())
+
+    resolution_status = 'ERROR' if issues else 'ACTIVE'
+
+    report = [
+        '[Individual Cadet Constraint Resolution]',
+        '  Details:',
+        f'    Total Cadets: {p["N"]:,}',
+        f'    Constrained Cadets: {num_constrained:,}',
+        f'    Manual Constraints: {num_manual:,}',
+        f'    High OM Preference Constraints: {num_high_om:,}',
+        f'    Rated Matched Constraints: {num_matched:,}',
+        f'    Rated Reserved Constraints: {num_reserved:,}',
+        f'    Manual Overrides: {num_overrides:,}',
+        f'    Cadets with Ineligible AFSCs Filtered: {num_filtered_cadets:,}',
+        f'    Total Ineligible AFSCs Removed: {num_filtered_afscs:,}',
+        '  Resolution:',
+        status_line('Status', resolution_status)
+    ]
+
+    if issues:
+        report.append(f'    Validation failed with {len(issues)} issue(s).')
+        report.extend(['  Issues:', *(f'    - {issue}' for issue in issues)])
+    else:
+        report.append(f'    Successfully validated {num_constrained:,} constrained cadets.')
+
+    # ___________________________________________________FINAL VALIDATION_________________________________________________
+
+    report_str = '\n'.join(report)
+
+    if issues:
+        raise ValueError(report_str)
+
+    return report_str
 
 
 # ______________________________________________BASE & IST ADJUSTMENTS__________________________________________________

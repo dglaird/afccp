@@ -1469,6 +1469,8 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
                 return p  # We don't have the required solutions!
 
     # Matched cadets get fixed in the solution!
+    if 'J^Fixed' not in p:
+        p['J^Fixed'] = {}
     for soc in upper_socs:
         solution = solutions["Rated " + soc.upper() + " HR (Matches)"]
         matched_cadets = np.where(solution['j_array'] != p['M'])[0]

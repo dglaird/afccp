@@ -298,6 +298,10 @@ class CadetCareerProblem:
         self.model_features = afccp.globals.MODEL_FEATURES
         self.feature_checklist = afccp.globals.initialize_feature_checklist()
 
+        # Track whether model features and individual cadet constraints have been resolved
+        self.feature_checklist_resolved = False
+        self.cadet_constraints_resolved = False
+
         # This model-instance parameter decides if we remove cadet choices based on eligibility or not.
         # Note: Can ONLY run full HR algorithm when this is True. Standard One Market practice should leave this False.
         self.remove_cadet_choices_eligibility = remove_cadet_choices_eligibility
@@ -2273,8 +2277,9 @@ class CadetCareerProblem:
             afccp.solutions.features.resolve_meet_rated_pgl_feature,
             afccp.solutions.features.resolve_meet_rated_soc_pgl_feature,
             afccp.solutions.features.resolve_rated_stability_soc_feature,
-            afccp.solutions.features.resolve_ussf_om_balance_feature,
             afccp.solutions.features.resolve_usafa_support_cap_feature,
+            afccp.solutions.features.resolve_ussf_om_balance_feature,
+            afccp.solutions.features.resolve_high_om_receive_preference_feature,
         ]
 
         # Resolve features and collect reports
@@ -2292,6 +2297,10 @@ class CadetCareerProblem:
                   f"{'FEATURE RESOLUTION COMPLETE':^80}\n"
                   f"{separator}\n"
         )
+
+        # We've resolved the feature checklist! We've potentially overwritten the cadet constraints, however
+        self.feature_checklist_resolved = True
+        self.cadet_constraints_resolved = False
 
         # Print report
         if printing:
@@ -2315,19 +2324,73 @@ class CadetCareerProblem:
             'meet_rated_soc_pgl': {
                 'active': self.feature_checklist['meet_rated_soc_pgl']
             },
-            'ussf_om_balance': {
-                'active': self.feature_checklist['ussf_om_balance'],
-                'threshold': mdl_p['ussf_merit_bound']
+            'rated_stability_soc': {
+                'active': self.feature_checklist['rated_stability_soc']
             },
             'usafa_support_cap': {
                 'active': self.feature_checklist['usafa_support_cap'],
                 'constrained_afscs': list(mdl_p['USAFA-Constrained AFSCs'] or []),
                 'percent_cap': mdl_p['usafa_support_afsc_cap']
             },
-            'rated_stability_soc': {
-                'active': self.feature_checklist['rated_stability_soc']
-            }
+            'ussf_om_balance': {
+                'active': self.feature_checklist['ussf_om_balance'],
+                'threshold': mdl_p['ussf_merit_bound']
+            },
+            "high_om_receive_preference": {
+                'active': self.feature_checklist['high_om_receive_preference'],
+                "percentile_cutoff": p['high_om_percentile_cutoff'],
+                "preference_number": p['high_om_preference_number'],
+            },
         }
+
+    def resolve_individual_cadet_constraints(self, printing=True):
+        """
+        Collect, resolve, and validate all individual cadet AFSC constraints.
+
+        Combines manual AFSC restrictions, High OM preference restrictions, and
+        rated matching/reservation restrictions into a unified constraint system.
+
+        Manual restrictions take precedence over all other methods. Otherwise,
+        the allowable AFSCs are the intersection of applicable method restrictions.
+
+        Updates
+        -------
+        self.parameters:
+            J^Constraint Methods : dict
+                Original AFSC restrictions associated with each method.
+            J^Constrained : dict
+                Final allowable AFSC indices for each constrained cadet.
+            constraint_methods : np.ndarray
+                Comma-delimited constraint methods for each cadet.
+            constrained_afscs : np.ndarray
+                Comma-delimited final AFSCs for each cadet.
+
+        Raises
+        ------
+        ValueError
+            If invalid AFSCs, incompatible constraints, or eligibility conflicts
+            are identified during validation.
+        """
+
+        # Mark unresolved until all steps complete successfully
+        self.cadet_constraints_resolved = False
+
+        # Collect constraint methods
+        self.parameters = afccp.data.adjustments.collect_individual_constraint_methods(self.parameters)
+
+        # Resolve constraints
+        self.parameters = afccp.data.adjustments.resolve_individual_constraint_methods(self.parameters)
+
+        # Validate constraints
+        report = afccp.data.adjustments.validate_individual_cadet_constraints(self.parameters)
+
+        # Mark resolved only after successful validation
+        self.cadet_constraints_resolved = True
+
+        if printing:
+            print(report)
+
+        return report
 
     # _____________________________________________OPTIMIZATION MODELS__________________________________________________
     def solve_guo_pyomo_model(self, p_dict={}, printing=None):
@@ -2352,8 +2415,13 @@ class CadetCareerProblem:
         else:
             solution_method = self.mdl_p['solution_method']
 
-        # Resolve the model features for One Market!
-        self.resolve_feature_checklist(printing)
+        # Resolve model features if they haven't already been resolved
+        if not self.feature_checklist_resolved:
+            self.resolve_feature_checklist()
+
+        # Resolve individual cadet constraints if they haven't already been resolved
+        if not self.cadet_constraints_resolved:
+            self.resolve_individual_cadet_constraints()
 
         # Build the model and then solve it
         self.pyomo_model = afccp.solutions.optimization.assignment_model_build(self, printing=printing)

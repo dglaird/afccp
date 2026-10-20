@@ -355,7 +355,7 @@ def import_cadets_data(import_filepaths, parameters):
                                    "Must Match": "must_match",
                                    'ASC1': 'asc1', 'ASC2': 'asc2',
                                    'CIP1': 'cip1', 'CIP2': 'cip2', 'Merit': 'merit', 'Real Merit': 'merit_all',
-                                   "Assigned": "assigned", "STEM": "stem", "Accessions Group": "acc_grp_constraint",
+                                   "Manually Constrained AFSC(s)": 'manually_constrained_afscs',
                                    "SF OM": "sf_om", 'Start Date': 'training_start', 'Start Pref': 'training_preferences',
                                    'Base Threshold': 'base_threshold', 'Course Threshold': 'training_threshold',
                                    'AFSC Weight': 'weight_afsc', 'Base Weight': 'weight_base',
@@ -619,12 +619,6 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=2
     p = parameters
     afccp_vp = afccp.data.values  # Reduce the module name so it fits on one line
 
-    # Import the cadets utility constraints dataframe if we have it.
-    if "Cadets Utility Constraints" in import_filepaths:
-        vp_cadet_df = afccp.globals.import_csv_data(import_filepaths["Cadets Utility Constraints"])
-    else:
-        vp_cadet_df = None
-
     # Import the "Value Parameters" dataframe if we have it. If we don't, the "vp_dict" will be "None"
     if "Value Parameters" in import_filepaths:
         overall_vp_df = afccp.globals.import_csv_data(import_filepaths["Value Parameters"])
@@ -678,10 +672,6 @@ def import_value_parameters_data(import_filepaths, parameters, num_breakpoints=2
                             "objective_weight": np.zeros([M, O]), "afsc_weight": np.zeros(M),
                             'objectives': np.array(vp_df.loc[:int(len(vp_df) / M - 1), 'Objective']), "K^A": {},
                             'num_breakpoints': num_breakpoints}
-
-        # If we have constraints specified for cadet utility
-        if vp_cadet_df is not None:
-            value_parameters["cadet_value_min"] = np.array(vp_cadet_df[vp_name]).astype(float)
 
         # Determine weights on cadets
         if 'merit_all' in parameters:
@@ -1190,7 +1180,9 @@ def export_cadets_data(instance):
 
     # Initialize dictionary translating 'AFSCs' df columns to their parameter counterparts
     cadet_parameters_to_columns = {"cadets": "Cadet", "must_match": "Must Match",
-                                   "assigned": "Assigned", "acc_grp_constraint": "Accessions Group",
+                                   'manually_constrained_afscs': "Manually Constrained AFSC(s)",
+                                   'constrained_afscs': 'Constrained AFSC(s)',
+                                   'constraint_methods': 'Constraint Method(s)',
                                    'training_start': 'Start Date', 'training_preferences': 'Start Pref',
                                    'base_threshold': 'Base Threshold', 'training_threshold': 'Course Threshold',
                                    'weight_afsc': 'AFSC Weight', 'weight_base': 'Base Weight',
@@ -1394,7 +1386,6 @@ def export_value_parameters_data(instance):
         merit_col = "merit_all"
 
     # Initialize dataframes
-    vp_cadet_df = pd.DataFrame({"Cadet": p["cadets"], "Merit": p[merit_col]})
     vp_overall_df = pd.DataFrame({})
 
     # Loop through each set of value parameters
@@ -1443,9 +1434,6 @@ def export_value_parameters_data(instance):
                               'Function Breakpoint Values (f^hat)': breakpoint_fhat,
                               'Value Functions': value_functions})
 
-        # Add the minimum value column for this set of value parameters to the cadets df
-        vp_cadet_df[vp_name] = vp["cadet_value_min"]
-
         # Initialize overall vp column dictionary
         overall_vp_columns = {'VP Name': vp_name,
                               'Cadets Weight': vp['cadets_overall_weight'],
@@ -1480,9 +1468,6 @@ def export_value_parameters_data(instance):
 
     # Export 'Value Parameters' dataframe
     vp_overall_df.to_csv(instance.export_paths["Value Parameters"], index=False)
-
-    # Export 'Cadets Utility Constraints' dataframe
-    vp_cadet_df.to_csv(instance.export_paths["Cadets Utility Constraints"], index=False)
 
 
 def export_solutions_data(instance):

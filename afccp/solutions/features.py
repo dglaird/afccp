@@ -896,3 +896,84 @@ def resolve_usafa_support_cap_feature(instance):
     if issues: report.extend(['  Issues:', *(f'    {issue}' for issue in issues)])
 
     return '\n'.join(report)
+
+
+def resolve_high_om_receive_preference_feature(instance):
+    """
+    Resolve the High OM Receive Preference feature.
+
+    Identifies cadets within the configured top merit percentile and restricts
+    them to their first N AFSC preferences. These restrictions are stored for
+    subsequent resolution into J^Constrained, where manual overrides take precedence.
+
+    Unlike other features, no existing parameter configuration is checked.
+    The feature checklist directly determines activation.
+
+    Returns:
+        str: Formatted feature resolution report with color-coded statuses.
+    """
+
+    # ___________________________________________________INITIALIZATION_________________________________________________
+
+    p, vp, mdl_p = instance.parameters, instance.value_parameters, instance.mdl_p
+    checklist = instance.feature_checklist
+    feature_id = 'high_om_receive_preference'
+    feature_name = instance.model_features[feature_id]['name']
+    percentile_cutoff = instance.model_features[feature_id]['percentile_cutoff']
+    preference_number = instance.model_features[feature_id]['preference_number']
+
+    # Standardized status formatting
+    colors = {'ACTIVE': '\033[92m', 'FULLY ACTIVE': '\033[92m', 'PARTIALLY ACTIVE': '\033[93m',
+              'INACTIVE': '\033[90m', 'ERROR': '\033[91m'}
+    color = lambda status: f"{colors.get(status, '')}{status}\033[0m"
+    status_line = lambda label, status: f"    {label}: {color(status)}"
+
+    checklist_initial = bool(checklist[feature_id])
+    checklist_status = 'ACTIVE' if checklist_initial else 'INACTIVE'
+
+    # __________________________________________________RESOLVE FEATURE_________________________________________________
+
+    # The checklist directly controls this feature; no parameter reconciliation required.
+    p['high_om_preference'] = checklist_initial
+    p['high_om_percentile_cutoff'] = percentile_cutoff
+    p['high_om_preference_number'] = preference_number
+
+    if checklist_initial:
+
+        # Identify cadets within the top X% of the merit distribution.
+        p['I^High OM Constrained'] = np.where(p['merit'] >= (1 - percentile_cutoff))[0]
+
+        # Python slicing [:3] returns preferences at indices 0, 1, and 2.
+        p['J^High OM Constrained AFSCs'] = {
+            int(i): np.asarray(p['cadet_preferences'][i][:preference_number], dtype=int)
+            for i in p['I^High OM Constrained']
+        }
+
+        resolution_status = 'ACTIVE'
+        resolution = (f'Identified {len(p["I^High OM Constrained"]):,} cadets within the '
+                      f'top {percentile_cutoff:.0%} of merit and assigned their top '
+                      f'{preference_number} AFSC preferences.')
+
+    else:
+        p['I^High OM Constrained'] = np.array([], dtype=int)
+        p['J^High OM Constrained AFSCs'] = {}
+
+        resolution_status = 'INACTIVE'
+        resolution = 'Feature disabled. No High OM preference constraints generated.'
+
+    # _________________________________________________CONSTRUCT REPORT_________________________________________________
+
+    report = [
+        f'[{feature_name}]',
+        '  Initial State:',
+        status_line('Checklist', checklist_status),
+        '  Details:',
+        f'    Merit Percentile Cutoff: Top {percentile_cutoff:.0%}',
+        f'    Guaranteed Preference Range: Top {preference_number}',
+        '  Resolution:',
+        status_line('Status', resolution_status),
+        f'    {resolution}'
+    ]
+
+    return '\n'.join(report)
+
