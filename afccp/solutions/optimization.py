@@ -567,7 +567,6 @@ def add_space_force_constraints(m, p, mdl_p):
     return m
 
 
-# TODO: Verify new system works here with J^Constrained and whatnot
 def add_rated_alternates_constraints(m, p, mdl_p):
 
     # Initialize list of blocking pairs constraints for alternate lists

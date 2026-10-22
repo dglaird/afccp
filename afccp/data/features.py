@@ -61,7 +61,7 @@ def resolve_meet_afsc_pgl_feature(instance):
         resolution_status = 'INACTIVE'
         resolution = 'Feature remains disabled. Existing parameter configuration preserved.'
 
-    # ___________________________________________________CONSTRUCT REPORT_________________________________________________
+    # _________________________________________________CONSTRUCT REPORT_________________________________________________
 
     report = [
         f'[{feature_name}]',
@@ -121,7 +121,7 @@ def resolve_meet_rated_pgl_feature(instance):
     parameter_status = 'FULLY ACTIVE' if parameters_active else ('PARTIALLY ACTIVE' if num_on else 'INACTIVE')
     checklist_status = 'ACTIVE' if checklist_initial else 'INACTIVE'
 
-    # ___________________________________________________RESOLVE FEATURE_________________________________________________
+    # __________________________________________________RESOLVE FEATURE_________________________________________________
 
     if checklist_initial:
         if not parameters_active:
@@ -142,7 +142,7 @@ def resolve_meet_rated_pgl_feature(instance):
         resolution_status = 'INACTIVE'
         resolution = 'Feature remains disabled. Existing parameter configuration preserved.'
 
-    # ___________________________________________________CONSTRUCT REPORT_________________________________________________
+    # _________________________________________________CONSTRUCT REPORT_________________________________________________
 
     report = [
         f'[{feature_name}]',

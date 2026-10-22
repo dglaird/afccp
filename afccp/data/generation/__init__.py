@@ -52,8 +52,10 @@ See Also
   Primary object that consumes synthetic datasets generated here via `.load_data()` and `.solve_*()` methods
 """
 from afccp.data.generation.basic import *
+from afccp.data.generation.ctgan import *
+from afccp.data.generation.training import *
 
 # Import 'realistic' generation functions if we have the SDV module
 from afccp.globals import use_sdv
 if use_sdv:
-    from afccp.data.generation.realistic import *
+    pass

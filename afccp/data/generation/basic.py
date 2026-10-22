@@ -477,6 +477,199 @@ def generate_random_value_parameters(parameters, num_breakpoints=24):
     return vp
 
 
+def generate_fake_afsc_preferences(parameters, value_parameters=None, fix_cadet_eligibility=False):
+    """
+    Generate synthetic AFSC utility and preference matrices.
+
+    This function constructs artificial utility scores and corresponding preference rankings for Air Force Specialty
+    Codes (AFSCs) using merit, AFOCD tiers, and other known cadet attributes. It supports both weighted approaches
+    using a provided set of value parameters or a default fixed weighting strategy. Preferences are automatically
+    adjusted to ensure cadets and AFSCs only rank eligible options.
+
+    Parameters
+    ----------
+    parameters : dict
+        Dictionary containing fixed model parameters (cadet/AFSC eligibility, merit scores, utility matrices, etc.).
+
+    value_parameters : dict, optional
+        Value parameter dictionary containing weights and objectives to guide AFSC utility generation. If None,
+        a default set of weights is used.
+
+    fix_cadet_eligibility : bool, default=False
+        If True, overrides cadet preferences to match eligibility criteria and recomputes rankings.
+
+    Returns
+    -------
+    parameters : dict
+        Updated parameter dictionary containing generated utility matrices and preference rankings:
+
+        - `afsc_utility`: N x M matrix of cadet utility scores for each AFSC.
+        - `a_pref_matrix`: AFSCs' preference rankings of cadets.
+        - `c_pref_matrix`: Cadets' preference rankings of AFSCs.
+        - `afsc_preferences`: Dict mapping each AFSC to its sorted list of cadet indices.
+        - `cadet_preferences`: Dict mapping each cadet to their sorted list of AFSC indices.
+
+    Examples
+    --------
+    ```python
+    parameters = generate_fake_afsc_preferences(parameters)
+    parameters = generate_fake_afsc_preferences(parameters, value_parameters=vp, fix_cadet_eligibility=True)
+    ```
+    """
+    # Shorthand
+    p, vp = parameters, value_parameters
+
+    # Create AFSC Utility Matrix
+    p["afsc_utility"] = np.zeros([p["N"], p["M"]])
+    if vp is None:
+
+        # If we don't have a set of value_parameters, we just make some assumptions
+        weights = {"Merit": 80, "Tier 1": 100, "Tier 2": 50, "Tier 3": 30, "Tier 4": 0, "Utility": 60}
+        for objective in weights:
+            if objective.lower() in p:
+
+                if objective == "Merit":
+                    merit = np.tile(p['merit'], [p["M"], 1]).T
+                    p["afsc_utility"] += merit * weights[objective]
+                else:
+                    p["afsc_utility"] += p[objective.lower()][:, :p["M"]] * weights[objective]
+    else:
+
+        # If we do have a set of value_parameters, we incorporate them
+        for objective in ['Merit', 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Utility']:
+            if objective in vp['objectives']:
+
+                k = np.where(vp['objectives'] == objective)[0][0]
+                if objective == "Merit":
+                    merit = np.tile(p['merit'], [p["M"], 1]).T
+                    p["afsc_utility"] += merit * vp['objective_weight'][:, k].T
+                else:
+                    p["afsc_utility"] += p[objective.lower()][:, :p["M"]] * vp['objective_weight'][:, k].T
+    p["afsc_utility"] *= p["eligible"]  # They have to be eligible!
+
+    if fix_cadet_eligibility:  # We just start over from scratch with cadet preferences
+        p['c_pref_matrix'] = np.zeros([p["N"], p["M"]]).astype(int)
+        p['cadet_preferences'] = {}
+
+        # Add a column to the eligible matrix for the unmatched AFSC (just to get the below multiplication to work)
+        eligible = copy.deepcopy(p['eligible'])
+        eligible = np.hstack((eligible, np.array([[0] for _ in range(p["N"])])))
+        p['cadet_utility'] *= eligible  # They have to be eligible!
+        for i in p["I"]:
+
+            # Sort the utilities to get the preference list
+            utilities = p["cadet_utility"][i, :p["M"]]
+            ineligible_indices = np.where(eligible[i, :p["M"]] == 0)[0]
+            sorted_indices = np.argsort(utilities)[::-1][:p['M'] - len(ineligible_indices)]
+            p['cadet_preferences'][i] = sorted_indices
+
+            # Since 'cadet_preferences' is an array of AFSC indices, we can do this
+            p['c_pref_matrix'][i, p['cadet_preferences'][i]] = np.arange(1, len(p['cadet_preferences'][i]) + 1)
+
+    # Create AFSC Preferences
+    p["a_pref_matrix"] = np.zeros([p["N"], p["M"]]).astype(int)
+    p['afsc_preferences'] = {}
+    for j in p["J"]:
+
+        # Loop through each cadet one more time to fix them on the AFSC list
+        for i in p['I']:
+            if p['c_pref_matrix'][i, j] == 0:
+                p['afsc_utility'][i, j] = 0
+
+        # Sort the utilities to get the preference list
+        utilities = p["afsc_utility"][:, j]
+        ineligible_indices = np.where(utilities == 0)[0]
+        sorted_indices = np.argsort(utilities)[::-1][:p['N'] - len(ineligible_indices)]
+        p['afsc_preferences'][j] = sorted_indices
+
+        # Since 'afsc_preferences' is an array of AFSC indices, we can do this
+        p['a_pref_matrix'][p['afsc_preferences'][j], j] = np.arange(1, len(p['afsc_preferences'][j]) + 1)
+
+    return p
+
+
+def generate_rated_data(parameters):
+    """
+    Generate Simulated Rated Interest and Order of Merit (OM) Data.
+
+    This function generates ROTC-rated interest levels and USAFA/ROTC-rated Order of Merit (OM) scores for cadets
+    eligible for rated AFSCs (e.g., Pilot, CSO, ABM, RPA). These scores are essential for modeling preferences and
+    eligibility in rated board algorithms.
+
+    Parameters
+    ----------
+    parameters : dict
+        The main parameter dictionary for the cadet-AFSC assignment problem. It must contain:
+
+        - `Rated Cadets`: Dictionary of rated cadets by commissioning source (`usafa`, `rotc`)
+        - `afscs_acc_grp`: AFSCs categorized into assignment groups (must include 'Rated')
+        - `SOCs`: List of commissioning source identifiers (e.g., `('usafa', 'Rated')`)
+        - `afsc_preferences`: AFSCs’ ranked preferences over cadets
+        - `I^E`: Cadet eligibility sets
+        - `afscs`: Full list of AFSCs
+        - `Rated Cadet Index Dict`: Lookup dict to convert cadet ID to matrix row index for each SOC
+
+    Returns
+    -------
+    dict
+    Updated parameter dictionary including:
+
+    - `rr_interest_matrix`: ROTC cadets' self-assessed interest in rated AFSCs
+    - `xr_om_matrix`, `ur_om_matrix`, etc.: Rated OM matrices for each SOC (generated if missing)
+
+    Examples
+    --------
+    ```python
+    parameters = generate_rated_data(parameters)
+    ```
+
+    This generates the following additions:
+
+    - `parameters['rr_interest_matrix']` → random values like ['High', 'Med', 'Low', 'None']
+    - `parameters['ur_om_matrix']` → OM percentiles for USAFA-rated cadets and AFSCs
+    """
+
+    # Shorthand
+    p = parameters
+    if 'usafa' not in p['Rated Cadets']:
+        return p  # No Rated AFSCs to add
+
+    # ROTC Rated Interest Matrix (Only generate random data if we don't already have it)
+    if 'rr_interest_matrix' not in p:
+        p['rr_interest_matrix'] = np.array(
+            [[np.random.choice(['High', 'Med', 'Low', 'None']) for _ in
+              p['afscs_acc_grp']['Rated']] for _ in range(len(p['Rated Cadets']['rotc']))])
+
+    # Loop through each SOC to generate OM data (based on AFSC preferences) if we don't already have it
+    dataset_dict = {soc: f'{soc[0]}r_om_matrix' for soc in p['SOCs']}
+    for soc in dataset_dict:
+        dataset = dataset_dict[soc]  # SOC specific dataset name for Rated OM data
+
+        # Collect useful information on the Rated cadets (for this SOC) and the Rated AFSCs
+        rated_cadets, rated_afscs = p['Rated Cadets'][soc], p['afscs_acc_grp']['Rated']
+        num_rated_cadets, num_rated_afscs = len(rated_cadets), len(rated_afscs)
+        if dataset not in p:  # Only generate data if we don't already have it
+
+            # Loop through each Rated AFSC to construct their OM data
+            p[dataset] = np.zeros([num_rated_cadets, num_rated_afscs])
+            for afsc_index, afsc in enumerate(p['afscs_acc_grp']['Rated']):
+                j = np.where(p['afscs'] == afsc)[0][0]
+
+                # Percentiles sorted from top (1) to bottom (0)
+                rated_afsc_eligible_cadets = np.intersect1d(p['I^E'][j], rated_cadets)
+                percentiles = \
+                    ((np.arange(len(rated_afsc_eligible_cadets)) + 1) / (len(rated_afsc_eligible_cadets)))[::-1]
+
+                # Loop through each cadet in order of preference and give them the highest percentile based on SOC
+                count = 0
+                for i in p['afsc_preferences'][j]:
+                    if i in rated_afsc_eligible_cadets:
+                        cadet_index = p['Rated Cadet Index Dict'][soc][i]
+                        p[dataset][cadet_index, afsc_index] = percentiles[count]
+                        count += 1
+    return p
+
+
 # __________________________________________BASE & TRAINING ADDITIONS___________________________________________________
 def generate_extra_components(parameters):
     """

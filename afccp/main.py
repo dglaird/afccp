@@ -11,8 +11,6 @@ import copy
 import json
 import pickle
 
-from pathlib import Path
-
 # afccp modules
 import afccp.globals
 import afccp.data.adjustments
@@ -21,9 +19,10 @@ import afccp.data.preferences
 import afccp.data.processing
 import afccp.data.support
 import afccp.data.values
+import afccp.data.verification
 import afccp.solutions.algorithms
 import afccp.solutions.handling
-import afccp.solutions.features
+import afccp.data.features
 import afccp.visualizations.bubbles
 import afccp.visualizations.charts
 
@@ -900,7 +899,7 @@ class CadetCareerProblem:
         - [`parameter_sets_additions`](../../../../afccp/reference/data/adjustments/#data.adjustments.parameter_sets_additions):
           Updates parameter subsets and mappings based on the new preference structure.
         """
-        self.parameters = afccp.data.preferences.generate_fake_afsc_preferences(
+        self.parameters = afccp.data.generation.generate_fake_afsc_preferences(
             self.parameters, self.value_parameters, fix_cadet_eligibility=fix_cadet_eligibility)
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
@@ -938,7 +937,7 @@ class CadetCareerProblem:
         """
 
         # Generate Rated Data
-        self.parameters = afccp.data.preferences.generate_rated_data(self.parameters)
+        self.parameters = afccp.data.generation.generate_rated_data(self.parameters)
         self.parameters = afccp.data.adjustments.parameter_sets_additions(self.parameters)
 
     def generate_random_value_parameters(self, num_breakpoints=24, vp_weight=100, printing=None):
@@ -1776,7 +1775,7 @@ class CadetCareerProblem:
         """
 
         # Call the function
-        afccp.data.adjustments.parameter_sanity_check(self)
+        afccp.data.verification.parameter_sanity_check(self)
 
     def create_final_utility_matrix_from_new_formula(self, printing=None):
         """
@@ -2291,13 +2290,13 @@ class CadetCareerProblem:
 
         # Define feature resolvers (execution order matters)
         feature_resolvers = [
-            afccp.solutions.features.resolve_meet_afsc_pgl_feature,
-            afccp.solutions.features.resolve_meet_rated_pgl_feature,
-            afccp.solutions.features.resolve_meet_rated_soc_pgl_feature,
-            afccp.solutions.features.resolve_rated_stability_soc_feature,
-            afccp.solutions.features.resolve_usafa_support_cap_feature,
-            afccp.solutions.features.resolve_ussf_om_balance_feature,
-            afccp.solutions.features.resolve_high_om_receive_preference_feature,
+            afccp.data.features.resolve_meet_afsc_pgl_feature,
+            afccp.data.features.resolve_meet_rated_pgl_feature,
+            afccp.data.features.resolve_meet_rated_soc_pgl_feature,
+            afccp.data.features.resolve_rated_stability_soc_feature,
+            afccp.data.features.resolve_usafa_support_cap_feature,
+            afccp.data.features.resolve_ussf_om_balance_feature,
+            afccp.data.features.resolve_high_om_receive_preference_feature,
         ]
 
         # Resolve features and collect reports
