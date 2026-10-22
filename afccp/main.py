@@ -399,6 +399,9 @@ class CadetCareerProblem:
         if self.solutions is None:
             self.solutions = {}
 
+        if 'metadata' not in self.solution:
+            self.solution['metadata'] = {'method': self.solution['method']}
+
         # Determine solution name
         if 'name' in self.solution:
             solution_name = self.solution['name']
@@ -412,42 +415,56 @@ class CadetCareerProblem:
                     count += 1
                     solution_name = self.solution['method'] + '_' + str(count)
 
-        # Check if this solution is a new solution
+        # Check solution uniqueness
         new = True
+        existing_solution_name = None
         for s_name in self.solutions:
-            p_i = afccp.solutions.handling.compare_solutions(self.solutions[s_name]['j_array'],
-                                                             self.solution['j_array'])
+            p_i = afccp.solutions.handling.compare_solutions(
+                self.solutions[s_name]['j_array'], self.solution['j_array'])
 
-            # If we have bases/courses in the solution- it's gotta all be the same!
-            if 'b_array' in self.solution.keys():
-                if 'b_array' in self.solutions[s_name].keys():
-
-                    # If we have bases in both solutions- they have to be unique across all arrays
+            # If bases/courses are present, all assignment arrays must match
+            if 'b_array' in self.solution:
+                if 'b_array' in self.solutions[s_name]:
                     p_i *= afccp.solutions.handling.compare_solutions(
                         self.solutions[s_name]['b_array'], self.solution['b_array'])
                     p_i *= afccp.solutions.handling.compare_solutions(
                         self.solutions[s_name]['course_array'], self.solution['course_array'])
                 else:
-                    p_i = 0  # The new solution has bases, this one doesn't so it's different
+                    p_i = 0
 
-            # Set the name of this solution to be the name of its equivalent that is already in the dictionary
+            # Identical assignment found
             if p_i == 1:
 
-                # If this is an array of unmatched cadets, we count it as unique since it's likely a SOC algorithm
+                # Unmatched-only solutions are treated as unique (typically SOC algorithms)
                 if len(np.unique(self.solution['j_array'])) == 1 and self.parameters['M'] in self.solution['j_array']:
-                    pass
+                    continue
 
-                else:
-                    new = False
-                    self.solution_name = s_name
-                    self.solution['name'] = s_name
-                    break
+                new = False
+                existing_solution_name = s_name
+                break
 
-        # If it is new, we add it to the dictionary and adjust the name of the activated instance solution
+        # Reconcile solution metadata
         if new:
-            self.solutions[solution_name] = copy.deepcopy(self.solution)
+
+            # Initialize metadata for a genuinely new solution
+            self.solution['metadata'] = afccp.solutions.handling.reconcile_solution_metadata(
+                self.solution['metadata'])
             self.solution_name = solution_name
             self.solution['name'] = solution_name
+
+        else:
+
+            # Preserve the existing solution's original metadata while recording this run
+            existing_metadata = self.solutions[existing_solution_name].get('metadata', {})
+
+            self.solution['metadata'] = afccp.solutions.handling.reconcile_solution_metadata(
+                self.solution['metadata'], existing_metadata)
+
+            self.solution_name = existing_solution_name
+            self.solution['name'] = existing_solution_name
+
+        # Store the updated metadata and solution under its canonical name
+        self.solutions[self.solution_name] = copy.deepcopy(self.solution)
 
     def _error_checking(self, test="None"):
         """
@@ -2155,7 +2172,8 @@ class CadetCareerProblem:
 
         # Generate solution
         solution = {'method': 'Random',
-            'j_array': np.array([np.random.choice(self.parameters['J^E'][i]) for i in self.parameters['I']])}
+                    'j_array': np.array([np.random.choice(self.parameters['J^E'][i]) for i in self.parameters['I']]),
+                    'metadata': {'method': 'Random', 'finish_time': datetime.datetime.now().astimezone()}}
 
         # Determine what to do with the solution
         self._solution_handling(solution)
@@ -2301,11 +2319,11 @@ class CadetCareerProblem:
         # We've resolved the feature checklist! We've potentially overwritten the cadet constraints, however
         self.feature_checklist_resolved = True
         self.cadet_constraints_resolved = False
+        self.update_value_parameters()  # Need to update certain constraints!
 
         # Print report
         if printing:
             print(self.feature_resolution_report)
-            print(self.feature_checklist)
 
     def get_feature_metadata(self):
         """
@@ -2692,6 +2710,13 @@ class CadetCareerProblem:
             self.solution, self.parameters, self.value_parameters, approximate=approximate, printing=printing,
             re_calculate_x=self.mdl_p['re-calculate x'])
 
+        # Evaluate the solution against all registered model features.
+        self.solution = afccp.solutions.handling.calculate_model_feature_metrics(
+                solution=self.solution,
+                parameters=self.parameters,
+                model_features=self.model_features,
+                feature_checklist=self.feature_checklist)
+
     def measure_fitness(self, printing=None):
         """
         This is the fitness function method (could be slightly different depending on how the constraints are handled)
@@ -2942,6 +2967,21 @@ class CadetCareerProblem:
         # Print statement
         if printing:
             print("Exporting solution", self.solution_name, "results to " + filepath + "...")
+
+            # Calculate model feature metrics using the current checklist, solution
+            # metadata, and actual assignments. Store the results in self.solution.
+            self.solution = afccp.solutions.handling.calculate_model_feature_metrics(
+                solution=self.solution,
+                parameters=self.parameters,
+                model_features=self.model_features,
+                feature_checklist=self.feature_checklist,
+                solutions=self.solutions
+
+            )
+
+            # Keep the stored solution synchronized if it is a separate dictionary.
+            if self.solution_name in self.solutions:
+                self.solutions[self.solution_name]['feature_metrics'] = self.solution['feature_metrics']
 
         # Export results
         afccp.data.processing.export_solution_results(self, filepath)

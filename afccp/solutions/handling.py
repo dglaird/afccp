@@ -32,7 +32,7 @@ Workflow
     - Construct `x`, `j_array`, and `afsc_array`.
     - Calculate AFSC/cadet utility values and objective scores.
     - Apply value functions and check for failed constraints.
-    - Compute global metrics: `z`, `z^gu`, blocking pairs, Simpson diversity, and match quality.
+    - Compute global metrics: `z`, `z^GUO`, blocking pairs, Simpson diversity, and match quality.
 1. **Constraint Handling**
     - Differentiate between hard and soft constraints (AFSC value floors, cadet preference thresholds).
     - Track failed constraints using `objective_constraint_fail` and `con_fail_dict`.
@@ -55,6 +55,7 @@ See Also
 """
 import numpy as np
 import copy
+import pandas as pd
 
 # afccp modules
 import afccp.globals
@@ -148,19 +149,23 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             solution['total_failed_constraints'] += 1
             solution["failed_constraints"].append("Cadet " + str(p['cadets'][i]) + " Value")
 
-    # Calculate the SOC algorithm reserve/matches metrics!
-    solution = calculate_soc_algorithm_metrics(x, solution, p)
+    # AFSC array!
+    solution['afsc_array'] = np.array([p['afscs'][j] for j in solution['j_array']])
 
     # Define overall metrics
     solution['cadets_overall_value'] = np.dot(vp['cadet_weight'][solution['I^Match']],
                                               solution['cadet_value'][solution['I^Match']])
     solution['afscs_overall_value'] = np.dot(vp['afsc_weight'], solution['afsc_value'])
-    solution['z'] = vp['cadets_overall_weight'] * solution['cadets_overall_value'] + \
-                   vp['afscs_overall_weight'] * solution['afscs_overall_value']
+    solution['z^VFT'] = vp['cadets_overall_weight'] * solution['cadets_overall_value'] + \
+                        vp['afscs_overall_weight'] * solution['afscs_overall_value']
     solution['num_ineligible'] = np.sum(x[i, j] * p['ineligible'][i, j] for j in p['J'] for i in solution['I^Match'])
 
     # Add additional metrics components (Non-VFT stuff)
     solution = calculate_additional_useful_metrics(solution, p, vp)
+
+    # Calculate the SOC algorithm reserve/matches metrics!
+    if 'cadets_solved_for' not in solution:  # Don't run this for a "partial" solution!
+        solution = calculate_soc_algorithm_metrics(solution, p)
 
     # Add base/training components if applicable
     if 'base_array' in solution:
@@ -169,6 +174,12 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
     # Add Castle solution metrics
     if 'castle_q' in p:
         solution = calculate_castle_solution_metrics(solution, p)
+
+    # Calculate FINAL "Z" Value!
+    if 'z^CASTLE' in solution:  # CASTLE IS included, so weigh GUO and CASTLE scores for Z
+        solution['z'] = round(p['w^G'] * solution['z^GUO'] + (1 - p['w^G']) * solution['z^CASTLE'], 4)
+    else:  # CASTLE IS NOT included, so Z is just the GUO portion
+        solution['z'] = solution['z^GUO']
 
     if 'ots' in p['SOCs']:
         solution = calculate_ots_specific_metrics(solution, p)
@@ -183,46 +194,96 @@ def evaluate_solution(solution, parameters, value_parameters, approximate=False,
             solution['num_blocking_pairs'] = np.nan
             print("WARNING. Blocking pair calculation received an error (likely preference list eligibility issues)")
 
-    # Print statement
+    # Print solution evaluation summary
     if printing:
-        if approximate:
-            model_type = 'approximate'
-        else:
-            model_type = 'exact'
-        if 'name' in solution:
-            print_str = "Solution Evaluated: " + solution['name'] + "."
-        else:
-            print_str = "New Solution Evaluated."
-        print_str += "\nMeasured " + model_type + " VFT objective value: " + str(round(solution['z'], 4))
-        if 'z^gu' in solution:
-            print_str += ".\nGlobal Utility Score: " + str(round(solution['z^gu'], 4))
-        if 'z^CASTLE' in solution:
-            print_str += f".\nCASTLE GUO Score: {solution['z^CASTLE']}. " \
-                         f"Value Curve Score: {solution['z^CASTLE (Values)']}"
+        # ANSI colors
+        GREEN, YELLOW, RED, CYAN, BOLD, RESET = (
+            '\033[92m', '\033[93m', '\033[91m',
+            '\033[96m', '\033[1m', '\033[0m'
+        )
+
+        name = solution.get('name', 'New Solution')
+        if 'VFT' in name:
+            name += ' (Approximate)' if approximate else ' (Exact)'
+
+        print(f"\n{BOLD}{CYAN}{'=' * 65}{RESET}")
+        print(f"{BOLD}  SOLUTION EVALUATED: {name}{RESET}")
+        print(f"{CYAN}{'=' * 65}{RESET}")
+
+        # Objective function metrics
+        print(f"\n{BOLD}OBJECTIVE FUNCTION{RESET}")
+        for label, key in [('Overall Objective (z)', 'z'), ('Global Utility (z^GUO)', 'z^GUO'),
+                           ('CASTLE Value (z^CASTLE)', 'z^CASTLE')]:
+            if key in solution:
+                print(f"  {label:<24} {solution[key]:.4f}")
+
+        # Assignment metrics
+        print(f"\n{BOLD}ASSIGNMENT METRICS{RESET}")
+        matched, total = solution['Num Matched'], p['N']
+        match_color = GREEN if matched == total else YELLOW
+
+        print(f"  Matched Cadets           {match_color}{matched:,} / {total:,}{RESET}")
+        print(f"  Unmatched Cadets         {solution['num_unmatched']:,}")
+        print(f"  Ineligible Cadets        {solution['num_ineligible']:,}")
+
         if 'num_blocking_pairs' in solution:
-            print_str += ".\nBlocking pairs: " + str(solution['num_blocking_pairs'])
-        print_str += ". Unmatched cadets: " + str(solution["num_unmatched"])
-        print_str += f".\nMatched cadets: {solution['Num Matched']}/{p['N']}. N^Match: {p['N^Match']}"
-        print_str += ". Ineligible cadets: " + str(solution['num_ineligible']) + ".\n"
+            count = solution['num_blocking_pairs']
+            print(f"  Blocking Pairs           {count:,}")
 
-        # SOC algorithm metric reports
-        print_str += solution['cadets_fixed_correctly'] + ' AFSCs fixed. ' + \
-                     solution['cadets_reserved_correctly'] + ' AFSCs reserved'
-        print_str += ". " + solution['alternate_list_metric'] + ' alternate list scenarios respected.\n'
-        soc_metrics = ['alternate_list_breaks', 'fixed_list_breaks', 'reserved_list_breaks']
-        for metric in soc_metrics:
-            if metric in solution:
-                if len(solution[metric]) > 0:
-                    word = metric.split('_')[0]
-                    print_str += f"Cadet/AFSC pairs breaking the {word} list: {solution[metric]}.\n"
+        # Rated algorithm metrics by SOC
+        if 'num_fixed_constraints_met' in solution and 'num_fixed_constraints' in p:
+            print(f"\n{BOLD}RATED ALGORITHM CONSTRAINTS{RESET}")
+            print(f"  {'Constraint':<18} {'Overall':<15}" +
+                  "".join(f"{soc.upper():<15}" for soc in p['SOCs']))
+            print(f"  {'-' * (33 + 15 * len(p['SOCs']))}")
 
-        if 'matched_out_of_must_match' in solution:
-            print_str += f'{solution["matched_out_of_must_match"]} OTS "must-matches" accessed.\n'
+            for metric, label in [('fixed', 'Fixed Matches'), ('reserved', 'Reserved'),
+                                  ('alternate', 'Alternates')]:
+                met = solution[f'num_{metric}_constraints_met']
+                targets = p[f'num_{metric}_constraints']
+
+                total_met = sum(met[soc] for soc in p['SOCs'])
+                total_target = sum(targets[soc] for soc in p['SOCs'])
+
+                def colored_ratio(n, d):
+                    color = GREEN if n == d else RED if n == 0 and d > 0 else YELLOW
+                    return f"{color}{n}/{d}{RESET}"
+
+                print(f"  {label:<18} {colored_ratio(total_met, total_target):<24}" +
+                      "".join(f"{colored_ratio(met[soc], targets[soc]):<24}" for soc in p['SOCs']))
+
+            # Show constraint violations separately, grouped by SOC.
+            violations = [
+                ('Fixed Matches', 'pairs_breaking_fixed_constraints'),
+                ('Reserved', 'pairs_breaking_reserved_constraints'),
+                ('Alternates', 'pairs_breaking_alternate_constraints')
+            ]
+
+            for label, key in violations:
+                if key not in solution:
+                    continue
+
+                for soc, pairs in solution[key].items():
+                    if pairs:
+                        print(f"\n  {RED}{soc.upper()} {label} Violations ({len(pairs)}):{RESET}")
+                        print(f"    {pairs}")
+
+        # OTS-specific metrics
         if 'ots' in p['SOCs']:
-            print_str += f'OTS Average Merit: {solution["OTS Average Merit"]}. ' \
-                         f'{solution["OTS Selected Pref Count"]} / {len(solution["I^Match-OTS"])} ' \
-                         f'OTS candidates received AFSC they selected.'
-        print(print_str)
+            print(f"\n{BOLD}OTS METRICS{RESET}")
+
+            if 'matched_out_of_must_match' in solution:
+                print(f"  Must-Match Candidates    {solution['matched_out_of_must_match']}")
+
+            if 'OTS Average Merit' in solution:
+                print(f"  Average Merit            {solution['OTS Average Merit']:.4f}")
+
+            if 'OTS Selected Pref Count' in solution and 'I^Match-OTS' in solution:
+                selected = solution['OTS Selected Pref Count']
+                total = len(solution['I^Match-OTS'])
+                print(f"  Received Selected AFSC   {selected:,} / {total:,}")
+
+        print(f"\n{CYAN}{'=' * 65}{RESET}\n")
 
     # Return the solution/metrics
     return solution
@@ -609,14 +670,18 @@ def calculate_additional_useful_metrics(solution, p, vp):
             cadets = np.where(solution['j_array'] == j)[0]
             solution['afsc_average_cadet_choice'][j] = np.mean(p['c_pref_matrix'][cadets, j])
 
-        # Calculate overall utility scores
-        solution['z^gu'] = round(np.mean(solution['global_utility_achieved'][solution['I^Match']]), 4)
+        # Calculate overall utility scores (z^GUO) from matched cadets
+        solution['z^GUO'] = round(np.mean(solution['global_utility_achieved'][solution['I^Match']]), 4)
         solution['cadet_utility_overall'] = round(np.mean(solution['cadet_utility_achieved'][solution['I^Match']]), 4)
         solution['afsc_utility_overall'] = round(np.mean(solution['afsc_utility_achieved'][solution['I^Match']]), 4)
 
         # Calculate cadet utility based on SOC
         for soc in p['SOCs']:
-            solution[f'{soc}_cadet_utility'] = round(np.mean(solution['cadet_utility_achieved'][p[f'{soc}_cadets']]), 4)
+            cadets = np.intersect1d(p[f'{soc}_cadets'], solution['I^Match'])
+            solution[f'{soc}_cadet_utility'] = (
+                round(float(np.mean(solution['cadet_utility_achieved'][cadets])), 4)
+                if len(cadets) else None
+            )
 
     # Cadet Choice Counts (For exporting solution file to excel)
     solution['cadet_choice_counts'] = {}
@@ -632,88 +697,77 @@ def calculate_additional_useful_metrics(solution, p, vp):
 
     # Assigned cadets
     solution['cadets_assigned'] = {j: np.where(solution['j_array'] == j)[0] for j in p['J']}
+    solution['num_unmatched'] = p['N'] - len(solution['I^Match'])
 
     # Cadets assigned to each accession group
-    con_acc_grp_numerator = 0
-    con_acc_grp_denominator = 0
     for acc_grp in p['afscs_acc_grp']:
-        solution['I^' + acc_grp] = np.array([i for i in p['I'] if solution['j_array'][i] in p['J^' + acc_grp]])
+        solution['I^' + acc_grp] = np.array(
+            [i for i in p['I'] if solution['j_array'][i] in p['J^' + acc_grp]], dtype=int)
 
-        # Determine if we constrained Accessions groups properly
-        if "I^" + acc_grp in p:
-            acc_grp_constrained = len(p['I^' + acc_grp])
-
-            # Calculate metrics if we actually constrained some people from this group
-            if acc_grp_constrained > 0:
-                acc_grp_correct = len(np.intersect1d(p['I^' + acc_grp], solution['I^' + acc_grp]))
-                con_acc_grp_numerator += acc_grp_correct
-                con_acc_grp_denominator += acc_grp_constrained
-    solution['constrained_acc_grp_target'] = str(con_acc_grp_numerator) + " / " + str(con_acc_grp_denominator)
-
-    # Air Force Cadets
+    # Air Force & USSF Cadets
     if 'USSF' in p['afscs_acc_grp']:
-        solution['I^USAF'] = np.array([i for i in p['I'] if i not in solution['I^USSF']])
+        solution['I^USAF'] = np.array([i for i in solution['I^Match'] if i not in solution['I^USSF']], dtype=int)
+    else:
+        solution['I^USAF'] = solution['I^Match']  # Everyone matched is USAF if USSF is not in this problem instance
 
-    # Calculate USSF Merit Distribution
-    solution['ussf_om'] = 0  # Just to have something to show
-    if 'USSF' in p['afscs_acc_grp']:
+    # Calculate USSF/USAF Metrics
+    services = ['USAF', 'USSF'] if 'USSF' in p['afscs_acc_grp'] else ['USAF']
+    for service in services:
+        service_cadets = solution[f'I^{service}']
+        solution[f'{service.lower()}_om'] = (
+            round(np.mean(p['merit'][service_cadets]), 3) if len(service_cadets) > 0 else np.nan)
 
-        # Necessary variables to calculate
-        ussf_merit_sum = np.sum(np.sum(p['merit'][i] * solution['x'][i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
-        ussf_sum = np.sum(np.sum(solution['x'][i, j] for i in p['I^E'][j]) for j in p['J^USSF'])
+        # Calculate Service-SOC Specific Metrics
+        for soc in p['SOCs']:
+            cadets = np.intersect1d(service_cadets, p[f'{soc}_cadets'])
+            solution[f'{service.lower()}_{soc}_count'] = len(cadets)
+            solution[f'{service.lower()}_{soc}_pgl_target'] = \
+                str(len(cadets)) + ' / ' + str(p[f'{service.lower()}_{soc}_pgl'])
 
-        # Calculate metric
-        solution['ussf_om'] = round(ussf_merit_sum / ussf_sum, 3)
-
-        # USSF/USAF cadet distinctions
-        solution['ussf_cadets'] = np.array([i for i in p['I'] if solution['j_array'][i] in p['J^USSF']])
-        solution['usaf_cadets'] = np.array([i for i in p['I'] if solution['j_array'][i] not in p['J^USSF']])
-
-        # Calculate cadet/AFSC utility relative to USSF/USAF cadets
-        for service in ['ussf', 'usaf']:
-            for entity in ['cadet', 'afsc']:
-
-                if len(solution[service + '_cadets']) > 0:
-                    solution[service + '_' + entity + '_utility'] = round(
-                        np.mean(solution[entity + '_utility_achieved'][solution[service + '_cadets']]), 4)
-                else:
-                    solution[service + '_' + entity + '_utility'] = 0
-
-        # USSF SOC Breakout
-        solution['ussf_usafa_cadets'] = np.intersect1d(solution['ussf_cadets'], p['usafa_cadets'])
-        solution['ussf_rotc_cadets'] = np.intersect1d(solution['ussf_cadets'], p['rotc_cadets'])
-        solution['ussf_usafa_cadets_count'] = len(solution['ussf_usafa_cadets'])
-        solution['ussf_rotc_cadets_count'] = len(solution['ussf_rotc_cadets'])
-
-        # Metrics that will be printed to excel
-        solution['ussf_usafa_pgl_target'] = str(solution['ussf_usafa_cadets_count']) + " / " + str(p['ussf_usafa_pgl'])
-        solution['ussf_rotc_pgl_target'] = str(solution['ussf_rotc_cadets_count']) + " / " + str(p['ussf_rotc_pgl'])
+        # Calculate cadet/AFSC metrics
+        for entity in ['cadet', 'afsc']:
+            if len(service_cadets) > 0:
+                solution[f'{service}_{entity}_utility'] = \
+                    round(np.mean(solution[f'{entity}_utility_achieved'][service_cadets]), 4)
+            else:
+                solution[f'{service}_{entity}_utility'] = 0
 
     # Calculate weighted average AFSC choice (based on Norm Score)
     if 'Norm Score' in vp['objectives']:
-
-        # Calculate AFSC normalized index score (overall)
         k = np.where(vp['objectives'] == 'Norm Score')[0][0]
-        solution['afsc_norm_score'] = solution['objective_measure'][:, k]  # Individual norm scores for each AFSC
-        weights = solution['count'] / np.sum(solution['count'])  # Weighted average AFSC choice
-        solution['weighted_average_afsc_score'] = np.dot(weights, solution['afsc_norm_score'])
 
-        # Calculate AFSC score for each Accession's group
-        for acc_grp, _ in p['afscs_acc_grp'].items():
-            solution[f'weighted_average_{acc_grp.lower()}_afsc_score'] = \
-                np.dot(weights[p[f'J^{acc_grp}']] / np.sum(weights[p[f'J^{acc_grp}']]),
-                       solution['afsc_norm_score'][p[f'J^{acc_grp}']])
+        # Individual AFSC normalized scores; unassigned AFSCs receive zero.
+        scores = np.asarray(solution['objective_measure'][:, k], dtype=float).copy()
+        counts = np.asarray(solution['count'], dtype=float)
+        scores[counts == 0] = 0
+        solution['afsc_norm_score'] = scores
 
-        # Space Force and Air Force differences
+        # Weighted average across all AFSCs.
+        total = counts.sum()
+        solution['weighted_average_afsc_score'] = (
+            np.dot(counts, scores) / total if total > 0 else 0.0
+        )
+
+        # Weighted average for each accession group.
+        for acc_grp in p['afscs_acc_grp']:
+            indices = p[f'J^{acc_grp}']
+            group_counts = counts[indices]
+            group_total = group_counts.sum()
+            solution[f'weighted_average_{acc_grp.lower()}_afsc_score'] = (
+                np.dot(group_counts, scores[indices]) / group_total
+                if group_total > 0 else 0.0
+            )
+
+        # Space Force and Air Force scores.
         if 'USSF' in p['afscs_acc_grp']:
-
-            # Weighted average AFSC choice for USSF AFSCs (SFSCs)
-            weights = solution['count'][p['J^USSF']] / np.sum(solution['count'][p['J^USSF']])
-            solution['weighted_average_ussf_afsc_score'] = np.dot(weights, solution['afsc_norm_score'][p['J^USSF']])
-
-            # Weighted average AFSC choice for USAF AFSCs (AFSCs)
-            weights = solution['count'][p['J^USAF']] / np.sum(solution['count'][p['J^USAF']])
-            solution['weighted_average_usaf_afsc_score'] = np.dot(weights, solution['afsc_norm_score'][p['J^USAF']])
+            for service in ['USSF', 'USAF']:
+                indices = p[f'J^{service}']
+                service_counts = counts[indices]
+                service_total = service_counts.sum()
+                solution[f'weighted_average_{service.lower()}_afsc_score'] = (
+                    np.dot(service_counts, scores[indices]) / service_total
+                    if service_total > 0 else 0.0
+                )
 
     # Generate objective scores for each objective
     for k in vp['K']:
@@ -879,9 +933,25 @@ def calculate_additional_useful_metrics(solution, p, vp):
             solution["choice_counts"][dem]["All Others"][j] = int(len(
                 dem_cadets[dem]) - solution["choice_counts"][dem]["Top 3"][j] - solution["choice_counts"][dem]["Next 3"][j])
 
-    # Top 3 Choice Percentage
-    solution['top_3_choice_percent'] = np.around(
-        np.sum([1 <= solution['cadet_choice'][i] <= 3 for i in solution['I^Match']]) / solution['Num Matched'], 3)
+    # Top 3 Choice Percentages
+    matched = solution['I^Match']
+    top3 = sum(1 <= solution['cadet_choice'][i] <= 3 for i in matched)
+    solution['top_3_choice_percent'] = (round(top3 / len(matched), 3) if len(matched) else None)
+
+    # Top 3 Choices by SOC
+    for soc in p['SOCs']:
+        cadets = np.intersect1d(p[f'{soc}_cadets'], matched)
+        top3 = sum(1 <= solution['cadet_choice'][i] <= 3 for i in cadets)
+        solution[f'{soc}_top_3_choice_percent'] = (round(top3 / len(cadets), 3) if len(cadets) else None)
+
+    # Top 3 Choices by Service
+    for service in ['USSF', 'USAF']:
+        key = f'I^{service}'
+        if key in solution:
+            cadets = solution[key]
+            top3 = sum(1 <= solution['cadet_choice'][i] <= 3 for i in cadets)
+            solution[f'top_3_{service.lower()}_choice_percent'] = (round(top3 / len(cadets), 3) if len(cadets) else None)
+
     return solution
 
 
@@ -941,12 +1011,15 @@ def calculate_base_training_metrics(solution, p, vp):
     # Calculate adjusted Z value (VFT) and associated metrics
     solution['cadet_value'] = solution['cadet_value_achieved']
     solution['cadets_overall_value'] = np.dot(vp['cadet_weight'], solution['cadet_value'])
-    solution['z'] = vp['cadets_overall_weight'] * solution['cadets_overall_value'] + \
-                    vp['afscs_overall_weight'] * solution['afscs_overall_value']
+    solution['z^VFT'] = vp['cadets_overall_weight'] * solution['cadets_overall_value'] + \
+                    vp['afscs_overall_weight'] * solution['afsc_utility_overall']
+
+    # Update cadet utility overall
+    solution['cadet_utility_overall'] = round(np.mean(solution['cadet_value_achieved'][solution['I^Match']]), 4)
 
     # Calculate adjusted Z value (GUO)
-    solution['z^gu'] = (1 / p['N^Match']) * vp['afscs_overall_weight'] * np.sum(solution['afsc_utility_achieved']) + \
-                       vp['cadets_overall_weight'] * solution['cadets_overall_value']
+    solution['z^GUO'] = vp['afscs_overall_weight'] * solution['afsc_utility_overall'] + \
+                        vp['cadets_overall_weight'] * solution['cadet_utility_overall']
 
     return solution
 
@@ -978,9 +1051,8 @@ def calculate_castle_solution_metrics(solution, p):
         v = value_function(q['a'][afsc], q['f^hat'][afsc], q['r'][afsc], measure)
         solution['castle_v'][afsc] = v
 
-    # Calculate "z^CASTLE"
-    solution['z^CASTLE (Values)'] = round(np.sum(solution['castle_v'][afsc] for afsc in afscs), 4)
-    solution['z^CASTLE'] = round(p['w^G'] * solution['z^gu'] + (1 - p['w^G']) * solution['z^CASTLE (Values)'], 4)
+    # Calculate 'z^CASTLE'
+    solution['z^CASTLE'] = round(np.sum(solution['castle_v'][afsc] for afsc in afscs), 4)
     return solution
 
 
@@ -1011,82 +1083,102 @@ def calculate_ots_specific_metrics(solution, p):
     return solution
 
 
-def calculate_soc_algorithm_metrics(x, solution, p):
+def calculate_soc_algorithm_metrics(solution, p):
 
-    # Variables used to help verify that cadets are receiving the AFSCs they need to if specified
-    num_fixed_correctly = 0
-    num_reserved_correctly = 0
+    # Shorthand
+    s = solution
 
-    # Get the AFSC solution (Modified to support "unmatched" cadets)
-    solution["num_unmatched"] = 0
-    solution['afsc_array'] = np.array([" " * 10 for _ in p['I']])
-    solution['fixed_list_breaks'] = []
-    solution['reserved_list_breaks'] = []
-    for i in p['I']:
-        j = np.where(x[i, :])[0]
-        if len(j) != 0:
-            j = int(j[0])
-        else:
-            solution["num_unmatched"] += 1
-            j = p['M']  # Last index (*)
-        solution['afsc_array'][i] = p['afscs'][j]
+    # Set up rated algorithm constraints met counter
+    s['num_alternate_constraints_met'] = {soc: 0 for soc in p['SOCs']}
+    s['num_reserved_constraints_met'] = {soc: 0 for soc in p['SOCs']}
+    s['num_fixed_constraints_met'] = {soc: 0 for soc in p['SOCs']}
 
-        # Check if this AFSC was "fixed" for this cadet
-        if i in p['J^Fixed']:
-            if j == p['J^Fixed'][i]:
-                num_fixed_correctly += 1
-            else:
-                solution['fixed_list_breaks'].append((i, p['afscs'][j]))
+    # Setup rated algorithm break cadet-AFSC pair lists
+    s['pairs_breaking_fixed_constraints'] = {soc: [] for soc in p['SOCs']}
+    s['pairs_breaking_reserved_constraints'] = {soc: [] for soc in p['SOCs']}
+    s['pairs_breaking_alternate_constraints'] = {soc: [] for soc in p['SOCs']}
 
-        # Check if this AFSC was reserved for this cadet
-        if i in p['J^Reserved']:
-            if j in p['J^Reserved'][i]:
-                num_reserved_correctly += 1
-            else:
-                solution['reserved_list_breaks'].append((i, p['afscs'][j]))
+    # Loop through each SOC
+    for soc in p['SOCs']:
+        for i in p[f'{soc}_cadets']:
+            j = s['j_array'][i]
 
-    # Alternate list situation
-    if 'J^Preferred [usafa]' in p:
-        solution['alternate_list_breaks'] = []  # The cadet, afsc pairs that we didn't meet
-        solution['num_alternates_allowed'] = 0  # Number of cadets on alternate lists
-        solution['num_successful_alternates'] = 0  # Number of cadets on alternate lists that don't form blocking pairs
+            # Was this cadet matched to a rated AFSC properly?
+            if i in p['J^Fixed']:
+                if j == p['J^Fixed'][i]:
+                    s['num_fixed_constraints_met'][soc] += 1
+                else:
+                    j_fixed = p['J^Fixed'][i]
+                    s['pairs_breaking_fixed_constraints'][soc].append((i, p['afscs'][j_fixed]))
 
-        # Loop through each SOC and rated AFSC
-        for soc in p['SOCs']:
+            # Was this cadet reserved for a rated AFSC properly?
+            if i in p['J^Reserved']:
+                if j in p['J^Reserved'][i]:
+                    s['num_reserved_constraints_met'][soc] += 1
+                else:
+                    num_reserved = len(p['J^Reserved'][i])
+                    j_reserved = p['J^Reserved'][i][num_reserved - 1]
+                    s['pairs_breaking_reserved_constraints'][soc].append((i, p['afscs'][j_reserved]))
 
-            # Did we not run the algorithm for this specific SOC?
-            if f'J^Preferred [{soc}]' not in p:
-                continue
+            # Was this cadet on an alternate list with no blocking pairs?
+            if 'I^Alternates' in p:
+                if i in p['I^Alternates']:
+                    j_alternate = p['I^Alternates'][i]
 
-            # Loop through each rated AFSC
-            for j in p['J^Rated']:
+                    # If the cadet is matched to the AFSC they're an alternate for, the rated-cadet pair is cadet-stable
+                    if j == j_alternate:
+                        cadet_stable = True
 
-                # Loop through each cadet on this SOC's rated AFSC's list
-                for i in p['I^Alternate [' + soc + ']'][j]:
-                    solution['num_alternates_allowed'] += 1
+                    # If the cadet is matched to an AFSC they prefer over this rated AFSC, it's stable
+                    elif j in p['J^Preferred [' + soc + ']'][j_alternate][i]:
+                        cadet_stable = True
 
-                    # Check the blocking pair constraint for this rated AFSC and cadet pair
-                    not_blocking_pair = p[soc + '_quota'][j] * (1 - np.sum(
-                        x[i, j_p] for j_p in p['J^Preferred [' + soc + ']'][j][i])) <= np.sum(
-                        x[i_p, j] for i_p in p['I^Preferred [' + soc + ']'][j][i])
-                    if not_blocking_pair:
-                        solution['num_successful_alternates'] += 1
+                    # If the cadet is matched to an AFSC that is less than desirable than this rated AFSC, then
+                    else:  # the rated AFSC better be filled with higher ranked cadets
+                        cadet_stable = False
+
+                    cadets_more_preferred = p[f'I^Preferred [{soc}]'][j_alternate][i]
+                    soc_cadets_assigned = np.intersect1d(p[f'{soc}_cadets'], s['cadets_assigned'][j_alternate])
+                    cadets_more_preferred_matched = np.intersect1d(soc_cadets_assigned, cadets_more_preferred)
+
+                    # If AFSC does not have all PGL slots filled with cadets it prefers over this cadet, it's not stable
+                    if len(cadets_more_preferred_matched) < p[soc + '_quota'][j_alternate]:
+                        afsc_stable = False
+
+                    else:  # This AFSC has at least as many more preferred cadets as the PGL quota
+                        afsc_stable = True
+
+                    # Is this a blocking pair?
+                    if not cadet_stable and not afsc_stable:
+                        s['pairs_breaking_alternate_constraints'][soc].append((i, p['afscs'][j_alternate]))
                     else:
-                        solution['alternate_list_breaks'].append((i, p['afscs'][j]))
+                        s['num_alternate_constraints_met'][soc] += 1
 
-        solution['alternate_list_metric'] = str(solution['num_successful_alternates']) + " / " + \
-                                            str(solution['num_alternates_allowed'])
+    # Rated algorithm metrics
+    for metric in ['fixed', 'reserved', 'alternate']:
+        count_key = f'num_{metric}_constraints_met'
+        parameter_key = f'num_{metric}_constraints'
 
-    else:
-        solution['alternate_list_metric'] = "0 / 0"  # Not applicable here
+        # Skip metrics when the rated stability feature has not been incorporated.
+        if parameter_key not in p or count_key not in solution:
+            continue
+        counts = solution[count_key]
+        quotas = p[parameter_key]
+        if not isinstance(counts, dict) or not isinstance(quotas, dict):
+            continue
 
-    # Verification that AFSCs are being assigned properly to work with J^Fixed and J^Reserved
-    num_fixed_needed = len(p['J^Fixed'].keys())
-    num_reserved_needed = len(p['J^Reserved'].keys())
-    solution['cadets_fixed_correctly'] = str(num_fixed_correctly) + ' / ' + str(num_fixed_needed)
-    solution['cadets_reserved_correctly'] = str(num_reserved_correctly) + ' / ' + str(num_reserved_needed)
+        # Overall results
+        numerator = sum(counts.get(soc, 0) for soc in p['SOCs'])
+        denominator = sum(quotas.get(soc, 0) for soc in p['SOCs'])
+        solution[f'total_{metric}_constraints_met'] = f'{numerator} / {denominator}'
 
-    return solution
+        # SOC-specific results
+        solution[f'soc_{metric}_constraints_met'] = {
+            soc: f'{counts.get(soc, 0)} / {quotas.get(soc, 0)}'
+            for soc in p['SOCs']
+        }
+
+    return s
 
 
 # AFSC Objective Measure Calculation Functions
@@ -1464,7 +1556,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
     # Make sure we have the solutions from both SOCs with matches and reserves
     for soc in upper_socs:
         for kind in ['Reserves', 'Matches']:
-            solution_name = "Rated " + soc.upper() + " HR (" + kind + ")"
+            solution_name = "Rated " + soc + " HR (" + kind + ")"
             if solution_name not in solutions:
                 return p  # We don't have the required solutions!
 
@@ -1472,7 +1564,7 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
     if 'J^Fixed' not in p:
         p['J^Fixed'] = {}
     for soc in upper_socs:
-        solution = solutions["Rated " + soc.upper() + " HR (Matches)"]
+        solution = solutions["Rated " + soc + " HR (Matches)"]
         matched_cadets = np.where(solution['j_array'] != p['M'])[0]
         for i in matched_cadets:
             p['J^Fixed'][i] = solution['j_array'][i]
@@ -1480,14 +1572,15 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
     # Reserved cadets AFSC selection is constrained to be AT LEAST their reserved Rated slot
     p['J^Reserved'] = {}
     for soc in upper_socs:
-        solution = solutions["Rated " + soc.upper() + " HR (Reserves)"]
+        solution = solutions["Rated " + soc + " HR (Reserves)"]
         reserved_cadets = np.where(solution['j_array'] != p['M'])[0]
         for i in reserved_cadets:
             j = solution['j_array'][i]
             choice = np.where(p['cadet_preferences'][i] == j)[0][0]
             p['J^Reserved'][i] = p['cadet_preferences'][i][:choice + 1]
 
-    # Calculate additional rated algorithm result information for both SOCs
+    # Calculate additional rated algorithm result information for both SOCs (alternate lists)
+    p['I^Alternates'] = {soc: {} for soc in p['SOCs']}
     for soc in socs_to_use:
 
         # Do we want to potentially allow ROTC to fill USAFA pilot slots?
@@ -1513,6 +1606,14 @@ def incorporate_rated_results_in_parameters(instance, printing=True):
             num_additions_rotc_pilot = 0
         p = augment_rated_algorithm_results(p, soc=soc, printing=instance.mdl_p['alternate_list_iterations_printing'],
                                             num_additions_rotc_pilot=num_additions_rotc_pilot)
+
+    # Set up variables
+    p['num_alternate_constraints'] = {
+        soc: len([i for i in p['I^Alternates'] if i in p[f'{soc}_cadets']]) for soc in socs_to_use}
+    p['num_reserved_constraints'] = {
+        soc: len([i for i in p['J^Reserved'] if i in p[f'{soc}_cadets']])for soc in socs_to_use}
+    p['num_fixed_constraints'] = {
+        soc: len([i for i in p['J^Fixed'] if i in p[f'{soc}_cadets']])for soc in socs_to_use}
 
     # Print statement
     if printing:
@@ -1603,7 +1704,7 @@ def augment_rated_algorithm_results(p, soc='rotc', printing=False, num_additions
         for j in p['J^Rated']:
 
             # We may want to increase the length of ROTC pilot alternate list to account for USAFA
-            if j == '11XX_R':
+            if p['afscs'][j] == '11XX_R':
                 num_additions = copy.deepcopy(num_additions_rotc_pilot)
             else:
                 num_additions = 0
@@ -1724,8 +1825,10 @@ def augment_rated_algorithm_results(p, soc='rotc', printing=False, num_additions
         for j in p['Rated Choices'][soc][i]:  # Loop through rated preferences in order
             if i in hard_alternates[j]:
                 p['J^Alternates (Hard)'][i] = j
+                p['I^Alternates'][i] = j
             elif i in soft_r_alternates[j] or i in soft_n_alternates[j]:
                 p['J^Alternates (Soft)'][i] = j
+                p['I^Alternates'][i] = j
                 break # Next cadet
 
     # Alternate List Optimization Formulation Sets Needed
@@ -1776,6 +1879,979 @@ def augment_rated_algorithm_results(p, soc='rotc', printing=False, num_additions
     # Return updated parameters (and alternate lists)
     return p
 
+
+# Solution Metadata resolutions
+def reconcile_solution_metadata(current_metadata, existing_metadata=None):
+    """
+    Reconcile metadata for a newly generated or previously existing solution.
+
+    If the solution is new, initialize its run history. If it duplicates an
+    existing solution, preserve the original metadata and update the latest
+    run information.
+
+    Parameters
+    ----------
+    current_metadata : dict
+        Metadata generated from the current Pyomo optimization run.
+
+    existing_metadata : dict, optional
+        Metadata associated with an existing identical solution. If None,
+        the current solution is treated as new.
+
+    Returns
+    -------
+    dict
+        Updated solution metadata containing:
+        - new_solution
+        - run_count
+        - latest_run
+
+    Notes
+    -----
+    Original optimization metadata is preserved when an identical solution
+    is found. Only the run-tracking fields are updated.
+    """
+
+    import copy
+
+    # ___________________________________________________INITIALIZATION_________________________________________________
+    run_fields = ['start_time', 'finish_time', 'solve_time', 'pyomo_obj_value']
+    latest_run = {key: current_metadata.get(key) for key in run_fields if key in current_metadata}
+
+    # ___________________________________________________NEW SOLUTION_________________________________________________
+    if existing_metadata is None:
+        metadata = copy.deepcopy(current_metadata)
+        metadata['new_solution'] = True
+        metadata['run_count'] = 1
+        metadata['latest_run'] = copy.deepcopy(latest_run)
+        return metadata
+
+    # ________________________________________________EXISTING SOLUTION_________________________________________________
+    # Preserve the original metadata, including the original feature configuration
+    metadata = copy.deepcopy(existing_metadata)
+
+    # Increment the number of times this solution has been generated
+    metadata['run_count'] = metadata.get('run_count', 1) + 1
+
+    # Update the latest optimization run information
+    metadata['latest_run'] = copy.deepcopy(latest_run)
+    metadata['latest_run']['features'] = copy.deepcopy(current_metadata.get('features', {}))
+
+    # Mark that the latest optimization reproduced an existing solution
+    metadata['new_solution'] = False
+
+    return metadata
+
+
+# _____________________________________________MODEL FEATURE EVALUATION_________________________________________________
+def _feature_evaluation_status(met, total):
+    """
+    Determine the outcome of a model feature evaluation.
+
+    Parameters
+    ----------
+    met : int
+        Number of individual requirements satisfied.
+    total : int
+        Total number of applicable requirements.
+
+    Returns
+    -------
+    tuple
+        (status, compliance), where compliance is a proportion from 0 to 1.
+
+    Notes
+    -----
+    - Fully Met: All applicable requirements satisfied.
+    - Partially Met: Some, but not all, requirements satisfied.
+    - Not Met: No applicable requirements satisfied.
+    - Not Applicable: No applicable requirements exist.
+
+    Missing evaluation data is handled separately as 'Unable to Evaluate'.
+    """
+    if total == 0: return 'Not Applicable', np.nan
+    if met == total: return 'Fully Met', 1.0
+    if met == 0: return 'Not Met', 0.0
+    return 'Partially Met', met / total
+
+
+def _feature_metadata_configuration(solution, feature_id, current_feature):
+    """
+    Retrieve the feature configuration associated with a solution.
+
+    The solution's saved feature configuration takes precedence over the current
+    model feature registry. Any configuration fields absent from metadata fall
+    back to their current registry values.
+
+    Feature activation is handled separately because a missing activation record
+    must be interpreted as inactive, not inherited from the current checklist.
+
+    Parameters
+    ----------
+    solution : dict
+        Solution containing optional metadata.
+    feature_id : str
+        Unique feature registry identifier.
+    current_feature : dict
+        Current feature definition from model_features.
+
+    Returns
+    -------
+    tuple
+        (configuration, solution_active)
+
+        configuration : dict
+            Effective feature configuration used for evaluation.
+        solution_active : bool
+            Whether the feature was active in the solution's latest GUO run.
+
+    Notes
+    -----
+    Expected metadata structure:
+
+        solution['metadata'] = {
+            'method': 'GUO',
+            'features': {
+                'meet_afsc_pgl': {'active': True},
+                'ussf_om_balance': {'active': True, 'threshold': 0.02}
+            },
+            'latest_run': {
+                'features': {...}
+            }
+        }
+
+    The latest_run feature record is preferred when present, including when
+    the latest run reproduced an existing solution.
+
+    Both 'active' and 'activated' are recognized as activation keys. Boolean
+    feature records are also supported.
+
+    A missing feature record is treated as inactive.
+    """
+    metadata = solution.get('metadata') or {}
+    if not isinstance(metadata, dict): metadata = {}
+
+    # Begin with the current registry, which provides default feature settings.
+    configuration = copy.deepcopy(current_feature)
+
+    # Original and latest-run feature configurations are applied in that order.
+    original_features = metadata.get('features') or {}
+    latest_run = metadata.get('latest_run') or {}
+    latest_features = latest_run.get('features') or {}
+
+    if not isinstance(original_features, dict): original_features = {}
+    if not isinstance(latest_features, dict): latest_features = {}
+
+    original = original_features.get(feature_id)
+    latest = latest_features.get(feature_id)
+
+    # Preserve historical configuration, then apply any newer saved settings.
+    for record in (original, latest):
+        if isinstance(record, dict):
+            configuration.update({
+                key: copy.deepcopy(value)
+                for key, value in record.items()
+                if key not in ('active', 'activated', 'enabled')
+            })
+
+    # Only GUO solutions can claim that model features were activated.
+    if str(metadata.get('method', '')).upper() != 'GUO':
+        return configuration, False
+
+    # Latest-run activation takes precedence over the original run.
+    record = latest if latest is not None else original
+
+    if isinstance(record, dict):
+        active = record.get('active', record.get('activated', record.get('enabled', False)))
+    elif isinstance(record, (bool, np.bool_)):
+        active = bool(record)
+    else:
+        active = False
+
+    return configuration, bool(active)
+
+
+def _feature_quota_evaluation(solution, p, j_indices, targets, label):
+    """
+    Evaluate AFSC production against the specified quota targets.
+
+    An AFSC satisfies its target when its actual production is greater than
+    or equal to the target. This evaluation deliberately ignores any relaxed
+    quota_min or objective_min values used by the optimization model.
+
+    Zero-target AFSCs are excluded because they do not represent positive
+    production requirements.
+
+    Returns
+    -------
+    tuple
+        (met, total, details)
+    """
+    assignments = np.asarray(solution['j_array'], dtype=int)
+    records, failures = [], []
+
+    for j in j_indices:
+        j = int(j)
+        target = int(targets[j])
+        if target <= 0: continue
+
+        actual = int(np.count_nonzero(assignments == j))
+        records.append((j, actual, target))
+
+        if actual < target:
+            failures.append(f'{p["afscs"][j]}: {actual}/{target} (short {target - actual})')
+
+    total = len(records)
+    met = total - len(failures)
+
+    details = [
+        f'{label} Requirements Met: {met}/{total}',
+        f'Total Production: {sum(r[1] for r in records):,}/{sum(r[2] for r in records):,}',
+        f'AFSCs Below Target: {len(failures)}'
+    ]
+
+    if failures:
+        details.extend(['AFSC Shortfalls:', *(f'  - {item}' for item in failures)])
+
+    return met, total, '\n'.join(details)
+
+
+def _feature_rated_stability_evaluation(solution, p, solutions=None):
+    """
+    Evaluate rated stability requirements by commissioning source.
+
+    Three components are evaluated independently for each SOC:
+
+    1. Fixed Matches
+       Cadets must receive their original rated match.
+
+    2. Reserved Assignments
+       Cadets must receive their reserved rated AFSC or a more-preferred AFSC.
+
+    3. Alternate-List Requirements
+       Rated alternate-list inequalities must hold for applicable cadets.
+
+    Source priority
+    ---------------
+    Fixed/reserved obligations:
+        1. Original 'Rated {SOC} HR (Matches/Reserves)' solutions, if available.
+        2. Current J^Fixed/J^Reserved parameter dictionaries otherwise.
+
+    Alternate-list obligations:
+        Current J^Preferred, I^Preferred, and I^Alternate structures.
+
+    Manual overrides
+    ----------------
+    An original rated obligation remains part of the historical stability
+    evaluation even when a manual constraint overrides it.
+
+    Violations involving manually overridden cadets are reported separately.
+    They remain violations of original rated stability, but are identified as
+    authorized overrides rather than unexplained assignment discrepancies.
+
+    Returns
+    -------
+    tuple
+        (met, total, details)
+
+    Notes
+    -----
+    SOC-specific original rated solutions use global cadet indices and p['M']
+    to represent cadets without preliminary matches or reservations.
+
+    The reserved AFSC is the final element of the permitted preference array.
+
+    The alternate-list inequality is evaluated against actual assignments
+    rather than the x matrix, allowing independent post-hoc evaluation.
+    """
+
+    # _________________________________________________INITIALIZATION_________________________________________________
+
+    assignments = np.asarray(solution['j_array'], dtype=int)
+    solutions = solutions or {}
+
+    fixed = p.get('J^Fixed', {})
+    reserved = p.get('J^Reserved', {})
+
+    # Identify manual overrides from the resolved constraint pipeline.
+    manual_overrides = set(int(i) for i in p.get('I^Manual Override', []))
+
+    # Also recognize raw constraint-method dictionaries when available.
+    for i, methods in p.get('J^Constraint Methods', {}).items():
+        if 'Manual' in methods and len(methods) > 1:
+            manual_overrides.add(int(i))
+
+    # Store SOC-specific results before assembling the final report.
+    soc_records = []
+    all_met, all_total = 0, 0
+
+    def afsc_name(j):
+        """Return an AFSC name, including the unmatched sentinel."""
+        j = int(j)
+        if j == p['M']: return 'Unmatched'
+        return str(p['afscs'][j])
+
+    def cadet_name(i):
+        """Return the cadet identifier associated with a global cadet index."""
+        return str(p['cadets'][int(i)])
+
+    # _________________________________________________EVALUATE EACH SOC______________________________________________
+
+    for soc in p['SOCs']:
+        soc = str(soc).lower()
+        soc_indices = set(int(i) for i in p[f'{soc}_cadets'])
+
+        fixed_name = f'Rated {soc.upper()} HR (Matches)'
+        reserved_name = f'Rated {soc.upper()} HR (Reserves)'
+
+        # Original rated results are authoritative when both are available.
+        original_available = fixed_name in solutions and reserved_name in solutions
+
+        if original_available:
+            matched_array = np.asarray(solutions[fixed_name]['j_array'], dtype=int)
+            reserved_array = np.asarray(solutions[reserved_name]['j_array'], dtype=int)
+
+            # Preserve original preliminary matches.
+            fixed_requirements = {
+                int(i): int(matched_array[i])
+                for i in soc_indices
+                if matched_array[i] != p['M']
+            }
+
+            # Reconstruct the permitted reservation preference set from the
+            # original reserved AFSC and the cadet's ranked preferences.
+            reserved_requirements = {}
+
+            for i in soc_indices:
+                j = int(reserved_array[i])
+                if j == p['M']: continue
+
+                preferences = np.asarray(p['cadet_preferences'][i], dtype=int)
+                positions = np.where(preferences == j)[0]
+
+                if len(positions) == 0:
+                    raise ValueError(
+                        f'{soc.upper()} cadet {cadet_name(i)}: '
+                        f'reserved AFSC {afsc_name(j)} missing from preferences.'
+                    )
+
+                reserved_requirements[i] = preferences[:int(positions[0]) + 1]
+
+            source = 'Original SOC Rated Matching Solutions'
+
+        else:
+            # Fall back to currently incorporated rated obligations.
+            fixed_requirements = {
+                int(i): int(j)
+                for i, j in fixed.items()
+                if int(i) in soc_indices
+            }
+
+            reserved_requirements = {
+                int(i): np.asarray(allowed, dtype=int)
+                for i, allowed in reserved.items()
+                if int(i) in soc_indices
+            }
+
+            source = 'Current Rated Parameter Sets'
+
+        # __________________________________________FIXED MATCHES____________________________________________________
+
+        fixed_failures = []
+        fixed_overrides = []
+
+        for i, required_j in fixed_requirements.items():
+            actual_j = int(assignments[i])
+
+            if actual_j != required_j:
+                description = (
+                    f'{cadet_name(i)}: {afsc_name(actual_j)} '
+                    f'(required {afsc_name(required_j)})'
+                )
+
+                fixed_failures.append(description)
+
+                if i in manual_overrides:
+                    fixed_overrides.append(description)
+
+        fixed_total = len(fixed_requirements)
+        fixed_met = fixed_total - len(fixed_failures)
+
+        # __________________________________________RESERVATIONS_____________________________________________________
+
+        reserved_failures = []
+        reserved_overrides = []
+
+        for i, allowed in reserved_requirements.items():
+            actual_j = int(assignments[i])
+            allowed = np.asarray(allowed, dtype=int)
+
+            if actual_j not in allowed:
+                description = (
+                    f'{cadet_name(i)}: {afsc_name(actual_j)} '
+                    f'(permitted: {", ".join(afsc_name(j) for j in allowed)})'
+                )
+
+                reserved_failures.append(description)
+
+                if i in manual_overrides:
+                    reserved_overrides.append(description)
+
+        reserved_total = len(reserved_requirements)
+        reserved_met = reserved_total - len(reserved_failures)
+
+        # __________________________________________ALTERNATE LISTS__________________________________________________
+
+        alternate_failures = []
+        alternate_overrides = []
+        alternate_total, alternate_met = 0, 0
+
+        preferred_j = p.get(f'J^Preferred [{soc}]')
+        preferred_i = p.get(f'I^Preferred [{soc}]')
+        alternate_i = p.get(f'I^Alternate [{soc}]')
+
+        alternate_available = all(
+            isinstance(item, dict)
+            for item in (preferred_j, preferred_i, alternate_i)
+        )
+
+        if alternate_available:
+
+            for j in p['J^Rated']:
+                j = int(j)
+
+                for i in alternate_i.get(j, []):
+                    i = int(i)
+                    alternate_total += 1
+
+                    # More-preferred AFSCs, including the rated AFSC itself.
+                    preferred_afscs = np.asarray(preferred_j[j][i], dtype=int)
+
+                    # Cadets ranked at least as highly by this rated AFSC.
+                    preferred_cadets = np.asarray(preferred_i[j][i], dtype=int)
+
+                    # Equivalent to the existing SOC alternate-list inequality.
+                    cadet_satisfied = int(assignments[i] in preferred_afscs)
+                    higher_ranked_assigned = int(
+                        np.count_nonzero(assignments[preferred_cadets] == j)
+                    )
+
+                    required_slots = int(p[f'{soc}_quota'][j])
+
+                    satisfied = (
+                        required_slots * (1 - cadet_satisfied)
+                        <= higher_ranked_assigned
+                    )
+
+                    if satisfied:
+                        alternate_met += 1
+
+                    else:
+                        description = (
+                            f'{cadet_name(i)} / {afsc_name(j)}: '
+                            f'{higher_ranked_assigned}/{required_slots} '
+                            f'higher-ranked cadets assigned'
+                        )
+
+                        alternate_failures.append(description)
+
+                        if i in manual_overrides:
+                            alternate_overrides.append(description)
+
+        # __________________________________________SOC SUMMARY______________________________________________________
+
+        soc_met = fixed_met + reserved_met + alternate_met
+        soc_total = fixed_total + reserved_total + alternate_total
+
+        all_met += soc_met
+        all_total += soc_total
+
+        soc_records.append({
+            'soc': soc.upper(),
+            'source': source,
+            'fixed_met': fixed_met,
+            'fixed_total': fixed_total,
+            'reserved_met': reserved_met,
+            'reserved_total': reserved_total,
+            'alternate_met': alternate_met,
+            'alternate_total': alternate_total,
+            'alternate_available': alternate_available,
+            'fixed_failures': fixed_failures,
+            'reserved_failures': reserved_failures,
+            'alternate_failures': alternate_failures,
+            'fixed_overrides': fixed_overrides,
+            'reserved_overrides': reserved_overrides,
+            'alternate_overrides': alternate_overrides
+        })
+
+    # _________________________________________________CONSTRUCT REPORT________________________________________________
+
+    details = [
+        f'Overall Rated Stability: {all_met}/{all_total}',
+        f'Manually Overridden Cadets: {len(manual_overrides)}'
+    ]
+
+    for record in soc_records:
+        soc = record['soc']
+
+        details.extend([
+            '',
+            f'{soc}:',
+            f'  Source: {record["source"]}',
+            f'  Fixed Matches: {record["fixed_met"]}/{record["fixed_total"]}',
+            f'  Reservations: {record["reserved_met"]}/{record["reserved_total"]}',
+            f'  Alternate Lists: {record["alternate_met"]}/{record["alternate_total"]}'
+        ])
+
+        if not record['alternate_available']:
+            details.append('  Alternate List Data: Unavailable')
+
+        # Show individual violations, grouped by requirement type.
+        for label, key in [
+            ('Fixed Match Violations', 'fixed_failures'),
+            ('Reservation Violations', 'reserved_failures'),
+            ('Alternate List Violations', 'alternate_failures')
+        ]:
+            if record[key]:
+                details.append(f'  {label}:')
+                details.extend(f'    - {item}' for item in record[key])
+
+        # Identify which violations were associated with manual overrides.
+        for label, key in [
+            ('Manually Overridden Fixed Matches', 'fixed_overrides'),
+            ('Manually Overridden Reservations', 'reserved_overrides'),
+            ('Manually Overridden Alternates', 'alternate_overrides')
+        ]:
+            if record[key]:
+                details.append(f'  {label}: {len(record[key])}')
+
+    return all_met, all_total, '\n'.join(details)
+
+
+def calculate_model_feature_metrics(solution, parameters, model_features,
+                                    feature_checklist=None, solutions=None):
+    """
+    Evaluate a solution against every registered One Market model feature.
+
+    This function evaluates feature outcomes independently of feature activation.
+    Every feature is evaluated regardless of whether it was enabled in the
+    current model or when the solution was generated.
+
+    Results are stored in solution['feature_metrics'] as a pandas DataFrame.
+
+    Parameters
+    ----------
+    solution : dict
+        Evaluated solution containing j_array and optional metadata.
+
+        The solution's algorithm is identified by:
+
+            solution['metadata']['method']
+
+        Only method='GUO' can report activated solution features.
+
+    parameters : dict
+        Problem parameters used to evaluate assignments.
+
+    model_features : dict
+        Current model feature registry, typically self.model_features.
+
+        The registry supplies feature names and default configurations.
+
+    feature_checklist : dict, optional
+        Current model instance checklist, typically self.feature_checklist.
+
+        This controls the 'Current Checklist' column only.
+
+    solutions : dict, optional
+        Dictionary of available solutions, typically self.solutions.
+
+        Used to retrieve original SOC rated matching solutions when available.
+
+    Returns
+    -------
+    dict
+        Updated solution containing a DataFrame under 'feature_metrics'.
+
+    DataFrame Columns
+    -----------------
+    Feature ID
+        Unique feature registry identifier.
+
+    Feature
+        Human-readable feature name.
+
+    Current Checklist
+        Whether the feature is currently enabled in the model instance.
+
+    Solution Checklist
+        Whether the feature was activated in the solution's GUO metadata.
+
+    Solution Status
+        Fully Met, Partially Met, Not Met, Not Applicable, or Unable to Evaluate.
+
+    Compliance
+        Fraction of applicable requirements satisfied, between 0 and 1.
+
+    Met
+        Number of requirements satisfied.
+
+    Total
+        Number of applicable requirements.
+
+    Details
+        Multiline explanation of actual solution outcomes.
+
+    Notes
+    -----
+    Feature configuration is selected using the following precedence:
+
+        1. Solution metadata, latest_run.features
+        2. Solution metadata, features
+        3. Current model_features registry
+
+    Missing configuration fields fall back to the current registry.
+
+    Activation states are handled independently:
+        - Current Checklist comes from feature_checklist.
+        - Solution Checklist comes from GUO solution metadata.
+        - Solution Status comes exclusively from actual assignments.
+
+    No model parameters or feature activation states are modified.
+    """
+
+    # _________________________________________________INITIALIZATION_________________________________________________
+
+    p = parameters
+    assignments = np.asarray(solution['j_array'], dtype=int)
+    checklist = feature_checklist or {}
+    rows = []
+
+    # Validate the fundamental assignment vector before evaluating features.
+    if len(assignments) != p['N']:
+        raise ValueError(
+            f'Solution has {len(assignments)} assignments, '
+            f'but the problem contains {p["N"]} cadets.'
+        )
+
+    if np.any((assignments < 0) | (assignments > p['M'])):
+        raise ValueError('Solution contains invalid AFSC assignment indices.')
+
+    def add_result(feature_id, name, current_active, solution_active,
+                   met=None, total=None, details='', error=None):
+        """
+        Append a standardized feature evaluation record.
+
+        Errors are represented explicitly rather than being interpreted as
+        feature failures or successful compliance.
+        """
+        if error is not None:
+            status, compliance = 'Unable to Evaluate', np.nan
+            met, total = np.nan, np.nan
+            details = f'Evaluation unavailable: {error}'
+        else:
+            status, compliance = _feature_evaluation_status(met, total)
+
+        rows.append({
+            'Feature ID': feature_id,
+            'Feature': name,
+            'Current Checklist': 'Active' if current_active else 'Inactive',
+            'Solution Checklist': 'Active' if solution_active else 'Inactive',
+            'Solution Status': status,
+            'Compliance': compliance,
+            'Met': met,
+            'Total': total,
+            'Details': details
+        })
+
+    # _________________________________________________EVALUATE FEATURES______________________________________________
+
+    for feature_id, current_feature in model_features.items():
+
+        # The current checklist and historical activation are independent.
+        current_active = bool(checklist.get(feature_id, False))
+
+        # Historical metadata supplies the feature's evaluation configuration
+        # and whether it was activated in the latest GUO run.
+        feature, solution_active = _feature_metadata_configuration(
+            solution, feature_id, current_feature
+        )
+
+        name = str(feature.get('name', current_feature.get('name', feature_id)))
+
+        try:
+
+            # __________________________________________MEET AFSC PGL_________________________________________________
+
+            if feature_id == 'meet_afsc_pgl':
+
+                met, total, details = _feature_quota_evaluation(
+                    solution, p, p['J'], p['pgl'], 'AFSC PGL'
+                )
+
+            # __________________________________________MEET RATED PGL________________________________________________
+
+            elif feature_id == 'meet_rated_pgl':
+
+                met, total, details = _feature_quota_evaluation(
+                    solution, p, p['J^Rated'], p['pgl'], 'Rated PGL'
+                )
+
+            # __________________________________________MEET RATED SOC PGL____________________________________________
+
+            elif feature_id == 'meet_rated_soc_pgl':
+
+                records, failures = [], []
+
+                for j in p['J^Rated']:
+                    j = int(j)
+                    afsc = str(p['afscs'][j])
+
+                    # Every rated AFSC has a combined production requirement.
+                    required = [('Combined', int(p['pgl'][j]))]
+
+                    # Non-SOC-specific rated AFSCs also have SOC quota targets.
+                    if not afsc.endswith(('_U', '_R', '_O')):
+                        required.extend(
+                            (soc.upper(), int(p[f'{soc}_quota'][j]))
+                            for soc in p['SOCs']
+                        )
+
+                    for category, target in required:
+                        if target <= 0: continue
+
+                        if category == 'Combined':
+                            actual = int(np.count_nonzero(assignments == j))
+
+                        else:
+                            soc_indices = np.asarray(
+                                p[f'{category.lower()}_cadets'], dtype=int
+                            )
+
+                            actual = int(np.count_nonzero(
+                                assignments[soc_indices] == j
+                            ))
+
+                        records.append((afsc, category, actual, target))
+
+                        if actual < target:
+                            failures.append(
+                                f'{afsc} / {category}: {actual}/{target} '
+                                f'(short {target - actual})'
+                            )
+
+                total = len(records)
+                met = total - len(failures)
+
+                details = [
+                    f'Rated Quota Requirements Met: {met}/{total}',
+                    f'Combined/SOC Quota Shortfalls: {len(failures)}'
+                ]
+
+                # Report successful and unsuccessful SOC-specific requirements.
+                for soc in ['Combined'] + [s.upper() for s in p['SOCs']]:
+                    subset = [r for r in records if r[1] == soc]
+
+                    if subset:
+                        subset_met = sum(r[2] >= r[3] for r in subset)
+                        details.append(
+                            f'{soc} Requirements: {subset_met}/{len(subset)}'
+                        )
+
+                if failures:
+                    details.extend([
+                        'Quota Shortfalls:',
+                        *(f'  - {item}' for item in failures)
+                    ])
+
+                details = '\n'.join(details)
+
+            # __________________________________________RATED STABILITY SOC____________________________________________
+
+            elif feature_id == 'rated_stability_soc':
+
+                met, total, details = _feature_rated_stability_evaluation(
+                    solution, p, solutions=solutions
+                )
+
+            # __________________________________________USSF OM BALANCE________________________________________________
+
+            elif feature_id == 'ussf_om_balance':
+
+                if 'USSF' not in p['afscs_acc_grp']:
+                    met, total = 0, 0
+                    details = 'USSF is not included in this problem.'
+
+                else:
+                    threshold = float(feature['threshold'])
+                    lower, upper = 0.5 - threshold, 0.5 + threshold
+
+                    ussf_indices = np.asarray(p['J^USSF'], dtype=int)
+                    ussf_cadets = np.where(
+                        np.isin(assignments, ussf_indices)
+                    )[0]
+
+                    if len(ussf_cadets) == 0:
+                        met, total = 0, 0
+                        details = 'No cadets were assigned to USSF career fields.'
+
+                    else:
+                        achieved = float(np.mean(
+                            np.asarray(p['merit'])[ussf_cadets]
+                        ))
+
+                        met = int(lower - 1e-9 <= achieved <= upper + 1e-9)
+                        total = 1
+
+                        details = '\n'.join([
+                            f'USSF Cadets Assigned: {len(ussf_cadets):,}',
+                            f'Average USSF Merit: {achieved:.4f}',
+                            f'Target Merit: 0.5000',
+                            f'Permitted Range: {lower:.4f}–{upper:.4f}',
+                            f'Difference from Target: {achieved - 0.5:+.4f}'
+                        ])
+
+            # __________________________________________USAFA SUPPORT CAP______________________________________________
+
+            elif feature_id == 'usafa_support_cap':
+
+                constrained_afscs = list(feature['constrained_afscs'])
+                percent_cap = float(feature['percent_cap'])
+
+                missing = sorted(
+                    set(constrained_afscs) - set(p['afscs'])
+                )
+
+                if missing:
+                    raise ValueError(
+                        f'Configured AFSCs not found: {", ".join(missing)}'
+                    )
+
+                constrained_indices = np.where(
+                    np.isin(p['afscs'], constrained_afscs)
+                )[0]
+
+                usafa_cadets = np.asarray(
+                    p['usafa_cadets'], dtype=int
+                )
+
+                num_usafa = len(usafa_cadets)
+
+                if num_usafa == 0:
+                    met, total = 0, 0
+                    details = 'No USAFA cadets are included in this problem.'
+
+                else:
+                    actual = int(np.count_nonzero(
+                        np.isin(
+                            assignments[usafa_cadets],
+                            constrained_indices
+                        )
+                    ))
+
+                    maximum = int(np.ceil(num_usafa * percent_cap))  # Round up
+
+                    met = int(actual <= maximum)
+                    total = 1
+
+                    details = '\n'.join([
+                        f'Constrained AFSCs: {", ".join(constrained_afscs)}',
+                        f'USAFA Cadets: {num_usafa:,}',
+                        f'Assigned to Constrained AFSCs: {actual:,}',
+                        f'Maximum Permitted: {maximum:,}',
+                        f'Configured Cap: {percent_cap:.1%}',
+                        f'Actual Percentage: {actual / num_usafa:.2%}',
+                        f'Excess Assignments: {max(0, actual - maximum):,}'
+                    ])
+
+            # __________________________________________HIGH OM PREFERENCE_____________________________________________
+
+            elif feature_id == 'high_om_receive_preference':
+
+                percentile_cutoff = float(feature['percentile_cutoff'])
+                preference_number = int(feature['preference_number'])
+
+                # Use the actual merit threshold, not an empirical cohort
+                # percentile or the feature's potentially inactive parameter sets.
+                qualifying = np.where(
+                    np.asarray(p['merit']) >= 1 - percentile_cutoff
+                )[0]
+
+                failures = []
+
+                for i in qualifying:
+                    preferred = np.asarray(
+                        p['cadet_preferences'][int(i)][:preference_number],
+                        dtype=int
+                    )
+
+                    if assignments[i] not in preferred:
+                        assigned = (
+                            'Unmatched' if assignments[i] == p['M']
+                            else str(p['afscs'][assignments[i]])
+                        )
+
+                        failures.append(
+                            f'{p["cadets"][i]}: {assigned}'
+                        )
+
+                total = len(qualifying)
+                met = total - len(failures)
+
+                details = [
+                    f'Merit Threshold: {1 - percentile_cutoff:.1%}',
+                    f'Guaranteed Preference Range: Top {preference_number}',
+                    f'Qualifying Cadets: {total:,}',
+                    f'Received Top {preference_number}: {met:,}/{total:,}',
+                    f'Outside Top {preference_number}: {len(failures):,}'
+                ]
+
+                if failures:
+                    details.extend([
+                        'Cadets Outside Preference Range:',
+                        *(f'  - {item}' for item in failures)
+                    ])
+
+                details = '\n'.join(details)
+
+            # __________________________________________UNRECOGNIZED FEATURE___________________________________________
+
+            else:
+                add_result(
+                    feature_id, name, current_active, solution_active,
+                    error='No evaluation method is defined for this feature.'
+                )
+                continue
+
+            # Store the completed feature evaluation.
+            add_result(
+                feature_id, name, current_active, solution_active,
+                met=met, total=total, details=details
+            )
+
+        except (KeyError, ValueError, TypeError, IndexError, ZeroDivisionError) as exc:
+            add_result(
+                feature_id, name, current_active, solution_active,
+                error=f'{type(exc).__name__}: {exc}'
+            )
+
+    # _________________________________________________CONSTRUCT DATAFRAME____________________________________________
+
+    columns = [
+        'Feature ID',
+        'Feature',
+        'Current Checklist',
+        'Solution Checklist',
+        'Solution Status',
+        'Compliance',
+        'Met',
+        'Total',
+        'Details'
+    ]
+
+    solution['feature_metrics'] = pd.DataFrame(rows, columns=columns)
+
+    return solution
 
 
 

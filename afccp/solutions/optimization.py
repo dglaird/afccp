@@ -276,10 +276,13 @@ def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
     if mdl_p['solve_extra_components']:
 
         # Base/Training model objective function
-        def objective_function(m):
-            return vp['cadets_overall_weight'] * np.sum(vp['cadet_weight'][i] * m.cadet_value[i] for i in p['I']) + \
-                   1 / p['N^Match'] * vp['afscs_overall_weight'] * np.sum(
+        def objective_function(m):  # "z^GUO"
+            return 1 / p['N^Match'] * (
+                    vp['cadets_overall_weight'] * np.sum(
+                m.cadet_value[i] for i in p['I']) +
+                    vp['afscs_overall_weight'] * np.sum(
                 np.sum(p['afsc_utility'][i, j] * m.x[i, j] for j in p['J^E'][i]) for i in p['I'])
+            )
 
     else:  # If not, we solve the "AFSC-only" assignment problem model
 
@@ -297,16 +300,16 @@ def assignment_model_objective_function_definition(m, p, vp, mdl_p, c):
             afscs = [afsc for afsc, _ in p['castle_afscs'].items()]
 
             # Define the Castle-informed objective function!
-            z_castle_values = np.sum(m.f_value[afsc] for afsc in afscs)
+            z_castle = np.sum(m.f_value[afsc] for afsc in afscs)
             if mdl_p['w^G'] == 1:  # Weight on Castle solution is zero so we don't need to include it!
                 def objective_function(m):  # Standard "GUO" function value "z^GUO"
                     return z_guo
             elif mdl_p['w^G'] == 0:  # Weight on GUO solution is zero so just use Castle information
-                def objective_function(m):  # Castle-values portion of objective function
-                    return z_castle_values
+                def objective_function(m):  # Castle-values portion of objective function "z^CASTLE"
+                    return z_castle
             else:
-                def objective_function(m):  # Full weighted function of GUO and Castle
-                    return mdl_p['w^G'] * z_guo + (1 - mdl_p['w^G']) * z_castle_values
+                def objective_function(m):  # Full weighted function of GUO and Castle ("z")
+                    return mdl_p['w^G'] * z_guo + (1 - mdl_p['w^G']) * z_castle
 
     # Objective function has been defined
     return Objective(rule=objective_function, sense=maximize)
@@ -992,7 +995,10 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
         else:
 
             # Get solution
-            solution = {"method": "GP", "j_array": np.zeros(gp['N']).astype(int), "x": np.zeros((gp['N'], gp['M']))}
+            solution = {"method": "GP", "j_array": np.zeros(gp['N']).astype(int), "x": np.zeros((gp['N'], gp['M'])),
+                        'metadata': {'start_time': start_time, 'finish_time': finish_time, 'solve_time': solve_time,
+                                     'method': model_name}
+                        }
             for c in gp['C']:
                 for a in gp['A^']['E'][c]:
                     solution['x'][c, a] = model.x[c, a].value
@@ -1027,7 +1033,8 @@ def solve_pyomo_model(instance, model, model_name, q=None, printing=False):
             # Get solution
             solution = {"method": model_name, "j_array": np.zeros(p['N']).astype(int), "x": np.zeros((p['N'], p['M'])),
                         'solve_time': solve_time, 'x_integer': True,
-                        'metadata': {'start_time': start_time, 'finish_time': finish_time, 'solve_time': solve_time}}
+                        'metadata': {'start_time': start_time, 'finish_time': finish_time, 'solve_time': solve_time,
+                                     'method': model_name}}
 
             # Loop through each cadet to determine what AFSC they're assigned
             for i in p['I']:

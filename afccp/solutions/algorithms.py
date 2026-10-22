@@ -49,6 +49,7 @@ import numpy as np
 import random
 import copy
 import pandas as pd
+import datetime
 
 # afccp modules
 import afccp.globals
@@ -102,7 +103,7 @@ def classic_hr(instance, capacities=None, printing=True):
     cadet_proposal_choice = np.zeros(p['N']).astype(int)  # Everyone proposes to their first choice initially
 
     # Initialize solution dictionary
-    solution = {'method': 'HR'}
+    solution = {'method': 'HR', 'metadata': {'method': 'HR'}}
 
     # Dictionary of parameters used for the "BubbleChart" object (animation)
     if mdl_p['collect_solution_iterations']:
@@ -178,6 +179,7 @@ def classic_hr(instance, capacities=None, printing=True):
     # Return solution
     solution['j_array'] = proposals
     solution['afsc_array'] = np.array([p['afscs'][j] for j in solution['j_array']])
+    solution['metadata']['finish_time'] = datetime.datetime.now().astimezone()
     return solution
 
 
@@ -240,7 +242,8 @@ def rotc_rated_board_original(instance, printing=False):
     assigned_afscs = {cadet: "" for cadet in cadets}
 
     # Initialize solution dictionary
-    solution = {'cadets_solved_for': 'ROTC Rated', 'afscs_solved_for': 'Rated', 'method': 'ROTCRatedBoard'}
+    solution = {'cadets_solved_for': 'ROTC Rated', 'afscs_solved_for': 'Rated', 'method': 'ROTCRatedBoard',
+                'metadata': {'method': 'ROTCRatedBoard'}}
 
     # Dictionary of parameters used for the "BubbleChart" object (animation)
     if mdl_p['collect_solution_iterations']:
@@ -323,6 +326,7 @@ def rotc_rated_board_original(instance, printing=False):
     indices = np.where(afsc_solution == " " * 10)[0]
     afsc_solution[indices] = "*"
     solution['j_array'] = np.array([np.where(p['afscs'] == afsc)[0][0] for afsc in afsc_solution])
+    solution['metadata']['finish_time'] = datetime.datetime.now().astimezone()
     return solution
 
 
@@ -635,6 +639,9 @@ def allocate_ots_candidates_original_method(instance, printing=False):
     new_solution['iterations']['last_s'] = iterations[len(iterations) - 1]
 
     # Return the new solution with OTS included!
+    if 'metadata' in new_solution:
+        new_solution['metadata']['finish_time'] = datetime.datetime.now().astimezone()
+        new_solution['metadata']['method'] = 'One Market OTS Addition-Status Quo'
     return new_solution
 
 

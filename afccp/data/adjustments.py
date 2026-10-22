@@ -589,9 +589,11 @@ def parameter_sets_additions(parameters, run_extra_again=False, printing=False):
             p[f'{soc}_eligible_count'] = np.array(
                 [len(np.intersect1d(p['I^E'][j], p[f'{soc}_cadets'])) for j in p['J']])
 
-    # Initialize empty dictionaries of matched/reserved cadets
+    # Initialize empty dictionaries of matched/reserved cadets and manually constrained cadets!
     p["J^Fixed"] = {}
     p["J^Reserved"] = {}
+    if 'manually_constrained_afscs' not in p:
+        p['manually_constrained_afscs'] = np.array([" " for _ in p['I']], dtype=object)
 
     # Cadet preference/rated cadet set additions
     p = more_parameter_additions(p)
@@ -704,14 +706,17 @@ def more_parameter_additions(parameters):
         p['afscs_acc_grp']['NRL'] = p['afscs']
         p['J^NRL'] = p['J']
 
-    # PGL Totals per SOC for USSF
-    if 'USSF' in p['afscs_acc_grp']:
-        p['ussf_usafa_pgl'] = np.sum(p['usafa_quota'][j] for j in p['J^USSF'])
-        p['ussf_rotc_pgl'] = np.sum(p['rotc_quota'][j] for j in p['J^USSF'])
-
-    # We already have "J^USSF" defined above; now we want one for USAF (NRL + Rated)
+    # AF-wide career fields
     if 'USSF' in p['afscs_acc_grp']:
         p['J^USAF'] = np.array([j for j in p['J'] if j not in p['J^USSF']])
+    else:
+        p['J^USAF'] = p['J']
+
+    # PGL Totals per SOC for USSF
+    if 'USSF' in p['afscs_acc_grp']:
+        for service in ['USSF', 'USAF']:
+            for soc in p['SOCs']:
+                p[f'{service.lower()}_{soc}_pgl'] = np.sum(p[f'{soc}_quota'][j] for j in p[f'J^{service}'])
 
     # Determine eligible Rated cadets for both SOCs (cadets that are considered by the board)
     cadets_dict = {soc: f'{soc[0]}r_om_cadets' for soc in p['SOCs']}

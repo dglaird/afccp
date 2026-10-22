@@ -49,6 +49,8 @@ and results analysis stages of the AFCCP workflow.
 import os
 import numpy as np
 import pandas as pd
+import numbers
+from xlsxwriter.utility import xl_col_to_name
 import copy
 import string
 
@@ -1670,7 +1672,7 @@ def export_additional_data(instance):
 
 
 # __________________________________________SOLUTION RESULTS HANDLING___________________________________________________
-def export_solution_results(instance, filepath):
+def export_solution_results_old(instance, filepath):
     """
     Export a comprehensive Excel workbook of solution results.
 
@@ -1783,11 +1785,11 @@ def export_solution_results(instance, filepath):
     for choice in choice_dict:
         worksheet.write("J" + str(2 + choice), int(solution['cadet_choice_counts'][choice]), cell_format)
         worksheet.write("I" + str(2 + choice), choice_dict[choice], cell_format)
-        worksheet.write("K" + str(2 + choice), round(solution['cadet_choice_counts'][choice] / p['N^Match'], 3),
+        worksheet.write("K" + str(2 + choice), round(solution['cadet_choice_counts'][choice] / p['Num Matched'], 3),
                         cell_format)
     worksheet.write("I" + str(3 + choice), "All Others", cell_format)
     worksheet.write("J" + str(3 + choice), int(solution['cadet_choice_counts']['All Others']), cell_format)
-    worksheet.write("K" + str(3 + choice), round(solution['cadet_choice_counts']["All Others"] / p['N^Match'], 3),
+    worksheet.write("K" + str(3 + choice), round(solution['cadet_choice_counts']["All Others"] / p['Num Matched'], 3),
                     cell_format)
 
     # Additional solution metrics
@@ -1818,6 +1820,7 @@ def export_solution_results(instance, filepath):
                         'Average Normalized AFSC Score (USAF)': 'weighted_average_usaf_afsc_score',
                         'USAFA USSF Cadets / USAFA USSF PGL': 'ussf_usafa_pgl_target',
                         'ROTC USSF Cadets / ROTC USSF PGL': 'ussf_rotc_pgl_target',
+                        'OTS USSF Cadets / OTS USSF PGL': 'ussf_ots_pgl_target',
                         'Cadets Successfully Constrained to Accessions Group / Total Fixed Accession Group Slots':
                             'constrained_acc_grp_target',
                         "Cadets Successfully Constrained to AFSC / Total Fixed AFSC Slots":
@@ -1868,6 +1871,80 @@ def export_solution_results(instance, filepath):
 
         # Get the xlsxwriter worksheet object.
         workbook = writer.book
+
+        # __________________________________________MODEL FEATURE METRICS_____________________________________________
+
+        # Export the independently evaluated model feature metrics.
+        if 'feature_metrics' in solution:
+            df = solution['feature_metrics']
+            df.to_excel(writer, sheet_name='Model Features', index=False, startrow=1, header=False)
+
+            # Get worksheet and establish formatting.
+            worksheet = writer.sheets['Model Features']
+
+            header_format = workbook.add_format({
+                'bold': True, 'font_color': 'white', 'bg_color': '#243746',
+                'border': 1, 'text_wrap': True, 'align': 'center', 'valign': 'vcenter'
+            })
+            cell_format = workbook.add_format({
+                'valign': 'top', 'text_wrap': True, 'border': 1
+            })
+            percent_format = workbook.add_format({
+                'num_format': '0.0%', 'valign': 'top', 'border': 1
+            })
+
+            # Write formatted column headers.
+            for col, name in enumerate(df.columns):
+                worksheet.write(0, col, name, header_format)
+
+            # Apply column widths and formatting.
+            column_widths = {
+                'Feature ID': 32,
+                'Feature': 38,
+                'Current Checklist': 20,
+                'Solution Checklist': 20,
+                'Solution Status': 22,
+                'Compliance': 16,
+                'Met': 12,
+                'Total': 12,
+                'Details': 85
+            }
+
+            for col, name in enumerate(df.columns):
+                fmt = percent_format if name == 'Compliance' else cell_format
+                worksheet.set_column(col, col, column_widths.get(name, 20), fmt)
+
+            # Expand rows to accommodate multiline feature evaluation details.
+            for row, details in enumerate(df['Details'], start=1):
+                lines = str(details).count('\n') + 1
+                worksheet.set_row(row, min(max(30, lines * 15), 409))
+
+            # Highlight the actual solution compliance status.
+            if 'Solution Status' in df.columns and len(df):
+                status_col = df.columns.get_loc('Solution Status')
+                first_row, last_row = 1, len(df)
+
+                for status, color in [
+                    ('Fully Met', '#C6EFCE'),
+                    ('Partially Met', '#FFEB9C'),
+                    ('Not Met', '#FFC7CE'),
+                    ('Not Applicable', '#E7E6E6'),
+                    ('Unable to Evaluate', '#F4B084')
+                ]:
+                    worksheet.conditional_format(
+                        first_row, status_col, last_row, status_col,
+                        {
+                            'type': 'text',
+                            'criteria': 'containing',
+                            'value': status,
+                            'format': workbook.add_format({'bg_color': color})
+                        }
+                    )
+
+            # Freeze headers and enable filtering.
+            worksheet.freeze_panes(1, 2)
+            worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+            worksheet.set_row(0, 32)
 
         # AFSC Objective measures dataframe
         df = pd.DataFrame({'AFSC': p['afscs'][:p['M']]})
@@ -2216,6 +2293,1082 @@ def draw_frame_border_outside(workbook, worksheet, first_row, first_col, rows_co
                                  first_row + rows_count - 2, first_col + cols_count,
                                  {'type': 'formula', 'criteria': 'True',
                                   'format': workbook.add_format({'left': width, 'border_color': color})})
+
+
+def _formats(wb):
+    """Create shared workbook cell formats."""
+
+    return {
+        'title': wb.add_format({
+            'bold': True,
+            'font_size': 14,
+            'font_color': 'white',
+            'bg_color': '#243746',
+            'valign': 'vcenter'
+        }),
+
+        'header': wb.add_format({
+            'bold': True,
+            'bg_color': '#DDE7EE',
+            'border': 1,
+            'text_wrap': True,
+            'valign': 'vcenter'
+        }),
+
+        'text': wb.add_format({
+            'border': 1,
+            'valign': 'top'
+        }),
+
+        'wrap': wb.add_format({
+            'border': 1,
+            'text_wrap': True,
+            'valign': 'top'
+        }),
+
+        'number': wb.add_format({
+            'border': 1,
+            'num_format': '0.0000'
+        }),
+
+        'percent': wb.add_format({
+            'border': 1,
+            'num_format': '0.0%'
+        }),
+
+        'count': wb.add_format({
+            'border': 1,
+            'num_format': '#,##0'
+        }),
+
+        'ratio': wb.add_format({
+            'border': 1,
+            'align': 'center'
+        })
+    }
+
+
+def _number(value):
+    """Return an Excel-compatible scalar, or None when unavailable."""
+    if value is None or isinstance(value, (dict, list, tuple, np.ndarray, pd.DataFrame)):
+        return None
+
+    if isinstance(value, np.generic):
+        value = value.item()
+
+    if isinstance(value, numbers.Real) and not np.isfinite(value):
+        return None
+
+    return value
+
+
+def _ratio(value):
+    """Convert a stored (met, total) pair into a display string."""
+    if isinstance(value, (tuple, list, np.ndarray)) and len(value) == 2:
+        return f'{int(value[0]):,} / {int(value[1]):,}'
+
+    if isinstance(value, str) and '/' in value:
+        return value
+
+    return None
+
+
+def _soc_groups(p):
+    """Return represented SOCs in standard presentation order."""
+    soc = np.asarray(p['soc']).astype(str)
+
+    return {
+        name: np.flatnonzero(soc == name)
+        for name in ['USAFA', 'ROTC', 'OTS']
+        if np.any(soc == name)
+    }
+
+
+def _assignment_metrics(p, s):
+    """Recalculate choice metrics directly from final assignments."""
+    n = len(p['soc'])
+    result = {}
+
+    j = np.asarray(s.get('j_array', []))
+
+    if len(j) != n:
+        return result
+
+    valid = (j >= 0) & (j < p['M'])
+    choice = np.asarray(s.get('cadet_choice', []))
+
+    if len(choice) == n:
+        result['choice'] = choice
+        result['top3'] = valid & np.isin(choice, [1, 2, 3])
+
+    result['valid'] = valid
+    result['j'] = j
+
+    return result
+
+
+def build_main_metrics(instance):
+    """
+    Build metrics for the Main worksheet using calculated solution results.
+    Only metrics with available data are included.
+    """
+    p, s, vp = instance.parameters, instance.solution, instance.value_parameters
+    groups = _soc_groups(p)
+    assignment = _assignment_metrics(p, s)
+    metrics = {'objective': [], 'overall': [], 'soc': [], 'choices': []}
+
+    def obj(name, weight, value, description):
+        if value is not None:
+            metrics['objective'].append((name, weight, value, description))
+
+    def overall(name, value, description, kind='number'):
+        if value is not None:
+            metrics['overall'].append((name, value, description, kind))
+
+    def soc(name, values, kind='number'):
+        values = {g: v for g, v in values.items() if v is not None}
+        if values:
+            metrics['soc'].append((name, values, kind))
+
+    # __________________________________OBJECTIVE FUNCTION METRICS__________________________________
+
+    if 'z^CASTLE' in s:
+        obj('CASTLE-GUO', None, s.get('z'), 'Overall solved objective function value.')
+        obj('CASTLE', 1 - p['w^G'], s.get('z^CASTLE'), 'CASTLE value-curve objective component.')
+
+    obj('GUO', p['w^G'] if 'z^CASTLE' in s else None,
+        s.get('z^GUO'), 'Global utility objective component.')
+    obj('Cadet Utility', vp.get('cadets_overall_weight'),
+        s.get('cadet_utility_overall'), 'Cadet utility objective component.')
+    obj('AFSC Utility', vp.get('afscs_overall_weight'),
+        s.get('afsc_utility_overall'), 'AFSC utility objective component.')
+
+    # __________________________________OVERALL SOLUTION METRICS__________________________________
+
+    # (Display Name, Solution Key, Description, Format)
+    definitions = [
+        ('Blocking Pairs', 'num_blocking_pairs', 'Number of blocking pairs.', 'count'),
+        ('Ineligible Cadets', 'num_ineligible', 'Cadets assigned to ineligible AFSCs.', 'count'),
+        ('Unmatched Cadets', 'num_unmatched', 'Cadets without a matched AFSC.', 'count'),
+        ('Normalized AFSC Score', 'weighted_average_afsc_score',
+         'Average normalized AFSC score across all AFSCs.', 'percent'),
+        ('Normalized AFSC Score (AF)', 'weighted_average_usaf_afsc_score',
+         'Average normalized USAF AFSC score.', 'percent'),
+        ('Normalized AFSC Score (SF)', 'weighted_average_ussf_afsc_score',
+         'Average normalized USSF AFSC score.', 'percent'),
+        ('Normalized AFSC Score (NRL)', 'weighted_average_nrl_afsc_score',
+         'Average normalized NRL AFSC score.', 'percent'),
+        ('Average OM (AF)', 'usaf_om',
+         'Average order of merit of USAF-assigned cadets.', 'percent'),
+        ('Average OM (SF)', 'ussf_om',
+         'Average order of merit of USSF-assigned cadets.', 'percent'),
+        ('Failed Constraints', 'total_failed_constraints',
+         'Number of failed model constraints.', 'count')
+    ]
+
+    for name, key, description, kind in definitions:
+        value = s.get(key)
+
+        if isinstance(value, numbers.Number) and not np.isfinite(value):
+            print(f"WARNING: {name} ({key}) = {value}")
+
+        overall(name, value, description, kind)
+
+    # Top-three choice percentages from solution evaluation.
+    overall('Top 3 Choices', s.get('top_3_choice_percent'),
+            '% of matched cadets receiving a top-three AFSC choice.', 'percent')
+
+    for service, label in [('usaf', 'AF'), ('ussf', 'SF')]:
+        overall(f'Top 3 Choices ({label})', s.get(f'{service}_top_3_choice_percent'),
+                f'% of {label}-assigned cadets receiving a top-three AFSC choice.', 'percent')
+
+    # __________________________________INDIVIDUAL CADET CONSTRAINTS__________________________________
+
+    # Evaluate final allowable AFSC sets, including manual overrides.
+    if 'j' in assignment and p.get('J^Constrained'):
+        cases = p['J^Constrained']
+        met = sum(int(assignment['j'][int(i)] in set(map(int, allowed)))
+                  for i, allowed in cases.items())
+        overall('AFSC Constrained', f'{met:,} / {len(cases):,}',
+                'Cadets assigned within their final allowable AFSC sets.', 'ratio')
+
+    overall('OTS Must Match', _ratio(s.get('matched_out_of_must_match')),
+            'Must-match OTS candidates assigned / eligible must-match candidates.', 'ratio')
+
+    # __________________________________RATED ALGORITHM CONSTRAINTS__________________________________
+
+    rated_metrics = [
+        ('fixed', 'Rated Fixed Matches', 'Fixed rated assignments satisfied.'),
+        ('reserved', 'Rated Reserved', 'Reserved rated assignments satisfied.'),
+        ('alternate', 'Rated Alternates', 'Rated alternate-list constraints satisfied.')
+    ]
+
+    for metric, name, description in rated_metrics:
+        overall(name, s.get(f'total_{metric}_constraints_met'), description, 'ratio')
+
+    # __________________________________METRICS BY SOC__________________________________
+
+    # Cadet utility and Top 3 Choices directly from solution evaluation.
+    soc('Cadet Utility', {
+        g: s.get(f'{g.lower()}_cadet_utility') for g in groups
+    }, 'percent')
+
+    soc('Top 3 Choices', {
+        g: s.get(f'{g.lower()}_top_3_choice_percent') for g in groups
+    }, 'percent')
+
+    # USSF production against PGL targets.
+    ussf_pgl = {
+        'USAFA': 'ussf_usafa_pgl_target',
+        'ROTC': 'ussf_rotc_pgl_target',
+        'OTS': 'ussf_ots_pgl_target'
+    }
+    soc('USSF Cadets / USSF PGL',
+        {g: _ratio(s.get(key)) for g, key in ussf_pgl.items() if g in groups}, 'ratio')
+
+    # Rated algorithm constraints by SOC.
+    for metric, name, _ in rated_metrics:
+        values = s.get(f'soc_{metric}_constraints_met', {})
+        if isinstance(values, dict):
+            values = {str(k).upper(): v for k, v in values.items()}
+            soc(name, {g: values.get(g) for g in groups}, 'ratio')
+
+    # Cadets receiving an AFSC they selected.
+    if 'j' in assignment and 'cadet_preferences' in p:
+        values = {}
+        for g, idx in groups.items():
+            matched = [int(i) for i in idx if assignment['valid'][i]]
+            if not matched:
+                continue
+            met = sum(int(assignment['j'][i] in p['cadet_preferences'][i]) for i in matched)
+            values[g] = f'{met:,} / {len(matched):,}'
+        soc('Cadets Receiving Selected AFSC', values, 'ratio')
+
+    # __________________________________CADET CHOICE PROPORTIONS__________________________________
+
+    counts = s.get('cadet_choice_counts', {})
+    labels = ['First', 'Second', 'Third', 'Fourth', 'Fifth',
+              'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth']
+
+    if isinstance(counts, dict):
+        denom = p.get('Num Matched')
+
+        if not denom and 'valid' in assignment:
+            denom = int(assignment['valid'].sum())
+
+        for rank, label in enumerate(labels, 1):
+            if rank in counts:
+                count = int(counts[rank])
+                metrics['choices'].append((label, count, count / denom if denom else None))
+
+        if 'All Others' in counts:
+            count = int(counts['All Others'])
+            metrics['choices'].append(('All Others', count, count / denom if denom else None))
+
+    return metrics
+
+
+def export_main_sheet(writer, instance):
+    """Export the dynamic Main worksheet."""
+
+    m = build_main_metrics(instance)
+    ws = writer.book.add_worksheet('Main')
+    writer.sheets['Main'] = ws
+    f = _formats(writer.book)
+
+    ws.hide_gridlines(2)
+    ws.set_zoom(150)
+
+    # Column widths
+    for col, width in {
+        'A:A': 2, 'B:B': 14, 'C:C': 9.5, 'D:F': 21.5,
+        'G:G': 2, 'H:J': 9.5
+    }.items():
+        ws.set_column(col, width)
+
+    # Center-align all numerical formats.
+    for kind in ['number', 'percent', 'count', 'ratio']:
+        f[kind].set_align('center')
+
+    def title(row, first, last, label):
+        ws.merge_range(row, first, row, last, label, f['title'])
+        ws.set_row(row, 25)
+
+    def write(row, col, value, kind='text'):
+        fmt = f[kind]
+        if value is None or (isinstance(value, numbers.Real) and not np.isfinite(value)):
+            ws.write_blank(row, col, None, fmt)
+        else:
+            ws.write(row, col, value, fmt)
+
+    def header(row, columns):
+        for col, label in columns.items():
+            write(row, col, label, 'header')
+        ws.set_row(row, 25)
+
+    def merged_label(row, label, kind='text'):
+        ws.merge_range(row, 1, row, 2, label, f[kind])
+
+    def merged_description(row, description, kind='text'):
+        ws.merge_range(row, 4, row, 5, description or '', f[kind])
+
+    row = 1
+
+    # __________________________________OBJECTIVE FUNCTION METRICS__________________________________
+
+    if m['objective']:
+        title(row, 1, 5, 'Objective Function Metrics')
+        row += 1
+        header(row, {1: 'Objective', 2: 'Weight', 3: 'Value'})
+        merged_description(row, 'Description', 'header')
+        row += 1
+
+        for name, weight, value, desc in m['objective']:
+            write(row, 1, name)
+            write(row, 2, weight, 'percent')
+            write(row, 3, value, 'number')
+            merged_description(row, desc, 'wrap')
+            row += 1
+
+        row += 2
+
+    # __________________________________OVERALL SOLUTION METRICS__________________________________
+
+    if m['overall']:
+        title(row, 1, 5, 'Additional Overall Solution Metrics')
+        row += 1
+        merged_label(row, 'Metric', 'header')
+        header(row, {3: 'Value'})
+        merged_description(row, 'Description', 'header')
+        row += 1
+
+        for name, value, desc, kind in m['overall']:
+            merged_label(row, name)
+            write(row, 3, value, kind)
+            merged_description(row, desc)
+            row += 1
+
+        row += 2
+
+    # __________________________________METRICS BY SOC__________________________________
+
+    if m['soc']:
+        socs = list(_soc_groups(instance.parameters))
+        last_col = max(4, 2 + len(socs))
+
+        title(row, 1, last_col, 'Metrics by SOC')
+        row += 1
+        merged_label(row, 'Metric', 'header')
+        header(row, {3 + i: soc for i, soc in enumerate(socs)})
+        row += 1
+
+        for name, values, kind in m['soc']:
+            merged_label(row, name)
+            for i, soc in enumerate(socs):
+                write(row, 3 + i, values.get(soc), kind)
+            row += 1
+
+    # __________________________________CADET CHOICE PROPORTIONS__________________________________
+
+    if m['choices']:
+        title(1, 7, 9, 'Cadet Choice Proportions')
+        header(2, {7: 'Preference', 8: 'Count', 9: 'Proportion'})
+
+        for r, (label, count, proportion) in enumerate(m['choices'], 3):
+            write(r, 7, label)
+            write(r, 8, count, 'count')
+            write(r, 9, proportion, 'percent')
+
+
+def export_model_features_sheet(writer, instance):
+    """
+    Export the independently evaluated model feature metrics.
+
+    Expects the feature evaluation DataFrame to already exist in
+    instance.solution['feature_metrics'].
+    """
+
+    df = instance.solution.get('feature_metrics')
+
+    if df is None:
+        return
+
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(
+            "solution['feature_metrics'] must be a DataFrame"
+        )
+
+    df.to_excel(
+        writer,
+        sheet_name='Model Features',
+        index=False
+    )
+
+    ws = writer.sheets['Model Features']
+    f = _formats(writer.book)
+
+    for col, name in enumerate(df.columns):
+
+        ws.write(0, col, name, f['header'])
+
+        width = {
+            'Feature ID': 32,
+            'Feature': 38,
+            'Details': 85
+        }.get(name, 21)
+
+        fmt = (
+            f['percent']
+            if name == 'Compliance'
+            else f['wrap']
+        )
+
+        ws.set_column(col, col, width, fmt)
+
+    ws.set_row(0, 32)
+    ws.freeze_panes(1, 2)
+
+    if len(df):
+        ws.autofilter(
+            0, 0,
+            len(df),
+            len(df.columns) - 1
+        )
+
+    if 'Details' in df:
+
+        for i, value in enumerate(df['Details'], 1):
+
+            lines = str(value).count('\n') + 1
+
+            ws.set_row(
+                i,
+                min(409, max(27, lines * 16))
+            )
+
+
+def build_solution_dataframe(instance):
+    """
+    Build the per-cadet Solution DataFrame.
+
+    Preserves the original columns and unmatched-cadet handling.
+    """
+
+    p = instance.parameters
+    s = instance.solution
+
+    df = pd.DataFrame({
+        'Cadet': p['cadets'],
+        'SOC': p['soc'],
+        'Merit': p['merit'],
+        'Matched AFSC': s['afsc_array']
+    })
+
+    # __________________________________BASE AND COURSE INFORMATION__________________________________
+
+    if 'base_array' in s:
+
+        df['Matched Base'] = s['base_array']
+
+        if 'course_array' in s:
+            df['Matched Course'] = s['course_array']
+
+        columns = {
+            'Base Choice': 'base_choice',
+            'Cadet State': 'cadet_state_achieved',
+            'State Utility': 'state_utility_used',
+            'Cadet Value': 'cadet_value_achieved',
+            'AFSC Weight': 'afsc_weight_used',
+            'Base Weight': 'base_weight_used',
+            'Course Weight': 'course_weight_used',
+            'Base Utility': 'base_utility_achieved',
+            'Course Utility': 'course_utility_achieved'
+        }
+
+        for name, key in columns.items():
+
+            if key in s:
+                df[name] = s[key]
+
+    # __________________________________ASSIGNMENT METRICS__________________________________
+
+    for name, key in [
+        ('Cadet Choice', 'cadet_choice'),
+        ('AFSC Choice', 'afsc_choice'),
+        ('Cadet Utility', 'cadet_utility_achieved'),
+        ('AFSC Utility', 'afsc_utility_achieved'),
+        ('Global Utility', 'global_utility_achieved')
+    ]:
+
+        if key in s:
+            df[name] = s[key]
+
+    # Matched degree qualification tier.
+    if 'j_array' in s and 'qual' in p:
+
+        df['Matched Deg Tier'] = [
+            p['qual'][i, int(s['j_array'][i])]
+            if int(s['j_array'][i]) in p['J']
+            else 'U'
+            for i in p['I']
+        ]
+
+    # __________________________________RATED ASSIGNMENTS__________________________________
+
+    for name in [
+        'Rated Matches',
+        'Rated Reserves',
+        'Rated Alternates (Hard)',
+        'Rated Alternates (Soft)'
+    ]:
+
+        other = getattr(instance, 'solutions', {}).get(name, {})
+
+        df[name] = (
+            other['afsc_array']
+            if 'afsc_array' in other
+            else ['*'] * p['N']
+        )
+
+    # Rated AFSC rankings.
+    if 'a_pref_matrix' in p:
+
+        for j in p.get('J^Rated', []):
+
+            df[str(p['afscs'][j]) + ' Rank'] = (
+                p['a_pref_matrix'][:, j]
+            )
+
+    # __________________________________CADET PREFERENCES__________________________________
+
+    choices = min(p['P'], 10)
+
+    for rank in range(choices):
+
+        if 'c_preferences' in p:
+            df[f'Choice {rank + 1}'] = (
+                p['c_preferences'][:, rank]
+            )
+
+    # __________________________________CADET UTILITIES__________________________________
+
+    for rank in range(choices):
+
+        values = np.zeros(p['N'])
+
+        for i in p['I']:
+
+            if len(p['cadet_preferences'][i]) > rank:
+
+                j = p['cadet_preferences'][i][rank]
+
+                values[i] = p['cadet_utility'][i, j]
+
+        df[f'Utility {rank + 1}'] = values
+
+    # __________________________________UNMATCHED CADETS__________________________________
+
+    preserve = (
+        ['Cadet', 'SOC', 'Merit', 'Matched AFSC']
+        + [
+            col
+            for col in df
+            if col.startswith(('Choice ', 'Utility '))
+            or col.endswith(' Rank')
+        ]
+    )
+
+    df.loc[
+        df['Matched AFSC'].eq('*'),
+        df.columns.difference(preserve)
+    ] = np.nan
+
+    return df
+
+
+def export_solution_sheet(writer, instance):
+    """
+    Export the Solution DataFrame with preference and utility formatting.
+    """
+
+    df = build_solution_dataframe(instance)
+
+    df.to_excel(
+        writer,
+        sheet_name='Solution',
+        index=False,
+        startrow=1,
+        header=False
+    )
+
+    ws = writer.sheets['Solution']
+    wb = writer.book
+    f = _formats(wb)
+
+    # Headers.
+    for c, name in enumerate(df.columns):
+        ws.write(0, c, name, f['header'])
+
+    ws.set_row(0, 34)
+    ws.freeze_panes(1, 0)
+
+    if len(df):
+        ws.autofilter(
+            0, 0,
+            len(df),
+            len(df.columns) - 1
+        )
+
+    ws.set_column(0, 0, 30)
+    ws.set_column(1, len(df.columns) - 1, 17)
+
+    if not len(df):
+        return
+
+    colors = getattr(instance, 'mdl_p', {})
+
+    choice_col = (
+        df.columns.get_loc('Cadet Choice')
+        if 'Cadet Choice' in df
+        else None
+    )
+
+    # __________________________________PREFERENCE CONDITIONAL FORMATTING__________________________________
+
+    for rank in range(
+        1,
+        min(instance.parameters['P'], 10) + 1
+    ):
+
+        col_name = f'Choice {rank}'
+
+        if col_name not in df:
+            continue
+
+        col = df.columns.get_loc(col_name)
+
+        shade = colors.get(
+            'choice_colors', {}
+        ).get(rank)
+
+        if not shade:
+            continue
+
+        fmt = wb.add_format({
+            'bg_color': shade
+        })
+
+        if choice_col is not None:
+
+            pref_letter = xl_col_to_name(col)
+
+            # Highlight the preference matching the assigned AFSC.
+            ws.conditional_format(
+                1, col,
+                len(df), col,
+                {
+                    'type': 'formula',
+                    'criteria': (
+                        f'=AND($D2={pref_letter}2,'
+                        f'{pref_letter}2<>"")'
+                    ),
+                    'format': fmt
+                }
+            )
+
+            # Highlight corresponding cadet choice ranking.
+            ws.conditional_format(
+                1, choice_col,
+                len(df), choice_col,
+                {
+                    'type': 'cell',
+                    'criteria': '==',
+                    'value': rank,
+                    'format': fmt
+                }
+            )
+
+    # All Others.
+    if (
+        choice_col is not None
+        and colors.get('all_other_choice_colors')
+    ):
+
+        ws.conditional_format(
+            1, choice_col,
+            len(df), choice_col,
+            {
+                'type': 'cell',
+                'criteria': '>',
+                'value': 10,
+                'format': wb.add_format({
+                    'bg_color': colors['all_other_choice_colors']
+                })
+            }
+        )
+
+    # __________________________________SMALL VALUES ARE GOOD__________________________________
+
+    for name in [
+        'AFSC Choice',
+        'Base Choice',
+        'Cadet State'
+    ]:
+
+        if name in df:
+
+            c = df.columns.get_loc(name)
+
+            ws.conditional_format(
+                1, c,
+                len(df), c,
+                {
+                    'type': '3_color_scale',
+                    'min_color': '#63be7b',
+                    'mid_color': '#ffeb84',
+                    'max_color': '#f8696b'
+                }
+            )
+
+    # __________________________________LARGE VALUES ARE GOOD__________________________________
+
+    for name in [
+        'Merit',
+        'Cadet Utility',
+        'AFSC Utility',
+        'Global Utility',
+        'Base Utility',
+        'Course Utility',
+        'State Utility',
+        'Cadet Value',
+        'Cadet Value (Pyomo)'
+    ]:
+
+        if name in df:
+
+            c = df.columns.get_loc(name)
+
+            ws.conditional_format(
+                1, c,
+                len(df), c,
+                {
+                    'type': '3_color_scale'
+                }
+            )
+
+    # __________________________________PERCENT FORMATTING__________________________________
+
+    for name in [
+        'Merit',
+        'State Utility',
+        'Cadet Value',
+        'AFSC Weight',
+        'Base Weight',
+        'Course Weight',
+        'Base Utility',
+        'Course Utility',
+        'Cadet Utility',
+        'AFSC Utility',
+        'Global Utility'
+    ]:
+
+        if name in df:
+
+            c = df.columns.get_loc(name)
+
+            ws.set_column(
+                c, c, 17,
+                f['percent']
+            )
+
+    # __________________________________UNASSIGNED BASE VALUES__________________________________
+
+    for name in [
+        'Base Choice',
+        'Base Weight',
+        'Base Utility'
+    ]:
+
+        if name in df and 'Base Choice' in df:
+
+            c = df.columns.get_loc(name)
+
+            for i in np.flatnonzero(
+                df['Base Choice'].eq(0).to_numpy()
+            ):
+
+                ws.write_blank(
+                    int(i) + 1,
+                    c,
+                    None,
+                    f['text']
+                )
+
+
+def export_afsc_objective_sheet(writer, instance, key, sheet_name):
+    """
+    Export one AFSC-by-objective matrix.
+
+    Used for Objective Measures and Constraint Fails.
+    """
+
+    p = instance.parameters
+    vp = instance.value_parameters
+    s = instance.solution
+
+    if key not in s or 'objectives' not in vp:
+        return
+
+    values = np.asarray(s[key])
+    objectives = list(vp['objectives'])
+
+    if (
+        values.ndim != 2
+        or values.shape[0] < p['M']
+        or values.shape[1] < len(objectives)
+    ):
+
+        raise ValueError(
+            f'Invalid shape for {key}: {values.shape}'
+        )
+
+    df = pd.DataFrame(
+        values[:p['M'], :len(objectives)],
+        columns=objectives
+    )
+
+    df.insert(
+        0,
+        'AFSC',
+        p['afscs'][:p['M']]
+    )
+
+    df.to_excel(
+        writer,
+        sheet_name=sheet_name,
+        index=False
+    )
+
+    ws = writer.sheets[sheet_name]
+    f = _formats(writer.book)
+
+    ws.set_column(0, 0, 19)
+    ws.set_column(1, len(objectives), 17)
+
+    for c, name in enumerate(df.columns):
+        ws.write(0, c, name, f['header'])
+
+    ws.freeze_panes(1, 1)
+
+    if len(df):
+        ws.autofilter(
+            0, 0,
+            len(df),
+            len(objectives)
+        )
+
+
+def export_blocking_pairs_sheet(writer, instance):
+    """
+    Export blocking pairs when available in the solution.
+    """
+
+    p = instance.parameters
+    s = instance.solution
+
+    if 'blocking_pairs' not in s:
+        return
+
+    pairs = list(s['blocking_pairs'])
+
+    df = pd.DataFrame({
+        'Blocking Cadet': [
+            pair[0]
+            for pair in pairs
+        ],
+        'Blocking AFSC': [
+            p['afscs'][int(pair[1])]
+            for pair in pairs
+        ]
+    })
+
+    df.to_excel(
+        writer,
+        sheet_name='Blocking Pairs',
+        index=False
+    )
+
+    ws = writer.sheets['Blocking Pairs']
+
+    ws.set_column(0, 1, 25)
+    ws.freeze_panes(1, 0)
+
+    if len(df):
+        ws.autofilter(
+            0, 0,
+            len(df),
+            1
+        )
+
+
+def export_matrix_sheets(writer, instance):
+    """
+    Export assignment and value-function matrices.
+
+    These sheets are added after the core solution worksheets.
+    """
+
+    p = instance.parameters
+    vp = instance.value_parameters
+    s = instance.solution
+
+    # __________________________________X MATRIX__________________________________
+
+    if 'x' in s:
+
+        values = np.asarray(s['x'])
+
+        df = pd.DataFrame(
+            values[:, :p['M']],
+            columns=p['afscs'][:p['M']]
+        )
+
+        df.insert(
+            0,
+            instance.solution_name,
+            s['afsc_array']
+        )
+
+        df.insert(
+            0,
+            'Cadet',
+            p['cadets']
+        )
+
+        df.to_excel(
+            writer,
+            sheet_name='X',
+            index=False
+        )
+
+        writer.sheets['X'].freeze_panes(1, 2)
+
+    # __________________________________VALUE FUNCTION MATRICES__________________________________
+
+    if (
+        'lambda' in s
+        and 'y' in s
+        and 'r^max' in s
+    ):
+
+        afsc = [
+            p['afscs'][j]
+            for j in p['J']
+            for _ in vp['K']
+        ]
+
+        objective = [
+            vp['objectives'][k]
+            for _ in p['J']
+            for k in vp['K']
+        ]
+
+        for name, key, prefix in [
+            ('Lambda', 'lambda', 'l'),
+            ('Y', 'y', 'y')
+        ]:
+
+            df = pd.DataFrame({
+                'AFSC': afsc,
+                'Objective': objective
+            })
+
+            for l in range(int(s['r^max'])):
+
+                df[f'{prefix}_{l + 1}'] = [
+                    s[key][j, k, l]
+                    for j in p['J']
+                    for k in vp['K']
+                ]
+
+            df.to_excel(
+                writer,
+                sheet_name=name,
+                index=False
+            )
+
+            writer.sheets[name].freeze_panes(1, 2)
+
+
+# __________________________________________SOLUTION RESULTS HANDLING___________________________________________________
+def export_solution_results(instance, filepath):
+    """
+    Export a comprehensive Excel workbook of solution results.
+
+    The workbook is constructed using smaller, worksheet-specific
+    functions. Sheets are included dynamically based on the
+    information available in the solution.
+
+    Worksheet Order
+    ---------------
+    1. Main
+    2. Model Features
+    3. Solution
+    4. Objective Measures
+    5. Constraint Fails
+    6. Blocking Pairs (optional)
+    7. X (optional)
+    8. Lambda (optional)
+    9. Y (optional)
+
+    Parameters
+    ----------
+    instance : Instance
+        Solved AFCCP model instance.
+
+    filepath : str
+        Destination Excel workbook filepath.
+
+    Notes
+    -----
+    The feature evaluation DataFrame should already exist in
+    instance.solution['feature_metrics'].
+
+    This function does not rerun optimization or modify the
+    underlying solution.
+    """
+
+    with pd.ExcelWriter(filepath, engine='xlsxwriter') as writer:
+
+        # Main summary dashboard.
+        export_main_sheet(writer, instance)
+
+        # Model feature evaluation.
+        export_model_features_sheet(writer, instance)
+
+        # Detailed per-cadet assignments.
+        export_solution_sheet(writer, instance)
+
+        # AFSC objective metrics.
+        export_afsc_objective_sheet(
+            writer,
+            instance,
+            'objective_measure',
+            'Objective Measures'
+        )
+
+        export_afsc_objective_sheet(
+            writer,
+            instance,
+            'objective_constraint_fail',
+            'Constraint Fails'
+        )
+
+        # Optional blocking pair analysis.
+        export_blocking_pairs_sheet(writer, instance)
+
+        # Optional assignment and value-function matrices.
+        export_matrix_sheets(writer, instance)
 
 
 

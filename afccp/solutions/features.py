@@ -41,11 +41,11 @@ def resolve_meet_afsc_pgl_feature(instance):
     parameter_status = 'FULLY ACTIVE' if parameters_active else ('PARTIALLY ACTIVE' if num_on else 'INACTIVE')
     checklist_status = 'ACTIVE' if checklist_initial else 'INACTIVE'
 
-    # ___________________________________________________RESOLVE FEATURE_________________________________________________
-
+    # ___________________________________________________RESOLVE FEATURE________________________________________________
     if checklist_initial:
         if not parameters_active:
             vp['constraint_type'][:, k] = 2
+            instance.value_parameters = vp  # Explicitly persist the updated value parameters.
             resolution_status = 'ACTIVE'
             resolution = f'Checklist activated. Enabled all {num_total} AFSC quota constraints.'
         else:
@@ -74,7 +74,7 @@ def resolve_meet_afsc_pgl_feature(instance):
 
     # Include initially active AFSCs when the constraints were only partially enabled.
     if 0 < num_on < num_total:
-        active_afscs = [str(mdl_p['afscs'][j]) for j in active_indices]
+        active_afscs = [str(p['afscs'][j]) for j in active_indices]
         report.append(f"    Initially Active AFSCs: {', '.join(active_afscs)}")
 
     report.extend([
@@ -126,6 +126,7 @@ def resolve_meet_rated_pgl_feature(instance):
     if checklist_initial:
         if not parameters_active:
             vp['constraint_type'][rated_indices, k] = 2
+            instance.value_parameters = vp  # Explicitly persist the updated value parameters.
             resolution_status = 'ACTIVE'
             resolution = f'Checklist activated. Enabled all {num_total} Rated AFSC quota constraints.'
         else:
@@ -154,7 +155,7 @@ def resolve_meet_rated_pgl_feature(instance):
 
     # Include initially active Rated AFSCs when constraints were only partially enabled.
     if 0 < num_on < num_total:
-        active_afscs = [str(mdl_p['afscs'][j]) for j in active_indices]
+        active_afscs = [str(p['afscs'][j]) for j in active_indices]
         report.append(f"    Initially Active Rated AFSCs: {', '.join(active_afscs)}")
 
     report.extend([
@@ -239,6 +240,7 @@ def resolve_meet_rated_soc_pgl_feature(instance):
             # Activate only the missing required quota constraints
             for j, name, k in missing_constraints:
                 vp['constraint_type'][j, k] = 2
+                instance.value_parameters = vp  # Explicitly persist the updated value parameters.
             resolution_status = 'ACTIVE'
             resolution = (f'Checklist activated. Enabled {len(missing_constraints)} missing '
                           f'quota constraints across {num_total - num_on} Rated AFSCs.')
@@ -384,8 +386,7 @@ def resolve_rated_stability_soc_feature(instance):
         if excluded_socs: details.append(f"    Excluded SOCs: {', '.join(s.upper() for s in excluded_socs)}")
         if invalid_socs: issues.append(f"Unrecognized SOCs: {', '.join(s.upper() for s in invalid_socs)}")
 
-    # ___________________________________________________HELPER FUNCTIONS_________________________________________________
-
+    # _________________________________________________HELPER FUNCTIONS_________________________________________________
     def check_availability():
         """
         Identify available preliminary and optional final rated solutions.
@@ -433,87 +434,94 @@ def resolve_rated_stability_soc_feature(instance):
         return records, mismatches
 
     def check_incorporation():
-        """
-        Validate the final model parameters against preliminary rated matching results.
-
-        The augmentation stage can convert preliminary reservations into inevitable
-        matches. Therefore, preliminary reserved cadets are considered incorporated
-        if they remain correctly reserved OR are fixed to their reserved rated AFSC.
-
-        Preliminary matched cadets must remain fixed to their matched AFSC.
-
-        Reserved preference arrays are validated by their LAST element, which identifies
-        the rated AFSC whose slot was reserved. Earlier elements represent more-preferred
-        AFSCs that the cadet may still receive during GUO optimization.
-
-        Additional assignments in J^Fixed and J^Reserved are permitted.
-
-        Returns:
-            tuple:
-                incorporated (bool): Whether all required assignments and alternate
-                    structures are present.
-                records (list): SOC-specific incorporation statistics.
-                problems (list): Missing or incorrect assignments and structures.
-        """
+        """Validate rated incorporation, inevitable matches, reserves, and alternate structures."""
         fixed, reserved = p.get('J^Fixed'), p.get('J^Reserved')
         records, problems = [], []
 
-        # Missing parameter dictionaries indicate that incorporation has not occurred.
         if not isinstance(fixed, dict) or not isinstance(reserved, dict):
             return False, records, [('PARAMETERS', None, 'J^Fixed or J^Reserved is unavailable')]
 
-        # Validate preliminary matches and reserves against their final parameter states.
         for soc in socs:
-            matched_array = np.asarray(instance.solutions[required[soc]['Matches']]['j_array'])
-            reserved_array = np.asarray(instance.solutions[required[soc]['Reserves']]['j_array'])
+            matched = np.asarray(instance.solutions[required[soc]['Matches']]['j_array'])
+            reserves = np.asarray(instance.solutions[required[soc]['Reserves']]['j_array'])
 
-            # Both arrays use global cadet indices; p['M'] indicates an unassigned cadet.
-            matched_cadets = np.where(matched_array != p['M'])[0].tolist()
-            reserved_cadets = np.where(reserved_array != p['M'])[0].tolist()
+            matched_cadets = np.where(matched != p['M'])[0].tolist()
+            reserved_cadets = np.where(reserves != p['M'])[0].tolist()
 
-            # Preliminary matches must remain fixed to their assigned AFSC.
-            matched_correct = [i for i in matched_cadets if i in fixed and fixed[i] == matched_array[i]]
+            matched_correct = [i for i in matched_cadets if i in fixed and fixed[i] == matched[i]]
             matched_missing = [i for i in matched_cadets if i not in fixed]
-            matched_incorrect = [i for i in matched_cadets if i in fixed and fixed[i] != matched_array[i]]
+            matched_incorrect = [i for i in matched_cadets if i in fixed and fixed[i] != matched[i]]
 
-            # Preliminary reserves may remain reserved or become inevitable fixed matches.
-            reserved_correct, converted_to_fixed = [], []
-            reserved_missing, reserved_incorrect = [], []
+            reserved_correct, converted, reserved_missing, reserved_incorrect = [], [], [], []
 
             for i in reserved_cadets:
-                j = reserved_array[i]
+                j = reserves[i]
 
-                # Augmentation may convert a reserved slot into a fixed rated assignment.
                 if i in fixed:
-                    if fixed[i] == j: converted_to_fixed.append(i)
-                    else: reserved_incorrect.append(i)
-
-                # Otherwise, the rated AFSC must be the last element of the reservation array.
+                    (converted if fixed[i] == j else reserved_incorrect).append(i)
                 elif i in reserved:
                     choices = np.atleast_1d(reserved[i])
-                    if len(choices) and choices[-1] == j: reserved_correct.append(i)
-                    else: reserved_incorrect.append(i)
-
+                    (reserved_correct if len(choices) and choices[-1] == j else reserved_incorrect).append(i)
                 else:
                     reserved_missing.append(i)
 
-            # Record incorporation statistics for reporting.
-            records.append({'soc': soc, 'matched': len(matched_cadets), 'matched_correct': len(matched_correct),
-                            'reserved': len(reserved_cadets), 'reserved_correct': len(reserved_correct),
-                            'converted': len(converted_to_fixed), 'reserved_missing': len(reserved_missing),
-                            'reserved_incorrect': len(reserved_incorrect)})
+            # Final counts reflect initial matches plus inevitable conversions.
+            initial_matches, initial_reserves = len(matched_cadets), len(reserved_cadets)
+            final_matches = len(matched_correct) + len(converted)
+            final_reserves = len(reserved_correct)
 
-            # Collect all missing and incorrect assignments rather than stopping at the first.
+            # SOC-specific alternate lists, indexed by rated AFSC.
+            alternate_key = f'I^Alternate [{soc}]'
+            alternate_lists = p.get(alternate_key, {})
+            alternate_memberships = sum(
+                len(alternate_lists.get(j, [])) for j in p['J^Rated']
+            ) if isinstance(alternate_lists, dict) else 0
+            alternate_cadets = set().union(
+                *(set(alternate_lists.get(j, [])) for j in p['J^Rated'])
+            ) if isinstance(alternate_lists, dict) else set()
+
+            # Hard and soft alternates are global dictionaries; restrict to the current SOC.
+            soc_cadets = set(p[f'{soc}_cadets'])
+            hard = {i for i in p.get('J^Alternates (Hard)', {}) if i in soc_cadets}
+            soft = {i for i in p.get('J^Alternates (Soft)', {}) if i in soc_cadets}
+
+            # Verify the incorporation counters generated by the rated algorithm.
+            expected = {
+                'num_fixed_constraints': len([i for i in fixed if i in soc_cadets]),
+                'num_reserved_constraints': len([i for i in reserved if i in soc_cadets]),
+                'num_alternate_constraints': len([i for i in p.get('I^Alternates', []) if i in soc_cadets])
+            }
+
+            for key, count in expected.items():
+                if key in p and soc in p[key] and p[key][soc] != count:
+                    problems.append((soc, None, f'{key} mismatch: expected {count}, recorded {p[key][soc]}'))
+
+            records.append({
+                'soc': soc,
+                'matched': initial_matches,
+                'matched_correct': len(matched_correct),
+                'reserved': initial_reserves,
+                'reserved_correct': len(reserved_correct),
+                'converted': len(converted),
+                'final_matches': final_matches,
+                'final_reserves': final_reserves,
+                'alternate_memberships': alternate_memberships,
+                'alternate_cadets': len(alternate_cadets),
+                'hard_alternates': len(hard),
+                'soft_alternates': len(soft),
+                'reserved_missing': len(reserved_missing),
+                'reserved_incorrect': len(reserved_incorrect)
+            })
+
             problems.extend((soc, i, 'MATCH MISSING') for i in matched_missing)
             problems.extend((soc, i, 'MATCH INCORRECT') for i in matched_incorrect)
             problems.extend((soc, i, 'RESERVATION MISSING') for i in reserved_missing)
             problems.extend((soc, i, 'RESERVATION INCORRECT') for i in reserved_incorrect)
 
-        # Validate that augmentation created the alternate-list optimization structures.
         for key in alternate_keys:
-            if key not in p: problems.append(('ALTERNATES', None, f'Missing parameter: {key}'))
+            if key not in p:
+                problems.append(('ALTERNATES', None, f'Missing parameter: {key}'))
 
-        # Each SOC should have alternate-list sets for every rated AFSC.
         for soc in socs:
             for prefix in ('J^Preferred', 'I^Preferred', 'I^Alternate'):
                 key = f'{prefix} [{soc}]'
@@ -524,19 +532,29 @@ def resolve_rated_stability_soc_feature(instance):
         return not problems, records, problems
 
     def report_incorporation(records):
-        """Append final rated matching and reservation statistics to the report."""
-        if not records: return
+        """Report preliminary-to-final rated assignments and alternate-list counts."""
+        if not records:
+            return
 
         details.append('    Final Rated Incorporation:')
 
         for r in records:
             soc = r['soc'].upper()
-            reserved_total = r['reserved_correct'] + r['converted']
-            details.append(f"      {soc}: {r['matched_correct']}/{r['matched']} matches fixed; "
-                           f"{reserved_total}/{r['reserved']} reservations incorporated")
 
-            # Converted reservations are an expected outcome of Algorithm 2, not an error.
-            if r['converted']: details.append(f"        Inevitable Matches: {r['converted']} reservations converted to fixed assignments")
+            details.append(f'      {soc}:')
+            details.append(
+                f"        Matches: {r['matched']} initial + {r['converted']} inevitable "
+                f"= {r['final_matches']} final"
+            )
+            details.append(
+                f"        Reserves: {r['reserved']} initial - {r['converted']} inevitable "
+                f"= {r['final_reserves']} final"
+            )
+            details.append(
+                f"        Alternates: {r['alternate_cadets']} unique cadets "
+                f"({r['alternate_memberships']} list memberships; "
+                f"{r['hard_alternates']} hard, {r['soft_alternates']} soft)"
+            )
 
     # ___________________________________________________INITIAL STATE_________________________________________________
 
@@ -562,7 +580,7 @@ def resolve_rated_stability_soc_feature(instance):
                        if p.get('J^Fixed') or p.get('J^Reserved') else 'INACTIVE')
     checklist_status = 'ACTIVE' if checklist_initial else 'INACTIVE'
 
-    # ___________________________________________________RESOLVE FEATURE_________________________________________________
+    # __________________________________________________RESOLVE FEATURE_________________________________________________
 
     # STEP 1: Reject invalid SOC configurations before running algorithms.
     if invalid_socs:
@@ -586,6 +604,8 @@ def resolve_rated_stability_soc_feature(instance):
                     preliminary_rerun = True
 
                 except Exception as exc:
+                    import traceback
+                    traceback.print_exc()
                     issues.append(f'{soc.upper()} matching algorithm failed: {type(exc).__name__}: {exc}')
 
             present, missing, final_present, final_missing = check_availability()
